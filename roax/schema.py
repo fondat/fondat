@@ -80,10 +80,11 @@ from collections.abc import Mapping
 class dict(type):
     """TODO: Description."""
 
-    def __init__(self, fields, **kwargs):
+    def __init__(self, fields, model, **kwargs):
         """TODO: Description."""
         super().__init__(jstype="object", **kwargs)
         self.fields = fields
+        self.model = model
 
     def _fixup(self, se, key):
         se.pointer = _x_str(key) if se.pointer is None else "/".join([_x_str(key), se.pointer])
