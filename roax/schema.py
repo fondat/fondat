@@ -80,7 +80,7 @@ from collections.abc import Mapping
 class dict(type):
     """TODO: Description."""
 
-    def __init__(self, fields, model, **kwargs):
+    def __init__(self, fields, model=None, **kwargs):
         """TODO: Description."""
         super().__init__(jstype="object", **kwargs)
         self.fields = fields
