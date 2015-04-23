@@ -52,7 +52,7 @@ class type(ABC):
     def validate(self, value):
         """TODO: Description."""
         if self.enum is not None and value not in self.enum:
-            raise SchemaError("value must be one of: {0}".format(", ".join([self.encode_param(v) for v in self.enum])))
+            raise SchemaError("value must be one of: {}".format(", ".join([self.encode_param(v) for v in self.enum])))
 
     @abstractmethod
     def encode_json(self, value):
@@ -97,7 +97,7 @@ class dict(type):
         for key, schema in self.fields.items():
             try:
                 try:
-                    result[key] = schema.__getattribute__(method)(value[key])
+                    result[key] = getattr(schema, method)(value[key])
                 except KeyError:
                     pass
             except SchemaError as se:
@@ -178,7 +178,7 @@ class list(type):
         result = []
         try:
             for n, item in zip(range(len(value)), value):
-                result.append(self.items.__getattribute__(method)(item))
+                result.append(getattr(self.items, method)(item))
         except SchemaError as se:
             se.pointer = _x_str(n) if se.pointer is None else "/".join([_x_str(n), se.pointer])
             raise
@@ -189,9 +189,9 @@ class list(type):
         self._process("validate", value)
         super().validate(value)
         if len(value) < self.min_items:
-            raise SchemaError("expecting minimum number of {0} items".format(self.min_items))
+            raise SchemaError("expecting minimum number of {} items".format(self.min_items))
         if self.max_items is not None and len(value) > self.max_items:
-            raise SchemaError("expecting maximum number of {0} items".format(self.max_items))
+            raise SchemaError("expecting maximum number of {} items".format(self.max_items))
         if self.unique_items and len(value) != len(set(value)):
             raise SchemaError("expecting items to be unique")
 
@@ -221,7 +221,7 @@ class list(type):
         self.validate(result)
         return result
 
-
+import re
 class str(type):
     """TODO: Description."""
 
@@ -230,7 +230,7 @@ class str(type):
         super().__init__(jstype="string", **kwargs)
         self.min_len = min_len
         self.max_len = max_len
-        self.pattern = pattern
+        self.pattern = re.compile(pattern) if pattern is not None else None
 
     def validate(self, value):
         """TODO: Description."""
@@ -238,11 +238,11 @@ class str(type):
             raise SchemaError("expecting a string")
         super().validate(value)
         if len(value) < self.min_len:
-            raise SchemaError("expecting minimum length of {0}".format(self.min_len))
+            raise SchemaError("expecting minimum length of {}".format(self.min_len))
         if self.max_len is not None and len(value) > self.max_len:
-            raise SchemaError("expecting maximum length of {0}".format(self.max_len))
+            raise SchemaError("expecting maximum length of {}".format(self.max_len))
         if self.pattern is not None and not self.pattern.match(value):
-            raise SchemaError("expecting pattern: {0}".format(self.pattern.pattern))
+            raise SchemaError("expecting pattern: {}".format(self.pattern.pattern))
 
     def encode_json(self, value):
         """TODO: Description."""
@@ -278,9 +278,9 @@ class _number(type):
         """TODO: Description."""
         super().validate(value)
         if self.minimum is not None and value < self.minimum:
-            raise SchemaError("expecting minimum value of {0}".format(self.minimum))
+            raise SchemaError("expecting minimum value of {}".format(self.minimum))
         if self.maximum is not None and value > self.maximum:
-            raise SchemaError("expecting maximum value of {0}".format(self.maximum))
+            raise SchemaError("expecting maximum value of {}".format(self.maximum))
 
     def encode_json(self, value):
         """TODO: Description."""
