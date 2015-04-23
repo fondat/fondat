@@ -5,14 +5,11 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 from collections import namedtuple
-from inspect import signature, Parameter
+import inspect
 import roax.schema as s
 import wrapt
 
 """TODO: Description."""
-
-
-Method = namedtuple("_Method", "kind, name, function, params, returns")
 
 
 class ResourceError(Exception):
@@ -25,52 +22,49 @@ class ResourceError(Exception):
         self.code = code
 
 
+def _functions(object):
+    """TODO: Description."""
+    result = {}
+    for function in [attr for attr in [getattr(object, name) for name in dir(object)] if callable(attr)]:
+        try:
+            result[function._roax_key] = function
+        except:
+            pass # Ignore undecorated methods.
+    return result
+
+
 class Resource:
     """TODO: Description."""
 
-    @property
-    def methods(self):
+    def __init__(self):
         """TODO: Description."""
-        try:
-            return self._roax_cached_methods
-        except AttributeError:
-            result = {}
-            for function in [attr for attr in [getattr(self, name) for name in dir(self)] if callable(attr)]:
-                try:
-                    method = vars(function)["_roax_method"]
-                except Exception:
-                    pass # Ignore undecorated methods.
-                result[(method.kind, method.name)] = method
-            self._roax_cached_methods = result
-            return result
+        self._functions = _functions(self)
+        self.methods = {f._roax_key: f._roax_schemas for f in self._functions.values()}
 
     def call(self, kind, name=None, params={}):
         """TODO: Description."""
         try:
-            function = self.methods[(kind, name)].function
+            function = self._functions[(kind, name)]
         except KeyError as e:
-            raise ResourceError("resource does not support method: {0}{1}".
-                format(kind, "" if name is None else "." + name), 400)
+            raise ResourceError("resource does not support method", 400)
         return function(**params)
 
 
 def _call(function, args, kwargs, params, returns):
+    """TODO: Description."""
     build = {}
-    sig = signature(function)
+    sig = inspect.signature(function)
     if len(args) > len([p for p in sig.parameters.values() if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)]):
         raise TypeError("too many positional arguments")
     for v, p in zip(args, sig.parameters.values()):
         build[p.name] = v
-    for k,v in kwargs.items():
+    for k, v in kwargs.items():
         if k in build:
-            raise TypeError("multiple values for argument: {0}".format(k))
+            raise TypeError("multiple values for argument: {}".format(k))
         build[k] = v
     if params is not None:
         build = params.defaults(build)
-        try:
-            params.validate(build)
-        except s.SchemaError as se:
-            raise ResourceError(str(se), 400)
+        params.validate(build)
     args = []
     kwargs = {}
     for p in sig.parameters.values():
@@ -83,30 +77,29 @@ def _call(function, args, kwargs, params, returns):
                 raise s.SchemaError("parameter required", p.name)
             else:
                 v = None # Parameter is specified as optional in schema.
-        if p.kind in (Parameter.POSITIONAL_ONLY, Parameter.POSITIONAL_OR_KEYWORD):
+        if p.kind in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD):
             args.append(v)
-        elif p.kind is Parameter.KEYWORD_ONLY:
+        elif p.kind is inspect.Parameter.KEYWORD_ONLY:
             kwargs.append(v)
-        elif p.kind is Parameter.VAR_KEYWORD:
+        elif p.kind is inspect.Parameter.VAR_KEYWORD:
             kwargs.append(v)
             kwargs.update(build)
             break
     result = function(*args, **kwargs)
-    if (returns is not None):
-        try:
-            returns.validate(result)
-        except s.SchemaError as se:
-            raise ResourceError(str(se), 500)
+    if returns is not None:
+        returns.validate(result)
+    return result
 
 
 def method(kind, *, name=None, params=None, returns=None):
     """TODO: Description."""
     def decorator(function):
-        for p in signature(function).parameters.values():
-            if p.kind is Parameter.VAR_POSITIONAL:
-                raise TypeError("methods do not support *args")
-        vars(function)["_roax_method"] = method = Method(kind, name, function, params, returns)
+        for p in inspect.signature(function).parameters.values():
+            if p.kind is inspect.Parameter.VAR_POSITIONAL:
+                raise TypeError("resource methods do not support *args")
+        function._roax_key = (kind, name)
+        function._roax_schemas = (params, returns)
         def wrapper(wrapped, instance, args, kwargs):
-            return _call(function, args, kwargs, params, returns)
+            return _call(wrapped, args, kwargs, params, returns)
         return wrapt.decorator(wrapper)(function)
     return decorator
