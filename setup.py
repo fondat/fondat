@@ -21,8 +21,8 @@ def version():
         raise RuntimeError("failed to parse version")
     return match.group(1)
 
-if sys.version_info[:2] < (3, 4):
-    raise RuntimeError("Roax requires Python 3.4 or greater")
+if sys.version_info[:2] < (3, 6):
+    raise RuntimeError("Roax requires Python 3.6 or greater")
 
 install_requires = [
 	"isodate >= 0.5.4",
@@ -34,7 +34,7 @@ classifiers = [
     "Development Status :: 2 - Pre-Alpha",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: Mozilla Public License 2.0 (MPL 2.0)",
-    "Programming Language :: Python :: 3.4",
+    "Programming Language :: Python :: 3.6",
     "Topic :: Internet :: WWW/HTTP :: WSGI :: Application"
 ]
 
@@ -58,5 +58,5 @@ setup(
     install_requires = install_requires,
     keywords = "wsgi http framework resource roa",
     test_suite = "tests",
-    cmdclass = {'test': test}
+    cmdclass = {"test": test}
 )
