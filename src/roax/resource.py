@@ -1,3 +1,5 @@
+"""TODO: Description."""
+
 # Copyright © 2015–2017 Paul Bryan.
 #
 # This Source Code Form is subject to the terms of the Mozilla Public
@@ -8,8 +10,6 @@ import roax.schema
 import wrapt
 
 from collections import namedtuple
-
-"""TODO: Description."""
 
 class ResourceError(Exception):
     """TODO: Description."""
@@ -33,9 +33,9 @@ class Resource:
                 method = function.roax_method
             except:
                 continue # ignore undecorated methods
-            self.register(function, method.kind, method.name, method.params, method.returns)
+            self.register_method(function, method.kind, method.name, method.params, method.returns)
 
-    def call(self, kind, name=None, params={}):
+    def call_method(self, kind, name=None, params={}):
         """TODO: Description."""
         try:
             function = self.methods[(kind, name)].function
@@ -43,16 +43,18 @@ class Resource:
             raise ResourceError("resource does not provide method", 400)
         return function(**params)
 
-    def register(self, function, kind, name=None, params=None, returns=None):
+    def register_method(self, function, kind=None, name=None, params=None, returns=None):
         """TODO: Description."""
+        if kind is None:
+            kind = function.__name__
         if self.methods.get((kind, name)):
             raise ResourceError("function already registered: {}".format((kind, name)))
         self.methods[(kind, name)] = _Method(function, kind, name, params, returns)
 
-def method(kind, name=None, params=None, returns=None):
+def method(kind=None, name=None, params=None, returns=None):
     """TODO: Description."""
     def decorator(function):
-        function.roax_method = _Method(None, kind, name, params, returns)
+        function.roax_method = _Method(None, kind if kind is not None else function.__name__, name, params, returns)
         def wrapper(wrapped, instance, args, kwargs):
             return roax.schema.call(wrapped, args, kwargs, params, returns)
         return wrapt.decorator(wrapper)(function)

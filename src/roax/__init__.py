@@ -1,3 +1,5 @@
+"""TODO: Description."""
+
 # Copyright © 2015–2017 Paul Bryan.
 #
 # This Source Code Form is subject to the terms of the Mozilla Public
