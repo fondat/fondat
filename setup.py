@@ -21,11 +21,11 @@ def version():
         raise RuntimeError("failed to parse version")
     return match.group(1)
 
-if sys.version_info[:2] < (3, 6):
-    raise RuntimeError("Roax requires Python 3.6 or greater")
+if sys.version_info[:2] < (3, 4):
+    raise RuntimeError("Roax requires Python 3.4 or greater")
 
 install_requires = [
-	"isodate >= 0.5.4",
+    "isodate >= 0.5.4",
     "WebOb >= 1.7.2",
     "wrapt >= 1.10.10"
 ]
@@ -54,7 +54,7 @@ setup(
     classifiers = classifiers,
     url = "https://github.com/pbryan/roax",
     packages = ["roax"],
-	package_dir={"": "src"},
+    package_dir={"": "src"},
     install_requires = install_requires,
     keywords = "wsgi http framework resource roa",
     test_suite = "tests",

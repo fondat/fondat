@@ -1,9 +1,11 @@
-import unittest
-import re
+
 import isodate
+import re
+import roax.schema as s
+import unittest
+
 from datetime import datetime
 from uuid import UUID
-import roax.schema as s
 
 _UTC = isodate.tzinfo.Utc()
 

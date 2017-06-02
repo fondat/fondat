@@ -1,4 +1,4 @@
-# Copyright © 2015 Paul Bryan.
+# Copyright © 2015–2017 Paul Bryan.
 #
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -6,11 +6,13 @@
 
 """TODO: Description."""
 
+import logging
+import re
+import wrapt
+
 from webob import Request, Response, exc
 from roax.resource import Resource, ResourceError
 from roax.schema import SchemaError
-import logging
-import wrapt
 
 def _params(request, _id, schema):
     """TODO: Description."""
@@ -22,33 +24,35 @@ def _params(request, _id, schema):
                     _id = request.params["_id"]
                 result["_id"] = v.decode_param(_id)
             elif k == "_rev":
-                _rev = str(request.if_match)
-                if _rev == "*": # AnyETag
+                _rev = request.headers.get("If-Match")
+                if _rev:
+                    match = re.fullmatch('(W/)?"(.*)"', _rev)
+                    if match:
+                        _rev = match.group(2)
+                if _rev is None:
                     _rev = request.params["_rev"]
                 result["_rev"] = v.decode_param(_rev)
-            elif k == "_body":
+            elif k == "_doc":
                 if request.content_type == "application/json" and request.is_body_readable:
                     try:
-                        _body = request.json
+                        _doc = request.json
                     except Exception as e:
-                        raise SchemaError("malformed entity-body") from e
-                    else:
-                        result["_body"] = v.decode_json(_body)
+                        raise SchemaError("Expecting JSON entity-body") from e
+                    result["_doc"] = v.decode_json(_doc)
             else:
                 result[k] = v.decode_param(request.params[k])
         except KeyError:
             pass
     return result
 
-
 def _dispatch(request, resource, _id):
     """TODO: Description."""
     if request.method == "GET":
-        kind, name = ("query", request.params["_q"]) if "_q" in request.params else ("read", None)
+        kind, name = ("query", request.params["_query"]) if "_query" in request.params else ("read", None)
     elif request.method == "PUT":
         kind, name = ("update", None)
     elif request.method == "POST":
-        kind, name = ("action", request.params["_a"]) if "_a" in request.params else ("create", None)
+        kind, name = ("action", request.params["_action"]) if "_action" in request.params else ("create", None)
     elif request.method == "DELETE":
         kind, name = ("delete", None)
     else:
@@ -56,7 +60,7 @@ def _dispatch(request, resource, _id):
     try:
         params_schema, returns_schema = resource.methods[(kind, name)]
     except KeyError:
-        raise exc.HTTPMethodNotAllowed()
+        raise exc.HTTPBadRequest()
     result = resource.call(kind, name, _params(request, _id, params_schema))
     response = Response()
     if result is not None:
@@ -73,7 +77,6 @@ def _dispatch(request, resource, _id):
         response.headers["Location"] = str(result["_id"])
     return response
 
-
 class ErrorResponse(Response):
 
     def __init__(self, code, message):
@@ -81,7 +84,6 @@ class ErrorResponse(Response):
         self.status_code = code
         self.content_type = "application/json"
         self.json = {"error": code, "message": message}
-
 
 @wrapt.decorator
 def _error_wrapped(wrapped, instance, args, kwargs):
@@ -97,7 +99,6 @@ def _error_wrapped(wrapped, instance, args, kwargs):
     except Exception as e:
         logging.exception(str(e))
         return ErrorResponse(exc.HTTPInternalServerError.code, str(e))
-
 
 class App:
     """TODO: Description."""

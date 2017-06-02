@@ -1,4 +1,4 @@
-# Copyright © 2015 Paul Bryan.
+# Copyright © 2015–2017 Paul Bryan.
 #
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -6,8 +6,10 @@
 
 """TODO: Description."""
 
-from abc import ABC, abstractmethod
+import inspect
+import wrapt
 
+from abc import ABC, abstractmethod
 
 _x_type = type
 _x_dict = dict
@@ -16,7 +18,6 @@ _x_str = str
 _x_int = int
 _x_float = float
 _x_bool = bool
-
 
 class SchemaError(Exception):
     """TODO: Description."""
@@ -34,7 +35,6 @@ class SchemaError(Exception):
         if self.msg is not None:
             result.append(self.msg)
         return ": ".join(result)
-
 
 class type(ABC):
     """TODO: Description."""
@@ -73,7 +73,6 @@ class type(ABC):
     def decode_param(self, value):
         """TODO: Description."""
         pass
-
 
 from copy import deepcopy
 from collections.abc import Mapping
@@ -157,7 +156,6 @@ class dict(type):
         self.validate(result)
         return result
 
-
 import csv
 from io import StringIO
 class list(type):
@@ -235,7 +233,7 @@ class str(type):
     def validate(self, value):
         """TODO: Description."""
         if not isinstance(value, _x_str):
-            raise SchemaError("expecting a string")
+            raise SchemaError("expecting a str type")
         super().validate(value)
         if len(value) < self.min_len:
             raise SchemaError("expecting minimum length of {}".format(self.min_len))
@@ -264,7 +262,6 @@ class str(type):
         self.validate(value)
         return value
 
-
 class _number(type):
     """TODO: Description."""
 
@@ -291,7 +288,6 @@ class _number(type):
         self.validate(value)
         return _x_str(value)
 
-
 class int(_number):
     """TODO: Description."""
 
@@ -302,7 +298,7 @@ class int(_number):
     def validate(self, value):
         """TODO: Description."""
         if not isinstance(value, _x_int):
-            raise SchemaError("expecting an int")
+            raise SchemaError("expecting an int type")
         super().validate(value)
 
     def decode_json(self, value):
@@ -323,7 +319,6 @@ class int(_number):
         self.validate(result)
         return result
 
-
 class float(_number):
     """TODO: Description."""
 
@@ -334,7 +329,7 @@ class float(_number):
     def validate(self, value):
         """TODO: Description."""
         if not isinstance(value, _x_float):
-            raise SchemaError("expecting a float")
+            raise SchemaError("expecting a float type")
         super().validate(value)
         return value
 
@@ -360,7 +355,6 @@ class float(_number):
         self.validate(result)
         return result
 
-
 class bool(type):
     """TODO: Description."""
 
@@ -370,7 +364,7 @@ class bool(type):
 
     def validate(self, value):
         if not isinstance(value, _x_bool):
-            raise SchemaError("expecting a bool")
+            raise SchemaError("expecting a bool type")
         super().validate(value)
 
     def encode_json(self, value):
@@ -406,7 +400,6 @@ class bool(type):
         self.validate(result)
         return result
 
-
 import isodate
 from datetime import datetime as _x_datetime
 class datetime(type):
@@ -439,7 +432,7 @@ class datetime(type):
     def validate(self, value):
         """TODO: Description."""
         if not isinstance(value, _x_datetime):
-            raise SchemaError("expecting a datetime")
+            raise SchemaError("expecting a datetime type")
         super().validate(value)
 
     def encode_json(self, value):
@@ -463,7 +456,6 @@ class datetime(type):
         result = self._parse(value)
         self.validate(result)
         return result
-
 
 from uuid import UUID
 class uuid(type):
@@ -485,7 +477,7 @@ class uuid(type):
     def validate(self, value):
         """TODO: Description."""
         if not isinstance(value, UUID):
-            raise SchemaError("expecting a UUID")
+            raise SchemaError("expecting a UUID type")
         super().validate(value)
 
     def encode_json(self, value):
@@ -509,3 +501,55 @@ class uuid(type):
         result = self._parse(value)
         self.validate(result)
         return result
+
+def call(function, args, kwargs, params, returns):
+    """TODO: Description."""
+    build = {}
+    sig = inspect.signature(function)
+    if len(args) > len([p for p in sig.parameters.values() if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)]):
+        raise TypeError("too many positional arguments")
+    for v, p in zip(args, sig.parameters.values()):
+        build[p.name] = v
+    for k, v in kwargs.items():
+        if k in build:
+            raise TypeError("multiple values for argument: {}".format(k))
+        build[k] = v
+    if params is not None:
+        build = params.defaults(build)
+        params.validate(build)
+    args = []
+    kwargs = {}
+    for p in sig.parameters.values():
+        try:
+            v = build.pop(p.name)
+        except KeyError:
+            if p.default is not p.empty:
+                v = p.default
+            elif params is None:
+                raise s.SchemaError("parameter required", p.name)
+            else:
+                v = None # Parameter is specified as optional in schema.
+        if p.kind in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD):
+            args.append(v)
+        elif p.kind is inspect.Parameter.KEYWORD_ONLY:
+            kwargs.append(v)
+        elif p.kind is inspect.Parameter.VAR_KEYWORD:
+            kwargs.append(v)
+            kwargs.update(build)
+            break
+    result = function(*args, **kwargs)
+    if returns is not None:
+        try:
+            returns.validate(result)
+        except s.SchemaError as se:
+            se.pointer = "[return]/{}".format(se.pointer)
+            raise
+    return result
+
+def validate(params=None, returns=None):
+    """TODO: Description."""
+    def decorator(function):
+        def wrapper(wrapped, instance, args, kwargs):
+            return call(wrapped, args, kwargs, params, returns)
+        return wrapt.decorator(wrapper)(function)
+    return decorator
