@@ -21,9 +21,6 @@ def version():
         raise RuntimeError("failed to parse version")
     return match.group(1)
 
-if sys.version_info[:2] < (3, 4):
-    raise RuntimeError("Roax requires Python 3.4 or greater")
-
 install_requires = [
     "isodate >= 0.5.4",
     "WebOb >= 1.7.2",
@@ -34,27 +31,25 @@ classifiers = [
     "Development Status :: 2 - Pre-Alpha",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: Mozilla Public License 2.0 (MPL 2.0)",
+    "Programming Language :: Python :: 3.4",
+    "Programming Language :: Python :: 3.5",
     "Programming Language :: Python :: 3.6",
     "Topic :: Internet :: WWW/HTTP :: WSGI :: Application"
 ]
-
-long_description = """
-Roax (pronounced /ɹoʊ.æks/) is a lightweight framework for building
-resource-oriented Python applications.
-"""
 
 setup(
     name = "roax",
     version = version(),
     description = "Framework for building resource-oriented Python applications",
-    long_description = long_description,
+    long_description = read("README.rst"),
     author = "Paul Bryan",
     author_email = "pbryan@anode.ca",
     license = "Mozilla Public License 2.0",
     classifiers = classifiers,
     url = "https://github.com/pbryan/roax",
     packages = ["roax"],
-    package_dir={"": "src"},
+    package_dir = {"": "src"},
+    python_requires = ">= 3.4",
     install_requires = install_requires,
     keywords = "wsgi http framework resource roa",
     test_suite = "tests",
