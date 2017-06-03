@@ -1,4 +1,4 @@
-"""TODO: Description."""
+"""Module to define, encode, decode and validate JSON data structures."""
 
 # Copyright © 2015–2017 Paul Bryan.
 #
