@@ -61,7 +61,7 @@ def _dispatch(request, resource, _id):
         params_schema, returns_schema = resource.methods[(kind, name)]
     except KeyError:
         raise exc.HTTPBadRequest()
-    result = resource.call_method(kind, name, _params(request, _id, params_schema))
+    result = resource.call(kind, name, _params(request, _id, params_schema))
     response = Response()
     if result is not None:
         response.content_type = "application/json"

@@ -11,15 +11,6 @@ import wrapt
 
 from collections import namedtuple
 
-class ResourceError(Exception):
-    """TODO: Description."""
-
-    def __init__(self, detail, code=400):
-        """TODO: Description."""
-        super().__init__(self, detail)
-        self.detail = detail
-        self.code = code
-
 _Method = namedtuple("_Method", "function, kind, name, params, returns" )
 
 class Resource:
@@ -32,9 +23,9 @@ class Resource:
                 method = function.roax_method
             except:
                 continue # ignore undecorated methods
-            self.register_method(function, method.kind, method.name, method.params, method.returns)
+            self._register(function, method.kind, method.name, method.params, method.returns)
 
-    def call_method(self, kind, name=None, params={}):
+    def call(self, kind, name=None, params={}):
         """Call a resource method."""
         try:
             function = self.methods[(kind, name)].function
@@ -42,7 +33,7 @@ class Resource:
             raise ResourceError("resource does not provide method", 400)
         return function(**params)
 
-    def register_method(self, function, kind=None, name=None, params=None, returns=None):
+    def _register(self, function, kind=None, name=None, params=None, returns=None):
         """Register a resource method."""
         if kind is None:
             kind = function.__name__
@@ -53,8 +44,33 @@ class Resource:
 def method(kind=None, name=None, params=None, returns=None):
     """Decorate a function to register it as a resource method."""
     def decorator(function):
-        function.roax_method = _Method(None, kind if kind is not None else function.__name__, name, params, returns)
+        try:
+            self = getattr(function, "__self__")
+        except AttributeError:
+            self = None
         def wrapper(wrapped, instance, args, kwargs):
             return roax.schema.call(wrapped, args, kwargs, params, returns)
-        return wrapt.decorator(wrapper)(function)
+        decorated = wrapt.decorator(wrapper)(function)
+        if self:
+            self._register(decorated, kind, name, params, returns)
+        else:
+            function.roax_method = _Method(None, kind, name, params, returns)
+        return decorated
     return decorator
+
+class ResourceError(Exception):
+    """TODO: Description."""
+
+    def __init__(self, detail, code=400):
+        """TODO: Description."""
+        super().__init__(self, detail)
+        self.detail = detail
+        self.code = code
+
+class NotFound(ResourceError):
+    def __init__(self):
+        super().__init__("resource not found", 404)
+
+class PreconditionFailed(ResourceError):
+    def __init__(self):
+        super().__init__("precondition failed", 412)
