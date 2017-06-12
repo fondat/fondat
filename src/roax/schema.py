@@ -18,6 +18,7 @@ _x_str = str
 _x_int = int
 _x_float = float
 _x_bool = bool
+_x_bytes = bytes
 
 class SchemaError(Exception):
     """TODO: Description."""
@@ -39,7 +40,7 @@ class SchemaError(Exception):
 class type(ABC):
     """TODO: Description."""
 
-    def __init__(self, *, jstype, format=None, required=True, default=None, enum=None, description=None, example=None):
+    def __init__(self, *, jstype, format=None, required=True, default=None, enum=None, description=None, examples=None):
         """TODO: Description."""
         self.jstype = jstype
         self.format = format
@@ -47,30 +48,43 @@ class type(ABC):
         self.default = default
         self.enum = enum
         self.description = description
-        self.example = example
+        self.examples = examples
 
     def validate(self, value):
         """TODO: Description."""
         if self.enum is not None and value not in self.enum:
-            raise SchemaError("value must be one of: {}".format(", ".join([self.encode_param(v) for v in self.enum])))
+            raise SchemaError("value must be one of: {}".format(", ".join([self.str_encode(v) for v in self.enum])))
 
     @abstractmethod
-    def encode_json(self, value):
+    def json_encode(self, value):
         """TODO: Description."""
-        pass
 
     @abstractmethod
-    def decode_json(self, value):
+    def json_decode(self, value):
         """TODO: Description."""
-        pass
 
-    @abstractmethod
-    def encode_param(self, value):
+    def json_schema(self):
         """TODO: Description."""
-        pass
+        result = {}
+        result["type"] = self.jstype
+        if self.format is not None:
+            result["format"] = self.format
+        if self.default is not None:
+            result["default"] = self.json_encode(self.default)
+        if self.enum:
+            result["enum"] = [self.json_encode(v) for v in self.enum]
+        if self.description:
+            result["description"] = self.description
+        if self.examples:
+            result["examples"] = [self.json_encode(e) for e in self.examples]
+        return result
 
     @abstractmethod
-    def decode_param(self, value):
+    def str_encode(self, value):
+        """TODO: Description."""
+
+    @abstractmethod
+    def str_decode(self, value):
         """TODO: Description."""
         pass
 
@@ -79,10 +93,10 @@ from collections.abc import Mapping
 class dict(type):
     """TODO: Description."""
 
-    def __init__(self, fields, model=None, **kwargs):
+    def __init__(self, items, model=None, **kwargs):
         """TODO: Description."""
         super().__init__(jstype="object", **kwargs)
-        self.fields = fields
+        self.items = items
         self.model = model
 
     def _fixup(self, se, key):
@@ -93,7 +107,7 @@ class dict(type):
         if not isinstance(value, Mapping):
             raise SchemaError("expecting a key-value mapping")
         result = {}
-        for key, schema in self.fields.items():
+        for key, schema in self.items.items():
             try:
                 try:
                     result[key] = getattr(schema, method)(value[key])
@@ -107,54 +121,54 @@ class dict(type):
     def defaults(self, value):
         """TODO: Description."""
         result = None
-        for key, schema in self.fields.items():
+        for key, schema in self.items.items():
             if key not in value and schema.default is not None:
                 if result is None:
                     result = value.copy()
                 result[key] = schema.default
-        return result if result is not None else value
+        return result if result else value
 
     def validate(self, value):
         """TODO: Description."""
         super().validate(value)
         self._process("validate", value)
-        for key, schema in self.fields.items():
+        for key, schema in self.items.items():
             try:
                 try:
                     schema.validate(value[key])
                 except KeyError:
                     if schema.required:
-                        raise SchemaError("required")
+                        raise SchemaError("value required")
             except SchemaError as se:
                 self._fixup(se, key)
                 raise
         return value
 
-    def encode_json(self, value):
+    def json_encode(self, value):
         """TODO: Description."""
         value = self.defaults(value)
         self.validate(value)
-        return self._process("encode_json", value)
+        return self._process("json_encode", value)
 
-    def decode_json(self, value):
+    def json_decode(self, value):
         """TODO: Description."""
         if not isinstance(value, _x_dict):
             raise SchemaError("expecting an object")
-        result = self.defaults(self._process("decode_json", value))
+        result = self.defaults(self._process("json_decode", value))
         self.validate(result)
         return result
 
-    def encode_param(self, value):
-        """TODO: Description."""
-        value = self.defaults(value)
-        self.validate(value)
-        return self._process("encode_param", value)
-
-    def decode_param(self, value):
-        """TODO: Description."""
-        result = self.defaults(self._process("decode_param", value))
-        self.validate(result)
+    def json_schema(self):
+        result = super().json_schema()
+        result["properties"] = { k: v.json_schema() for k, v in self.items.items() }
+        result["required"] = [ k for k, v in self.items.items() if v.required ]
         return result
+
+    def str_encode(self, value):
+        raise SchemaError("dict string encoding is not supported")
+
+    def str_decode(self, value):
+        raise SchemaError("dict string decoding is not supported")
 
 import csv
 from io import StringIO
@@ -162,7 +176,12 @@ class list(type):
     """TODO: Description."""
 
     def __init__(self, items, *, min_items=0, max_items=None, unique_items=False, **kwargs):
-        """TODO: Description."""
+        """
+        items -- the schema which all items should conform to.
+        min_items -- The minimum number of items required.
+        max_items -- The maximum number of items required.
+        unique_items -- True if all items must have unique values.
+        """
         super().__init__(jstype="array", **kwargs)
         self.items = items
         self.min_items = min_items
@@ -193,31 +212,36 @@ class list(type):
         if self.unique_items and len(value) != len(set(value)):
             raise SchemaError("expecting items to be unique")
 
-    def encode_json(self, value):
+    def json_encode(self, value):
         """TODO: Description."""
         self.validate(value)
-        return self._process("encode_json", value)
+        return self._process("json_encode", value)
 
-    def decode_json(self, value):
+    def json_decode(self, value):
         """TODO: Description."""
         if not isinstance(value, _x_list):
             raise SchemaError("expecting a JSON array")
-        result = self._process("decode_json", value)
+        result = self._process("json_decode", value)
         self.validate(result)
         return result
 
-    def encode_param(self, value):
+    def json_schema(self):
+        result = super().json_schema()
+        return result
+
+    def str_encode(self, value):
         """TODO: Description."""
         self.validate(value)
         sio = StringIO()
-        csv.writer(sio).writerow(self._process("encode_param", value))
+        csv.writer(sio).writerow(self._process("str_encode", value))
         return sio.getvalue().rstrip("\r\n")
 
-    def decode_param(self, value):
+    def str_decode(self, value):
         """TODO: Description."""
-        result = self._process("decode_param", csv.reader([value]).__next__())
+        result = self._process("str_decode", csv.reader([value]).__next__())
         self.validate(result)
         return result
+list.__init__.__doc__ = type.__init__.__doc__ + "\n" + list.__init__.__doc__
 
 import re
 class str(type):
@@ -242,22 +266,30 @@ class str(type):
         if self.pattern is not None and not self.pattern.match(value):
             raise SchemaError("expecting pattern: {}".format(self.pattern.pattern))
 
-    def encode_json(self, value):
+    def json_encode(self, value):
+        """TODO: Description."""
+        return self.str_encode(value)
+
+    def json_decode(self, value):
+        """TODO: Description."""
+        return self.str_decode(value)
+
+    def json_schema(self):
+        result = super().json_schema()
+        if self.min_len is not None:
+             result["minLength"] = min_len
+        if self.max_len is not None:
+            result["maxLength"] = max_len
+        if self.pattern:
+            result["pattern"] = self.pattern.pattern
+        return result
+ 
+    def str_encode(self, value):
         """TODO: Description."""
         self.validate(value)
         return value
 
-    def decode_json(self, value):
-        """TODO: Description."""
-        self.validate(value)
-        return value
-
-    def encode_param(self, value):
-        """TODO: Description."""
-        self.validate(value)
-        return value
-
-    def decode_param(self, value):
+    def str_decode(self, value):
         """TODO: Description."""
         self.validate(value)
         return value
@@ -279,12 +311,16 @@ class _number(type):
         if self.maximum is not None and value > self.maximum:
             raise SchemaError("expecting maximum value of {}".format(self.maximum))
 
-    def encode_json(self, value):
+    def json_encode(self, value):
         """TODO: Description."""
         self.validate(value)
         return value
 
-    def encode_param(self, value):
+    def json_schema(self):
+        result = super().json_schema()
+        return result
+
+    def str_encode(self, value):
         self.validate(value)
         return _x_str(value)
 
@@ -301,14 +337,14 @@ class int(_number):
             raise SchemaError("expecting an int type")
         super().validate(value)
 
-    def decode_json(self, value):
+    def json_decode(self, value):
         """TODO: Description."""
         if not isinstance(value, _x_int):
             raise SchemaError("expecting an integer")
         self.validate(value)
         return value
 
-    def decode_param(self, value):
+    def str_decode(self, value):
         """TODO: Description."""
         if not isinstance(value, _x_str):
             raise SchemaError("expecting a string")
@@ -333,7 +369,7 @@ class float(_number):
         super().validate(value)
         return value
 
-    def decode_json(self, value):
+    def json_decode(self, value):
         """TODO: Description."""
         if isinstance(value, _x_float):
             result = value
@@ -344,7 +380,7 @@ class float(_number):
         self.validate(result)
         return result
 
-    def decode_param(self, value):
+    def str_decode(self, value):
         """TODO: Description."""
         if not isinstance(value, _x_str):
             raise SchemaError("expecting a string")
@@ -367,19 +403,23 @@ class bool(type):
             raise SchemaError("expecting a bool type")
         super().validate(value)
 
-    def encode_json(self, value):
+    def json_encode(self, value):
         """TODO: Description."""
         self.validate(value)
         return value
 
-    def decode_json(self, value):
+    def json_decode(self, value):
         """TODO: Description."""
         if not isinstance(value, _x_bool):
             raise SchemaError("expecting true or false")
         self.validate(value)
         return value
 
-    def encode_param(self, value):
+    def json_schema(self):
+        result = super().json_schema()
+        return result
+
+    def str_encode(self, value):
         """TODO: Description."""
         self.validate(value)
         if value is True:
@@ -387,7 +427,7 @@ class bool(type):
         elif value is False:
             return "false"
 
-    def decode_param(self, value):
+    def str_decode(self, value):
         """TODO: Description."""
         if not isinstance(value, _x_str):
             raise SchemaError("expecting a string")
@@ -413,21 +453,9 @@ class datetime(type):
 
     def _to_utc(self, value):
         """TODO: Description."""
-        if value.tzinfo is None: # Naive value is assumed to be UTC.
+        if value.tzinfo is None: # naive value interpreted as UTC
             value = value.replace(tzinfo=isodate.tzinfo.Utc())
         return value.astimezone(datetime._UTC)
-
-    def _to_string(self, value):
-        """TODO: Description."""
-        return isodate.datetime_isoformat(self._to_utc(value))
-
-    def _parse(self, value):
-        if not isinstance(value, _x_str):
-            raise SchemaError("expecting a string")
-        try:
-            return self._to_utc(isodate.parse_datetime(value))
-        except ValueError:
-            raise SchemaError("expecting an ISO 8601 date-time value")
 
     def validate(self, value):
         """TODO: Description."""
@@ -435,24 +463,32 @@ class datetime(type):
             raise SchemaError("expecting a datetime type")
         super().validate(value)
 
-    def encode_json(self, value):
+    def json_encode(self, value):
         """TODO: Description."""
-        self.validate(value)
-        return self._to_string(value)
+        return self.str_encode(value)
 
-    def decode_json(self, value):
+    def json_decode(self, value):
         """TODO: Description."""
-        result = self._parse(value)
-        self.validate(result)
+        return self.str_decode(value)
+
+    def json_schema(self):
+        result = super().json_schema()
         return result
 
-    def encode_param(self, value):
+    def str_encode(self, value):
         """TODO: Description."""
         self.validate(value)
-        return self._to_string(value)
+        return isodate.datetime_isoformat(self._to_utc(value))
 
-    def decode_param(self, value):
+    def str_decode(self, value):
         """TODO: Description."""
+        if not isinstance(value, _x_str):
+            raise SchemaError("expecting a string")
+        try:
+            return self._to_utc(isodate.parse_datetime(value))
+        except ValueError:
+            raise SchemaError("expecting an ISO 8601 date-time value")
+
         result = self._parse(value)
         self.validate(result)
         return result
@@ -465,40 +501,80 @@ class uuid(type):
         """TODO: Description."""
         super().__init__(jstype="string", format="uuid", **kwargs)
 
-    def _parse(self, value):
-        """TODO: Description."""
-        if not isinstance(value, _x_str):
-            raise SchemaError("expecting a string")
-        try:
-            return UUID(value)
-        except ValueError:
-            raise SchemaError("expecting a UUID value")
-
     def validate(self, value):
         """TODO: Description."""
         if not isinstance(value, UUID):
             raise SchemaError("expecting a UUID type")
         super().validate(value)
 
-    def encode_json(self, value):
+    def json_encode(self, value):
+        """TODO: Description."""
+        return self.str_encode(value)
+
+    def json_decode(self, value):
+        """TODO: Description."""
+        return self.str_decode(value)
+
+    def json_schema(self):
+        result = super().json_schema()
+        return result
+
+    def str_encode(self, value):
         """TODO: Description."""
         self.validate(value)
         return _x_str(value)
 
-    def decode_json(self, value):
+    def str_decode(self, value):
         """TODO: Description."""
-        result = self._parse(value)
+        if not isinstance(value, _x_str):
+            raise SchemaError("expecting a string")
+        try:
+            result = UUID(value)
+        except ValueError:
+            raise SchemaError("expecting a UUID value")
         self.validate(result)
         return result
 
-    def encode_param(self, value):
+import binascii
+from base64 import b64decode, b64encode
+class bytes(type):
+    """TODO: Description."""
+
+    def __init__(self, **kwargs):
+        """TODO: Description."""
+        super().__init__(jstype="string", format="byte", **kwargs)
+
+    def validate(self, value):
+        """TODO: Description."""
+        if not isinstance(value, _x_bytes):
+            raise SchemaError("expecting a bytes type")
+        super().validate(value)
+
+    def json_encode(self, value):
+        """TODO: Description."""
+        return self.str_encode(value)
+
+    def json_decode(self, value):
+        """TODO: Description."""
+        return self.str_decode(value)
+
+    def json_schema(self):
+        result = super().json_schema()
+        return result
+
+    def str_encode(self, value):
         """TODO: Description."""
         self.validate(value)
-        return _x_str(value)
+        return b64encode(value).decode()
 
-    def decode_param(self, value):
+    def str_decode(self, value):
         """TODO: Description."""
-        result = self._parse(value)
+        if not isinstance(value, _x_str):
+            raise SchemaError("expecting a string")
+        try:
+            result = b64decode(value)
+        except binascii.Error:
+            raise SchemaError("expecting a Base64-encoded value")
         self.validate(result)
         return result
 
