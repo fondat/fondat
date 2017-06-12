@@ -36,12 +36,15 @@ class Resource:
     def _register(self, function, kind=None, name=None, params=None, returns=None):
         """Register a resource method."""
         if kind is None:
-            kind = function.__name__
+            splt = function.__name__.split("_", 1)
+            kind = splt[0]
+            if len(splt) > 1:
+                kind = splt[1]
         if self.methods.get((kind, name)):
             raise ResourceError("function already registered: {}".format((kind, name)))
         self.methods[(kind, name)] = _Method(function, kind, name, params, returns)
 
-def method(kind=None, name=None, params=None, returns=None):
+def method(*, kind=None, name=None, params=None, returns=None):
     """Decorate a function to register it as a resource method."""
     def decorator(function):
         try:
