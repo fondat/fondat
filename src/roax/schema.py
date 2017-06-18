@@ -20,23 +20,6 @@ _x_float = float
 _x_bool = bool
 _x_bytes = bytes
 
-class SchemaError(Exception):
-    """TODO: Description."""
-
-    def __init__(self, msg, pointer=None):
-        """TODO: Description."""
-        self.msg = msg
-        self.pointer = pointer
-
-    def __str__(self):
-        """TODO: Description."""
-        result = []
-        if self.pointer is not None:
-            result.append(self.pointer)
-        if self.msg is not None:
-            result.append(self.msg)
-        return ": ".join(result)
-
 class type(ABC):
     """TODO: Description."""
 
@@ -93,11 +76,10 @@ from collections.abc import Mapping
 class dict(type):
     """TODO: Description."""
 
-    def __init__(self, items, model=None, **kwargs):
+    def __init__(self, properties, **kwargs):
         """TODO: Description."""
         super().__init__(jstype="object", **kwargs)
-        self.items = items
-        self.model = model
+        self.properties = properties
 
     def _fixup(self, se, key):
         se.pointer = _x_str(key) if se.pointer is None else "/".join([_x_str(key), se.pointer])
@@ -107,7 +89,7 @@ class dict(type):
         if not isinstance(value, Mapping):
             raise SchemaError("expecting a key-value mapping")
         result = {}
-        for key, schema in self.items.items():
+        for key, schema in self.properties.items():
             try:
                 try:
                     result[key] = getattr(schema, method)(value[key])
@@ -121,7 +103,7 @@ class dict(type):
     def defaults(self, value):
         """TODO: Description."""
         result = None
-        for key, schema in self.items.items():
+        for key, schema in self.properties.items():
             if key not in value and schema.default is not None:
                 if result is None:
                     result = value.copy()
@@ -132,7 +114,7 @@ class dict(type):
         """TODO: Description."""
         super().validate(value)
         self._process("validate", value)
-        for key, schema in self.items.items():
+        for key, schema in self.properties.items():
             try:
                 try:
                     schema.validate(value[key])
@@ -160,8 +142,8 @@ class dict(type):
 
     def json_schema(self):
         result = super().json_schema()
-        result["properties"] = { k: v.json_schema() for k, v in self.items.items() }
-        result["required"] = [ k for k, v in self.items.items() if v.required ]
+        result["properties"] = { k: v.json_schema() for k, v in self.properties.items() }
+        result["required"] = [ k for k, v in self.properties.items() if v.required ]
         return result
 
     def str_encode(self, value):
@@ -629,3 +611,20 @@ def validate(params=None, returns=None):
             return call(wrapped, args, kwargs, params, returns)
         return wrapt.decorator(wrapper)(function)
     return decorator
+
+class SchemaError(Exception):
+    """TODO: Description."""
+
+    def __init__(self, msg, pointer=None):
+        """TODO: Description."""
+        self.msg = msg
+        self.pointer = pointer
+
+    def __str__(self):
+        """TODO: Description."""
+        result = []
+        if self.pointer is not None:
+            result.append(self.pointer)
+        if self.msg is not None:
+            result.append(self.msg)
+        return ": ".join(result)
