@@ -13,17 +13,32 @@ from collections import namedtuple
 
 _Method = namedtuple("_Method", "function, kind, name, params, returns" )
 
-class Resource:
-    """Base class for resources."""
+class ResourceSet:
+    """Base class for a set of like resources."""
+
+    def _register_method(self, function, kind=None, name=None, params=None, returns=None):
+        """Register a resource method."""
+        if kind is None:
+            splt = function.__name__.split("_", 1)
+            kind = splt[0]
+            if len(splt) > 1:
+                name = splt[1]
+        if self.methods.get((kind, name)):
+            raise ResourceError("function already registered: {}".format((kind, name)))
+        self.methods[(kind, name)] = _Method(function, kind, name, params, returns)
 
     def __init__(self):
+        """TODO: Description.
+        
+        A class or instance variable named `schema` must be defined for the resources class.
+        """
         self.methods = {}
         for function in [attr for attr in [getattr(self, name) for name in dir(self)] if callable(attr)]:
             try:
                 method = function.roax_method
             except:
                 continue # ignore undecorated methods
-            self._register(function, method.kind, method.name, method.params, method.returns)
+            self._register_method(function, method.kind, method.name, method.params, method.returns)
 
     def call(self, kind, name=None, params={}):
         """Call a resource method."""
@@ -32,17 +47,6 @@ class Resource:
         except KeyError as e:
             raise ResourceError("resource does not provide method", 400)
         return function(**params)
-
-    def _register(self, function, kind=None, name=None, params=None, returns=None):
-        """Register a resource method."""
-        if kind is None:
-            splt = function.__name__.split("_", 1)
-            kind = splt[0]
-            if len(splt) > 1:
-                kind = splt[1]
-        if self.methods.get((kind, name)):
-            raise ResourceError("function already registered: {}".format((kind, name)))
-        self.methods[(kind, name)] = _Method(function, kind, name, params, returns)
 
 def method(*, kind=None, name=None, params=None, returns=None):
     """Decorate a function to register it as a resource method."""
@@ -55,7 +59,7 @@ def method(*, kind=None, name=None, params=None, returns=None):
             return roax.schema.call(wrapped, args, kwargs, params, returns)
         decorated = wrapt.decorator(wrapper)(function)
         if self:
-            self._register(decorated, kind, name, params, returns)
+            self._register_method(decorated, kind, name, params, returns)
         else:
             function.roax_method = _Method(None, kind, name, params, returns)
         return decorated
@@ -70,10 +74,18 @@ class ResourceError(Exception):
         self.detail = detail
         self.code = code
 
+class BadRequest(ResourceError):
+    def __init__(self, detail="bad request"):
+        super().__init__(detail, 400)
+
 class NotFound(ResourceError):
-    def __init__(self):
-        super().__init__("resource not found", 404)
+    def __init__(self, detail="not found"):
+        super().__init__(detail, 404)
 
 class PreconditionFailed(ResourceError):
-    def __init__(self):
-        super().__init__("precondition failed", 412)
+    def __init__(self, detail="precondition failed"):
+        super().__init__(detail, 412)
+
+class InternalServerError(ResourceError):
+    def __init__(self, detail="internal server error"):
+        super().__init__(detail, 500)
