@@ -11,7 +11,7 @@ import re
 import wrapt
 
 from webob import Request, Response, exc
-from roax.resource import Resource, ResourceError
+from roax.resource import ResourceError
 from roax.schema import SchemaError
 
 def _params(request, _id, schema):
