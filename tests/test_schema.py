@@ -22,55 +22,55 @@ class TestSchema(unittest.TestCase):
     # ----- dict ---------------
 
     def test_dict_validate_success(self):
-        s.dict(items={"a": s.str()}).validate({"a": "b"})
+        s.dict({"a": s.str()}).validate({"a": "b"})
 
     def test_dict_validate_error(self):
-        self._error(s.dict(items={"c": s.int()}).validate, '{"this": "is_not_a_dict"}')
+        self._error(s.dict({"c": s.int()}).validate, '{"this": "is_not_a_dict"}')
 
     def test_dict_validate_required_success(self):
-        s.dict(items={"e": s.float()}).validate({"e": 1.2})
+        s.dict({"e": s.float()}).validate({"e": 1.2})
 
     def test_dict_validate_required_error(self):
-        self._error(s.dict(items={"f": s.str()}).validate, {})
+        self._error(s.dict({"f": s.str()}).validate, {})
 
     def test_dict_validate_ignore_extra_fields(self):
-        s.dict(items={"g": s.str()}).validate({"g": "h", "i": "j"})
+        s.dict({"g": s.str()}).validate({"g": "h", "i": "j"})
 
     def test_dict_validate_optional_success(self):
-        s.dict(items={"k": s.str(), "l": s.str(required=False)}).validate({"k": "m"})
+        s.dict({"k": s.str(), "l": s.str(required=False)}).validate({"k": "m"})
 
     def test_dict_validate_default(self):
-        s.dict(items={"n": s.str(required=False, default="o")}).validate({})
+        s.dict({"n": s.str(required=False, default="o")}).validate({})
 
     def test_dict_json_encode_success(self):
-        self._equal(s.dict(items={"eja": s.str(), "ejb": s.int()}).json_encode, {"eja": "foo", "ejb": 123})
+        self._equal(s.dict({"eja": s.str(), "ejb": s.int()}).json_encode, {"eja": "foo", "ejb": 123})
 
     def test_dict_json_encode_optional_success(self):
-        self._equal(s.dict(items={"ejc": s.float(), "ejd": s.bool(required=False)}).json_encode, {"ejc": 123.45})
+        self._equal(s.dict({"ejc": s.float(), "ejd": s.bool(required=False)}).json_encode, {"ejc": 123.45})
 
     def test_dict_json_encode_default_success(self):
-        self.assertEqual(s.dict(items={"eje": s.bool(required=False, default=False)}).json_encode({}), {"eje": False}) 
+        self.assertEqual(s.dict({"eje": s.bool(required=False, default=False)}).json_encode({}), {"eje": False}) 
 
     def test_dict_json_encode_ignore_success(self):
-        self.assertEqual(s.dict(items={"ejf": s.int()}).json_encode({"ejf": 456, "ejg": "bar"}), {"ejf": 456})
+        self.assertEqual(s.dict({"ejf": s.int()}).json_encode({"ejf": 456, "ejg": "bar"}), {"ejf": 456})
 
     def test_dict_json_encode_error(self):
-        self._error(s.dict(items={"ejh": s.int()}).json_encode, {"ejh": "not an int"})
+        self._error(s.dict({"ejh": s.int()}).json_encode, {"ejh": "not an int"})
 
     def test_dict_json_decode_success(self):
-        self._equal(s.dict(items={"dja": s.float(), "djb": s.bool()}).json_decode, {"dja": 802.11, "djb": True})
+        self._equal(s.dict({"dja": s.float(), "djb": s.bool()}).json_decode, {"dja": 802.11, "djb": True})
 
     def test_dict_json_decode_optional_success(self):
-        self._equal(s.dict(items={"djc": s.int(), "djd": s.str(required=False)}).json_decode, {"djc": 12345})
+        self._equal(s.dict({"djc": s.int(), "djd": s.str(required=False)}).json_decode, {"djc": 12345})
 
     def test_dict_json_decode_default_success(self):
-        self.assertEqual(s.dict(items={"dje": s.str(required=False, default="defaulty")}).json_decode({}), {"dje": "defaulty"}) 
+        self.assertEqual(s.dict({"dje": s.str(required=False, default="defaulty")}).json_decode({}), {"dje": "defaulty"}) 
 
     def test_dict_json_decode_ignore_success(self):
-        self.assertEqual(s.dict(items={"djf": s.str()}).json_decode({"djf": "baz", "djg": "ignoreme"}), {"djf": "baz"})
+        self.assertEqual(s.dict({"djf": s.str()}).json_decode({"djf": "baz", "djg": "ignoreme"}), {"djf": "baz"})
 
     def test_dict_json_decode_error(self):
-        self._error(s.dict(items={"djx": s.str()}).json_decode, {"djx": False})
+        self._error(s.dict({"djx": s.str()}).json_decode, {"djx": False})
 
     # ----- list ---------------
 
