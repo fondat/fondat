@@ -3,24 +3,24 @@ import inspect
 import json
 import os
 import roax.schema as s
+import roax.resource as r
 
 from collections import ChainMap
 from copy import copy
-from roax.resource import ResourceSet, NotFound, method
 
 try:
     import fcntl
 except ImportError:
     fcntl = None
 
-class FileResourceSet(ResourceSet):
+class FileResourceSet(r.ResourceSet):
     """TODO: Description."""
 
     def _filename(self, _id):
         _id = self._id_schema.str_encode(_id)
         for c in '/\\:*?"<>|':
             if c in _id:
-                raise ResourceException("_id contains invalid character")
+                raise r.ResourceException("_id contains invalid character")
         return "{}/{}.json".format(self.dir, _id)
 
     def _open(self, _id, mode):
@@ -30,18 +30,18 @@ class FileResourceSet(ResourceSet):
                 fcntl.flock(file.fileno(), fcntl.LOCK_EX)
             return file
         except FileNotFoundError:
-            raise NotFound("resource not found")
+            raise r.NotFound("resource not found")
         except FileExistsError:
-            raise PreconditionFailed("resource already exists")
+            raise r.PreconditionFailed("resource already exists")
 
     def _read(self, file):
         file.seek(0)
         try:
             return self.schema.json_decode(json.load(file))
         except ValueError:
-            raise InternalServerError("malformed JSON document")
+            raise r.InternalServerError("malformed JSON document")
         except s.SchemaError:
-            raise InternalServerError("document failed schema validation")
+            raise r.InternalServerError("document failed schema validation")
 
     def _write(self, file, _doc, _id, _rev):
         file.seek(0)
@@ -75,12 +75,12 @@ class FileResourceSet(ResourceSet):
                 if schema:
                     result[name] = schema
             return s.dict(result) if len(result) > 0 else None
-        self.create = method(params=params(self.create), returns=returns(["_id","_rev"]))(self.create)
-        self.read = method(params=params(self.read), returns=self.schema)(self.read)
-        self.update = method(params=params(self.update), returns=returns(["_rev"]))(self.update)
-        self.delete = method(params=params(self.delete))(self.delete)
-        self.query_ids = method(returns=s.list(self.schema.properties["_id"]))(self.query_ids)
-        self.query_all = method(returns=s.list(self.schema))(self.query_all)
+        self.create = r.method(params=params(self.create), returns=returns(["_id","_rev"]))(self.create)
+        self.read = r.method(params=params(self.read), returns=self.schema)(self.read)
+        self.update = r.method(params=params(self.update), returns=returns(["_rev"]))(self.update)
+        self.delete = r.method(params=params(self.delete))(self.delete)
+        self.query_ids = r.method(returns=s.list(self.schema.properties["_id"]))(self.query_ids)
+        self.query_all = r.method(returns=s.list(self.schema))(self.query_all)
 
     @property
     def _id_schema(self):
@@ -103,12 +103,15 @@ class FileResourceSet(ResourceSet):
         if _id is None:
             _id = self.gen_id()
             if _id is None:
-                raise InternalServerError("cannot generate _id")
+                raise r.InternalServerError("cannot generate _id")
         _rev = self.gen_rev(_doc) if self._rev_schema else None
         if self._rev_schema and _rev is None:
-            raise InternalServerError("cannot generate _rev")
-        with self._open(_id, "x") as file:
-            self._write(file, _doc, _id, _rev)
+            raise r.InternalServerError("cannot generate _rev")
+        try:
+            with self._open(_id, "x") as file:
+                self._write(file, _doc, _id, _rev)
+        except r.NotFound:
+            raise r.InternalServerError("file resource set directory not found")
         result = { "_id": _id }
         if _rev:
             result["_rev"] = _rev
@@ -124,12 +127,12 @@ class FileResourceSet(ResourceSet):
     def update(self, _id, _doc, _rev=None):
         """Update a resource."""
         if self.strict_rev and _rev is None:
-            raise BadRequest("_rev is required")
+            raise r.BadRequest("_rev is required")
         with self._open(_id, "r+") as file:
             if _rev:
                 old = self._read(file)
                 if old["_rev"] != _rev:
-                    raise PreconditionFailed("_rev does not match")
+                    raise r.PreconditionFailed("_rev does not match")
                 _rev = self.gen_rev(_doc)
             self._write(file, _doc, _id, _rev)
         return { "_rev": _rev } if _rev else None
@@ -137,16 +140,16 @@ class FileResourceSet(ResourceSet):
     def delete(self, _id, _rev=None):
         """Update a resource."""
         if self.strict_rev and _rev is None:
-            raise BadRequest("_rev is required")
+            raise r.BadRequest("_rev is required")
         if _rev:
             with self._open(_id, "r") as file:
                 old = self._read(file)
                 if old["_rev"] != _rev:
-                    raise PreconditionFailed("_rev does not match")            
+                    raise r.PreconditionFailed("_rev does not match")            
         try:
             os.remove(self._filename(_id))
         except FileNotFoundError:
-            raise NotFound("resource not found")
+            raise r.NotFound("resource not found")
 
     def query_ids(self):
         """Return all resource identifiers."""
@@ -165,6 +168,6 @@ class FileResourceSet(ResourceSet):
         for _id in self.query_ids():
             try:
                 result.append(self.read(_id))
-            except NotFound:
+            except r.NotFound:
                 pass # ignore resources deleted since query_ids
         return result
