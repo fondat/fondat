@@ -133,7 +133,7 @@ class FileResourceSet(r.ResourceSet):
                 old = self._read(file)
                 if old["_rev"] != _rev:
                     raise r.PreconditionFailed("_rev does not match")
-                _rev = self.gen_rev(_doc)
+                _rev = self.gen_rev(old)
             self._write(file, _doc, _id, _rev)
         return { "_rev": _rev } if _rev else None
 
