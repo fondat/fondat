@@ -9,13 +9,6 @@ from uuid import uuid4
 
 class TestFileResource(unittest.TestCase):
 
-    def _equal(self, fn, val):
-        self.assertEqual(val, fn(val))
-
-    def _error(self, fn, val):
-        with self.assertRaises(s.SchemaError):
-            fn(val)
-
     def test_crud(self):
         
         class FooResourceSet(FileResourceSet):
@@ -63,7 +56,6 @@ class TestFileResource(unittest.TestCase):
                 return str(uuid4())
 
             def gen_rev(self, _doc):
-                print("gen_rev was here")
                 _rev = _doc.get("_rev")
                 _rev = _rev + 1 if _rev else 1
                 return _rev
@@ -77,10 +69,12 @@ class TestFileResource(unittest.TestCase):
             self.assertEqual(_rev, 1)
             _doc = { "foo": "qux" }
             result = rs.update(_id, _doc, 1)
-            print(str(result))
             self.assertEqual(result["_rev"], 2)
             with self.assertRaises(r.PreconditionFailed):
-                rs.update(_id, _doc, 3)
+                rs.update(_id, _doc, 1)
+            _doc = { "foo": "bar" }
+            result = rs.update(_id, _doc)
+            self.assertEqual(result["_rev"], 3)
 
 if __name__ == "__main__":
     unittest.main()
