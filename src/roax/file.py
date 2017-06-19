@@ -129,9 +129,9 @@ class FileResourceSet(r.ResourceSet):
         if self.strict_rev and _rev is None:
             raise r.BadRequest("_rev is required")
         with self._open(_id, "r+") as file:
-            if _rev:
+            if self._rev_schema:
                 old = self._read(file)
-                if old["_rev"] != _rev:
+                if _rev is not None and old["_rev"] != _rev:
                     raise r.PreconditionFailed("_rev does not match")
                 _rev = self.gen_rev(old)
             self._write(file, _doc, _id, _rev)

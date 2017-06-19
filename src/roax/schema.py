@@ -584,7 +584,7 @@ def call(function, args, kwargs, params, returns):
             if p.default is not p.empty:
                 v = p.default
             elif params is None:
-                raise s.SchemaError("parameter required", p.name)
+                raise SchemaError("parameter required", p.name)
             else:
                 v = None # Parameter is specified as optional in schema.
         if p.kind in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD):
@@ -599,7 +599,7 @@ def call(function, args, kwargs, params, returns):
     if returns is not None:
         try:
             returns.validate(result)
-        except s.SchemaError as se:
+        except SchemaError as se:
             se.pointer = "[return]/{}".format(se.pointer)
             raise
     return result
