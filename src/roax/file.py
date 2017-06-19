@@ -16,6 +16,14 @@ except ImportError:
 class FileResourceSet(r.ResourceSet):
     """TODO: Description."""
 
+    @property
+    def _id_schema(self):
+        return self.schema.properties["_id"]
+
+    @property
+    def _rev_schema(self):
+        return self.schema.properties.get("_rev")
+
     def _filename(self, _id):
         _id = self._id_schema.str_encode(_id)
         for c in '/\\:*?"<>|':
@@ -51,9 +59,12 @@ class FileResourceSet(r.ResourceSet):
             _doc["_rev"] = _rev
         json.dump(self.schema.json_encode(_doc), file, separators=(",",":"), ensure_ascii=False)
 
-    def __init__(self, dir, strict_rev=False):
+    def __init__(self, dir, mkdir=False, strict_rev=False):
+        """TODO: Description."""
         super().__init__()
         self.dir = dir.rstrip("/")
+        if mkdir:
+            os.makedirs(self.dir, exist_ok=True)
         self.strict_rev = strict_rev
         def params(function):
             result = {}
@@ -82,20 +93,12 @@ class FileResourceSet(r.ResourceSet):
         self.query_ids = r.method(returns=s.list(self.schema.properties["_id"]))(self.query_ids)
         self.query_all = r.method(returns=s.list(self.schema))(self.query_all)
 
-    @property
-    def _id_schema(self):
-        return self.schema.properties["_id"]
-
-    @property
-    def _rev_schema(self):
-        return self.schema.properties.get("_rev")
-
     def gen_id(self):
-        """Generate a new identifier. Base class implementation returns None."""
+        """Generate a new identifier. This implementation returns None."""
         return None
 
     def gen_rev(self, _doc):
-        """Generate a revision value for the document. Base class implementation returns None."""
+        """Generate a revision value for the document. This implementation returns None."""
         return None
 
     def create(self, _doc, _id=None):

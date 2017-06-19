@@ -49,8 +49,8 @@ class TestFileResource(unittest.TestCase):
                 "foo": s.str()
             })
 
-            def __init__(self, dir):
-                super().__init__(dir)
+            def __init__(self, dir, mkdir=False):
+                super().__init__(dir, mkdir=mkdir)
 
             def gen_id(self):
                 return str(uuid4())
@@ -61,7 +61,7 @@ class TestFileResource(unittest.TestCase):
                 return _rev
 
         with TemporaryDirectory() as dir:
-            rs = FooResourceSet(dir)
+            rs = FooResourceSet(dir + "/resources/foo", mkdir=True)
             _doc = { "foo": "bar" }
             result = rs.create(_doc)
             _id = result["_id"]
