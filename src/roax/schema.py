@@ -20,7 +20,7 @@ _x_float = float
 _x_bool = bool
 _x_bytes = bytes
 
-class type(ABC):
+class _type(ABC):
     """TODO: Description."""
 
     def __init__(self, *, jstype, format=None, required=True, default=None, enum=None, description=None, examples=None):
@@ -73,7 +73,7 @@ class type(ABC):
 
 from copy import deepcopy
 from collections.abc import Mapping
-class dict(type):
+class _dict(_type):
     """TODO: Description."""
 
     def __init__(self, properties, **kwargs):
@@ -154,7 +154,7 @@ class dict(type):
 
 import csv
 from io import StringIO
-class list(type):
+class _list(_type):
     """TODO: Description."""
 
     def __init__(self, items, *, min_items=0, max_items=None, unique_items=False, **kwargs):
@@ -223,10 +223,9 @@ class list(type):
         result = self._process("str_decode", csv.reader([value]).__next__())
         self.validate(result)
         return result
-list.__init__.__doc__ = type.__init__.__doc__ + "\n" + list.__init__.__doc__
 
 import re
-class str(type):
+class _str(_type):
     """TODO: Description."""
 
     def __init__(self, *, min_len=0, max_len=None, pattern=None, **kwargs):
@@ -276,7 +275,7 @@ class str(type):
         self.validate(value)
         return value
 
-class _number(type):
+class _number(_type):
     """TODO: Description."""
 
     def __init__(self, *, minimum=None, maximum=None, **kwargs):
@@ -306,7 +305,7 @@ class _number(type):
         self.validate(value)
         return _x_str(value)
 
-class int(_number):
+class _int(_number):
     """TODO: Description."""
 
     def __init__(self, **kwargs):
@@ -337,7 +336,7 @@ class int(_number):
         self.validate(result)
         return result
 
-class float(_number):
+class _float(_number):
     """TODO: Description."""
 
     def __init__(self, **kwargs):
@@ -373,7 +372,7 @@ class float(_number):
         self.validate(result)
         return result
 
-class bool(type):
+class _bool(_type):
     """TODO: Description."""
 
     def __init__(self, **kwargs):
@@ -422,9 +421,52 @@ class bool(type):
         self.validate(result)
         return result
 
+import binascii
+from base64 import b64decode, b64encode
+class _bytes(_type):
+    """TODO: Description."""
+
+    def __init__(self, **kwargs):
+        """TODO: Description."""
+        super().__init__(jstype="string", format="byte", **kwargs)
+
+    def validate(self, value):
+        """TODO: Description."""
+        if not isinstance(value, _x_bytes):
+            raise SchemaError("expecting a bytes type")
+        super().validate(value)
+
+    def json_encode(self, value):
+        """TODO: Description."""
+        return self.str_encode(value)
+
+    def json_decode(self, value):
+        """TODO: Description."""
+        return self.str_decode(value)
+
+    def json_schema(self):
+        result = super().json_schema()
+        return result
+
+    def str_encode(self, value):
+        """TODO: Description."""
+        self.validate(value)
+        return b64encode(value).decode()
+
+    def str_decode(self, value):
+        """TODO: Description."""
+        if not isinstance(value, _x_str):
+            raise SchemaError("expecting a string")
+        try:
+            result = b64decode(value)
+        except binascii.Error:
+            raise SchemaError("expecting a Base64-encoded value")
+        self.validate(result)
+        return result
+
 import isodate
 from datetime import datetime as _x_datetime
-class datetime(type):
+class datetime(_type):
     """TODO: Description."""
 
     _UTC = isodate.tzinfo.Utc()
@@ -470,13 +512,12 @@ class datetime(type):
             return self._to_utc(isodate.parse_datetime(value))
         except ValueError:
             raise SchemaError("expecting an ISO 8601 date-time value")
-
         result = self._parse(value)
         self.validate(result)
         return result
 
 from uuid import UUID
-class uuid(type):
+class uuid(_type):
     """TODO: Description."""
 
     def __init__(self, **kwargs):
@@ -514,49 +555,6 @@ class uuid(type):
             result = UUID(value)
         except ValueError:
             raise SchemaError("expecting a UUID value")
-        self.validate(result)
-        return result
-
-import binascii
-from base64 import b64decode, b64encode
-class bytes(type):
-    """TODO: Description."""
-
-    def __init__(self, **kwargs):
-        """TODO: Description."""
-        super().__init__(jstype="string", format="byte", **kwargs)
-
-    def validate(self, value):
-        """TODO: Description."""
-        if not isinstance(value, _x_bytes):
-            raise SchemaError("expecting a bytes type")
-        super().validate(value)
-
-    def json_encode(self, value):
-        """TODO: Description."""
-        return self.str_encode(value)
-
-    def json_decode(self, value):
-        """TODO: Description."""
-        return self.str_decode(value)
-
-    def json_schema(self):
-        result = super().json_schema()
-        return result
-
-    def str_encode(self, value):
-        """TODO: Description."""
-        self.validate(value)
-        return b64encode(value).decode()
-
-    def str_decode(self, value):
-        """TODO: Description."""
-        if not isinstance(value, _x_str):
-            raise SchemaError("expecting a string")
-        try:
-            result = b64decode(value)
-        except binascii.Error:
-            raise SchemaError("expecting a Base64-encoded value")
         self.validate(result)
         return result
 
@@ -628,3 +626,12 @@ class SchemaError(Exception):
         if self.msg is not None:
             result.append(self.msg)
         return ": ".join(result)
+
+type = _type
+dict = _dict
+list = _list
+str = _str
+int = _int
+float = _float
+bool = _bool
+bytes = _bytes
