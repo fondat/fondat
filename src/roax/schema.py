@@ -21,7 +21,7 @@ _x_bool = bool
 _x_bytes = bytes
 
 class _type(ABC):
-"""TODO: Description."""
+    """TODO: Description."""
 
     def __init__(self, *, jstype, format=None, required=True, default=None, enum=None, description=None, examples=None):
         """
