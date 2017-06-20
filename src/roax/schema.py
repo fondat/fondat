@@ -21,10 +21,18 @@ _x_bool = bool
 _x_bytes = bytes
 
 class _type(ABC):
-    """TODO: Description."""
+"""TODO: Description."""
 
     def __init__(self, *, jstype, format=None, required=True, default=None, enum=None, description=None, examples=None):
-        """TODO: Description."""
+        """
+        jstype -- the JSON schema data type.
+        format -- more finely defines the data type.
+        required -- True if the value is mandatory.
+        default -- The default value, if the item value is not supplied.
+        enum -- list of values that are valid.
+        description -- string providing information about the item.
+        examples -- an array of valid values.
+        """
         self.jstype = jstype
         self.format = format
         self.required = required
@@ -77,7 +85,13 @@ class _dict(_type):
     """TODO: Description."""
 
     def __init__(self, properties, **kwargs):
-        """TODO: Description."""
+        """
+        properties -- a mapping of name to schema. 
+        required -- True if the item is mandatory.
+        default -- The default value, if the item value is not supplied.
+        description -- string providing information about the item.
+        examples -- an array of valid values.
+        """
         super().__init__(jstype="object", **kwargs)
         self.properties = properties
 
@@ -163,6 +177,10 @@ class _list(_type):
         min_items -- The minimum number of items required.
         max_items -- The maximum number of items required.
         unique_items -- True if all items must have unique values.
+        required -- True if the value is mandatory.
+        default -- The default value, if the item value is not supplied.
+        description -- string providing information about the item.
+        examples -- an array of valid values.
         """
         super().__init__(jstype="array", **kwargs)
         self.items = items
@@ -209,6 +227,13 @@ class _list(_type):
 
     def json_schema(self):
         result = super().json_schema()
+        result["items"] = self.items
+        if self.min_items != 0:
+            result["minItems"] = self.min_items
+        if self.max_items is not None:
+            result["maxItems"] = self.max_items
+        if self.unique_items:
+            result["uniqueItems"] = True
         return result
 
     def str_encode(self, value):
@@ -229,7 +254,18 @@ class _str(_type):
     """TODO: Description."""
 
     def __init__(self, *, min_len=0, max_len=None, pattern=None, **kwargs):
-        """TODO: Description."""
+        """
+        min_len -- the minimum character length of the string.
+        max_len -- the maximum character length of the string.
+        pattern -- the regular expression that the string must match.
+        format -- more finely defines the data type.
+        required -- True if the value is mandatory.
+        default -- The default value, if the item value is not supplied.
+        enum -- list of values that are valid.
+        description -- string providing information about the item.
+        examples -- an array of valid values.
+        
+        """
         super().__init__(jstype="string", **kwargs)
         self.min_len = min_len
         self.max_len = max_len
@@ -257,7 +293,7 @@ class _str(_type):
 
     def json_schema(self):
         result = super().json_schema()
-        if self.min_len is not None:
+        if self.min_len != 0:
              result["minLength"] = min_len
         if self.max_len is not None:
             result["maxLength"] = max_len
@@ -299,6 +335,10 @@ class _number(_type):
 
     def json_schema(self):
         result = super().json_schema()
+        if self.minimum is not None:
+            result["minimum"] = self.minimum
+        if self.maximum is not None:
+            result["maximum"] = self.maximum
         return result
 
     def str_encode(self, value):
@@ -309,7 +349,15 @@ class _int(_number):
     """TODO: Description."""
 
     def __init__(self, **kwargs):
-        """TODO: Description."""
+        """
+        minimum -- the inclusive lower limit of the value.
+        maximum -- the inclusive upper limit of the value.
+        required -- True if the value is mandatory.
+        default -- The default value, if the item value is not supplied.
+        enum -- list of values that are valid.
+        description -- string providing information about the item.
+        examples -- an array of valid values.
+        """
         super().__init__(jstype="integer", format="int64", **kwargs)
 
     def validate(self, value):
@@ -340,7 +388,15 @@ class _float(_number):
     """TODO: Description."""
 
     def __init__(self, **kwargs):
-        """TODO: Description."""
+        """
+        minimum -- the inclusive lower limit of the value.
+        maximum -- the inclusive upper limit of the value.
+        required -- True if the value is mandatory.
+        default -- The default value, if the item value is not supplied.
+        enum -- list of values that are valid.
+        description -- string providing information about the item.
+        examples -- an array of valid values.
+        """
         super().__init__(jstype="number", format="double", **kwargs)
 
     def validate(self, value):
@@ -376,7 +432,12 @@ class _bool(_type):
     """TODO: Description."""
 
     def __init__(self, **kwargs):
-        """TODO: Description."""
+        """
+        required -- True if the value is mandatory.
+        default -- The default value, if the item value is not supplied.
+        description -- string providing information about the item.
+        examples -- an array of valid values.
+        """
         super().__init__(jstype="boolean", **kwargs)
 
     def validate(self, value):
@@ -427,7 +488,12 @@ class _bytes(_type):
     """TODO: Description."""
 
     def __init__(self, **kwargs):
-        """TODO: Description."""
+        """
+        required -- True if the value is mandatory.
+        default -- The default value, if the item value is not supplied.
+        description -- string providing information about the item.
+        examples -- an array of valid values.
+        """
         super().__init__(jstype="string", format="byte", **kwargs)
 
     def validate(self, value):
@@ -472,7 +538,13 @@ class datetime(_type):
     _UTC = isodate.tzinfo.Utc()
 
     def __init__(self, **kwargs):
-        """TODO: Description."""
+        """
+        required -- True if the value is mandatory.
+        default -- The default value, if the item value is not supplied.
+        enum -- list of values that are valid.
+        description -- string providing information about the item.
+        examples -- an array of valid values.
+        """
         super().__init__(jstype="string", format="date-time", **kwargs)
 
     def _to_utc(self, value):
@@ -521,7 +593,13 @@ class uuid(_type):
     """TODO: Description."""
 
     def __init__(self, **kwargs):
-        """TODO: Description."""
+        """
+        required -- True if the value is mandatory.
+        default -- The default value, if the item value is not supplied.
+        enum -- list of values that are valid.
+        description -- string providing information about the item.
+        examples -- an array of valid values.
+        """
         super().__init__(jstype="string", format="uuid", **kwargs)
 
     def validate(self, value):
