@@ -11,16 +11,16 @@ import wrapt
 
 from abc import ABC, abstractmethod
 
-_x_type = type
-_x_dict = dict
-_x_list = list
-_x_str = str
-_x_int = int
-_x_float = float
-_x_bool = bool
-_x_bytes = bytes
+_type = type
+_dict = dict
+_list = list
+_str = str
+_int = int
+_float = float
+_bool = bool
+_bytes = bytes
 
-class _type(ABC):
+class _roax_schema_type(ABC):
     """TODO: Description."""
 
     def __init__(self, *, jstype, format=None, required=True, default=None, enum=None, description=None, examples=None):
@@ -81,7 +81,7 @@ class _type(ABC):
 
 from copy import deepcopy
 from collections.abc import Mapping
-class _dict(_type):
+class _roax_schema_dict(_roax_schema_type):
     """TODO: Description."""
 
     def __init__(self, properties, **kwargs):
@@ -96,7 +96,7 @@ class _dict(_type):
         self.properties = properties
 
     def _fixup(self, se, key):
-        se.pointer = _x_str(key) if se.pointer is None else "/".join([_x_str(key), se.pointer])
+        se.pointer = _str(key) if se.pointer is None else "/".join([_str(key), se.pointer])
 
     def _process(self, method, value):
         """TODO: Description."""
@@ -148,7 +148,7 @@ class _dict(_type):
 
     def json_decode(self, value):
         """TODO: Description."""
-        if not isinstance(value, _x_dict):
+        if not isinstance(value, _dict):
             raise SchemaError("expecting an object")
         result = self.defaults(self._process("json_decode", value))
         self.validate(result)
@@ -168,7 +168,7 @@ class _dict(_type):
 
 import csv
 from io import StringIO
-class _list(_type):
+class _roax_schema_list(_roax_schema_type):
     """TODO: Description."""
 
     def __init__(self, items, *, min_items=0, max_items=None, unique_items=False, **kwargs):
@@ -190,14 +190,14 @@ class _list(_type):
 
     def _process(self, method, value):
         """TODO: Description."""
-        if isinstance(value, _x_str): # Strings are iterable, but not what we want.
+        if isinstance(value, _str): # strings are iterable, but not what we want
             raise SchemaError("expecting an iterable list or tuple")
         result = []
         try:
             for n, item in zip(range(len(value)), value):
                 result.append(getattr(self.items, method)(item))
         except SchemaError as se:
-            se.pointer = _x_str(n) if se.pointer is None else "/".join([_x_str(n), se.pointer])
+            se.pointer = _str(n) if se.pointer is None else "/".join([_str(n), se.pointer])
             raise
         return result
 
@@ -219,7 +219,7 @@ class _list(_type):
 
     def json_decode(self, value):
         """TODO: Description."""
-        if not isinstance(value, _x_list):
+        if not isinstance(value, _list):
             raise SchemaError("expecting a JSON array")
         result = self._process("json_decode", value)
         self.validate(result)
@@ -250,7 +250,7 @@ class _list(_type):
         return result
 
 import re
-class _str(_type):
+class _roax_schema_str(_roax_schema_type):
     """TODO: Description."""
 
     def __init__(self, *, min_len=0, max_len=None, pattern=None, **kwargs):
@@ -273,7 +273,7 @@ class _str(_type):
 
     def validate(self, value):
         """TODO: Description."""
-        if not isinstance(value, _x_str):
+        if not isinstance(value, _str):
             raise SchemaError("expecting a str type")
         super().validate(value)
         if len(value) < self.min_len:
@@ -311,7 +311,7 @@ class _str(_type):
         self.validate(value)
         return value
 
-class _number(_type):
+class _number(_roax_schema_type):
     """TODO: Description."""
 
     def __init__(self, *, minimum=None, maximum=None, **kwargs):
@@ -343,9 +343,9 @@ class _number(_type):
 
     def str_encode(self, value):
         self.validate(value)
-        return _x_str(value)
+        return _str(value)
 
-class _int(_number):
+class _roax_schema_int(_number):
     """TODO: Description."""
 
     def __init__(self, **kwargs):
@@ -362,29 +362,29 @@ class _int(_number):
 
     def validate(self, value):
         """TODO: Description."""
-        if not isinstance(value, _x_int):
+        if not isinstance(value, _int):
             raise SchemaError("expecting an int type")
         super().validate(value)
 
     def json_decode(self, value):
         """TODO: Description."""
-        if not isinstance(value, _x_int):
+        if not isinstance(value, _int):
             raise SchemaError("expecting an integer")
         self.validate(value)
         return value
 
     def str_decode(self, value):
         """TODO: Description."""
-        if not isinstance(value, _x_str):
+        if not isinstance(value, _str):
             raise SchemaError("expecting a string")
         try:
-            result = _x_int(value)
+            result = _int(value)
         except ValueError:
             raise SchemaError("expecting an integer")
         self.validate(result)
         return result
 
-class _float(_number):
+class _roax_schema_float(_number):
     """TODO: Description."""
 
     def __init__(self, **kwargs):
@@ -401,17 +401,17 @@ class _float(_number):
 
     def validate(self, value):
         """TODO: Description."""
-        if not isinstance(value, _x_float):
+        if not isinstance(value, _float):
             raise SchemaError("expecting a float type")
         super().validate(value)
         return value
 
     def json_decode(self, value):
         """TODO: Description."""
-        if isinstance(value, _x_float):
+        if isinstance(value, _float):
             result = value
-        elif isinstance(value, _x_int):
-            result = _x_float(value)
+        elif isinstance(value, _int):
+            result = _float(value)
         else:
             raise SchemaError("expecting a number")
         self.validate(result)
@@ -419,16 +419,16 @@ class _float(_number):
 
     def str_decode(self, value):
         """TODO: Description."""
-        if not isinstance(value, _x_str):
+        if not isinstance(value, _str):
             raise SchemaError("expecting a string")
         try:
-            result = _x_float(value)
+            result = _float(value)
         except ValueError:
             raise SchemaError("expecting a number")
         self.validate(result)
         return result
 
-class _bool(_type):
+class _roax_schema_bool(_roax_schema_type):
     """TODO: Description."""
 
     def __init__(self, **kwargs):
@@ -441,7 +441,7 @@ class _bool(_type):
         super().__init__(jstype="boolean", **kwargs)
 
     def validate(self, value):
-        if not isinstance(value, _x_bool):
+        if not isinstance(value, _bool):
             raise SchemaError("expecting a bool type")
         super().validate(value)
 
@@ -452,7 +452,7 @@ class _bool(_type):
 
     def json_decode(self, value):
         """TODO: Description."""
-        if not isinstance(value, _x_bool):
+        if not isinstance(value, _bool):
             raise SchemaError("expecting true or false")
         self.validate(value)
         return value
@@ -471,7 +471,7 @@ class _bool(_type):
 
     def str_decode(self, value):
         """TODO: Description."""
-        if not isinstance(value, _x_str):
+        if not isinstance(value, _str):
             raise SchemaError("expecting a string")
         elif value == "true":
             result = True
@@ -484,7 +484,7 @@ class _bool(_type):
 
 import binascii
 from base64 import b64decode, b64encode
-class _bytes(_type):
+class _roax_schema_bytes(_roax_schema_type):
     """TODO: Description."""
 
     def __init__(self, **kwargs):
@@ -498,7 +498,7 @@ class _bytes(_type):
 
     def validate(self, value):
         """TODO: Description."""
-        if not isinstance(value, _x_bytes):
+        if not isinstance(value, _bytes):
             raise SchemaError("expecting a bytes type")
         super().validate(value)
 
@@ -521,7 +521,7 @@ class _bytes(_type):
 
     def str_decode(self, value):
         """TODO: Description."""
-        if not isinstance(value, _x_str):
+        if not isinstance(value, _str):
             raise SchemaError("expecting a string")
         try:
             result = b64decode(value)
@@ -532,7 +532,7 @@ class _bytes(_type):
 
 import isodate
 from datetime import datetime as _x_datetime
-class datetime(_type):
+class _roax_schema_datetime(_roax_schema_type):
     """TODO: Description."""
 
     _UTC = isodate.tzinfo.Utc()
@@ -578,7 +578,7 @@ class datetime(_type):
 
     def str_decode(self, value):
         """TODO: Description."""
-        if not isinstance(value, _x_str):
+        if not isinstance(value, _str):
             raise SchemaError("expecting a string")
         try:
             return self._to_utc(isodate.parse_datetime(value))
@@ -589,7 +589,7 @@ class datetime(_type):
         return result
 
 from uuid import UUID
-class uuid(_type):
+class _roax_schema_uuid(_roax_schema_type):
     """TODO: Description."""
 
     def __init__(self, **kwargs):
@@ -623,11 +623,11 @@ class uuid(_type):
     def str_encode(self, value):
         """TODO: Description."""
         self.validate(value)
-        return _x_str(value)
+        return _str(value)
 
     def str_decode(self, value):
         """TODO: Description."""
-        if not isinstance(value, _x_str):
+        if not isinstance(value, _str):
             raise SchemaError("expecting a string")
         try:
             result = UUID(value)
@@ -637,7 +637,7 @@ class uuid(_type):
         return result
 
 def call(function, args, kwargs, params, returns):
-    """TODO: Description."""
+    """Call a function, validating its input parameters and return value."""
     build = {}
     sig = inspect.signature(function)
     if len(args) > len([p for p in sig.parameters.values() if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)]):
@@ -681,7 +681,7 @@ def call(function, args, kwargs, params, returns):
     return result
 
 def validate(params=None, returns=None):
-    """TODO: Description."""
+    """Decorate a function to validate its input parameters and return value."""
     def decorator(function):
         def wrapper(wrapped, instance, args, kwargs):
             return call(wrapped, args, kwargs, params, returns)
@@ -689,7 +689,7 @@ def validate(params=None, returns=None):
     return decorator
 
 class SchemaError(Exception):
-    """TODO: Description."""
+    """Raised if a value does not conform to its schema."""
 
     def __init__(self, msg, pointer=None):
         """TODO: Description."""
@@ -697,7 +697,6 @@ class SchemaError(Exception):
         self.pointer = pointer
 
     def __str__(self):
-        """TODO: Description."""
         result = []
         if self.pointer is not None:
             result.append(self.pointer)
@@ -705,11 +704,13 @@ class SchemaError(Exception):
             result.append(self.msg)
         return ": ".join(result)
 
-type = _type
-dict = _dict
-list = _list
-str = _str
-int = _int
-float = _float
-bool = _bool
-bytes = _bytes
+type = _roax_schema_type
+dict = _roax_schema_dict
+list = _roax_schema_list
+str = _roax_schema_str
+int = _roax_schema_int
+float = _roax_schema_float
+bool = _roax_schema_bool
+bytes = _roax_schema_bytes
+datetime = _roax_schema_datetime
+uuid = _roax_schema_uuid
