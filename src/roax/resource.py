@@ -59,26 +59,32 @@ def method(*, kind=None, name=None, params=None, returns=None):
     return decorator
 
 class ResourceError(Exception):
-    """TODO: Description."""
-
-    def __init__(self, detail, code=400):
-        """TODO: Description."""
+    """Base class for all resource errors."""
+    def __init__(self, detail, code):
+        """
+        detail -- textual description of the error.
+        code -- the HTTP status most closely associated with the error.
+        """
         super().__init__(self, detail)
         self.detail = detail
         self.code = code
 
 class BadRequest(ResourceError):
+    """Raised if the request contains malformed syntax."""
     def __init__(self, detail):
         super().__init__(detail, 400)
 
 class NotFound(ResourceError):
+    """Raised if the resource could not be found."""
     def __init__(self, detail):
         super().__init__(detail, 404)
 
 class PreconditionFailed(ResourceError):
+    """Raised if the revision provided does not match the current resource."""
     def __init__(self, detail):
         super().__init__(detail, 412)
 
 class InternalServerError(ResourceError):
+    """Raised if the server encountered an unexpected condition."""
     def __init__(self, detail):
         super().__init__(detail, 500)
