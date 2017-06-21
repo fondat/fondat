@@ -1,4 +1,4 @@
-"""TODO: Description."""
+"""Roax /ɹoʊ.æks/: A lightweight Python resource-oriented framework."""
 
 # Copyright © 2015–2017 Paul Bryan.
 #
@@ -6,4 +6,4 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-__version__ = "1.0.dev13"
+__version__ = "1.0.dev14"
