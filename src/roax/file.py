@@ -59,7 +59,7 @@ class FileResourceSet(r.ResourceSet):
             _doc["_rev"] = _rev
         json.dump(self.schema.json_encode(_doc), file, separators=(",",":"), ensure_ascii=False)
 
-    def __init__(self, dir, mkdir=False, strict_rev=False):
+    def __init__(self, dir, mkdir=True, strict_rev=False):
         """TODO: Description."""
         super().__init__()
         self.dir = dir.rstrip("/")
