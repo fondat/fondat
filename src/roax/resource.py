@@ -68,17 +68,17 @@ class ResourceError(Exception):
         self.code = code
 
 class BadRequest(ResourceError):
-    def __init__(self, detail="bad request"):
+    def __init__(self, detail):
         super().__init__(detail, 400)
 
 class NotFound(ResourceError):
-    def __init__(self, detail="not found"):
+    def __init__(self, detail):
         super().__init__(detail, 404)
 
 class PreconditionFailed(ResourceError):
-    def __init__(self, detail="precondition failed"):
+    def __init__(self, detail):
         super().__init__(detail, 412)
 
 class InternalServerError(ResourceError):
-    def __init__(self, detail="internal server error"):
+    def __init__(self, detail):
         super().__init__(detail, 500)
