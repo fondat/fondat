@@ -7,7 +7,6 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import roax.schema
-import wrapt
 
 from collections import namedtuple
 
@@ -30,7 +29,7 @@ class ResourceSet:
     def __init__(self):
         """TODO: Description.
         
-        A class or instance variable named `schema` must be defined for the resources class.
+        A class or instance variable named "schema" must be defined for the resources class.
         """
         self.methods = {}
         for function in [attr for attr in [getattr(self, name) for name in dir(self)] if callable(attr)]:
@@ -49,19 +48,13 @@ class ResourceSet:
         return function(**params)
 
 def method(*, kind=None, name=None, params=None, returns=None):
-    """Decorate a function to register it as a resource method."""
+    """Decorate a function to register it as a resource set method."""
     def decorator(function):
+        decorated = roax.schema.validate(params, returns)(function) # validate params and returns
         try:
-            self = getattr(function, "__self__")
-        except AttributeError:
-            self = None
-        def wrapper(wrapped, instance, args, kwargs):
-            return roax.schema.call(wrapped, args, kwargs, params, returns)
-        decorated = wrapt.decorator(wrapper)(function)
-        if self:
-            self._register_method(decorated, kind, name, params, returns)
-        else:
-            function.roax_method = _Method(None, kind, name, params, returns)
+            getattr(function, "__self__")._register_method(decorated, kind, name, params, returns)
+        except AttributeError: # not bound to an instance
+            function.roax_method = _Method(None, kind, name, params, returns) # __init__ will register
         return decorated
     return decorator
 
