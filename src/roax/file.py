@@ -90,8 +90,8 @@ class FileResourceSet(r.ResourceSet):
         self.read = r.method(params=params(self.read), returns=self.schema)(self.read)
         self.update = r.method(params=params(self.update), returns=returns(["_rev"]))(self.update)
         self.delete = r.method(params=params(self.delete))(self.delete)
-        self.query_ids = r.method(returns=s.list(self.schema.properties["_id"]))(self.query_ids)
-        self.query_all = r.method(returns=s.list(self.schema))(self.query_all)
+        self.query_ids = r.method(params=s.dict({}), returns=s.list(self.schema.properties["_id"]))(self.query_ids)
+        self.query_docs = r.method(params=s.dict({}), returns=s.list(self.schema))(self.query_docs)
 
     def gen_id(self):
         """Generate a new identifier. This implementation returns None."""
@@ -165,8 +165,8 @@ class FileResourceSet(r.ResourceSet):
                     pass # ignore filenames that can't be parsed
         return result
 
-    def query_all(self):
-        """Return all resources."""
+    def query_docs(self):
+        """Return all resource documents."""
         result = []
         for _id in self.query_ids():
             try:
