@@ -23,11 +23,13 @@ except ImportError:
 _map = [(c, "%{:02X}".format(ord(c))) for c in "%/\\:*?\"<>|"]
 
 def _quote(s):
+    """_quote('abc/def') -> 'abc%2Fdef'"""
     for m in _map:
         s = s.replace(m[0], m[1])
     return s
 
 def _unquote(s):
+    """_unquote('abc%2Fdef') -> 'abc/def'"""
     if "%" in s:
         for m in _map:
             s = s.replace(m[1], m[0])
