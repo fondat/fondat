@@ -63,8 +63,10 @@ class TestFileResource(unittest.TestCase):
         with TemporaryDirectory() as dir:
             rs = FooResourceSet(dir + "/resources/foo", mkdir=True)
             _doc = { "foo": "bar" }
-            result = rs.create(_doc)
-            _id = result["_id"]
+            _id = "/\\:*?\"<>|"
+            result = rs.create(_doc, _id) # should be URL-encoded
+            self.assertEqual(_id, result["_id"])
+            self.assertEqual(rs.query_ids(), [_id])
             _rev = result["_rev"]
             self.assertEqual(_rev, 1)
             _doc = { "foo": "qux" }

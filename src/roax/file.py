@@ -1,3 +1,10 @@
+"""Module to store resources in the filesystem."""
+
+# Copyright © 2017 Paul Bryan.
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import inspect
 import json
@@ -13,8 +20,27 @@ try:
 except ImportError:
     fcntl = None
 
+_spec = "%/\\:*?\"<>|"
+
+_map = tuple(zip(_spec, ["%{:02x}".format(o) for o in [ord(c) for c in _spec]]))
+
+def _quote(s):
+    for m in _map:
+        s = s.replace(m[0], m[1])
+    return s
+
+def _unquote(s):
+    if "%" in s:
+        for m in _map:
+            s = s.replace(m[1], m[0])
+    return s
+
 class FileResourceSet(r.ResourceSet):
-    """TODO: Description."""
+    """
+    A set of resources, backed by files in the filesystem.
+    Appropriate for hundreds of resources; probably inappropriate
+    for thousands or more.
+    """
 
     @property
     def _id_schema(self):
@@ -25,11 +51,7 @@ class FileResourceSet(r.ResourceSet):
         return self.schema.properties.get("_rev")
 
     def _filename(self, _id):
-        _id = self._id_schema.str_encode(_id)
-        for c in '/\\:*?"<>|':
-            if c in _id:
-                raise r.ResourceException("_id contains invalid character")
-        return "{}/{}.json".format(self.dir, _id)
+        return "{}/{}.json".format(self.dir, _quote(self._id_schema.str_encode(_id)))
 
     def _open(self, _id, mode):
         try:
@@ -59,13 +81,17 @@ class FileResourceSet(r.ResourceSet):
             _doc["_rev"] = _rev
         json.dump(self.schema.json_encode(_doc), file, separators=(",",":"), ensure_ascii=False)
 
-    def __init__(self, dir, mkdir=True, strict_rev=False):
-        """TODO: Description."""
+    def __init__(self, dir, mkdir=True, rev=False):
+        """
+        dir -- the directory to store resource documents in.
+        mkdir -- make directory if it does not exist [True].
+        rev -- require preconditions for update operations [False].
+        """
         super().__init__()
         self.dir = dir.rstrip("/")
         if mkdir:
             os.makedirs(self.dir, exist_ok=True)
-        self.strict_rev = strict_rev
+        self.rev = rev
         def params(function):
             result = {}
             sig = inspect.signature(function)
@@ -94,11 +120,16 @@ class FileResourceSet(r.ResourceSet):
         self.query_docs = r.method(params=s.dict({}), returns=s.list(self.schema))(self.query_docs)
 
     def gen_id(self):
-        """Generate a new identifier. This implementation returns None."""
+        """
+        Generate a new identifier. This implementation returns None.
+        """
         return None
 
     def gen_rev(self, _doc):
-        """Generate a revision value for the document. This implementation returns None."""
+        """
+        Generate a revision value for the document.
+        This implementation returns None.
+        """
         return None
 
     def create(self, _doc, _id=None):
@@ -124,12 +155,12 @@ class FileResourceSet(r.ResourceSet):
         """Read a resource."""
         with self._open(_id, "r") as file:
             _doc = self._read(file)
-        _doc["_id"] = _id
+        _doc["_id"] = _id # filename is canonical identifier
         return _doc
 
     def update(self, _id, _doc, _rev=None):
         """Update a resource."""
-        if self.strict_rev and _rev is None:
+        if self.rev and _rev is None:
             raise r.BadRequest("_rev is required")
         with self._open(_id, "r+") as file:
             if self._rev_schema:
@@ -142,7 +173,7 @@ class FileResourceSet(r.ResourceSet):
 
     def delete(self, _id, _rev=None):
         """Update a resource."""
-        if self.strict_rev and _rev is None:
+        if self.rev and _rev is None:
             raise r.BadRequest("_rev is required")
         if _rev:
             with self._open(_id, "r") as file:
@@ -160,7 +191,10 @@ class FileResourceSet(r.ResourceSet):
         for name in os.listdir(self.dir):
             if name.endswith(".json"):
                 try:
-                    result.append(self._id_schema.str_decode(name[0:-5]))
+                    name = name[0:-5]
+                    str_id = _unquote(name)
+                    if name == _quote(str_id): # ignore improperly encoded names
+                        result.append(self._id_schema.str_decode(str_id))
                 except s.SchemaError:
                     pass # ignore filenames that can't be parsed
         return result
