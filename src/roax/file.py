@@ -20,9 +20,7 @@ try:
 except ImportError:
     fcntl = None
 
-_spec = "%/\\:*?\"<>|"
-
-_map = tuple(zip(_spec, ["%{:02x}".format(o) for o in [ord(c) for c in _spec]]))
+_map = [(c, "%{:02X}".format(ord(c))) for c in "%/\\:*?\"<>|"]
 
 def _quote(s):
     for m in _map:
