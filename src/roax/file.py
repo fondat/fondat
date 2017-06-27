@@ -14,6 +14,7 @@ import roax.resource as r
 
 from collections import ChainMap
 from copy import copy
+from os.path import expanduser
 
 try:
     import fcntl
@@ -95,7 +96,7 @@ class FileResourceSet(r.ResourceSet):
         if schema:
             self.schema = schema
         super().__init__()
-        self.dir = dir.rstrip("/")
+        self.dir = expanduser(dir.rstrip("/"))
         if mkdir:
             os.makedirs(self.dir, exist_ok=True)
         self.rev = rev
