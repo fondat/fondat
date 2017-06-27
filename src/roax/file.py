@@ -81,17 +81,29 @@ class FileResourceSet(r.ResourceSet):
             _doc["_rev"] = _rev
         json.dump(self.schema.json_encode(_doc), file, separators=(",",":"), ensure_ascii=False)
 
-    def __init__(self, dir, mkdir=True, rev=False):
+    def __init__(self, dir, mkdir=True, rev=False, schema=None, gen_id=None, gen_rev=None):
         """
-        dir -- the directory to store resource documents in.
-        mkdir -- make directory if it does not exist [True].
-        rev -- require preconditions for update operations [False].
+        Initialize file resource set.
+
+        dir -- the directory to store JSON resource documents in.
+        mkdir -- automatically make the directory if it does not exist.
+        rev -- require preconditions for update operations.
+        schema -- document schema; or declare as class or instance variable.
+        gen_id -- function to generate _id; or define as method in subclass.
+        gen_rev -- function to generate _rev value; or define as method in subclass.
         """
+        if schema:
+            self.schema = schema
         super().__init__()
         self.dir = dir.rstrip("/")
         if mkdir:
             os.makedirs(self.dir, exist_ok=True)
         self.rev = rev
+        if gen_id:
+            self.gen_id = gen_id
+        if gen_rev:
+            self.gen_rev = gen_rev
+
         def params(function):
             result = {}
             sig = inspect.signature(function)
@@ -105,6 +117,7 @@ class FileResourceSet(r.ResourceSet):
                         schema.default = param.default
                     result[name] = schema
             return s.dict(result)
+
         def returns(names):
             result={}
             for name in names:
@@ -112,6 +125,7 @@ class FileResourceSet(r.ResourceSet):
                 if schema:
                     result[name] = schema
             return s.dict(result) if len(result) > 0 else None
+
         self.create = r.method(params=params(self.create), returns=returns(["_id","_rev"]))(self.create)
         self.read = r.method(params=params(self.read), returns=self.schema)(self.read)
         self.update = r.method(params=params(self.update), returns=returns(["_rev"]))(self.update)
@@ -119,28 +133,28 @@ class FileResourceSet(r.ResourceSet):
         self.query_ids = r.method(params=s.dict({}), returns=s.list(self.schema.properties["_id"]))(self.query_ids)
         self.query_docs = r.method(params=s.dict({}), returns=s.list(self.schema))(self.query_docs)
 
-    def gen_id(self):
+    def gen_id(self, _doc):
         """
-        Generate a new identifier. This implementation returns None.
+        Generate a new document identifier.
+        
+        _doc -- the document being created.
         """
-        return None
+        raise NotImplementedError()
 
-    def gen_rev(self, _doc):
+    def gen_rev(self, old, new):
         """
-        Generate a revision value for the document.
-        This implementation returns None.
+        Generate a revision value for a document being written.
+
+        old -- the old document value; None if new document.
+        new -- the new document value being written.
         """
-        return None
+        raise NotImplementedError()
 
     def create(self, _doc, _id=None):
         """Create a new resource."""
         if _id is None:
-            _id = self.gen_id()
-            if _id is None:
-                raise r.InternalServerError("cannot generate _id")
-        _rev = self.gen_rev(_doc) if self._rev_schema else None
-        if self._rev_schema and _rev is None:
-            raise r.InternalServerError("cannot generate _rev")
+            _id = self.gen_id(_doc)
+        _rev = self.gen_rev(None, _doc) if self._rev_schema else None
         try:
             with self._open(_id, "x") as file:
                 self._write(file, _doc, _id, _rev)
@@ -167,7 +181,7 @@ class FileResourceSet(r.ResourceSet):
                 old = self._read(file)
                 if _rev is not None and old["_rev"] != _rev:
                     raise r.PreconditionFailed("_rev does not match")
-                _rev = self.gen_rev(old)
+                _rev = self.gen_rev(old, _doc)
             self._write(file, _doc, _id, _rev)
         return { "_rev": _rev } if _rev else None
 
@@ -190,13 +204,13 @@ class FileResourceSet(r.ResourceSet):
         result = []
         for name in os.listdir(self.dir):
             if name.endswith(".json"):
-                try:
-                    name = name[0:-5]
-                    str_id = _unquote(name)
-                    if name == _quote(str_id): # ignore improperly encoded names
+                name = name[0:-5]
+                str_id = _unquote(name)
+                if name == _quote(str_id): # ignore improperly encoded names
+                    try:
                         result.append(self._id_schema.str_decode(str_id))
-                except s.SchemaError:
-                    pass # ignore filenames that can't be parsed
+                    except s.SchemaError:
+                        pass # ignore filenames that can't be parsed
         return result
 
     def query_docs(self):

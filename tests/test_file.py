@@ -22,7 +22,7 @@ class TestFileResource(unittest.TestCase):
             def __init__(self, dir):
                 super().__init__(dir)
 
-            def gen_id(self):
+            def gen_id(self, _doc):
                 return uuid4()
 
         with TemporaryDirectory() as dir:
@@ -52,13 +52,11 @@ class TestFileResource(unittest.TestCase):
             def __init__(self, dir, mkdir=False):
                 super().__init__(dir, mkdir=mkdir)
 
-            def gen_id(self):
+            def gen_id(self, _doc):
                 return str(uuid4())
 
-            def gen_rev(self, _doc):
-                _rev = _doc.get("_rev")
-                _rev = _rev + 1 if _rev else 1
-                return _rev
+            def gen_rev(self, old, new):
+                return old["_rev"] + 1 if old else 1
 
         with TemporaryDirectory() as dir:
             rs = FooResourceSet(dir + "/resources/foo", mkdir=True)
@@ -77,6 +75,30 @@ class TestFileResource(unittest.TestCase):
             _doc = { "foo": "bar" }
             result = rs.update(_id, _doc)
             self.assertEqual(result["_rev"], 3)
+
+    def test_lamda(self):
+
+        schema = s.dict({
+            "_id": s.uuid(required=False),
+            "_rev": s.int(required=False),
+            "foo": s.str()
+        })
+
+        with TemporaryDirectory() as dir:
+            rs = FileResourceSet(
+                dir + "/resources/foo",
+                schema=schema,
+                gen_id=lambda _doc: uuid4(),
+                gen_rev=lambda old, new: old["_rev"] + 1 if old else 1
+            )
+            _doc = { "foo": "bar" }
+            result = rs.create(_doc)
+            _id = result["_id"]
+            _rev = result["_rev"]
+            self.assertEqual(_rev, 1)
+            _doc = { "foo": "qux" }
+            result = rs.update(_id, _doc, _rev)
+            self.assertEqual(result["_rev"], 2)
 
 if __name__ == "__main__":
     unittest.main()
