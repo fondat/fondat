@@ -210,11 +210,14 @@ class TestSchema(unittest.TestCase):
     def test_int_json_encode_error(self):
         self._error(s.int().json_encode, 7.0)
 
-    def test_int_json_decode_success(self):
+    def test_int_json_decode_success_int(self):
         self._equal(s.int().json_decode, 8)
 
-    def test_int_json_decode_error(self):
-        self._error(s.int().json_decode, 9.0)
+    def test_int_json_decode_success_round_float(self):
+        self._equal(s.int().json_decode, 8.0)
+
+    def test_int_json_decode_error_float(self):
+        self._error(s.int().json_decode, 9.1)
 
     def test_int_str_decode_success(self):
         self.assertEqual(s.int().str_decode("10"), 10)
@@ -419,6 +422,32 @@ class TestSchema(unittest.TestCase):
     def test_bytes_str_decode_error(self):
         self._error(s.uuid().str_decode, "and_neither_is_this_a_bytes")
 
+    # ----- decorators ---------------
+
+    def test_params_decorator_mismatch_a(self):
+        with self.assertRaises(TypeError):
+            @s.validate(params=s.dict({"a": s.str()}))
+            def fn(b):
+                pass
+
+    def test_params_decorator_mismatch_b(self):
+        with self.assertRaises(TypeError):
+            @s.validate(params=s.dict({}))
+            def fn(b):
+                pass
+
+    def test_returns_error(self):
+        @s.validate(returns=s.str())
+        def fn():
+            return 1
+        with self.assertRaises(ValueError):
+            fn()
+
+    def test_returns_success(self):
+        @s.validate(returns=s.str())
+        def fn():
+            return "str_ftw"
+        fn()
 
 if __name__ == "__main__":
     unittest.main()
