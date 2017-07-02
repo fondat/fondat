@@ -104,6 +104,7 @@ class FileResourceSet(r.ResourceSet):
             self.gen_id = gen_id
         if gen_rev:
             self.gen_rev = gen_rev
+        self.__doc__ = self.schema.description
 
         def params(function):
             result = {}
