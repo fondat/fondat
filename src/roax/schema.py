@@ -199,13 +199,14 @@ class _roax_schema_sequence(_roax_schema_type):
             raise
         return result
 
-    def _not_str(self, value):
+    @staticmethod
+    def _check_not_str(value):
         if isinstance(value, _str): # strings are iterable, but not what we want
             raise SchemaError("expecting a Sequence type")
 
     def validate(self, value):
         """TODO: Description."""
-        self._not_str(value)
+        self._check_not_str(value)
         super().validate(value)
         self._process("validate", value)
         if len(value) < self.min_items:
@@ -217,13 +218,13 @@ class _roax_schema_sequence(_roax_schema_type):
 
     def json_encode(self, value):
         """TODO: Description."""
-        self._not_str(value)
+        self._check_not_str(value)
         self.validate(value)
         return self._process("json_encode", value)
 
     def json_decode(self, value):
         """TODO: Description."""
-        self._not_str(value)
+        self._check_not_str(value)
         result = self._process("json_decode", value)
         self.validate(result)
         return result
