@@ -126,7 +126,8 @@ class FileResourceSet(r.ResourceSet):
                 schema = self.schema.properties.get(name)
                 if schema:
                     result[name] = schema
-            return s.dict(result) if len(result) > 0 else None
+            if len(result) > 0:
+                return s.dict(result)
 
         self.create = r.method(params=params(self.create), returns=returns(["_id","_rev"]))(self.create)
         self.read = r.method(params=params(self.read), returns=self.schema)(self.read)
@@ -185,7 +186,8 @@ class FileResourceSet(r.ResourceSet):
                     raise r.PreconditionFailed("_rev does not match")
                 _rev = self.gen_rev(old, _doc)
             self._write(file, _doc, _id, _rev)
-        return { "_rev": _rev } if _rev else None
+        if _rev:
+            return { "_rev": _rev }
 
     def delete(self, _id, _rev=None):
         """Update a resource."""
