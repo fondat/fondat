@@ -33,9 +33,6 @@ class TestSchema(unittest.TestCase):
     def test_dict_validate_required_error(self):
         self._error(s.dict({"f": s.str()}).validate, {})
 
-    def test_dict_validate_ignore_extra_fields(self):
-        s.dict({"g": s.str()}).validate({"g": "h", "i": "j"})
-
     def test_dict_validate_optional_success(self):
         s.dict({"k": s.str(), "l": s.str(required=False)}).validate({"k": "m"})
 
@@ -50,9 +47,6 @@ class TestSchema(unittest.TestCase):
 
     def test_dict_json_encode_default_success(self):
         self.assertEqual(s.dict({"eje": s.bool(required=False, default=False)}).json_encode({}), {"eje": False}) 
-
-    def test_dict_json_encode_ignore_success(self):
-        self.assertEqual(s.dict({"ejf": s.int()}).json_encode({"ejf": 456, "ejg": "bar"}), {"ejf": 456})
 
     def test_dict_json_encode_error(self):
         self._error(s.dict({"ejh": s.int()}).json_encode, {"ejh": "not an int"})
@@ -71,6 +65,9 @@ class TestSchema(unittest.TestCase):
 
     def test_dict_json_decode_error(self):
         self._error(s.dict({"djx": s.str()}).json_decode, {"djx": False})
+
+    def test_dict_unexpected_property_error(self):
+        self._error(s.dict({}).validate, {"foo": "bar"})
 
     # ----- list ---------------
 

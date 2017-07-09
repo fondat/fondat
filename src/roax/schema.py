@@ -139,6 +139,9 @@ class _roax_schema_dict(_roax_schema_type):
             except SchemaError as se:
                 self._fixup(se, key)
                 raise
+        for key in value:
+            if key not in self.properties:
+                raise SchemaError("unexpected property: {}".format(key))
         return value
 
     def json_encode(self, value):
