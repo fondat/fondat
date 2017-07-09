@@ -32,7 +32,7 @@ class ResourceSet:
         A class or instance variable named "schema" must be defined for the resources class.
         """
         self.methods = {}
-        for function in [attr for attr in [getattr(self, name) for name in dir(self)] if callable(attr)]:
+        for function in (attr for attr in (getattr(self, name) for name in dir(self)) if callable(attr)):
             try:
                 method = function.roax_method
             except:
