@@ -41,7 +41,7 @@ classifiers = [
 setup(
     name = "roax",
     version = version(),
-    description = "Framework for building resource-oriented Python applications.",
+    description = "Lightweight framework for building resource-oriented applications.",
     long_description = read("README.rst"),
     author = "Paul Bryan",
     author_email = "pbryan@anode.ca",
