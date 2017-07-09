@@ -10,6 +10,7 @@ import inspect
 import wrapt
 
 from abc import ABC, abstractmethod
+from copy import copy
 
 _type = type
 _dict = dict
@@ -23,23 +24,23 @@ _bytes = bytes
 class _roax_schema_type(ABC):
     """TODO: Description."""
 
-    def __init__(self, *, pytype, jstype, format=None, required=True, default=None, enum=None, description=None, examples=None):
+    def __init__(self, *, pytype, jstype, format=None, enum=None, required=True, default=None, description=None, examples=None):
         """
         pytype -- the Python data type.
         jstype -- the JSON schema data type.
         format -- more finely defines the data type.
-        required -- True if the value is mandatory.
-        default -- The default value, if the item value is not supplied.
         enum -- list of values that are valid.
+        required -- True if the value is mandatory.
+        default -- the default value, if the item value is not supplied.
         description -- string providing information about the item.
         examples -- an array of valid values.
         """
         self.pytype = pytype
         self.jstype = jstype
         self.format = format
+        self.enum = enum
         self.required = required
         self.default = default
-        self.enum = enum
         self.description = description
         self.examples = examples
 
@@ -82,9 +83,8 @@ class _roax_schema_type(ABC):
     def str_decode(self, value):
         """TODO: Description."""
 
-from copy import deepcopy
 from collections.abc import Mapping
-class _roax_schema_mapping(_roax_schema_type):
+class _roax_schema_dict(_roax_schema_type):
     """TODO: Description."""
 
     def __init__(self, properties, **kwargs):
@@ -119,9 +119,9 @@ class _roax_schema_mapping(_roax_schema_type):
         """TODO: Description."""
         result = None
         for key, schema in self.properties.items():
-            if key not in value and schema.default is not None:
+            if key not in value and not schema.required and schema.default is not None:
                 if result is None:
-                    result = value.copy()
+                    result = _dict(value)
                 result[key] = schema.default
         return result if result else value
 
@@ -143,9 +143,11 @@ class _roax_schema_mapping(_roax_schema_type):
 
     def json_encode(self, value):
         """TODO: Description."""
-        result = self.defaults(value)
-        self.validate(result)
-        return self._process("json_encode", result)
+        value = self.defaults(value)
+        self.validate(value)
+        if not isinstance(value, dict):
+            value = _dict(value) # make JSON library happy
+        return self._process("json_encode", value)
 
     def json_decode(self, value):
         """TODO: Description."""
@@ -155,8 +157,8 @@ class _roax_schema_mapping(_roax_schema_type):
 
     def json_schema(self):
         result = super().json_schema()
-        result["properties"] = { k: v.json_schema() for k, v in self.properties.items() }
-        result["required"] = [ k for k, v in self.properties.items() if v.required ]
+        result["properties"] = {k: v.json_schema() for k, v in self.properties.items()}
+        result["required"] = [k for k, v in self.properties.items() if v.required]
         return result
 
     def str_encode(self, value):
@@ -168,7 +170,7 @@ class _roax_schema_mapping(_roax_schema_type):
 import csv
 from collections.abc import Sequence
 from io import StringIO
-class _roax_schema_sequence(_roax_schema_type):
+class _roax_schema_list(_roax_schema_type):
     """TODO: Description."""
 
     def __init__(self, items, *, min_items=0, max_items=None, unique_items=False, **kwargs):
@@ -220,6 +222,8 @@ class _roax_schema_sequence(_roax_schema_type):
         """TODO: Description."""
         self._check_not_str(value)
         self.validate(value)
+        if not isinstance(value, list):
+            value = _list(value) # make JSON library happy
         return self._process("json_encode", value)
 
     def json_decode(self, value):
@@ -659,16 +663,20 @@ def call(function, args, kwargs, params, returns):
 def validate(params=None, returns=None):
     """Decorate a function to validate its input parameters and return value."""
     def decorator(function):
+        _params = {}
         if params:
             sig = inspect.signature(function)
-            for name, schema in params.properties.items():
-                if name not in sig.parameters and schema.required and schema.default is None:
-                    raise TypeError("required parameter in decorator but not in function: {}".format(name))
-            for p in sig.parameters.values():
-                if p.name != "self" and not params.properties.get(p.name) and p.default is p.empty:
+            for p in (p for p in sig.parameters.values() if p.name != "self"):
+                schema = params.properties.get(p.name)
+                if schema:
+                    schema = copy(schema)
+                    schema.required = p.default is p.empty
+                    schema.default = p.default if p.default is not p.empty else None
+                    _params[p.name] = schema
+                elif p.default is p.empty:
                     raise TypeError("required parameter in function but not in validation decorator: {}".format(p.name)) 
         def wrapper(wrapped, instance, args, kwargs):
-            return call(wrapped, args, kwargs, params, returns)
+            return call(wrapped, args, kwargs, _roax_schema_dict(_params), returns)
         return wrapt.decorator(wrapper)(function)
     return decorator
 
@@ -690,8 +698,8 @@ class SchemaError(Exception):
 
 # export intuitive names
 type = _roax_schema_type
-mapping = _roax_schema_mapping
-sequence = _roax_schema_sequence
+dict = _roax_schema_dict
+list = _roax_schema_list
 str = _roax_schema_str
 int = _roax_schema_int
 float = _roax_schema_float
@@ -699,7 +707,3 @@ bool = _roax_schema_bool
 bytes = _roax_schema_bytes
 datetime = _roax_schema_datetime
 uuid = _roax_schema_uuid
-
-# export convenient aliases
-dict = mapping
-list = sequence
