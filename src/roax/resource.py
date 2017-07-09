@@ -62,8 +62,8 @@ class ResourceError(Exception):
     """Base class for all resource errors."""
     def __init__(self, detail, code):
         """
-        detail -- textual description of the error.
-        code -- the HTTP status most closely associated with the error.
+        detail: textual description of the error.
+        code: the HTTP status most closely associated with the error.
         """
         super().__init__(self, detail)
         self.detail = detail

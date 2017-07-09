@@ -26,14 +26,14 @@ class _roax_schema_type(ABC):
 
     def __init__(self, *, pytype, jstype, format=None, enum=None, required=True, default=None, description=None, examples=None):
         """
-        pytype -- the Python data type.
-        jstype -- the JSON schema data type.
-        format -- more finely defines the data type.
-        enum -- list of values that are valid.
-        required -- True if the value is mandatory.
-        default -- the default value, if the item value is not supplied.
-        description -- string providing information about the item.
-        examples -- an array of valid values.
+        pytype: the Python data type.
+        jstype: the JSON schema data type.
+        format: more finely defines the data type.
+        enum: list of values that are valid.
+        required: True if the value is mandatory.
+        default: the default value, if the item value is not supplied.
+        description: string providing information about the item.
+        examples: an array of valid values.
         """
         self.pytype = pytype
         self.jstype = jstype
@@ -89,11 +89,11 @@ class _roax_schema_dict(_roax_schema_type):
 
     def __init__(self, properties, **kwargs):
         """
-        properties -- a mapping of name to schema. 
-        required -- True if the item is mandatory.
-        default -- The default value, if the item value is not supplied.
-        description -- string providing information about the item.
-        examples -- an array of valid values.
+        properties: a mapping of name to schema. 
+        required: True if the item is mandatory.
+        default: The default value, if the item value is not supplied.
+        description: string providing information about the item.
+        examples: an array of valid values.
         """
         super().__init__(pytype=Mapping, jstype="object", **kwargs)
         self.properties = properties
@@ -146,7 +146,7 @@ class _roax_schema_dict(_roax_schema_type):
         value = self.defaults(value)
         self.validate(value)
         if not isinstance(value, dict):
-            value = _dict(value) # make JSON library happy
+            value = _dict(value) # make JSON encoder happy
         return self._process("json_encode", value)
 
     def json_decode(self, value):
@@ -175,14 +175,14 @@ class _roax_schema_list(_roax_schema_type):
 
     def __init__(self, items, *, min_items=0, max_items=None, unique_items=False, **kwargs):
         """
-        items -- the schema which all items should conform to.
-        min_items -- The minimum number of items required.
-        max_items -- The maximum number of items required.
-        unique_items -- True if all items must have unique values.
-        required -- True if the value is mandatory.
-        default -- The default value, if the item value is not supplied.
-        description -- string providing information about the item.
-        examples -- an array of valid values.
+        items: the schema which all items should conform to.
+        min_items: The minimum number of items required.
+        max_items: The maximum number of items required.
+        unique_items: True if all items must have unique values.
+        required: True if the value is mandatory.
+        default: The default value, if the item value is not supplied.
+        description: string providing information about the item.
+        examples: an array of valid values.
         """
         super().__init__(pytype=Sequence, jstype="array", **kwargs)
         self.items = items
@@ -223,7 +223,7 @@ class _roax_schema_list(_roax_schema_type):
         self._check_not_str(value)
         self.validate(value)
         if not isinstance(value, list):
-            value = _list(value) # make JSON library happy
+            value = _list(value) # make JSON encoder happy
         return self._process("json_encode", value)
 
     def json_decode(self, value):
@@ -263,15 +263,15 @@ class _roax_schema_str(_roax_schema_type):
 
     def __init__(self, *, min_len=0, max_len=None, pattern=None, **kwargs):
         """
-        min_len -- the minimum character length of the string.
-        max_len -- the maximum character length of the string.
-        pattern -- the regular expression that the string must match.
-        format -- more finely defines the data type.
-        required -- True if the value is mandatory.
-        default -- The default value, if the item value is not supplied.
-        enum -- list of values that are valid.
-        description -- string providing information about the item.
-        examples -- an array of valid values.
+        min_len: the minimum character length of the string.
+        max_len: the maximum character length of the string.
+        pattern: the regular expression that the string must match.
+        format: more finely defines the data type.
+        required: True if the value is mandatory.
+        default: The default value, if the item value is not supplied.
+        enum: list of values that are valid.
+        description: string providing information about the item.
+        examples: an array of valid values.
         """
         super().__init__(pytype=_str, jstype="string", **kwargs)
         self.min_len = min_len
@@ -358,13 +358,13 @@ class _roax_schema_int(_number):
 
     def __init__(self, **kwargs):
         """
-        minimum -- the inclusive lower limit of the value.
-        maximum -- the inclusive upper limit of the value.
-        required -- True if the value is mandatory.
-        default -- The default value, if the item value is not supplied.
-        enum -- list of values that are valid.
-        description -- string providing information about the item.
-        examples -- an array of valid values.
+        minimum: the inclusive lower limit of the value.
+        maximum: the inclusive upper limit of the value.
+        required: True if the value is mandatory.
+        default: The default value, if the item value is not supplied.
+        enum: list of values that are valid.
+        description: string providing information about the item.
+        examples: an array of valid values.
         """
         super().__init__(pytype=_int, jstype="integer", format="int64", **kwargs)
 
@@ -396,13 +396,13 @@ class _roax_schema_float(_number):
 
     def __init__(self, **kwargs):
         """
-        minimum -- the inclusive lower limit of the value.
-        maximum -- the inclusive upper limit of the value.
-        required -- True if the value is mandatory.
-        default -- The default value, if the item value is not supplied.
-        enum -- list of values that are valid.
-        description -- string providing information about the item.
-        examples -- an array of valid values.
+        minimum: the inclusive lower limit of the value.
+        maximum: the inclusive upper limit of the value.
+        required: True if the value is mandatory.
+        default: The default value, if the item value is not supplied.
+        enum: list of values that are valid.
+        description: string providing information about the item.
+        examples: an array of valid values.
         """
         super().__init__(pytype=_float, jstype="number", format="double", **kwargs)
 
@@ -431,10 +431,10 @@ class _roax_schema_bool(_roax_schema_type):
 
     def __init__(self, **kwargs):
         """
-        required -- True if the value is mandatory.
-        default -- The default value, if the item value is not supplied.
-        description -- string providing information about the item.
-        examples -- an array of valid values.
+        required: True if the value is mandatory.
+        default: The default value, if the item value is not supplied.
+        description: string providing information about the item.
+        examples: an array of valid values.
         """
         super().__init__(pytype=_bool, jstype="boolean", **kwargs)
 
@@ -478,10 +478,10 @@ class _roax_schema_bytes(_roax_schema_type):
 
     def __init__(self, **kwargs):
         """
-        required -- True if the value is mandatory.
-        default -- The default value, if the item value is not supplied.
-        description -- string providing information about the item.
-        examples -- an array of valid values.
+        required: True if the value is mandatory.
+        default: The default value, if the item value is not supplied.
+        description: string providing information about the item.
+        examples: an array of valid values.
         """
         super().__init__(pytype=_bytes, jstype="string", format="byte", **kwargs)
 
@@ -524,11 +524,11 @@ class _roax_schema_datetime(_roax_schema_type):
 
     def __init__(self, **kwargs):
         """
-        required -- True if the value is mandatory.
-        default -- The default value, if the item value is not supplied.
-        enum -- list of values that are valid.
-        description -- string providing information about the item.
-        examples -- an array of valid values.
+        required: True if the value is mandatory.
+        default: The default value, if the item value is not supplied.
+        enum: list of values that are valid.
+        description: string providing information about the item.
+        examples: an array of valid values.
         """
         super().__init__(pytype=_datetime, jstype="string", format="date-time", **kwargs)
 
@@ -575,11 +575,11 @@ class _roax_schema_uuid(_roax_schema_type):
 
     def __init__(self, **kwargs):
         """
-        required -- True if the value is mandatory.
-        default -- The default value, if the item value is not supplied.
-        enum -- list of values that are valid.
-        description -- string providing information about the item.
-        examples -- an array of valid values.
+        required: True if the value is mandatory.
+        default: The default value, if the item value is not supplied.
+        enum: list of values that are valid.
+        description: string providing information about the item.
+        examples: an array of valid values.
         """
         super().__init__(pytype=UUID, jstype="string", format="uuid", **kwargs)
 

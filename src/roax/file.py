@@ -86,12 +86,12 @@ class FileResourceSet(r.ResourceSet):
         """
         Initialize file resource set.
 
-        dir -- the directory to store JSON resource documents in.
-        mkdir -- automatically make the directory if it does not exist.
-        rev -- require preconditions for update operations.
-        schema -- document schema; or declare as class or instance variable.
-        gen_id -- function to generate _id; or define as method in subclass.
-        gen_rev -- function to generate _rev value; or define as method in subclass.
+        dir: the directory to store JSON resource documents in.
+        mkdir: automatically make the directory if it does not exist.
+        rev: require preconditions for update operations.
+        schema: document schema; or declare as class or instance variable.
+        gen_id: function to generate _id; or define as method in subclass.
+        gen_rev: function to generate _rev value; or define as method in subclass.
         """
         if schema:
             self.schema = schema
@@ -140,7 +140,7 @@ class FileResourceSet(r.ResourceSet):
         """
         Generate a new document identifier.
         
-        _doc -- the document being created.
+        _doc: the document being created.
         """
         raise NotImplementedError()
 
@@ -148,8 +148,8 @@ class FileResourceSet(r.ResourceSet):
         """
         Generate a revision value for a document being written.
 
-        old -- the old document value; None if new document.
-        new -- the new document value being written.
+        old: the old document value; None if new document.
+        new: the new document value being written.
         """
         raise NotImplementedError()
 
