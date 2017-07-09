@@ -1,10 +1,10 @@
-roax
+Roax
 ====
 
 |Travis| |PyPI|
 
-Roax: a lightweight Python framework for building resource-oriented
-applications.
+Roax /ɹoʊ.æks/: a lightweight Python framework for building
+resource-oriented applications.
 
 Repository
 ----------
