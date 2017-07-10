@@ -50,7 +50,7 @@ class ResourceSet:
 def method(*, kind=None, name=None, params=None, returns=None):
     """Decorate a function to register it as a resource set method."""
     def decorator(function):
-        decorated = roax.schema.validate(params, returns)(function) # validate params and returns
+        decorated = roax.schema.validate(params, returns)(function) # validate params and return value
         try:
             getattr(function, "__self__")._register_method(decorated, kind, name, params, returns)
         except AttributeError: # not bound to an instance
@@ -71,20 +71,20 @@ class ResourceError(Exception):
 
 class BadRequest(ResourceError):
     """Raised if the request contains malformed syntax."""
-    def __init__(self, detail):
+    def __init__(self, detail=None):
         super().__init__(detail, 400)
 
 class NotFound(ResourceError):
     """Raised if the resource could not be found."""
-    def __init__(self, detail):
+    def __init__(self, detail=None):
         super().__init__(detail, 404)
 
 class PreconditionFailed(ResourceError):
     """Raised if the revision provided does not match the current resource."""
-    def __init__(self, detail):
+    def __init__(self, detail=None):
         super().__init__(detail, 412)
 
 class InternalServerError(ResourceError):
     """Raised if the server encountered an unexpected condition."""
-    def __init__(self, detail):
+    def __init__(self, detail=None):
         super().__init__(detail, 500)
