@@ -10,6 +10,7 @@ import inspect
 import wrapt
 
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from copy import copy
 
 _type = type
@@ -24,7 +25,7 @@ _bytes = bytes
 class _roax_schema_type(ABC):
     """TODO: Description."""
 
-    def __init__(self, *, pytype, jstype, format=None, enum=None, required=True, default=None, description=None, examples=None):
+    def __init__(self, *, pytype=object, jstype=None, format=None, enum=None, required=True, default=None, description=None, examples=None):
         """
         pytype: the Python data type.
         jstype: the JSON schema data type.
@@ -62,7 +63,8 @@ class _roax_schema_type(ABC):
     def json_schema(self):
         """TODO: Description."""
         result = {}
-        result["type"] = self.jstype
+        if self.jstype:
+            result["type"] = self.jstype
         if self.format is not None:
             result["format"] = self.format
         if self.default is not None:
@@ -165,13 +167,12 @@ class _roax_schema_dict(_roax_schema_type):
         return result
 
     def str_encode(self, value):
-        raise RuntimeError("dict string encoding is not supported")
+        raise RuntimeError("string encoding is not supported for dict type")
 
     def str_decode(self, value):
-        raise RuntimeError("dict string decoding is not supported")
+        raise RuntimeError("string decoding is not supported for dict type")
 
 import csv
-from collections.abc import Sequence
 from io import StringIO
 class _roax_schema_list(_roax_schema_type):
     """TODO: Description."""
@@ -372,8 +373,9 @@ class _roax_schema_int(_number):
         super().__init__(pytype=_int, jstype="integer", format="int64", **kwargs)
 
     def validate(self, value):
-        """TODO: Description."""
         super().validate(value)
+        if isinstance(value, _bool):
+            raise SchemaError("expecting int type")
 
     def json_decode(self, value):
         """TODO: Description."""
@@ -408,11 +410,6 @@ class _roax_schema_float(_number):
         examples: an array of valid values.
         """
         super().__init__(pytype=_float, jstype="number", format="double", **kwargs)
-
-    def validate(self, value):
-        """TODO: Description."""
-        super().validate(value)
-        return value
 
     def json_decode(self, value):
         """TODO: Description."""
@@ -453,10 +450,6 @@ class _roax_schema_bool(_roax_schema_type):
         """TODO: Description."""
         self.validate(value)
         return value
-
-    def json_schema(self):
-        result = super().json_schema()
-        return result
 
     def str_encode(self, value):
         """TODO: Description."""
@@ -500,10 +493,6 @@ class _roax_schema_bytes(_roax_schema_type):
         """TODO: Description."""
         return self.str_decode(value)
 
-    def json_schema(self):
-        result = super().json_schema()
-        return result
-
     def str_encode(self, value):
         """TODO: Description."""
         self.validate(value)
@@ -517,6 +506,35 @@ class _roax_schema_bytes(_roax_schema_type):
             raise SchemaError("expecting a Base64-encoded value") from be
         self.validate(result)
         return result
+
+class _roax_schema_none(_roax_schema_type):
+    """TODO: Description."""
+
+    def __init__(self, **kwargs):
+        """
+        description: string providing information about the item.
+        """
+        super().__init__(pytype=_type(None), jstype="null", **kwargs)
+
+    def validate(self, value):
+        """TODO: Description."""
+        super().validate(value)
+
+    def json_encode(self, value):
+        """TODO: Description."""
+        self.validate(value)
+        return value
+
+    def json_decode(self, value):
+        """TODO: Description."""
+        self.validate(value)
+        return value
+
+    def str_encode(self, value):
+        raise RuntimeError("string encoding is not supported for none type")
+
+    def str_decode(self, value):
+        raise RuntimeError("string decoding is not supported for none type")
 
 import isodate
 from datetime import datetime as _datetime
@@ -552,10 +570,6 @@ class _roax_schema_datetime(_roax_schema_type):
     def json_decode(self, value):
         """TODO: Description."""
         return self.str_decode(value)
-
-    def json_schema(self):
-        result = super().json_schema()
-        return result
 
     def str_encode(self, value):
         """TODO: Description."""
@@ -598,10 +612,6 @@ class _roax_schema_uuid(_roax_schema_type):
         """TODO: Description."""
         return self.str_decode(value)
 
-    def json_schema(self):
-        result = super().json_schema()
-        return result
-
     def str_encode(self, value):
         """TODO: Description."""
         self.validate(value)
@@ -609,12 +619,130 @@ class _roax_schema_uuid(_roax_schema_type):
 
     def str_decode(self, value):
         """TODO: Description."""
+        if not isinstance(value, _str):
+            raise SchemaError("expecting a string")
         try:
             result = UUID(value)
         except ValueError as ve:
-            raise SchemaError("expecting a UUID value") from ve
+            raise SchemaError("expecting string to contain UUID value") from ve
         self.validate(result)
         return result
+
+class _roax_schema_x_of(_roax_schema_type):
+
+    def __init__(self, keyword, schemas, **kwargs):
+        super().__init__(**kwargs)
+        self.keyword = keyword
+        self.schemas = schemas
+
+    def _process(self, method, value):
+        """TODO: Description."""
+        results = []
+        for schema in self.schemas:
+            try:
+                results.append(getattr(schema, method)(value))
+            except SchemaError:
+                pass
+        return self._evaluate(results)
+
+    @abstractmethod
+    def _evaluate(self, method, value):
+        """TODO: Description."""
+
+    def validate(self, value):
+        """TODO: Description."""
+        self._process("validate", value)
+        super().validate(value)
+
+    def json_encode(self, value):
+        """TODO: Description."""
+        return self._process("json_encode", value)
+
+    def json_decode(self, value):
+        return self._process("json_decode", value)
+
+    def json_schema(self, value):
+        result = super().json_schema(value)
+        result[jskeyword] = self.schemas
+
+    def str_encode(self, value):
+        """TODO: Description."""
+        return self._process("str_encode", value)
+
+    def str_decode(self, value):
+        """TODO: Description."""
+        return self._process("str_decode", value)
+
+class _roax_schema_all(_roax_schema_x_of):
+    """
+    Valid if value validates successfully against all of the schemas.
+    Values encode/decode using the first schema in the list.
+    """
+
+    def __init__(self, schemas, **kwargs):
+        """
+        schemas: list of schemas to match against.
+        required: True if the value is mandatory.
+        default: The default value, if the item value is not supplied.
+        enum: list of values that are valid.
+        description: string providing information about the item.
+        examples: an array of valid values.
+        """
+        super().__init__("allOf", schemas, **kwargs)
+        self.schemas = schemas
+
+    def _evaluate(self, values):
+        if len(values) != len(self.schemas):
+            raise SchemaError("method does not match all schemas")
+        return values[0]
+
+class _roax_schema_any(_roax_schema_x_of):
+    """
+    Valid if value validates successfully against any of the schemas.
+    Values encode/decode using the first matching schema in the list.
+    """
+
+    def __init__(self, schemas, **kwargs):
+        """
+        schemas: list of schemas to match against.
+        required: True if the value is mandatory.
+        default: The default value, if the item value is not supplied.
+        enum: list of values that are valid.
+        description: string providing information about the item.
+        examples: an array of valid values.
+        """
+        super().__init__("anyOf", schemas, **kwargs)
+        self.schemas = schemas
+
+    def _evaluate(self, values):
+        if len(values) == 0:
+            raise SchemaError("value does not match any schema")
+        return values[0] # return first schema-processed value
+
+class _roax_schema_one(_roax_schema_x_of):
+    """
+    Valid if value validates successfully against exactly one schema.
+    Values encode/decode using the matching schema.
+    """
+
+    def __init__(self, schemas, **kwargs):
+        """
+        schemas: list of schemas to match against.
+        required: True if the value is mandatory.
+        default: The default value, if the item value is not supplied.
+        enum: list of values that are valid.
+        description: string providing information about the item.
+        examples: an array of valid values.
+        """
+        super().__init__("oneOf", schemas, **kwargs)
+        self.schemas = schemas
+
+    def _evaluate(self, values):
+        if len(values) == 0:
+            raise SchemaError("value does not match any schema")
+        elif len(values) > 1:
+            raise SchemaError("value matches more than one schema")
+        return values[0] # return first matching value
 
 def call(function, args, kwargs, params, returns):
     """Call a function, validating its input parameters and return value."""
@@ -708,5 +836,9 @@ int = _roax_schema_int
 float = _roax_schema_float
 bool = _roax_schema_bool
 bytes = _roax_schema_bytes
+none = _roax_schema_none
 datetime = _roax_schema_datetime
 uuid = _roax_schema_uuid
+all = _roax_schema_all
+any = _roax_schema_any
+one = _roax_schema_one

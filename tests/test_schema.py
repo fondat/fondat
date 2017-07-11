@@ -446,5 +446,52 @@ class TestSchema(unittest.TestCase):
             return "str_ftw"
         fn()
 
+    # ----- all ---------------
+
+    def test_all_none_match(self):
+        self._error(s.all([s.str(), s.bool()]).validate, 123)
+
+    def test_all_one_match(self):
+        self._error(s.all([s.str(), s.bool()]).validate, "hello")
+
+    def test_all_validation_all_match(self):
+        s.all([s.str(min_len=2), s.str(max_len=8)]).validate("hello")
+
+    def test_all_json_code(self):
+        for value in [ "12", "123", "1234" ]:
+            schema = s.all([s.str(min_len=2), s.str(max_len=4)])
+            self.assertEqual(schema.json_decode(schema.json_encode(value)), value)
+
+    # ----- any ---------------
+
+    def test_any_none_match(self):
+        self._error(s.any([s.str(), s.int()]).validate, 123.45)
+
+    def test_any_either_match(self):
+        s.any([s.str(), s.int()]).validate("one")
+        s.any([s.str(), s.int()]).validate(1)
+
+    def test_any_json_codec(self):
+        for value in [ 123.45, None, False ]:
+            schema = s.any([s.none(), s.float(), s.bool()])
+            self.assertEqual(schema.json_decode(schema.json_encode(value)), value)
+
+    # ----- one ---------------
+
+    def test_one_none_match(self):
+        self._error(s.one([s.str(), s.int()]).validate, 123.45)
+
+    def test_one_either_match(self):
+        s.one([s.str(), s.int()]).validate("one")
+        s.one([s.str(), s.int()]).validate(1)
+
+    def test_one_validation_all_match(self):
+        self._error(s.one([s.str(), s.str()]).validate, "string")
+
+    def test_one_json_codec(self):
+        for value in [ 123, UUID("06b959d0-65e0-11e7-866d-6be08781d5cb"), None, False ]:
+            schema = s.one([s.none(), s.int(), s.uuid(), s.bool()])
+            self.assertEqual(schema.json_decode(schema.json_encode(value)), value)
+
 if __name__ == "__main__":
     unittest.main()
