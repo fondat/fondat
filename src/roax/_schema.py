@@ -13,6 +13,22 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from copy import copy
 
+class SchemaError(Exception):
+    """Raised if a value does not conform to its schema."""
+
+    def __init__(self, msg, pointer=None):
+        """TODO: Description."""
+        self.msg = msg
+        self.pointer = pointer
+
+    def __str__(self):
+        result = []
+        if self.pointer is not None:
+            result.append(self.pointer)
+        if self.msg is not None:
+            result.append(self.msg)
+        return ": ".join(result)
+
 class _type(ABC):
     """Base class for all schema types."""
 
@@ -498,7 +514,7 @@ class _bytes(_type):
         self.validate(result)
         return result
 
-class _none(_type):
+class none(_type):
     """Schema type for the null object."""
 
     def __init__(self, **kwargs):
@@ -528,8 +544,7 @@ class _none(_type):
         raise RuntimeError("string decoding is not supported for none type")
 
 import isodate
-from datetime import datetime
-class _datetime(_type):
+class datetime(_type):
     """
     Schema type for date and time values. Datetime values are expressed in
     JSON as an ISO 8601 date and time in a string. Example: "2017-07-11T05:42:34Z".
@@ -545,6 +560,7 @@ class _datetime(_type):
         description: string providing information about the item.
         examples: an array of valid values.
         """
+        from datetime import datetime
         super().__init__(pytype=datetime, jstype="string", format="date-time", **kwargs)
 
     def _to_utc(self, value):
@@ -581,7 +597,7 @@ class _datetime(_type):
         return result
 
 from uuid import UUID
-class _uuid(_type):
+class uuid(_type):
     """
     Schema type for universally unique identifiers. UUID values are
     expressed in JSON as a string. Example: "035af02b-7ad7-4016-a101-96f8fc5ae6ec".
@@ -671,7 +687,7 @@ class _xof(_type):
         """TODO: Description."""
         return self._process("str_decode", value)
 
-class _all(_xof):
+class allof(_xof):
     """
     Schema type that is valid if a value validates successfully against all
     of the schemas. Values are encoded/decoded using the first schema in the
@@ -695,7 +711,7 @@ class _all(_xof):
             raise SchemaError("method does not match all schemas")
         return values[0]
 
-class _any(_xof):
+class anyof(_xof):
     """
     Schema type that is valid if a value validates successfully against any
     of the schemas. Values are encoded/decoded using the first valid
@@ -719,7 +735,7 @@ class _any(_xof):
             raise SchemaError("value does not match any schema")
         return values[0] # return first schema-processed value
 
-class _one(_xof):
+class oneof(_xof):
     """
     Schema type that is valid if a value validates successfully against
     exactly one schema. Values are encoded/decoded using the sole matching
@@ -811,19 +827,3 @@ def validate(params=None, returns=None):
             return call(wrapped, args, kwargs, _dict(_params), returns)
         return wrapt.decorator(wrapper)(function)
     return decorator
-
-class SchemaError(Exception):
-    """Raised if a value does not conform to its schema."""
-
-    def __init__(self, msg, pointer=None):
-        """TODO: Description."""
-        self.msg = msg
-        self.pointer = pointer
-
-    def __str__(self):
-        result = []
-        if self.pointer is not None:
-            result.append(self.pointer)
-        if self.msg is not None:
-            result.append(self.msg)
-        return ": ".join(result)
