@@ -14,7 +14,7 @@ from collections.abc import Sequence
 from copy import copy
 
 class _type(ABC):
-    """TODO: Description."""
+    """Base class for all schema types."""
 
     def __init__(self, *, pytype=object, jstype=None, format=None, enum=None, required=True, default=None, description=None, examples=None):
         """
@@ -78,7 +78,7 @@ class _type(ABC):
 
 from collections.abc import Mapping
 class _dict(_type):
-    """TODO: Description."""
+    """Schema type for dictionaries."""
 
     def __init__(self, properties, **kwargs):
         """
@@ -166,7 +166,7 @@ class _dict(_type):
 import csv
 from io import StringIO
 class _list(_type):
-    """TODO: Description."""
+    """Schema type for lists."""
 
     def __init__(self, items, *, min_items=0, max_items=None, unique_items=False, **kwargs):
         """
@@ -254,7 +254,7 @@ class _list(_type):
 
 import re
 class _str(_type):
-    """TODO: Description."""
+    """Schema type for strings."""
 
     def __init__(self, *, min_len=0, max_len=None, pattern=None, **kwargs):
         """
@@ -314,7 +314,7 @@ class _str(_type):
         return value
 
 class _number(_type):
-    """TODO: Description."""
+    """Base class for number types (int, float)."""
 
     def __init__(self, *, minimum=None, maximum=None, **kwargs):
         """TODO: Description."""
@@ -349,7 +349,7 @@ class _number(_type):
         return str(value)
 
 class _int(_number):
-    """TODO: Description."""
+    """Schema type for integers."""
 
     def __init__(self, **kwargs):
         """
@@ -388,7 +388,7 @@ class _int(_number):
         return result
 
 class _float(_number):
-    """TODO: Description."""
+    """Schema type for floating point numbers."""
 
     def __init__(self, **kwargs):
         """
@@ -418,7 +418,7 @@ class _float(_number):
         return result
 
 class _bool(_type):
-    """TODO: Description."""
+    """Schema type for boolean values."""
 
     def __init__(self, **kwargs):
         """
@@ -461,7 +461,7 @@ class _bool(_type):
 import binascii
 from base64 import b64decode, b64encode
 class _bytes(_type):
-    """TODO: Description."""
+    """Schema type for byte sequences."""
 
     def __init__(self, **kwargs):
         """
@@ -499,7 +499,7 @@ class _bytes(_type):
         return result
 
 class _none(_type):
-    """TODO: Description."""
+    """Schema type for the null object."""
 
     def __init__(self, **kwargs):
         """
@@ -530,7 +530,10 @@ class _none(_type):
 import isodate
 from datetime import datetime
 class _datetime(_type):
-    """TODO: Description."""
+    """
+    Schema type for date and time values. Datetime values are expressed in
+    JSON as an ISO 8601 date and time in a string. Example: "2017-07-11T05:42:34Z".
+    """
 
     _UTC = isodate.tzinfo.Utc()
 
@@ -579,7 +582,10 @@ class _datetime(_type):
 
 from uuid import UUID
 class _uuid(_type):
-    """TODO: Description."""
+    """
+    Schema type for universally unique identifiers. UUID values are
+    expressed in JSON as a string. Example: "035af02b-7ad7-4016-a101-96f8fc5ae6ec".
+    """
 
     def __init__(self, **kwargs):
         """
@@ -620,6 +626,7 @@ class _uuid(_type):
         return result
 
 class _xof(_type):
+    """TODO: Description."""
 
     def __init__(self, keyword, schemas, **kwargs):
         super().__init__(**kwargs)
@@ -666,8 +673,9 @@ class _xof(_type):
 
 class _all(_xof):
     """
-    Valid if value validates successfully against all of the schemas.
-    Values encode/decode using the first schema in the list.
+    Schema type that is valid if a value validates successfully against all
+    of the schemas. Values are encoded/decoded using the first schema in the
+    list.
     """
 
     def __init__(self, schemas, **kwargs):
@@ -689,8 +697,9 @@ class _all(_xof):
 
 class _any(_xof):
     """
-    Valid if value validates successfully against any of the schemas.
-    Values encode/decode using the first matching schema in the list.
+    Schema type that is valid if a value validates successfully against any
+    of the schemas. Values are encoded/decoded using the first valid
+    matching schema in the list.
     """
 
     def __init__(self, schemas, **kwargs):
@@ -712,8 +721,9 @@ class _any(_xof):
 
 class _one(_xof):
     """
-    Valid if value validates successfully against exactly one schema.
-    Values encode/decode using the matching schema.
+    Schema type that is valid if a value validates successfully against
+    exactly one schema. Values are encoded/decoded using the sole matching
+    schema.
     """
 
     def __init__(self, schemas, **kwargs):
