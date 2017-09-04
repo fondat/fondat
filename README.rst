@@ -3,7 +3,9 @@ Roax
 
 |Travis| |PyPI|
 
-Roax /ɹoʊ.æks/: A lightweight Python resource-oriented framework. 
+Ro·ax
+/ɹoʊ.æks/
+A lightweight Python resource-oriented framework. 
 
 Repository
 ----------
