@@ -7,6 +7,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import roax.schema
+import wrapt
 
 from collections import namedtuple
 
@@ -50,7 +51,10 @@ class ResourceSet:
 def method(*, kind=None, name=None, params=None, returns=None):
     """Decorate a function to register it as a resource set method."""
     def decorator(function):
-        decorated = roax.schema.validate(params, returns)(function) # validate params and return value
+        def wrapper(wrapped, instance, args, kwargs):
+#            with context.method(resource, kind, name):
+                return wrapped(*args, **kwargs)
+        decorated = roax.schema.validate(params, returns)(wrapt.decorator(wrapper)(function))
         try:
             getattr(function, "__self__")._register_method(decorated, kind, name, params, returns)
         except AttributeError: # not bound to an instance

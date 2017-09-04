@@ -186,7 +186,7 @@ class _list(_type):
 
     def __init__(self, items, *, min_items=0, max_items=None, unique_items=False, **kwargs):
         """
-        items: the schema which all items should conform to.
+        items: the schema which all items should adhere to.
         min_items: The minimum number of items required.
         max_items: The maximum number of items required.
         unique_items: True if all items must have unique values.
