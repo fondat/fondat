@@ -761,8 +761,13 @@ class oneof(_xof):
             raise SchemaError("value matches more than one schema")
         return values[0] # return first matching value
 
-def call(function, args, kwargs, params, returns):
-    """Call a function, validating its input parameters and return value."""
+def call(function, args, kwargs, params=None, returns=None):
+    """
+    Call a function, validating its input parameters and return value.
+    Whether a parameter is required and any default value is defined by the
+    function, not its schema specification. If a parameter is omitted from the
+    params schema, its value is not validated. 
+    """
     build = {}
     sig = inspect.signature(function)
     if len(args) > len([p for p in sig.parameters.values() if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)]):
@@ -773,33 +778,31 @@ def call(function, args, kwargs, params, returns):
         if k in build:
             raise TypeError("multiple values for argument: {}".format(k))
         build[k] = v
-    if params is not None:
-        build = params.defaults(build)
-        try:
-            params.validate(build)
-        except SchemaError as se:
-            se.msg = "parameter: " + se.msg
-            raise
     args = []
     kwargs = {}
     for p in sig.parameters.values():
-        try:
-            v = build.pop(p.name)
-        except KeyError as ke:
-            if p.default is not p.empty:
-                v = p.default
-            elif params is None:
-                raise SchemaError("required parameter", p.name) from ke
-            else:
-                v = None # parameter is specified as optional in schema
-        if p.kind in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD):
-            args.append(v)
-        elif p.kind is inspect.Parameter.KEYWORD_ONLY:
-            kwargs.append(v)
+        if p.kind is inspect.Parameter.VAR_POSITIONAL:
+            raise TypeError("parameter validation does not support functions with *args")
         elif p.kind is inspect.Parameter.VAR_KEYWORD:
-            kwargs.append(v)
-            kwargs.update(build)
-            break
+            raise TypeError("parameter validation does not support functions with **kwargs")
+        if p.name in build:
+            value = build[p.name]
+            if params is not None and p.name in params.properties:
+                try:
+                    params.properties[p.name].validate(build[p.name])
+                except SchemaError as se:
+                    se.msg = "parameter: " + se.msg
+                    raise
+        elif p.default is not p.empty:
+            value = p.default
+        else:
+            raise SchemaError("missing required parameter", p.name)
+        if p.kind in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD):
+            args.append(value)
+        elif p.kind is inspect.Parameter.KEYWORD_ONLY:
+            kwargs[p.name] = value
+        else:
+            raise TypeError("unrecognized type for parameter {}".format(p.name))
     result = function(*args, **kwargs)
     if returns is not None:
         try:
@@ -809,12 +812,21 @@ def call(function, args, kwargs, params, returns):
     return result
 
 def validate(params=None, returns=None):
-    """Decorate a function to validate its input parameters and return value."""
+    """
+    Decorate a function to validate its input parameters and return value.
+    Whether a parameter is required and any default value is defined by the
+    function, not its schema specification. If a parameter is omitted from the
+    params schema, it must have a default value.     
+    """
     def decorator(function):
         _params = {}
         if params:
             sig = inspect.signature(function)
             for p in (p for p in sig.parameters.values() if p.name != "self"):
+                if p.kind is inspect.Parameter.VAR_POSITIONAL:
+                    raise TypeError("Parameter validation does not support functions with *args")
+                elif p.kind is inspect.Parameter.VAR_KEYWORD:
+                    raise TypeError("Parameter validation does not support functions with **kwargs")
                 schema = params.properties.get(p.name)
                 if schema:
                     schema = copy(schema)
