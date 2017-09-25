@@ -15,4 +15,4 @@ Repository
 .. |Travis| image:: https://travis-ci.org/pbryan/roax.svg?branch=master
    :target: https://travis-ci.org/pbryan/roax
 .. |PyPI| image:: https://img.shields.io/pypi/v/roax.svg
-   :target: https://pypi.python.org/pypi/roax
+   :target: https://pypi.org/project/roax/
