@@ -9,18 +9,15 @@ from uuid import uuid4
 
 class TestFileResource(unittest.TestCase):
 
-    def test_crud(self):
+    def test_crud_dict(self):
         
         class FooResourceSet(FileResourceSet):
 
             schema = s.dict({
                 "_id": s.uuid(required=False),
                 "foo": s.str(),
-                "bar": s.int()
+                "bar": s.int(),
             })
-
-            def __init__(self, dir):
-                super().__init__(dir)
 
             def gen_id(self, _doc):
                 return uuid4()
@@ -39,49 +36,48 @@ class TestFileResource(unittest.TestCase):
             rs.delete(_id)
             self.assertEqual(rs.query_ids(), [])
 
-    def test_rev(self):
+    def test_crud_str(self):
 
-        class FooResourceSet(FileResourceSet):
+        class FRS(FileResourceSet):
 
-            schema = s.dict({
-                "_id": s.str(required=False),
-                "_rev": s.int(required=False),
-                "foo": s.str()
-            })
+            schema = s.str()
 
-            def __init__(self, dir, mkdir=False):
-                super().__init__(dir, mkdir=mkdir)
-
-            def gen_id(self, _doc):
-                return str(uuid4())
-
-            def gen_rev(self, old, new):
-                return old["_rev"] + 1 if old else 1
+            def create(self, _doc, _id): # make _id required
+                return super().create(_doc, _id)
 
         with TemporaryDirectory() as dir:
-            rs = FooResourceSet(dir + "/resources/foo", mkdir=True)
-            _doc = { "foo": "bar" }
-            _id = "/\\:*?\"<>|"
-            result = rs.create(_doc, _id) # should be URL-encoded
-            self.assertEqual(_id, result["_id"])
-            self.assertEqual(rs.query_ids(), [_id])
-            _rev = result["_rev"]
-            self.assertEqual(_rev, 1)
-            _doc = { "foo": "qux" }
-            result = rs.update(_id, _doc, 1)
-            self.assertEqual(result["_rev"], 2)
-            with self.assertRaises(r.PreconditionFailed):
-                rs.update(_id, _doc, 1)
-            _doc = { "foo": "bar" }
-            result = rs.update(_id, _doc)
-            self.assertEqual(result["_rev"], 3)
+            frs = FRS(dir, extension=".txt")
+            _doc = "你好，世界!"
+            _id = "hello_world"
+            self.assertEqual(_id, frs.create(_doc, _id)["_id"])
+            self.assertEqual(frs.query_ids(), [_id])
+            self.assertEqual(_doc, frs.read(_id))
+            _doc = "Goodbye world!"
+            frs.update(_id, _doc)
+            self.assertEqual(_doc, frs.read(_id))
+            frs.delete(_id)
+            self.assertEqual(frs.query_ids(), [])
 
-    def test_lamda(self):
+    def test_crud_bytes(self):
+
+        with TemporaryDirectory() as dir:
+            frs = FileResourceSet(dir, schema=s.bytes(), extension=".bin")
+            _doc = b"\x00\x0e\0x01\0x01\0x00"
+            _id = "binary"
+            self.assertEqual(_id, frs.create(_doc, _id)["_id"])
+            self.assertEqual(frs.query_ids(), [_id])
+            self.assertEqual(_doc, frs.read(_id))
+            _doc = bytes((1,2,3,4,5))
+            frs.update(_id, _doc)
+            self.assertEqual(_doc, frs.read(_id))
+            frs.delete(_id)
+            self.assertEqual(frs.query_ids(), [])
+
+    def test_lambda(self):
 
         schema = s.dict({
             "_id": s.uuid(required=False),
-            "_rev": s.int(required=False),
-            "foo": s.str()
+            "foo": s.str(),
         })
 
         with TemporaryDirectory() as dir:
@@ -89,16 +85,12 @@ class TestFileResource(unittest.TestCase):
                 dir + "/resources/foo",
                 schema=schema,
                 gen_id=lambda _doc: uuid4(),
-                gen_rev=lambda old, new: old["_rev"] + 1 if old else 1
             )
             _doc = { "foo": "bar" }
             result = rs.create(_doc)
             _id = result["_id"]
-            _rev = result["_rev"]
-            self.assertEqual(_rev, 1)
             _doc = { "foo": "qux" }
-            result = rs.update(_id, _doc, _rev)
-            self.assertEqual(result["_rev"], 2)
+            result = rs.update(_id, _doc)
 
 if __name__ == "__main__":
     unittest.main()
