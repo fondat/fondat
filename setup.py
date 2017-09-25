@@ -50,7 +50,7 @@ setup(
     url = "https://github.com/pbryan/roax",
     packages = ["roax"],
     package_dir = {"": "src"},
-    python_requires = ">= 3.4",
+    python_requires = ">= 3.5",
     install_requires = install_requires,
     keywords = "wsgi http framework resource roa",
     test_suite = "tests",
