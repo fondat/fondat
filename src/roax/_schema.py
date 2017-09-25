@@ -32,20 +32,24 @@ class SchemaError(Exception):
 class _type(ABC):
     """Base class for all schema types."""
 
-    def __init__(self, *, pytype=object, jstype=None, format=None, enum=None, required=True, default=None, description=None, examples=None):
+    def __init__(
+            self, *, python_type=object, json_type=None, format=None, mime_type=None,
+            enum=None, required=True, default=None, description=None, examples=None):
         """
-        pytype: the Python data type.
-        jstype: the JSON schema data type.
-        format: more finely defines the data type.
+        python_type: the Python data type.
+        json_type: the JSON schema data type.
+        format: more finely defines the JSON schema data type.
+        mime_type: the MIME content type.
         enum: list of values that are valid.
         required: True if the value is mandatory.
         default: the default value, if the item value is not supplied.
         description: string providing information about the item.
         examples: an array of valid values.
         """
-        self.pytype = pytype
-        self.jstype = jstype
+        self.python_type = python_type
+        self.json_type = json_type
         self.format = format
+        self.mime_type = mime_type
         self.enum = enum
         self.required = required
         self.default = default
@@ -54,8 +58,8 @@ class _type(ABC):
 
     def validate(self, value):
         """TODO: Description."""
-        if not isinstance(value, self.pytype):
-            raise SchemaError("expecting {} type".format(self.pytype.__name__))
+        if not isinstance(value, self.python_type):
+            raise SchemaError("expecting {} type".format(self.python_type.__name__))
         if self.enum is not None and value not in self.enum:
             raise SchemaError("value must be one of: {}".format(", ".join([self.str_encode(v) for v in self.enum])))
 
@@ -70,8 +74,8 @@ class _type(ABC):
     def json_schema(self):
         """TODO: Description."""
         result = {}
-        if self.jstype:
-            result["type"] = self.jstype
+        if self.json_type:
+            result["type"] = self.json_type
         if self.format is not None:
             result["format"] = self.format
         if self.default is not None:
@@ -104,7 +108,8 @@ class _dict(_type):
         description: string providing information about the item.
         examples: an array of valid values.
         """
-        super().__init__(pytype=Mapping, jstype="object", **kwargs)
+        kwargs = {"mime_type": "application/json", **kwargs}
+        super().__init__(python_type=Mapping, json_type="object", **kwargs)
         self.properties = properties
 
     def _fixup(self, se, key):
@@ -195,7 +200,7 @@ class _list(_type):
         description: string providing information about the item.
         examples: an array of valid values.
         """
-        super().__init__(pytype=Sequence, jstype="array", **kwargs)
+        super().__init__(python_type=Sequence, json_type="array", **kwargs)
         self.items = items
         self.min_items = min_items
         self.max_items = max_items
@@ -284,7 +289,8 @@ class _str(_type):
         description: string providing information about the item.
         examples: an array of valid values.
         """
-        super().__init__(pytype=str, jstype="string", **kwargs)
+        kwargs = {"mime_type": "text/plain;charset=utf-8", **kwargs}
+        super().__init__(python_type=str, json_type="string", **kwargs)
         self.min_len = min_len
         self.max_len = max_len
         self.pattern = re.compile(pattern) if pattern is not None else None
@@ -377,7 +383,7 @@ class _int(_number):
         description: string providing information about the item.
         examples: an array of valid values.
         """
-        super().__init__(pytype=int, jstype="integer", format="int64", **kwargs)
+        super().__init__(python_type=int, json_type="integer", format="int64", **kwargs)
 
     def validate(self, value):
         super().validate(value)
@@ -416,7 +422,7 @@ class _float(_number):
         description: string providing information about the item.
         examples: an array of valid values.
         """
-        super().__init__(pytype=float, jstype="number", format="double", **kwargs)
+        super().__init__(python_type=float, json_type="number", format="double", **kwargs)
 
     def json_decode(self, value):
         """TODO: Description."""
@@ -443,7 +449,7 @@ class _bool(_type):
         description: string providing information about the item.
         examples: an array of valid values.
         """
-        super().__init__(pytype=bool, jstype="boolean", **kwargs)
+        super().__init__(python_type=bool, json_type="boolean", **kwargs)
 
     def validate(self, value):
         super().validate(value)
@@ -486,7 +492,8 @@ class _bytes(_type):
         description: string providing information about the item.
         examples: an array of valid values.
         """
-        super().__init__(pytype=bytes, jstype="string", format="byte", **kwargs)
+        kwargs = {"mime_type": "application/octet-string", **kwargs}
+        super().__init__(python_type=bytes, json_type="string", format="byte", **kwargs)
 
     def validate(self, value):
         """TODO: Description."""
@@ -521,7 +528,7 @@ class none(_type):
         """
         description: string providing information about the item.
         """
-        super().__init__(pytype=type(None), jstype="null", **kwargs)
+        super().__init__(python_type=type(None), json_type="null", **kwargs)
 
     def validate(self, value):
         """TODO: Description."""
@@ -561,7 +568,7 @@ class datetime(_type):
         examples: an array of valid values.
         """
         from datetime import datetime
-        super().__init__(pytype=datetime, jstype="string", format="date-time", **kwargs)
+        super().__init__(python_type=datetime, json_type="string", format="date-time", **kwargs)
 
     def _to_utc(self, value):
         """TODO: Description."""
@@ -611,7 +618,7 @@ class uuid(_type):
         description: string providing information about the item.
         examples: an array of valid values.
         """
-        super().__init__(pytype=UUID, jstype="string", format="uuid", **kwargs)
+        super().__init__(python_type=UUID, json_type="string", format="uuid", **kwargs)
 
     def validate(self, value):
         """TODO: Description."""
