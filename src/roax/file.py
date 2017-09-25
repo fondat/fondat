@@ -134,7 +134,6 @@ class FileResourceSet(r.ResourceSet):
         self.update = r.method(params=params(self.update), returns=s.none())(self.update)
         self.delete = r.method(params=params(self.delete), returns=s.none())(self.delete)
         self.query_ids = r.method(params=s.dict({}), returns=s.list(self.id_schema))(self.query_ids)
-        self.query_docs = r.method(params=s.dict({}), returns=s.list(self.schema))(self.query_docs)
 
     def gen_id(self, _doc):
         """
@@ -188,14 +187,4 @@ class FileResourceSet(r.ResourceSet):
                     result.append(self.id_schema.str_decode(str_id))
                 except s.SchemaError:
                     pass # ignore filenames that can't be parsed
-        return result
-
-    def query_docs(self):
-        """Return all resource documents."""
-        result = []
-        for _id in self.query_ids():
-            try:
-                result.append(self.read(_id))
-            except r.NotFound:
-                pass # ignore resources deleted since query_ids
         return result
