@@ -13,17 +13,17 @@ import wrapt
 from collections import namedtuple
 from roax.context import context
 
-_Method = namedtuple("_Method", "function, kind, name, params, body, returns, security")
+_Method = namedtuple("_Method", "function, kind, name, params, returns, security")
 
 
 class Resource:
     """Base class for a resource."""
 
-    def _register_method(self, function, kind=None, name=None, params=None, body=None, returns=None, security=None):
+    def _register_method(self, function, kind=None, name=None, params=None, returns=None, security=None):
         """Register a resource method."""
         if self.methods.get((kind, name)):
             raise ResourceError("method already registered: {}".format((kind, name)))
-        self.methods[(kind, name)] = _Method(function, kind, name, params, body, returns, security)
+        self.methods[(kind, name)] = _Method(function, kind, name, params, returns, security)
 
     def __init__(self):
         """Initialize the resource."""
@@ -44,14 +44,13 @@ class Resource:
         return function(**params)
 
 
-def method(*, kind=None, name=None, params=None, body=None, returns=None, security=None):
+def method(*, kind=None, name=None, params=None, returns=None, security=None):
     """
     Decorate a function to register it as a resource method.
 
     kind: The kind of method being registered.
     name: The name of the query or action.
     params: The schema of function parameters.
-    body: The name of the parameter that contains the request body.
     returns: The schema of function return value.
     security: TODO.
     """
@@ -69,9 +68,9 @@ def method(*, kind=None, name=None, params=None, body=None, returns=None, securi
                 return wrapped(*args, **kwargs)
         decorated = s.validate(params, returns)(wrapt.decorator(wrapper)(function))
         try:
-            getattr(function, "__self__")._register_method(decorated, _kind, _name, params, body, returns, security)
+            getattr(function, "__self__")._register_method(decorated, _kind, _name, params, returns, security)
         except AttributeError:  # not bound to an instance
-            function.roax_method = _Method(None, _kind, _name, params, body, returns, security)  # __init__ will register
+            function.roax_method = _Method(None, _kind, _name, params, returns, security)  # __init__ will register
         return decorated
     return decorator
 

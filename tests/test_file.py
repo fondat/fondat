@@ -20,8 +20,8 @@ class TestFileResource(unittest.TestCase):
                 "bar": s.int(),
             })
 
-            def create(self, body):
-                return super().create(body, uuid4())
+            def create(self, _body):
+                return super().create(_body, uuid4())
 
         with TemporaryDirectory() as dir:
             rs = FooResource(dir)

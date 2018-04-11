@@ -1,4 +1,4 @@
-"""Module to store resources in the filesystem."""
+"""Module to store resource items in the files."""
 
 # Copyright © 2017–2018 Paul Bryan.
 #
@@ -39,9 +39,9 @@ def _unquote(s):
 
 class FileResource(Resource):
     """
-    A file resource; each item is a separate file in a directory. This class is
-    appropriate for up to hundreds of items; it is probably not appropriate for
-    thousands or more.
+    A file resource; each item is a stored as a separate file in a directory. This
+    class is appropriate for up to hundreds of items; it is probably not
+    appropriate for thousands or more.
 
     The way the item file is encoded depends on the document schema:
     - dict: each resource is stored as a text file containing a JSON object.
@@ -82,31 +82,31 @@ class FileResource(Resource):
     def _write(self, file, body, id):
         file.seek(0)
         file.truncate()
-        if isinstance(self.schema, s.dict) and self.id_name in self.schema.properties:
-            if self.id_name and self.id_name in self.schema.properties:
-                body = ChainMap({self.id_name: id}, body)
+        if isinstance(self.schema, s.dict) and self.id_property in self.schema.properties:
+            if self.id_property and self.id_property in self.schema.properties:
+                body = ChainMap({self.id_property: id}, body)
             json.dump(self.schema.json_encode(body), file, separators=(",",":"), ensure_ascii=False)
         else:
             file.write(body)    
 
     @property
     def id_schema(self):
-        if isinstance(self.schema, s.dict) and self.id_name in self.schema.properties:
-            return self.schema.properties[self.id_name]
+        if isinstance(self.schema, s.dict) and self.id_property in self.schema.properties:
+            return self.schema.properties[self.id_property]
         else:
             return s.str()
 
-    def __init__(self, dir, *, schema=None, extension=None, id_name=None):
+    def __init__(self, dir, *, schema=None, extension=None, id_property=None):
         """
         Initialize file resource.
 
         dir: The directory to store resource documents in.
         schema: Document schema, or declare as class or instance variable.
         extenson: The filename extension to use for each file (including dot).
-        id_name: Name of resource identifier property in document schema. Default: "id".
+        id_property: Name of resource identifier property in document schema. Default: "id".
         """
         self.schema = schema or self.schema
-        self.id_name = id_name or getattr(self, "id_name", "id")
+        self.id_property = id_property or getattr(self, "id_property", "id")
         super().__init__()
         self.dir = expanduser(dir.rstrip("/"))
         os.makedirs(self.dir, exist_ok=True)
@@ -118,7 +118,7 @@ class FileResource(Resource):
             for param in inspect.signature(function).parameters.values():
                 if param.name == "id":
                     schema = self.id_schema
-                elif param.name == "body":
+                elif param.name == "_body":
                     schema = self.schema
                 else:
                     raise s.SchemaError("method doesn't support {} parameter".format(param.name))
@@ -135,11 +135,11 @@ class FileResource(Resource):
         self.delete = method(params=_p(self.delete), returns=None)(self.delete)
         self.query_ids = method(params={}, returns=s.list(self.id_schema))(self.query_ids)
 
-    def create(self, body, id):
+    def create(self, _body, id):
         """Create a resource item."""
         try:
             with self._open(id, "x") as file:
-                self._write(file, body, id)
+                self._write(file, _body, id)
         except NotFound:
             raise InternalServerError("file resource directory not found")
         return id
@@ -148,14 +148,14 @@ class FileResource(Resource):
         """Read a resource item."""
         with self._open(id, "r") as file:
             body = self._read(file)
-        if isinstance(self.schema, s.dict) and self.id_name in self.schema.properties:
-            body[self.id_name] = id  # filename is canonical identifier
+        if isinstance(self.schema, s.dict) and self.id_property in self.schema.properties:
+            body[self.id_property] = id  # filename is canonical identifier
         return body
 
-    def update(self, id, body):
+    def update(self, id, _body):
         """Update a resource item."""
         with self._open(id, "r+") as file:
-            self._write(file, body, id)
+            self._write(file, _body, id)
 
     def delete(self, id):
         """Delete a resource item."""
@@ -165,7 +165,7 @@ class FileResource(Resource):
             raise NotFound("resource not found")
 
     def query_ids(self):
-        """Return all resource identifiers."""
+        """Return all resource item identifiers."""
         result = []
         for name in os.listdir(self.dir):
             if name.endswith(self.extension):
