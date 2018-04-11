@@ -16,7 +16,8 @@ def _export(*args):
 __all__ = []
 
 _export("SchemaError")
-_export("type", "dict", "list", "str", "int", "float", "bool", "bytes", "none")
+_export("type", "dict", "list", "str", "int", "float", "bool", "bytes")
 _export("datetime", "uuid")
-_export("allof", "anyof", "oneof")
+#_export("all_of", "any_of", "one_of")
+_export("any_of", "one_of")
 _export("call", "validate")
