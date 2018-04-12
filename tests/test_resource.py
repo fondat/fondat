@@ -32,6 +32,16 @@ class R2(Resource):
         return uuid.UUID("f5808e7e-09c0-4f0c-ae6f-a9b30bd23290")
 
 
+class InvalidOperationTypeResource(Resource):
+
+    def __init__(self):
+        super().__init__()
+        self.not_a_valid_operation_type = operation()(self.not_a_valid_operation_type)
+    
+    def not_a_valid_operation_type(self):
+        pass
+
+
 class TestResource(unittest.TestCase):
 
     def test_call(self):
@@ -39,6 +49,16 @@ class TestResource(unittest.TestCase):
 
     def test_init_wrap(self):
         result = R2().call("create", params={"body": {"foo": "bar"}})
+
+    def test_invalid_operation_type(self):
+        with self.assertRaises(TypeError):
+            InvalidOperationTypeResource()
+
+    def test_override_operation_type(self):
+        class OverrideOperationTypeResource(Resource):
+            @operation(type="create")
+            def not_a_valid_operation_type(self):
+                pass
 
 
 if __name__ == "__main__":

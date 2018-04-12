@@ -10,69 +10,79 @@ import roax.schema as s
 #import roax.security
 import wrapt
 
-from collections import namedtuple
 from roax.context import context
-
-_Operation = namedtuple("_Operation", "function, type, name, params, returns, security, deprecated")
 
 
 class Resource:
     """Base class for a resource."""
 
-    def _register_operation(self, function, type=None, name=None, params=None, returns=None, security=None, deprecated=False):
+    def _register_operation(self, **operation):
         """Register a resource operation."""
+        type = operation["type"]
+        name = operation.get("name")
         if self.operations.get((type, name)):
             raise ResourceError("operation already registered: {}".format((type, name)))
-        self.operations[(type, name)] = _Operation(function, type, name, params, returns, security, deprecated)
+        self.operations[(type, name)] = operation
 
     def __init__(self):
         """Initialize the resource."""
         self.operations = {}
         for function in (attr for attr in (getattr(self, name) for name in dir(self)) if callable(attr)):
             try:
-                op = function.roax_operation
+                operation = function._roax_operation
             except:
                 continue  # ignore undecorated functions
-            self._register_operation(function, op.type, op.name, op.params, op.returns, op.security)
+            self._register_operation(**{**operation, **{"_function": function}})
 
     def call(self, type, name=None, params={}):
         """Call a resource operation."""
         try:
-            function = self.operations[(type, name)].function
+            function = self.operations[(type, name)]["_function"]
         except KeyError as e:
             raise ResourceError("resource does not support operation", 400)
         return function(**params)
 
 
-def operation(*, type=None, name=None, params=None, returns=None, security=None, deprecated=False):
+def operation(**kwargs):
     """
     Decorate a function to register it as a resource operation.
 
-    type: The type of operation being registered.
-    name: The name, if the operation is "query" or "action".
+    type: The type of operation being registered ("create", "read", "update", "delete", "action", "query").
+    name: The operation name. Required if the operation type is "query" or "action".
     summary: A short summary of what the operation does.
-    params: The schema of operation parameters.
-    returns: The schema of operation return value.
-    security: TODO.
-    deprecated: Declares the operator as deprecated.
+    description: A verbose description of the operation (default: function docstring).
+    params: A mapping of operation's parameter names to their schemas.
+    returns: The schema of operation's return value.
+    security: Security schemes, one of which must be satisfied to perform the operation.
+    deprecated: If True, declares the operation as deprecated.
     """
+    valid_args = ["type", "name", "summary", "description", "params", "returns", "security", "deprecated"]
+    valid_types = ["create", "read", "update", "delete", "query", "action"]
+    for kwarg in kwargs:
+        if kwarg not in valid_args:
+            raise TypeError("unexpected argument: {}".format(kwarg))
     def decorator(function):
-        _type = type
-        _name = name
+        type = kwargs.get("type")
+        name = kwargs.get("name")
         split = function.__name__.split("_", 1)
-        if _type is None:
-            _type = split[0]
+        if type is None:
+            type = split[0]
         if len(split) > 1:
-            _name = _name or split[1]
+            name = name or split[1]
+        if type not in valid_types:
+            raise TypeError("operation type must be one of: {}".format(valid_types))
+        if type in ["query", "action"] and not name:
+            raise TypeError("{} operation must have a name".format(type))
         def wrapper(wrapped, instance, args, kwargs):
-            with context({"type": "operation", "op_type": _type, "name": _name}):
+            with context({"type": "operation", "op_type": type, "name": name}):
                 #roax.security.apply(security)
                 return wrapped(*args, **kwargs)
-        decorated = s.validate(params, returns)(wrapt.decorator(wrapper)(function))
+        decorated = s.validate(kwargs.get("params"), kwargs.get("returns"))(wrapt.decorator(wrapper)(function))
+        operation = {**kwargs, **{"_function": decorated, "type": type, "name": name}}
         try:
-            getattr(function, "__self__")._register_operation(decorated, _type, _name, params, returns, security, deprecated)
-        except AttributeError:  # not bound to an instance
-            function.roax_operation = _Operation(None, _type, _name, params, returns, security, deprecated)  # __init__ will register
+            getattr(function, "__self__")._register_operation(**operation)
+        except AttributeError:  # not yet bound to an instance
+            function._roax_operation = operation  # __init__ will register it instead
         return decorated
     return decorator
 
