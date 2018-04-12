@@ -21,6 +21,7 @@ try:
 except ImportError:
     fcntl = None
 
+
 _map = [(c, "%{:02X}".format(ord(c))) for c in "%/\\:*?\"<>|"]
 
 def _quote(s):
@@ -89,25 +90,23 @@ class FileResource(Resource):
         else:
             file.write(body)    
 
-    @property
-    def id_schema(self):
-        if isinstance(self.schema, s.dict) and self.id_property in self.schema.properties:
-            return self.schema.properties[self.id_property]
-        else:
-            return s.str()
-
-    def __init__(self, dir, *, schema=None, extension=None, id_property=None):
+    def __init__(self, dir, name=None, description=None, *, schema=None, extension=None, id_property=None):
         """
         Initialize file resource.
 
+        name: The short name of the resource. Default: the class name in lower case.
+        description: A short description of the resource. Default: the resource docstring.
         dir: The directory to store resource documents in.
         schema: Document schema, or declare as class or instance variable.
         extenson: The filename extension to use for each file (including dot).
         id_property: Name of resource identifier property in document schema. Default: "id".
         """
+        super().__init__()
         self.schema = schema or self.schema
         self.id_property = id_property or getattr(self, "id_property", "id")
-        super().__init__()
+        if not isinstance(self.schema, s.dict) or self.id_property not in self.schema.properties:
+            self.id_property = None
+        self.id_schema = self.schema.properties[self.id_property] if self.id_property else s.str()
         self.dir = expanduser(dir.rstrip("/"))
         os.makedirs(self.dir, exist_ok=True)
         self.extension = extension or getattr(self, "extension", "")

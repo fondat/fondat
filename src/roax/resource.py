@@ -24,10 +24,18 @@ class Resource:
             raise ResourceError("operation already registered: {}".format((type, name)))
         self.operations[(type, name)] = operation
 
-    def __init__(self):
-        """Initialize the resource."""
+    def __init__(self, name=None, description=None):
+        """
+        Initialize the resource.
+
+        name: The short name of the resource. Default: the class name in lower case.
+        description: A short description of the resource. Default: the resource docstring.
+        """
+        super().__init__()
+        self.name = name or getattr(self, "name", type(self).__name__.lower())
+        self.description = description or getattr(self, "description", self.__doc__)
         self.operations = {}
-        for function in (attr for attr in (getattr(self, name) for name in dir(self)) if callable(attr)):
+        for function in (attr for attr in (getattr(self, nom) for nom in dir(self)) if callable(attr)):
             try:
                 operation = function._roax_operation
             except:
