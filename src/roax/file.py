@@ -14,7 +14,7 @@ import roax.schema as s
 from collections import ChainMap
 from copy import copy
 from os.path import expanduser
-from roax.resource import Resource, Conflict, InternalServerError, NotFound, method
+from roax.resource import Resource, Conflict, InternalServerError, NotFound, operation
 
 try:
     import fcntl
@@ -121,7 +121,7 @@ class FileResource(Resource):
                 elif param.name == "_body":
                     schema = self.schema
                 else:
-                    raise s.SchemaError("method doesn't support {} parameter".format(param.name))
+                    raise s.SchemaError("operation doesn't support {} parameter".format(param.name))
                 schema = copy(schema)
                 schema.required = param.default is inspect._empty
                 if param.default is not inspect._empty:
@@ -129,11 +129,11 @@ class FileResource(Resource):
                 result[param.name] = schema
             return result
 
-        self.create = method(params=_p(self.create), returns=self.id_schema)(self.create)
-        self.read = method(params=_p(self.read), returns=self.schema)(self.read)
-        self.update = method(params=_p(self.update), returns=None)(self.update)
-        self.delete = method(params=_p(self.delete), returns=None)(self.delete)
-        self.query_ids = method(params={}, returns=s.list(self.id_schema))(self.query_ids)
+        self.create = operation(params=_p(self.create), returns=self.id_schema)(self.create)
+        self.read = operation(params=_p(self.read), returns=self.schema)(self.read)
+        self.update = operation(params=_p(self.update), returns=None)(self.update)
+        self.delete = operation(params=_p(self.delete), returns=None)(self.delete)
+        self.query_ids = operation(params={}, returns=s.list(self.id_schema))(self.query_ids)
 
     def create(self, _body, id):
         """Create a resource item."""
