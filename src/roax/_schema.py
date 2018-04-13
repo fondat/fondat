@@ -13,6 +13,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from copy import copy
 
+
 class SchemaError(Exception):
     """Raised if a value does not conform to its schema."""
 
@@ -29,18 +30,20 @@ class SchemaError(Exception):
             result.append(self.msg)
         return ": ".join(result)
 
+
 class _type(ABC):
     """Base class for all schema types."""
 
     def __init__(
-            self, *, python_type=object, json_type=None, format=None, mime_type=None,
-            enum=None, required=True, default=None, description=None, examples=None,
-            nullable=False, deprecated=False):
+            self, *, python_type=object, json_type=None, format=None,
+            content_type="application/json", enum=None, required=True,
+            default=None, description=None, examples=None, nullable=False,
+            deprecated=False):
         """
         python_type: the Python data type.
         json_type: the JSON schema data type.
-        format: more finely defines the JSON schema data type.
-        mime_type: the MIME content type.
+        format: more finely defines the data type.
+        content_type: the content type used when value is expressed in a body.
         enum: list of values that are valid.
         nullable: True if None is a valid value.
         required: True if the value is mandatory.
@@ -49,10 +52,11 @@ class _type(ABC):
         examples: an array of valid values.
         deprecated: schema should be transitioned out of usage.
         """
+        super().__init__()
         self.python_type = python_type
         self.json_type = json_type
         self.format = format
-        self.mime_type = mime_type
+        self.content_type = content_type
         self.nullable = nullable
         self.enum = enum
         self.required = required
@@ -73,7 +77,7 @@ class _type(ABC):
     @abstractmethod
     def json_encode(self, value):
         """
-        Return the JSON object model representation of the value. The method does not
+        Encode the value into JSON object model representation. The method does not
         dump the value as JSON text; it represents the value such that the Python
         JSON module can dump as JSON text if required.
         """
@@ -81,9 +85,9 @@ class _type(ABC):
     @abstractmethod
     def json_decode(self, value):
         """
-        Return the best Python representation of the JSON value. The method does not
-        load the value as JSON text; it takes a Python value if the Python JSON module
-        loaded the JSON text.
+        Decode the value from JSON object model representation. The method does not
+        parse the value as JSON text; it takes a Python value as though the Python JSON
+        module loaded the JSON text.
         """
 
     def json_schema(self):
@@ -109,11 +113,12 @@ class _type(ABC):
 
     @abstractmethod
     def str_encode(self, value):
-        """TODO: Description."""
+        """Encode the value into string representation."""
 
     @abstractmethod
     def str_decode(self, value):
-        """TODO: Description."""
+        """Decode the value from string representation."""
+
 
 from collections.abc import Mapping
 class _dict(_type):
@@ -131,7 +136,6 @@ class _dict(_type):
         description: string providing information about the item.
         examples: an array of valid values.
         """
-        kwargs = {"mime_type": "application/json", **kwargs}
         super().__init__(python_type=Mapping, json_type="object", **kwargs)
         self.properties = properties
         self.additional_properties = additional_properties
@@ -185,7 +189,7 @@ class _dict(_type):
         return value
 
     def json_encode(self, value):
-        """Return the JSON object model representation of the dict value."""
+        """Encode the value into JSON object model representation."""
         value = self.defaults(value)
         self.validate(value)
         if not isinstance(value, dict):
@@ -193,7 +197,7 @@ class _dict(_type):
         return self._process("json_encode", value)
 
     def json_decode(self, value):
-        """TODO: Description."""
+        """Decode the value from JSON object model representation."""
         result = self.defaults(self._process("json_decode", value))
         self.validate(result)
         return result
@@ -205,10 +209,13 @@ class _dict(_type):
         return result
 
     def str_encode(self, value):
-        raise RuntimeError("string encoding is not supported for dict type")
+        """Encode the value into string representation."""
+        raise RuntimeError("dict cannot be encoded into string representation")
 
     def str_decode(self, value):
-        raise RuntimeError("string decoding is not supported for dict type")
+        """Decode the value from string representation."""
+        raise RuntimeError("dict cannot be decoded from string representation")
+
 
 import csv
 from io import StringIO
@@ -264,7 +271,7 @@ class _list(_type):
             raise SchemaError("expecting items to be unique")
 
     def json_encode(self, value):
-        """Return the JSON object model representation of the list value."""
+        """Encode the value into JSON object model representation."""
         self._check_not_str(value)
         self.validate(value)
         if not isinstance(value, list):
@@ -272,7 +279,7 @@ class _list(_type):
         return self._process("json_encode", value)
 
     def json_decode(self, value):
-        """TODO: Description."""
+        """Decode the value from JSON object model representation."""
         self._check_not_str(value)
         result = self._process("json_decode", value)
         self.validate(result)
@@ -290,22 +297,23 @@ class _list(_type):
         return result
 
     def str_encode(self, value):
-        """TODO: Description."""
+        """Encode the value into string representation."""
         self.validate(value)
         sio = StringIO()
         csv.writer(sio).writerow(self._process("str_encode", value))
         return sio.getvalue().rstrip("\r\n")
 
     def str_decode(self, value):
-        """TODO: Description."""
+        """Decode the value from string representation."""
         result = self._process("str_decode", csv.reader([value]).__next__())
         self.validate(result)
         return result
 
+
 import re
 class _str(_type):
     """
-    Schema type for character strings.
+    Schema type for Unicode character strings.
     """
 
     def __init__(self, *, min_len=0, max_len=None, pattern=None, **kwargs):
@@ -321,7 +329,6 @@ class _str(_type):
         description: string providing information about the item.
         examples: an array of valid values.
         """
-        kwargs = {"mime_type": "text/plain;charset=utf-8", **kwargs}
         super().__init__(python_type=str, json_type="string", **kwargs)
         self.min_len = min_len
         self.max_len = max_len
@@ -338,12 +345,12 @@ class _str(_type):
             raise SchemaError("expecting pattern: {}".format(self.pattern.pattern))
 
     def json_encode(self, value):
-        """Return the JSON object model representation of the string value."""
+        """Encode the value into JSON object model representation."""
         self.validate(value)
         return value
 
     def json_decode(self, value):
-        """TODO: Description."""
+        """Decode the value from JSON object model representation."""
         self.validate(value)
         return value
 
@@ -358,14 +365,15 @@ class _str(_type):
         return result
  
     def str_encode(self, value):
-        """TODO: Description."""
+        """Encode the value into string representation."""
         self.validate(value)
         return value
 
     def str_decode(self, value):
-        """TODO: Description."""
+        """Decode the value from string representation."""
         self.validate(value)
         return value
+
 
 class _number(_type):
     """
@@ -387,7 +395,7 @@ class _number(_type):
             raise SchemaError("expecting maximum value of {}".format(self.maximum))
 
     def json_encode(self, value):
-        """Return the JSON object model representation of the number value."""
+        """Encode the value into JSON object model representation."""
         self.validate(value)
         return value
 
@@ -400,9 +408,10 @@ class _number(_type):
         return result
 
     def str_encode(self, value):
-        """TODO: Description."""
+        """Encode the value into string representation."""
         self.validate(value)
         return str(value)
+
 
 class _int(_number):
     """
@@ -428,7 +437,7 @@ class _int(_number):
             raise SchemaError("expecting int type")
 
     def json_decode(self, value):
-        """TODO: Description."""
+        """Decode the value from JSON object model representation."""
         result = value
         if isinstance(result, float):
             result = result.__int__()
@@ -438,13 +447,14 @@ class _int(_number):
         return result
 
     def str_decode(self, value):
-        """TODO: Description."""
+        """Decode the value from string representation."""
         try:
             result = int(value)
         except ValueError as ve:
             raise SchemaError("expecting an integer value") from ve
         self.validate(result)
         return result
+
 
 class _float(_number):
     """
@@ -455,7 +465,7 @@ class _float(_number):
         """
         minimum: the inclusive lower limit of the value.
         maximum: the inclusive upper limit of the value.
-	nullable: allows expressing None as the value.
+        nullable: allows expressing None as the value.
         required: True if the value is mandatory.
         default: The default value, if the item value is not supplied.
         enum: list of values that are valid.
@@ -465,19 +475,20 @@ class _float(_number):
         super().__init__(python_type=float, json_type="number", format="double", **kwargs)
 
     def json_decode(self, value):
-        """TODO: Description."""
+        """Decode the value from JSON object model representation."""
         result = value.__float__() if isinstance(value, int) else value
         self.validate(result)
         return result
 
     def str_decode(self, value):
-        """TODO: Description."""
+        """Decode the value from string representation."""
         try:
             result = float(value)
         except ValueError as ve:
             raise SchemaError("expecting a number") from ve
         self.validate(result)
         return result
+
 
 class _bool(_type):
     """
@@ -498,22 +509,22 @@ class _bool(_type):
         super().validate(value)
 
     def json_encode(self, value):
-        """Return the JSON object model representation of the boolean value."""
+        """Encode the value into JSON object model representation."""
         self.validate(value)
         return value
 
     def json_decode(self, value):
-        """TODO: Description."""
+        """Decode the value from JSON object model representation."""
         self.validate(value)
         return value
 
     def str_encode(self, value):
-        """TODO: Description."""
+        """Encode the value into string representation."""
         self.validate(value)
         return "true" if value else "false"
 
     def str_decode(self, value):
-        """TODO: Description."""
+        """Decode the value from string representation."""
         if value == "true":
             result = True
         elif value == "false":
@@ -523,58 +534,86 @@ class _bool(_type):
         self.validate(result)
         return result
 
+
 import binascii
 from base64 import b64decode, b64encode
 class _bytes(_type):
     """
     Schema type for byte sequences.
-    Byte sequences are represented in JSON as a base64-encoded string.
-    Example: "SGVsbG8sIHdvcmxkIQ=="
+    
+    Two formats are supported: "byte" and "binary".
+
+    In "byte" format, a byte sequence is represented as a base64-encoded string.
+    Example: "Um9heCBpcyBhIHBhcnQgb2YgYSBjb21wbGV0ZSBicmVha2Zhc3QuCg==".
+    
+    In "binary" format, a byte sequence is represented as a raw sequence of bytes.
+    For this reason, it cannot be expressed in string or JSON representation. 
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, format="byte", **kwargs):
         """
+        format: "byte" (default) or "binary".
         nullable: allows expressing None as the value.
         required: True if the value is mandatory.
-        default: The default value, if the item value is not supplied.
+        default: the default value, if the item value is not supplied.
         description: string providing information about the item.
         examples: an array of valid values.
         """
-        kwargs = {"mime_type": "application/octet-string", **kwargs}
-        super().__init__(python_type=bytes, json_type="string", format="byte", **kwargs)
+        valid_formats = ["byte", "binary"]
+        if format not in valid_formats:
+            raise SchemaError("format must be one of {}".format(valid_formats))        
+        super().__init__(python_type=bytes, json_type="string", format=format, **kwargs)
 
     def validate(self, value):
         """TODO: Description."""
         super().validate(value)
 
     def json_encode(self, value):
-        """Return the JSON object model representation of the byte sequence value."""
+        """Encode the value into JSON object model representation."""
+        if self.format == "binary":
+            raise SchemaError("binary format cannot be encoded into JSON representation")
         return self.str_encode(value)
 
     def json_decode(self, value):
-        """TODO: Description."""
+        """Decode the value from JSON object model representation."""
+        if self.format == "binary":
+            raise SchemaError("binary format cannot be decoded from JSON representation")
         return self.str_decode(value)
 
     def str_encode(self, value):
-        """TODO: Description."""
+        """Encode the value into string representation."""
+        if self.format == "binary":
+            raise SchemaError("binary format cannot be encoded into string representation")
         self.validate(value)
         return b64encode(value).decode()
 
     def str_decode(self, value):
-        """TODO: Description."""
+        """Decode the value from string representation."""
+        if self.format == "binary":
+            raise SchemaError("binary format cannot be decoded from string representation")
         try:
             result = b64decode(value)
         except binascii.Error as be:
-            raise SchemaError("expecting a Base64-encoded value") from be
+            raise SchemaError("expecting a base64-encoded value") from be
         self.validate(result)
         return result
+
+    def bin_encode(self, value):
+        """Endode the value into binary representation."""
+        return value
+
+    def bin_decode(self, value):
+        """Decode the value from binary representation."""
+        return value
+
 
 import isodate
 class datetime(_type):
     """
     Schema type for datetime values.
-    Datetime values are represented in JSON as an ISO 8601 date and time in a string.
-    Example: "2017-07-11T05:42:34Z".
+
+    Datetime values are represented in string and JSON values as an ISO 8601 date
+    and time in a string. Example: "2017-07-11T05:42:34Z".
     """
 
     _UTC = isodate.tzinfo.Utc()
@@ -602,20 +641,20 @@ class datetime(_type):
         super().validate(value)
 
     def json_encode(self, value):
-        """Return the JSON object model representation of the datetime value."""
+        """Encode the value into JSON object model representation."""
         return self.str_encode(value)
 
     def json_decode(self, value):
-        """TODO: Description."""
+        """Decode the value from JSON object model representation."""
         return self.str_decode(value)
 
     def str_encode(self, value):
-        """TODO: Description."""
+        """Encode the value into string representation."""
         self.validate(value)
         return isodate.datetime_isoformat(self._to_utc(value))
 
     def str_decode(self, value):
-        """TODO: Description."""
+        """Decode the value from string representation."""
         try:
             return self._to_utc(isodate.parse_datetime(value))
         except ValueError as ve:
@@ -624,11 +663,13 @@ class datetime(_type):
         self.validate(result)
         return result
 
+
 from uuid import UUID
 class uuid(_type):
     """
     Schema type for universally unique identifiers.
-    UUID values are represented in JSON as a string.
+
+    UUID values are represented in string and JSON values as a UUID string.
     Example: "035af02b-7ad7-4016-a101-96f8fc5ae6ec".
     """
 
@@ -648,20 +689,20 @@ class uuid(_type):
         super().validate(value)
 
     def json_encode(self, value):
-        """Return the JSON object model representation of the UUID value."""
+        """Encode the value into JSON object model representation."""
         return self.str_encode(value)
 
     def json_decode(self, value):
-        """TODO: Description."""
+        """Decode the value from JSON object model representation."""
         return self.str_decode(value)
 
     def str_encode(self, value):
-        """TODO: Description."""
+        """Encode the value into string representation."""
         self.validate(value)
         return str(value)
 
     def str_decode(self, value):
-        """TODO: Description."""
+        """Decode the value from string representation."""
         if not isinstance(value, str):
             raise SchemaError("expecting a string")
         try:
@@ -670,6 +711,7 @@ class uuid(_type):
             raise SchemaError("expecting string to contain UUID value") from ve
         self.validate(result)
         return result
+
 
 #class all_of(_type):
 #    """
@@ -695,6 +737,7 @@ class uuid(_type):
 #        if len(values) != len(self.schemas):
 #            raise SchemaError("method does not match all schemas")
 #        return values[0]
+
 
 class _xof(_type):
     """TODO: Description."""
@@ -724,10 +767,11 @@ class _xof(_type):
         super().validate(value)
 
     def json_encode(self, value):
-        """TODO: Description."""
+        """Encode the value into JSON object model representation."""
         return self._process("json_encode", value)
 
     def json_decode(self, value):
+        """Decode the value from JSON object model representation."""
         return self._process("json_decode", value)
 
     def json_schema(self, value):
@@ -735,12 +779,13 @@ class _xof(_type):
         result[jskeyword] = self.schemas
 
     def str_encode(self, value):
-        """TODO: Description."""
+        """Encode the value into string representation."""
         return self._process("str_encode", value)
 
     def str_decode(self, value):
-        """TODO: Description."""
+        """Decode the value from string representation."""
         return self._process("str_decode", value)
+
 
 class any_of(_xof):
     """
@@ -765,6 +810,7 @@ class any_of(_xof):
         if len(values) == 0:
             raise SchemaError("value does not match any schema")
         return values[0] # return first schema-processed value
+
 
 class one_of(_xof):
     """
@@ -791,6 +837,7 @@ class one_of(_xof):
         elif len(values) > 1:
             raise SchemaError("value matches more than one schema")
         return values[0] # return first matching value
+
 
 def call(function, args, kwargs, params=None, returns=None):
     """
@@ -841,6 +888,7 @@ def call(function, args, kwargs, params=None, returns=None):
         except SchemaError as se:
             raise ValueError("return value: {}".format(se.msg)) from se
     return result
+
 
 def validate(params=None, returns=None):
     """
