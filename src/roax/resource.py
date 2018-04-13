@@ -40,7 +40,7 @@ class Resource:
                 operation = function._roax_operation
             except:
                 continue  # ignore undecorated functions
-            self._register_operation(**{**operation, **{"_function": function}})
+            self._register_operation(**{**operation, "_function": function})
 
     def call(self, type, name=None, params={}):
         """Call a resource operation."""
@@ -86,7 +86,7 @@ def operation(**kwargs):
                 #roax.security.apply(security)
                 return wrapped(*args, **kwargs)
         decorated = s.validate(kwargs.get("params"), kwargs.get("returns"))(wrapt.decorator(wrapper)(function))
-        operation = {**kwargs, **{"_function": decorated, "type": type, "name": name}}
+        operation = {**kwargs, "_function": decorated, "type": type, "name": name}
         try:
             getattr(function, "__self__")._register_operation(**operation)
         except AttributeError:  # not yet bound to an instance
