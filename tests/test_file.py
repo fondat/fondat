@@ -26,7 +26,7 @@ class TestFileResource(unittest.TestCase):
         with TemporaryDirectory() as dir:
             rs = FooResource(dir)
             r1 = { "foo": "hello", "bar": 1 }
-            id = rs.create(r1)
+            id = rs.create(r1)["id"]
             r1["id"] = id
             r2 = rs.read(id)
             self.assertEqual(r1, r2) 
@@ -47,7 +47,7 @@ class TestFileResource(unittest.TestCase):
             frs = FRS(dir, extension=".txt")
             body = "你好，世界!"
             id = "hello_world"
-            self.assertEqual(id, frs.create(body, id))
+            self.assertEqual(id, frs.create(body, id)["id"])
             self.assertEqual(frs.query_ids(), [id])
             self.assertEqual(body, frs.read(id))
             body = "Goodbye world!"
@@ -62,7 +62,7 @@ class TestFileResource(unittest.TestCase):
             frs = FileResource(dir, schema=s.bytes(), extension=".bin")
             body = b"\x00\x0e\0x01\0x01\0x00"
             id = "binary"
-            self.assertEqual(id, frs.create(body, id))
+            self.assertEqual(id, frs.create(body, id)["id"])
             self.assertEqual(frs.query_ids(), [id])
             self.assertEqual(body, frs.read(id))
             body = bytes((1,2,3,4,5))
