@@ -40,18 +40,20 @@ class Resource:
                 operation = function._roax_operation
             except:
                 continue  # ignore undecorated functions
-            self._register_operation(**{**operation, "_function": function})
+            self._register_operation(**{**operation, "function": function})
 
     def call(self, type, name=None, params={}):
         """Call a resource operation."""
         try:
-            function = self.operations[(type, name)]["_function"]
+            function = self.operations[(type, name)]["function"]
         except KeyError as e:
             raise ResourceError("resource does not support operation", 400)
         return function(**params)
 
 
-def operation(**kwargs):
+def operation(
+        *, type=None, name=None, summary=None, description=None, params=None,
+        returns=None, security=[], deprecated=False):
     """
     Decorate a function to register it as a resource operation.
 
@@ -64,29 +66,29 @@ def operation(**kwargs):
     security: Security schemes, one of which must be satisfied to perform the operation.
     deprecated: If True, declares the operation as deprecated.
     """
-    valid_args = ["type", "name", "summary", "description", "params", "returns", "security", "deprecated"]
-    valid_types = ["create", "read", "update", "delete", "query", "action"]
-    for kwarg in kwargs:
-        if kwarg not in valid_args:
-            raise TypeError("unexpected argument: {}".format(kwarg))
     def decorator(function):
-        type = kwargs.get("type")
-        name = kwargs.get("name")
+        _type = type
+        _name = name
         split = function.__name__.split("_", 1)
-        if type is None:
-            type = split[0]
-        if len(split) > 1:
-            name = name or split[1]
-        if type not in valid_types:
+        if _type is None:
+            _type = split[0]
+            if len(split) > 1:
+                _name = _name or split[1]
+        elif _name is None:
+            _name = function.__name__
+        valid_types = ["create", "read", "update", "delete", "query", "action"]
+        if _type not in valid_types:
             raise TypeError("operation type must be one of: {}".format(valid_types))
-        if type in ["query", "action"] and not name:
-            raise TypeError("{} operation must have a name".format(type))
+        if not _name and _type in ["query", "action"]:
+            raise TypeError("{} operation must have a name".format(_type))
         def wrapper(wrapped, instance, args, kwargs):
-            with context({"type": "operation", "op_type": type, "name": name}):
+            with context(type="operation", resource=wrapped.__self__, op_type=_type, op_name=_name):
                 #roax.security.apply(security)
                 return wrapped(*args, **kwargs)
-        decorated = s.validate(kwargs.get("params"), kwargs.get("returns"))(wrapt.decorator(wrapper)(function))
-        operation = {**kwargs, "_function": decorated, "type": type, "name": name}
+        decorated = s.validate(params, returns)(wrapt.decorator(wrapper)(function))
+        operation = dict(function=decorated, type=_type, name=_name,
+            summary=summary or [], description=description, params=params,
+            returns=returns, security=security, deprecated=deprecated)
         try:
             getattr(function, "__self__")._register_operation(**operation)
         except AttributeError:  # not yet bound to an instance
@@ -113,7 +115,7 @@ class BadRequest(ResourceError):
         super().__init__(detail, 400)
 
 
-class Unauthorized(ResourceError):
+class Unauthenticated(ResourceError):
     """Raised if the resource request requires authentication."""
     def __init__(self, realm, detail=None):
         super().__init__(detail, 401)
@@ -130,6 +132,12 @@ class NotFound(ResourceError):
     """Raised if the resource could not be found."""
     def __init__(self, detail=None):
         super().__init__(detail, 404)
+
+
+class OperationNotAllowed(ResourceError):
+    """Raised if the resource does not allow the requested operation."""
+    def __init__(self, detail=None):
+        super().__init__(detail, 405)
 
 
 class Conflict(ResourceError):
