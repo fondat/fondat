@@ -128,7 +128,7 @@ class FileResource(Resource):
                 result[param.name] = schema
             return result
 
-        self.create = operation(params=_p(self.create), returns=self.id_schema)(self.create)
+        self.create = operation(params=_p(self.create), returns=s.dict({"id": self.id_schema}))(self.create)
         self.read = operation(params=_p(self.read), returns=self.schema)(self.read)
         self.update = operation(params=_p(self.update), returns=None)(self.update)
         self.delete = operation(params=_p(self.delete), returns=None)(self.delete)
@@ -141,7 +141,7 @@ class FileResource(Resource):
                 self._write(file, _body, id)
         except NotFound:
             raise InternalServerError("file resource directory not found")
-        return id
+        return { "id": id }
 
     def read(self, id):
         """Read a resource item."""
