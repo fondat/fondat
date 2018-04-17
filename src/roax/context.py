@@ -1,6 +1,6 @@
 """Module to manage a stack of context values."""
 
-# Copyright © 2017 Paul Bryan.
+# Copyright © 2017–2018 Paul Bryan.
 #
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -20,9 +20,10 @@ def stack():
     return _local.stack
 
 @contextmanager
-def context(value):
+def context(*args, **varargs):
     """Context manager that pushes a value onto the context stack."""
     s = stack()
+    value = dict(*args, **varargs)
     s.append(value)
     pos = len(s) - 1
     yield value
