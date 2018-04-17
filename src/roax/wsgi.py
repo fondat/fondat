@@ -1,6 +1,6 @@
-"""TODO: Description."""
+"""Module to expose resources through a WSGI interface."""
 
-# Copyright © 2015–2017 Paul Bryan.
+# Copyright © 2015–2018 Paul Bryan.
 #
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -8,74 +8,35 @@
 
 import logging
 import re
-import wrapt
 
-from webob import Request, Response, exc
+from abc import ABC, abstractmethod
+from roax.context import context
 from roax.resource import ResourceError
 from roax.schema import SchemaError
+from urllib.parse import urlparse
+from webob import Request, Response, exc
 
-def _params(request, _id, schema):
-    """TODO: Description."""
-    result = {}
-    for k, v in schema.fields.items():
-        try:
-            if k == "_id":
-                if _id is None:
-                    _id = request.params["_id"]
-                result["_id"] = v.decode_param(_id)
-            elif k == "_rev":
-                _rev = request.headers.get("If-Match")
-                if _rev:
-                    match = re.fullmatch('(W/)?"(.*)"', _rev)
-                    if match:
-                        _rev = match.group(2)
-                if _rev is None:
-                    _rev = request.params["_rev"]
-                result["_rev"] = v.decode_param(_rev)
-            elif k == "_doc":
-                if request.content_type == "application/json" and request.is_body_readable:
-                    try:
-                        _doc = request.json
-                    except Exception as e:
-                        raise SchemaError("Expecting JSON entity-body") from e
-                    result["_doc"] = v.decode_json(_doc)
-            else:
-                result[k] = v.decode_param(request.params[k])
-        except KeyError:
-            pass
-    return result
 
-def _dispatch(request, resource, _id):
-    """TODO: Description."""
-    if request.method == "GET":
-        kind, name = ("query", request.params["_query"]) if "_query" in request.params else ("read", None)
-    elif request.method == "PUT":
-        kind, name = ("update", None)
-    elif request.method == "POST":
-        kind, name = ("action", request.params["_action"]) if "_action" in request.params else ("create", None)
-    elif request.method == "DELETE":
-        kind, name = ("delete", None)
-    else:
-        raise exc.HTTPMethodNotAllowed()
-    try:
-        params_schema, returns_schema = resource.methods[(kind, name)]
-    except KeyError:
-        raise exc.HTTPBadRequest()
-    result = resource.call(kind, name, _params(request, _id, params_schema))
-    response = Response()
-    if result is not None:
-        response.content_type = "application/json"
-        response.json = json_result = returns_schema.encode_json(result)
-        try:
-            response.etag = str(json_result["_rev"])
-        except KeyError:
-            pass # _rev is optional
-    else:
-        response.status_code = exc.HTTPNoContent.code
-    if kind == "create":
-        response.status_code = exc.HTTPCreated.code
-        response.headers["Location"] = str(result["_id"])
-    return response
+class _Chain:
+
+    def __init__(self, filters=[], handle=None):
+        self.filters = filters
+        self.handle = handle
+
+    def next(self, request):
+        """Calls the next filter in the chain, or the terminus."""
+        if self.filters:
+            return self.filters.pop(0).filter(request, self)
+        else:
+            return self.handle(request)
+
+
+class Filter(ABC):
+    
+    @abstractmethod
+    def filter(self, request, chain):
+        """Filters an HTTP request through a chain of filters."""
+
 
 class ErrorResponse(Response):
 
@@ -85,46 +46,129 @@ class ErrorResponse(Response):
         self.content_type = "application/json"
         self.json = {"error": code, "message": message}
 
-@wrapt.decorator
-def _error_wrapped(wrapped, instance, args, kwargs):
-    """TODO: Description."""
-    try:
-        return wrapped(*args, **kwargs)
-    except exc.HTTPException as he:
-        return ErrorResponse(he.code, he.detail)
-    except ResourceError as re:
-        return ErrorResponse(re.code, re.detail)
-    except SchemaError as se:
-        return ErrorResponse(exc.HTTPBadRequest.code, str(se))
-    except Exception as e:
-        logging.exception(str(e))
-        return ErrorResponse(exc.HTTPInternalServerError.code, str(e))
+
+def _response(result, operation):
+    returns = operation["returns"]
+    response = Response()
+    if returns and result is not None:
+        response.content_type = returns.content_type
+        if returns.json_type == "string" and returns.format == "binary":
+            response.body = result
+        elif returns.json_type == "string" and returns.format == "raw":
+            response.text = result
+        else:
+            response.json = result
+    else:
+        response.content_type = None
+        response.status_code = exc.HTTPNoContent.code
+    return response
+
+
+def _params(request, operation):
+    result = {}
+    params = operation["params"]
+    for name, param in params.items() if params else []:
+        try:
+            if name == "_body":
+                if param.required and not request.is_body_readable:
+                    raise SchemaException("missing request entity-body")
+                if param.json_type == "string" and param.format == "binary":
+                    result["_body"] = param.bin_decode(request.body)
+                elif param.json_type == "string" and param.format == "raw":
+                    result["_body"] = param.str_decode(request.text)
+                else:
+                    try:
+                        result["_body"] = request.json
+                    except:
+                        raise SchemaError("invalid entity-body JSON representation")
+            else:
+                result[name] = param.str_decode(request.params[name])
+        except KeyError:
+            pass
+    return result
+
+
+_context_patterns = [re.compile(p) for p in (
+    "^REQUEST_METHOD$", "^SCRIPT_NAME$", "^PATH_INFO$", "^QUERY_STRING$",
+    "^CONTENT_TYPE$", "^CONTENT_LENGTH$", "^SERVER_NAME$", "^SERVER_PORT$",
+    "^SERVER_PROTOCOL$", "^HTTP_.*", "^wsgi.version$", "^wsgi.multithread$",
+    "^wsgi.multiprocess$", "^wsgi.run_once$")]
+
+def _environ(environ):
+    result = {}
+    for key, value in environ.items():
+        for pattern in _context_patterns:
+            if pattern.match(key):
+                result[key] = value
+    return result
+
 
 class App:
-    """TODO: Description."""
+    """Roax WSGI application."""
 
-    def __init__(self, base_path):
+    def __init__(self, url=None, *, title=None, description=None, version=None, security=None):
         """TODO: Description."""
-        self.base_path = base_path
-        self.resources = {}
+        self.url = url
+        self.base = urlparse(self.url).path.rstrip("/")
+        self.title = title
+        self.description = description
+        self.version = version
+        self.security = security or []
+        self.resources = []
 
-    def resource(self, name, resource):
-        """TODO: Description."""
-        if name in self.resources:
-            raise ValueError("resource already registered: {}".format(name))
-        self.resources[name] = resource
-
-    @_error_wrapped
-    def _handle(self, request):
-        """TODO: Description."""
-        path = request.path_info
-        if path.startswith(self.base_path):
-            split = path[len(self.base_path):].split("/", 1)
-            resource = self.resources.get(split[0])
-            if resource is not None:
-                return _dispatch(request, resource, split[1] if len(split) > 1 else None)
-        raise exc.HTTPNotFound()
+    def register(self, path, resource, public=True):
+        """Registers a resource to the application."""
+        self.resources.append(dict(path=path, resource=resource, public=public))
 
     def __call__(self, environ, start_response):
         """TODO: Description."""
-        return self._handle(Request(environ))(environ, start_response)
+        request = Request(environ)
+        try:
+            operation = self._operation(request)
+            # security = self.security + operation["security"]
+            filters = []
+            #for s in security:
+            #    if instanceof(s, Filter):
+            #        filters += s
+            def handle(request):
+                return _response(operation["function"](**_params(request, operation)), operation)
+            with context(type="http", environ=_environ(environ)):
+                response = _Chain(filters, handle).next(request)
+        except exc.HTTPException as he:
+            response = ErrorResponse(he.code, he.detail)
+        except ResourceError as re:
+            response = ErrorResponse(re.code, re.detail)
+        except SchemaError as se:
+            response = ErrorResponse(exc.HTTPBadRequest.code, str(se))
+        except Exception as e:
+            logging.exception(str(e))
+            response = ErrorResponse(exc.HTTPInternalServerError.code, str(e))
+        return response(environ, start_response)
+
+    def _operation(self, request):
+        path = request.path_info
+        base = self.base + "/"
+        if path != base and not path.startswith(base):
+            raise exc.HTTPNotFound()
+        path = path[len(self.base):]
+        for resource in self.resources:
+            if path == resource["path"] or path.startswith(resource["path"] + "/"):
+                split = path[1:].split("/", 1)
+                if request.method == "GET":
+                    op_type, op_name = ("query", split[1]) if len(split) > 1 else ("read", None)
+                elif request.method == "PUT":
+                    op_type, op_name = ("update", None)
+                elif request.method == "POST":
+                    op_type, op_name = ("action", split[1]) if len(split) > 1 else ("create", None)
+                elif request.method == "DELETE":
+                    op_type, op_name = ("delete", None)
+                else:
+                    raise exc.HTTPMethodNotAllowed()
+                operation = resource["resource"].operations.get((op_type, op_name))
+                if not operation:
+                    if op_type in ["query", "action"]:
+                        raise exc.HTTPNotFound()
+                    else:
+                        raise exc.HTTPMethodNotAllowed()
+                return operation
+        raise exc.HTTPNotFound()
