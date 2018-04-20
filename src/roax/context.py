@@ -11,17 +11,26 @@ import threading
 from collections import Mapping
 from contextlib import contextmanager
 
-_local = threading.local()
 
-_local.stack = []
+_local = threading.local()
 
 def stack():
     """Return the current context stack."""
-    return _local.stack
+    try:
+        return _local.stack
+    except AttributeError:  # newly seen thread
+        _local.stack = []
+        return _local.stack
 
 @contextmanager
 def context(*args, **varargs):
-    """Context manager that pushes a value onto the context stack."""
+    """
+    Context manager that pushes a value onto the context stack.
+
+    This function accepts context values in two ways:
+    context(mapping): Context is initialized from a mapping object's key-value pairs.
+    context(**kwargs): Context is initialized with name-value pairs in keyword arguments. 
+    """
     s = stack()
     value = dict(*args, **varargs)
     s.append(value)
@@ -29,12 +38,11 @@ def context(*args, **varargs):
     yield value
     if s[pos] != value:
         raise RuntimeError("context value on stack was modified")
-    while len(s) > pos:
-        s.pop()
+    del s[pos + 1:]
 
-def get(type):
-    """Return the last context value with specified type, or None if not found."""
+def get(context_type):
+    """Return the last context value with the specified type, or None if not found."""
     for value in reverse(stack()):
         if isinstance(value, Mapping):
-            if value.get("type") == type:
+            if value.get("context_type") == context_type:
                 return value
