@@ -23,9 +23,9 @@ def version():
     return match.group(1)
 
 install_requires = [
-    "isodate >= 0.5.4",
-    "WebOb >= 1.7.2",
-    "wrapt >= 1.10.10"
+    "isodate >= 0.6.0",
+    "WebOb >= 1.8.1",
+    "wrapt >= 1.10.11"
 ]
 
 classifiers = [
