@@ -82,7 +82,7 @@ def operation(
         if not _name and _type in ["query", "action"]:
             raise TypeError("{} operation must have a name".format(_type))
         def wrapper(wrapped, instance, args, kwargs):
-            with context(type="operation", resource=wrapped.__self__, op_type=_type, op_name=_name):
+            with context(context_type="operation", operation_resource=wrapped.__self__, operation_type=_type, operation_name=_name):
                 #roax.security.apply(security)
                 return wrapped(*args, **kwargs)
         decorated = s.validate(params, returns)(wrapt.decorator(wrapper)(function))
