@@ -8,6 +8,7 @@
 
 from roax.resource import Resource, operation
 
+
 class StaticResource(Resource):
     """
     TODO: Description.
@@ -16,7 +17,7 @@ class StaticResource(Resource):
     def __init__(self, content, schema, name=None, description=None):
         """
         TODO: Description.
-        
+
         content: the static content to return in a read operation.
         schema: the schema of the static content.
         """
@@ -27,4 +28,4 @@ class StaticResource(Resource):
 
     def read(self):
         """Read the static resource."""
-        return content
+        return self.content
