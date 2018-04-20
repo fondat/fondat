@@ -57,12 +57,11 @@ def _response(result, operation):
         elif returns.json_type == "string" and returns.format == "raw":
             response.text = result
         else:
-            response.json = result
+            response.json = returns.json_encode(result)
     else:
-        response.content_type = None
         response.status_code = exc.HTTPNoContent.code
+        response.content_type = None
     return response
-
 
 def _params(request, operation):
     result = {}
@@ -132,7 +131,7 @@ class App:
             #        filters += s
             def handle(request):
                 return _response(operation["function"](**_params(request, operation)), operation)
-            with context(type="http", environ=_environ(environ)):
+            with context(context_type="http", http_environ=_environ(environ)):
                 response = _Chain(filters, handle).next(request)
         except exc.HTTPException as he:
             response = ErrorResponse(he.code, he.detail)
