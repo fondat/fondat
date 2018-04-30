@@ -27,22 +27,25 @@ def context(*args, **varargs):
     """
     Context manager that pushes a value onto the context stack.
 
-    This function accepts context values in two ways:
-    context(mapping): Context is initialized from a mapping object's key-value pairs.
-    context(**kwargs): Context is initialized with name-value pairs in keyword arguments. 
+    This function accepts context values as follows:
+    - context(None): Nothing is pushed on the stack.
+    - context(mapping): Context is initialized from a mapping object's key-value pairs.
+    - context(**kwargs): Context is initialized with name-value pairs in keyword arguments. 
     """
     s = stack()
-    value = dict(*args, **varargs)
-    s.append(value)
-    pos = len(s) - 1
+    value = None if len(args) == 1 and args[0] is None else dict(*args, **varargs)
+    if value is not None:
+        s.append(value)
+        pos = len(s) - 1
     yield value
-    if s[pos] != value:
-        raise RuntimeError("context value on stack was modified")
-    del s[pos + 1:]
+    if value is not None:
+        if s[pos] != value:
+            raise RuntimeError("context value on stack was modified")
+        del s[pos + 1:]
 
 def get(context_type):
     """Return the last context value with the specified type, or None if not found."""
-    for value in reverse(stack()):
+    for value in reversed(stack()):
         if isinstance(value, Mapping):
             if value.get("context_type") == context_type:
                 return value

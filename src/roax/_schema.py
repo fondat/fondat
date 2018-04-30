@@ -210,7 +210,10 @@ class _dict(_type):
 
     def str_encode(self, value):
         """Encode the value into string representation."""
-        raise RuntimeError("dict cannot be encoded into string representation")
+        result = []
+        for key in value:
+            result.append("{}={}".format(key,self.properties[key].str_encode(value[key])))
+        return ",".join(result)
 
     def str_decode(self, value):
         """Decode the value from string representation."""
@@ -890,6 +893,31 @@ def call(function, args, kwargs, params=None, returns=None):
     return result
 
 
+def function_params(function, params):
+    """
+    Return a subset of the passed parameter schemas, based on the arguments of
+    a defined function. The required and default properties are overridden,
+    based function's arguments.
+    """
+    params = params or {}
+    result = {}
+    sig = inspect.signature(function)
+    for p in (p for p in sig.parameters.values() if p.name != "self"):
+        if p.kind is inspect.Parameter.VAR_POSITIONAL:
+            raise TypeError("function with *args not supported")
+        elif p.kind is inspect.Parameter.VAR_KEYWORD:
+            raise TypeError("function with **kwargs not supported")
+        schema = params.get(p.name)
+        if schema:
+            schema = copy(schema)
+            schema.required = p.default is p.empty
+            schema.default = p.default if p.default is not p.empty else None
+            result[p.name] = schema
+        elif p.default is p.empty:
+            raise TypeError("required parameter in function but not in params: {}".format(p.name)) 
+    return result
+
+
 def validate(params=None, returns=None):
     """
     Decorate a function to validate its input parameters and return value.
@@ -898,22 +926,7 @@ def validate(params=None, returns=None):
     params schema, it must have a default value.     
     """
     def decorator(function):
-        _params = {}
-        if params is not None:
-            sig = inspect.signature(function)
-            for p in (p for p in sig.parameters.values() if p.name != "self"):
-                if p.kind is inspect.Parameter.VAR_POSITIONAL:
-                    raise TypeError("Parameter validation does not support functions with *args")
-                elif p.kind is inspect.Parameter.VAR_KEYWORD:
-                    raise TypeError("Parameter validation does not support functions with **kwargs")
-                schema = params.get(p.name)
-                if schema:
-                    schema = copy(schema)
-                    schema.required = p.default is p.empty
-                    schema.default = p.default if p.default is not p.empty else None
-                    _params[p.name] = schema
-                elif p.default is p.empty:
-                    raise TypeError("required parameter in function but not in validation decorator: {}".format(p.name)) 
+        _params = function_params(function, params)
         def wrapper(wrapped, instance, args, kwargs):
             return call(wrapped, args, kwargs, _params, returns)
         return wrapt.decorator(wrapper)(function)

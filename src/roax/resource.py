@@ -18,11 +18,11 @@ class Resource:
 
     def _register_operation(self, **operation):
         """Register a resource operation."""
-        type = operation["type"]
-        name = operation.get("name")
-        if self.operations.get((type, name)):
-            raise ResourceError("operation already registered: {}".format((type, name)))
-        self.operations[(type, name)] = operation
+        name = operation["name"]
+        if self.operations.get(name):
+            raise ResourceError("operation already registered: {}".format(name))
+        function = operation.get("function")
+        self.operations[name] = operation
 
     def __init__(self, name=None, description=None):
         """
@@ -33,7 +33,7 @@ class Resource:
         """
         super().__init__()
         self.name = name or getattr(self, "name", type(self).__name__.lower())
-        self.description = description or getattr(self, "description", self.__doc__)
+        self.description = description or getattr(self, "description", None) or self.__doc__ or self.__class__.__name__
         self.operations = {}
         for function in (attr for attr in (getattr(self, nom) for nom in dir(self)) if callable(attr)):
             try:
@@ -42,57 +42,71 @@ class Resource:
                 continue  # ignore undecorated functions
             self._register_operation(**{**operation, "function": function})
 
-    def call(self, type, name=None, params={}):
+    def call(self, name, params={}):
         """Call a resource operation."""
         try:
-            function = self.operations[(type, name)]["function"]
+            return self.operations[name]["function"](**params)
         except KeyError as e:
-            raise ResourceError("resource does not support operation", 400)
-        return function(**params)
+            raise BadRequest("no such operation: {}".format(name))
+
+
+def _summary(function):
+    """
+    Derive summary information from a function's docstring or name. The summary is
+    the first sentence of the docstring, ending in a period, or if no dostring is
+    present, the function's name capitalized.
+    """
+    if not function.__doc__:
+        return "{}.".format(function.__name__.capitalize())
+    result = []
+    for word in function.__doc__.split():
+        result.append(word)
+        if word.endswith("."):
+            break
+    return " ".join(result)
 
 
 def operation(
-        *, type=None, name=None, summary=None, description=None, params=None,
-        returns=None, security=[], deprecated=False):
+        *, name=None, type=None, summary=None, description=None, params=None,
+        returns=None, security=[], documented=True, deprecated=False):
     """
     Decorate a function to register it as a resource operation.
 
-    type: The type of operation being registered ("create", "read", "update", "delete", "action", "query").
     name: The operation name. Required if the operation type is "query" or "action".
+    type: The type of operation being registered ("create", "read", "update", "delete", "action", "query").
     summary: A short summary of what the operation does.
     description: A verbose description of the operation (default: function docstring).
     params: A mapping of operation's parameter names to their schemas.
     returns: The schema of operation's return value.
     security: Security schemes, one of which must be satisfied to perform the operation.
-    deprecated: If True, declares the operation as deprecated.
+    documented: Publishes the operation in documentation and help if True.
+    deprecated: Declares the operation as deprecated if True.
     """
     def decorator(function):
-        _type = type
         _name = name
-        split = function.__name__.split("_", 1)
-        if _type is None:
-            _type = split[0]
-            if len(split) > 1:
-                _name = _name or split[1]
-        elif _name is None:
+        _type = type
+        _description = description or function.__doc__ or function.__name__
+        __summary = summary or _summary(function)
+        if _name is None:
             _name = function.__name__
+        if _type is None and _name in ["create", "read", "update", "delete"]:
+            _type = _name
         valid_types = ["create", "read", "update", "delete", "query", "action"]
         if _type not in valid_types:
             raise TypeError("operation type must be one of: {}".format(valid_types))
-        if not _name and _type in ["query", "action"]:
-            raise TypeError("{} operation must have a name".format(_type))
         def wrapper(wrapped, instance, args, kwargs):
-            with context(context_type="operation", operation_resource=wrapped.__self__, operation_type=_type, operation_name=_name):
+            with context(context_type="operation", operation_resource=wrapped.__self__, operation_name=_name):
                 #roax.security.apply(security)
                 return wrapped(*args, **kwargs)
-        decorated = s.validate(params, returns)(wrapt.decorator(wrapper)(function))
-        operation = dict(function=decorated, type=_type, name=_name,
-            summary=summary or [], description=description, params=params,
-            returns=returns, security=security, deprecated=deprecated)
+        _params = s.function_params(function, params)
+        decorated = s.validate(_params, returns)(wrapt.decorator(wrapper)(function))
+        operation = dict(function=decorated, name=_name, type=_type,
+            summary=__summary, description=_description, params=_params,
+            returns=returns, security=security, documented=documented, deprecated=deprecated)
         try:
             getattr(function, "__self__")._register_operation(**operation)
         except AttributeError:  # not yet bound to an instance
-            function._roax_operation = operation  # __init__ will register it instead
+            function._roax_operation = operation  # __init__ will register it
         return decorated
     return decorator
 

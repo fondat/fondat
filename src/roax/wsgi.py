@@ -17,28 +17,7 @@ from urllib.parse import urlparse
 from webob import Request, Response, exc
 
 
-class _Chain:
-
-    def __init__(self, filters=[], handle=None):
-        self.filters = filters
-        self.handle = handle
-
-    def next(self, request):
-        """Calls the next filter in the chain, or the terminus."""
-        if self.filters:
-            return self.filters.pop(0).filter(request, self)
-        else:
-            return self.handle(request)
-
-
-class Filter(ABC):
-    
-    @abstractmethod
-    def filter(self, request, chain):
-        """Filters an HTTP request through a chain of filters."""
-
-
-class ErrorResponse(Response):
+class _ErrorResponse(Response):
 
     def __init__(self, code, message):
         super().__init__()
@@ -47,7 +26,7 @@ class ErrorResponse(Response):
         self.json = {"error": code, "message": message}
 
 
-def _response(result, operation):
+def _response(operation, result):
     returns = operation["returns"]
     response = Response()
     if returns and result is not None:
@@ -62,6 +41,7 @@ def _response(result, operation):
         response.status_code = exc.HTTPNoContent.code
         response.content_type = None
     return response
+
 
 def _params(request, operation):
     result = {}
@@ -92,6 +72,7 @@ _context_patterns = [re.compile(p) for p in (
     "^CONTENT_TYPE$", "^CONTENT_LENGTH$", "^SERVER_NAME$", "^SERVER_PORT$",
     "^SERVER_PROTOCOL$", "^HTTP_.*", "^wsgi.version$", "^wsgi.multithread$",
     "^wsgi.multiprocess$", "^wsgi.run_once$")]
+
 
 def _environ(environ):
     result = {}
@@ -130,9 +111,9 @@ class App:
             #    if instanceof(s, Filter):
             #        filters += s
             def handle(request):
-                return _response(operation["function"](**_params(request, operation)), operation)
+                return _response(operation, operation["function"](**_params(request, operation)))
             with context(context_type="http", http_environ=_environ(environ)):
-                response = _Chain(filters, handle).next(request)
+                response = Chain(filters, handle).next(request)
         except exc.HTTPException as he:
             response = ErrorResponse(he.code, he.detail)
         except ResourceError as re:
@@ -154,20 +135,35 @@ class App:
             if path == resource["path"] or path.startswith(resource["path"] + "/"):
                 split = path[1:].split("/", 1)
                 if request.method == "GET":
-                    op_type, op_name = ("query", split[1]) if len(split) > 1 else ("read", None)
+                    op_type, op_name = ("query", split[1]) if len(split) > 1 else ("read", "read")
                 elif request.method == "PUT":
-                    op_type, op_name = ("update", None)
+                    op_type, op_name = ("update", "update")
                 elif request.method == "POST":
-                    op_type, op_name = ("action", split[1]) if len(split) > 1 else ("create", None)
+                    op_type, op_name = ("action", split[1]) if len(split) > 1 else ("create", "create")
                 elif request.method == "DELETE":
-                    op_type, op_name = ("delete", None)
+                    op_type, op_name = ("delete", "delete")
                 else:
                     raise exc.HTTPMethodNotAllowed()
-                operation = resource["resource"].operations.get((op_type, op_name))
-                if not operation:
+                operation = resource["resource"].operations.get(op_name)
+                if not operation or operation["type"] != op_type:
                     if op_type in ["query", "action"]:
                         raise exc.HTTPNotFound()
                     else:
                         raise exc.HTTPMethodNotAllowed()
                 return operation
         raise exc.HTTPNotFound()
+
+
+class Chain:
+    """A chain of filters, terminated by a handler."""
+
+    def __init__(self, filters=[], handler=None):
+        self.filters = filters
+        self.handler = handle
+
+    def next(self, request):
+        """Calls the next filter in the chain, or the terminus."""
+        if self.filters:
+            return self.filters.pop(0)(request, self)
+        else:
+            return self.handler(request)

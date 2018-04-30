@@ -132,7 +132,7 @@ class FileResource(Resource):
         self.read = operation(params=_p(self.read), returns=self.schema)(self.read)
         self.update = operation(params=_p(self.update), returns=None)(self.update)
         self.delete = operation(params=_p(self.delete), returns=None)(self.delete)
-        self.query_ids = operation(params={}, returns=s.list(self.id_schema))(self.query_ids)
+        self.query_ids = operation(type="query", params={}, returns=s.list(self.id_schema))(self.query_ids)
 
     def create(self, _body, id):
         """Create a resource item."""
