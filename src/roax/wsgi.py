@@ -104,14 +104,14 @@ class App:
         """TODO: Description."""
         request = Request(environ)
         try:
-            operation = self._operation(request)
+            resource, operation = self._resource_operation(request)
             # security = self.security + operation["security"]
             filters = []
             #for s in security:
             #    if instanceof(s, Filter):
             #        filters += s
             def handle(request):
-                return _response(operation, operation["function"](**_params(request, operation)))
+                return _response(operation, resource.call(operation["name"], **_params(request, operation)))
             with context(context_type="http", http_environ=_environ(environ)):
                 response = Chain(filters, handle).next(request)
         except exc.HTTPException as he:
@@ -125,7 +125,7 @@ class App:
             response = ErrorResponse(exc.HTTPInternalServerError.code, str(e))
         return response(environ, start_response)
 
-    def _operation(self, request):
+    def _resource_operation(self, request):
         path = request.path_info
         base = self.base + "/"
         if path != base and not path.startswith(base):
@@ -150,7 +150,7 @@ class App:
                         raise exc.HTTPNotFound()
                     else:
                         raise exc.HTTPMethodNotAllowed()
-                return operation
+                return (resource, operation)
         raise exc.HTTPNotFound()
 
 

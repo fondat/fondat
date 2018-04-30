@@ -208,7 +208,7 @@ class _dict(_type):
         result["required"] = [k for k, v in self.properties.items() if v.required]
         return result
 
-    def str_encode(self, value):
+    def str_encode(self, value):  # FIXME: too naive with delimiters
         """Encode the value into string representation."""
         result = []
         for key in value:
