@@ -12,23 +12,18 @@ import shlex
 import sys
 
 from roax.schema import SchemaError
+from textwrap import dedent
 
 
-def _print_listing(listing):
-    """TODO: Description."""
+def _print_listing(listing, indent="", space=4):
+    """Sort a dictionary by key and print as a listing."""
     names = sorted(listing.keys())
-    ljust = len(max(names, key=len)) + 2
+    ljust = len(max(names, key=len)) + space
     for name in names:
-        print(name.ljust(ljust) + listing[name])    
+        print("{}{}{}".format(indent, name.ljust(ljust), listing[name]))    
 
 def _arg_munge(name):
-    """TODO: Description."""
-    return "--{}".format(name.replace("_", "-"))
-
-def _input_body():
-    """TODO: Description."""
-    print("Enter body, followed by EOF (^D on *nix, ^Z on Windows):")
-    return sys.stdin.read()
+    """Turn parameter name into command line argument."""
 
 
 class CLI:
@@ -80,30 +75,31 @@ class CLI:
         self.commands["q"] = (self._exit, None)  # alias
 
     def _help(self, args):
-        """
-        usage: help [command | resource [operation]]
-
-        Provide help with commands and resources.
+        """\
+        Usage: help [resource [operation] | command]
+          Provide help with commands and resources.\
         """
         name = args.pop(0) if args else None
         if not name:
-            self._help_list()
+            return self._help_list()
         elif name in self.resources:
-            self._help_resource(name, args)
+            return self._help_resource(name, args)
         elif name in self.commands:
-            for line in self.commands[name][0].__doc__.splitlines():
-                print(line.lstrip())
-            return False
-        else:
-            print('No help for "{}".'.format(name))
+            return self._help_command(name)
+        print("Unrecognized resource or command: {}.".format(name))
+        return False
 
     def _exit(self, args):
-        """
-        usage: exit
-
-        Exit the command line interface.
+        """\
+        Usage: exit
+          Exit the command line interface.\
         """
         raise StopIteration()
+
+    def _help_command(self, name):
+        """Print the function docstring of a command as help text."""
+        print(dedent(self.commands[name][0].__doc__))
+        return False
 
     def _build_parser(self, resource_name, operation):
         """TODO: Description."""
@@ -128,7 +124,7 @@ class CLI:
                     description += " (default: {})".format(schema.str_encode(schema.default))
                 kwargs["help"] = description
                 kwargs["metavar"] = schema.python_type.__name__.lower()
-                args.add_argument(_arg_munge(name), **kwargs)
+                args.add_argument("--{}".format(name.replace("_","-")), **kwargs)
         return parser
 
     def _process_resource(self, resource_name, args):
@@ -149,69 +145,77 @@ class CLI:
                 return False
         if "_body" in params:
             try:
-                parsed["_body"] = _input_body()
+                description = params["_body"].description or "content body."
+                print("Input {}".format(description.lower()))
+                print("When complete, input EOF (^D on *nix, ^Z on Windows):")
+                parsed["_body"] = sys.stdin.read()
             except SchemaError as se:
-                print("{} {}: error: body: {}".format(resource_name, operation_name, se.msg))
+                print("{} {}: error: content body: {}".format(resource_name, operation_name, se.msg))
                 return False
         try:
             result = resource.call(operation_name, parsed)
         except ResourceException as re:
-            print("status: failure: detail: {} code: {}".format(re.code, re.detail))
+            print("Status: FAILURE: detail: {} code: {}.".format(re.code, re.detail))
             return False
         except Exception as e:
-            print("status: failure: detail: {}".format(e))
+            print("Status: FAILURE: detail: {}.".format(e))
             return False
         if "returns" in operation:
             result = operation["returns"].str_encode(result)
-        print("status: success")
+        print("Status: success.")
         print(result)
         return True
 
     def _help_list(self):
-        """TODO: Description."""
-        listing = {}
-        for name in self.commands:
-            description = self.commands[name][1]
-            if description:
-                listing[name] = description
-        for name, resource in self.resources.items():
-            listing[name] = resource.description
-        print()
-        print("Available commands and resources:")
-        print()
-        _print_listing(listing)
-        print()
+        """List all available resources and commands."""
+        print("Available resources:")
+        resources = {k: self.resources[k].description for k in self.resources} 
+        _print_listing(resources, indent="  ")
+        print("Available commands:")
+        commands = {k: self.commands[k][1] for k in self.commands if self.commands[k][1]}
+        _print_listing(commands, indent="  ")
         return False
 
     def _help_resource(self, resource_name, args=None):
         """TODO: Description."""
         operation = self.resources[resource_name].operations.get(args.pop(0)) if args else None
         if operation:
-            self._help_operation(resource_name, operation)
-        else:
-            self._help_operations(resource_name)
-        return False
+            return self._help_operation(resource_name, operation)
+        print("Usage: {} operation [args]".format(resource_name))
+        print("  {}".format(self.resources[resource_name].description))
+        print("Operations:")
+        operations = {o["name"]: o["summary"] for o in self.resources[resource_name].operations.values()}
+        _print_listing(operations, indent="  ")
 
     def _help_operation(self, resource_name, operation):
         """TODO: Description."""
-        parser = self._build_parser(resource_name, operation)
-        print()
-        parser.print_help()
-        print()
-        return False
-
-    def _help_operations(self, resource_name):
-        """TODO: Description."""
-        listing = {}
-        for operation in self.resources[resource_name].operations.values():
-            listing[operation["name"]] = operation["summary"]
-            print()
-            print("usage: {} operation [arguments]".format(resource_name))
-            print()
-            print(self.resources[resource_name].description)
-            print()
-            print("Operations:")
-            print()
-            _print_listing(listing)
-            print()
+        params = operation.get("params") or {}
+        usage=[]
+        listing={}
+        for name in (n for n in params if n != "_body"):
+            param = params[name]
+            munged = name.replace("_", "-")
+            arg = "--{}={}".format(munged, param.python_type.__name__.upper())
+            item = param.description or ""
+            if param.enum:
+                item += "  {" + "|".join((param.str_encode(e) for e in param.enum)) + "}"
+            if param.default is not None:
+                item += "  (default: {})".format(param.str_encode(param.default))
+            listing[arg] = item
+            if not param.required:
+                arg = "[{}]".format(arg)
+            usage.append(arg)
+        print("Usage: {} {} {}".format(resource_name, operation["name"], " ".join(usage)))
+        print("  {}".format(operation["summary"]))
+        if listing:
+            print("Arguments:")
+            _print_listing(listing, indent="  ")
+        if "_body" in params:
+            description = params["_body"].description
+            if description:
+                print("Body: {}".format(description))
+        if operation.get("returns"):
+            description = operation["returns"].description
+            if description:
+                print("Response: {}".format(description))
         return False
