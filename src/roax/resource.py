@@ -20,7 +20,7 @@ class Resource:
         """Register a resource operation."""
         name = operation["name"]
         if self.operations.get(name):
-            raise ResourceError("operation already registered: {}".format(name))
+            raise ValueError("operation already registered: {}".format(name))
         function = operation.get("function")
         self.operations[name] = operation
 
