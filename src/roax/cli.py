@@ -15,12 +15,15 @@ from roax.schema import SchemaError
 from textwrap import dedent
 
 
-def _print_listing(listing, indent="", space=4):
+def _print_listing(listing, indent="", space=4, max_column=24):
     """Sort a dictionary by key and print as a listing."""
     names = sorted(listing.keys())
-    ljust = len(max(names, key=len)) + space
+    ljust = 0
     for name in names:
-        print("{}{}{}".format(indent, name.ljust(ljust), listing[name]))    
+        if len(name) <= max_column and len(name) > ljust:
+            ljust = len(name)
+    for name in names:
+        print("{}{}{}{}".format(indent, name.ljust(ljust), " " * space, listing[name]))    
 
 def _arg_munge(name):
     """Turn parameter name into command line argument."""
@@ -132,9 +135,9 @@ class CLI:
         resource = self.resources[resource_name]
         operation_name = args.pop(0) if args else None
         operation = resource.operations.get(operation_name)
-        params = operation["params"] or {}
         if not operation:
             return self._help_resource(resource_name)
+        params = operation["params"] or {}
         parser = self._build_parser(resource_name, operation)
         parsed = {k: v for k, v in vars(parser.parse_args(args)).items() if v is not None}
         for name in (n for n in parsed if n != "_body"):
@@ -201,7 +204,7 @@ class CLI:
                 item += "  {" + "|".join((param.str_encode(e) for e in param.enum)) + "}"
             if param.default is not None:
                 item += "  (default: {})".format(param.str_encode(param.default))
-            listing[arg] = item
+            listing["--{}".format(munged)] = item
             if not param.required:
                 arg = "[{}]".format(arg)
             usage.append(arg)
