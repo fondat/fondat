@@ -8,10 +8,10 @@
 
 import argparse
 import readline
+import roax.schema as s
 import shlex
 import sys
 
-from roax.schema import SchemaError
 from textwrap import dedent
 
 
@@ -25,8 +25,49 @@ def _print_listing(listing, indent="", space=4, max_column=24):
     for name in names:
         print("{}{}{}{}".format(indent, name.ljust(ljust), " " * space, listing[name]))    
 
-def _arg_munge(name):
-    """Turn parameter name into command line argument."""
+def _is_binary(schema):
+    return isinstance(schema, s.bytes) and schema.format == "binary"
+
+def _parse_redirects(args, body_schema, returns_schema):
+    """Parse redirections in command line arguments; removing them from arguments list."""    
+    stdin, stdout = None, None
+    n = 0
+    while n < len(args):
+        redir = None
+        if args[n] in ("<", ">", ">>"):  # redirection as its own argument
+            redir = args.pop(n)
+        elif args[n].startswith(">>"):
+            redir = ">>"
+            args[n] = args[n][2:]
+        elif args[n].startswith("<") or args[n].startswith(">"):
+            redir = args[n][0]
+            args[n] = args[n][1:]
+        if not redir:
+            n += 1
+            continue
+        try:
+            filename = args.pop(n)
+        except IndexError:
+            raise ValueError("no redirection filename specified")
+        if redir == "<" and not body_schema:
+            raise ValueError("input redirection for operation that takes no body")
+        if redir in (">", ">>") and not returns_schema:
+            raise ValueError("output redirection for operation with no response")
+        if redir == "<" and stdin:
+            raise ValueError("more than one input file specified")
+        elif redir in (">", ">>") and stdout:
+            raise ValueError("more than one output file specified")
+        if "<" in filename or ">" in filename:
+            raise ValueError("invalid character in redirection filename")
+        in_mode = "b" if body_schema and _is_binary(body_schema) else "t"
+        out_mode = "b" if returns_schema and _is_binary(returns_schema) else "t"
+        if redir == "<":
+            stdin = open(filename, "r" + in_mode)
+        elif redir == ">":
+            stdout = open(filename, "w" + out_mode)
+        elif redir == ">>":
+            stdout = open(filename, "a" + out_mode)
+    return stdin, stdout
 
 
 class CLI:
@@ -55,6 +96,8 @@ class CLI:
                     pass
                 except (EOFError, StopIteration, KeyboardInterrupt):
                     break
+                except Exception as e:
+                    print("ERROR: {}".format(e))
         finally:
             self._looping = False
 
@@ -62,6 +105,7 @@ class CLI:
         """Process a single command line."""
         if not args:
             return
+        args = list(args)  # make it safe to modify args as we go
         name = args.pop(0)
         if name in self.resources:
             self._process_resource(name, args)
@@ -133,40 +177,55 @@ class CLI:
     def _process_resource(self, resource_name, args):
         """TODO: Description."""
         resource = self.resources[resource_name]
-        operation_name = args.pop(0) if args else None
+        operation_name = args.pop(0).replace("-", "_") if args else None
         operation = resource.operations.get(operation_name)
         if not operation:
             return self._help_resource(resource_name)
         params = operation["params"] or {}
+        returns = operation.get("returns")
+        body = params.get("_body")
+        stdin, stdout = _parse_redirects(args, params["_body"], returns)
         parser = self._build_parser(resource_name, operation)
         parsed = {k: v for k, v in vars(parser.parse_args(args)).items() if v is not None}
         for name in (n for n in parsed if n != "_body"):
             try:
                 parsed[name] = params[name].str_decode(parsed[name])
-            except SchemaError as se:
+            except s.SchemaError as se:
                 print("{} {}: error: argument {}: {}".format(resource_name, operation_name, name, se.msg))
                 return False
-        if "_body" in params:
+        if body:
             try:
-                description = params["_body"].description or "content body."
-                print("Input {}".format(description.lower()))
-                print("When complete, input EOF (^D on *nix, ^Z on Windows):")
-                parsed["_body"] = sys.stdin.read()
-            except SchemaError as se:
-                print("{} {}: error: content body: {}".format(resource_name, operation_name, se.msg))
+                description = (body.description or "content body.").lower()
+                if stdin:
+                    print("Redirecting body from file {}: {}".format(stdin.name, description))
+                else:
+                    print("Enter {}".format(description))
+                    print("When complete, input EOF (^D on *nix, ^Z on Windows):")
+                    stdin = sys.stdin.buffer if _is_binary(body) else sys.stdin
+                decode = body.bin_decode if _is_binary(body) else body.str_decode
+                parsed["_body"] = decode(stdin.read())
+            except s.SchemaError as se:
+                print("ERROR: {} {}: content body: {}".format(resource_name, operation_name, se.msg))
                 return False
         try:
             result = resource.call(operation_name, parsed)
         except ResourceException as re:
-            print("Status: FAILURE: detail: {} code: {}.".format(re.code, re.detail))
+            print("ERROR: detail: {} code: {}.".format(re.code, re.detail))
             return False
         except Exception as e:
-            print("Status: FAILURE: detail: {}.".format(e))
+            print("ERROR: detail: {}.".format(e))
             return False
-        if "returns" in operation:
-            result = operation["returns"].str_encode(result)
-        print("Status: success.")
-        print(result)
+        print("SUCCESS.")
+        if returns:
+            description = (returns.description or "response.").lower()
+            if stdout:
+                print("Redirecting response to file {}: {}".format(stdout.name, description))
+            else:
+                stdout = sys.stdout.buffer if _is_binary(returns) else sys.stdout
+            if _is_binary(returns):
+                stdout.write(returns.bin_encode(result))
+            else:
+                print(returns.str_encode(result), file=stdout)
         return True
 
     def _help_list(self):
@@ -201,14 +260,14 @@ class CLI:
             arg = "--{}={}".format(munged, param.python_type.__name__.upper())
             item = param.description or ""
             if param.enum:
-                item += "  {" + "|".join((param.str_encode(e) for e in param.enum)) + "}"
+                item += "  {" + ",".join((param.str_encode(e) for e in param.enum)) + "}"
             if param.default is not None:
                 item += "  (default: {})".format(param.str_encode(param.default))
             listing["--{}".format(munged)] = item
             if not param.required:
                 arg = "[{}]".format(arg)
             usage.append(arg)
-        print("Usage: {} {} {}".format(resource_name, operation["name"], " ".join(usage)))
+        print("Usage: {} {} {}".format(resource_name, operation["name"].replace("_", "-"), " ".join(usage)))
         print("  {}".format(operation["summary"]))
         if listing:
             print("Arguments:")
