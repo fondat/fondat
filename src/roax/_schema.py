@@ -7,6 +7,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import inspect
+import json
 import wrapt
 
 from abc import ABC, abstractmethod
@@ -208,16 +209,13 @@ class _dict(_type):
         result["required"] = [k for k, v in self.properties.items() if v.required]
         return result
 
-    def str_encode(self, value):  # FIXME: too naive with delimiters
+    def str_encode(self, value):
         """Encode the value into string representation."""
-        result = []
-        for key in value:
-            result.append("{}={}".format(key,self.properties[key].str_encode(value[key])))
-        return ",".join(result)
+        return json.dumps(self.json_encode(value))
 
     def str_decode(self, value):
         """Decode the value from string representation."""
-        raise RuntimeError("dict cannot be decoded from string representation")
+        return self.json_decode(json.loads(value))
 
 
 import csv
