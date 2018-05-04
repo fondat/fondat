@@ -12,6 +12,7 @@ import roax.schema as s
 import shlex
 import sys
 
+from roax.context import context
 from textwrap import dedent
 
 
@@ -105,14 +106,15 @@ class CLI:
         """Process a single command line."""
         if not args:
             return
-        args = list(args)  # make it safe to modify args as we go
-        name = args.pop(0)
-        if name in self.resources:
-            self._process_resource(name, args)
-        elif name in self.commands:
-            self.commands[name][0](args)
-        else:
-            print("Invalid command or resource: {}.".format(name))
+        with context(type="cli", cli_command=" ".join(args)):
+            args = list(args)  # make it safe to modify args as we go
+            name = args.pop(0)
+            if name in self.resources:
+                self._process_resource(name, args)
+            elif name in self.commands:
+                self.commands[name][0](args)
+            else:
+                print("Invalid command or resource: {}.".format(name))
 
     def _init_commands(self):
         """TODO: Description."""
@@ -243,7 +245,7 @@ class CLI:
         operation = self.resources[resource_name].operations.get(args.pop(0)) if args else None
         if operation:
             return self._help_operation(resource_name, operation)
-        print("Usage: {} operation [args]".format(resource_name))
+        print("Usage: {} operation [ARGS] [<INFILE] [>OUTFILE]".format(resource_name))
         print("  {}".format(self.resources[resource_name].description))
         print("Operations:")
         operations = {o["name"]: o["summary"] for o in self.resources[resource_name].operations.values()}

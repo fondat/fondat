@@ -7,7 +7,6 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import roax.schema as s
-#import roax.security
 import wrapt
 
 from roax.context import context
@@ -66,6 +65,27 @@ def _summary(function):
     return " ".join(result)
 
 
+def _authorize_operation(requirements):
+    """
+    Peforms authorization of the operation. If one security requirement does not
+    raise an exception, then authorization is granted. If all security requirements
+    raise exceptions, then authorization is denied, and the exception raised by the
+    first security requirement is re-raised.
+    """
+    exception = None
+    for requirement in requirements or []:
+        try:
+            requirement.authorize()
+        except Exception as e:
+            if not exception:
+                exception = e
+        else:  # one security requirement authorized the operation
+            exception = None
+            break
+    if exception:
+        raise exception
+
+
 def operation(
         *, name=None, type=None, summary=None, description=None, params=None,
         returns=None, security=[], documented=True, deprecated=False):
@@ -96,7 +116,7 @@ def operation(
             raise TypeError("operation type must be one of: {}".format(valid_types))
         def wrapper(wrapped, instance, args, kwargs):
             with context(context_type="operation", operation_resource=wrapped.__self__, operation_name=_name):
-                #roax.security.apply(security)
+                _authorize_operation(security)
                 return wrapped(*args, **kwargs)
         _params = s.function_params(function, params)
         decorated = s.validate(_params, returns)(wrapt.decorator(wrapper)(function))
@@ -129,15 +149,15 @@ class BadRequest(ResourceError):
         super().__init__(detail, 400)
 
 
-class Unauthenticated(ResourceError):
-    """Raised if the resource request requires authentication."""
+class Unauthorized(ResourceError):
+    """Raised if the request lacks valid authentication credentials."""
     def __init__(self, realm, detail=None):
         super().__init__(detail, 401)
         self.realm = realm        
 
 
 class Forbidden(ResourceError):
-    """Raised if the resource request is refused."""
+    """Raised if authorization to the resource is refused."""
     def __init__(self, detail=None):
         super().__init__(detail, 403)
 
