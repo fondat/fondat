@@ -43,9 +43,9 @@ def context(*args, **varargs):
             raise RuntimeError("context value on stack was modified")
         del s[pos + 1:]
 
-def get(context_type):
-    """Return the last context value with the specified type, or None if not found."""
+def get_context(**values):
+    """Return the last context value with the specified keys and values, or None if not found."""
     for value in reversed(stack()):
         if isinstance(value, Mapping):
-            if value.get("context_type") == context_type:
+            if {k: value[k] for k in values} == values:
                 return value
