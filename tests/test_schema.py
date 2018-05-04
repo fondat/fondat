@@ -8,7 +8,9 @@ from base64 import b64encode
 from datetime import datetime
 from uuid import UUID
 
+
 _UTC = isodate.tzinfo.Utc()
+
 
 class TestSchema(unittest.TestCase):
 
@@ -19,7 +21,7 @@ class TestSchema(unittest.TestCase):
         with self.assertRaises(s.SchemaError):
             fn(val)
 
-    # ----- dict ---------------
+    # -- dict -----
 
     def test_dict_validate_success(self):
         s.dict({"a": s.str()}).validate({"a": "b"})
@@ -60,8 +62,9 @@ class TestSchema(unittest.TestCase):
     def test_dict_json_decode_default_success(self):
         self.assertEqual(s.dict({"dje": s.str(required=False, default="defaulty")}).json_decode({}), {"dje": "defaulty"}) 
 
-    def test_dict_json_decode_ignore_success(self):
-        self.assertEqual(s.dict({"djf": s.str()}).json_decode({"djf": "baz", "djg": "ignoreme"}), {"djf": "baz"})
+    def test_dict_json_decode_additional_property_success(self):
+        value = {"djf": "baz", "djg": "additional_property"}
+        self.assertEqual(s.dict({"djf": s.str()}, additional_properties=True).json_decode(value), value)
 
     def test_dict_json_decode_error(self):
         self._error(s.dict({"djx": s.str()}).json_decode, {"djx": False})
@@ -69,7 +72,7 @@ class TestSchema(unittest.TestCase):
     def test_dict_unexpected_property_error(self):
         self._error(s.dict({}).validate, {"foo": "bar"})
 
-    # ----- list ---------------
+    # -- list -----
 
     def test_list_validate_type_str_success(self):
         s.list(items=s.str()).validate(["a", "b", "c"])
@@ -134,7 +137,7 @@ class TestSchema(unittest.TestCase):
     def test_list_str_decode_int_error(self):
         self._error(s.list(items=s.int()).str_decode, "12,a,34,56")
 
-    # ----- str ---------------
+    # -- str -----
 
     def test_str_validate_type_success(self):
         s.str().validate("foo")
@@ -181,7 +184,7 @@ class TestSchema(unittest.TestCase):
     def test_str_validate_enum_error(self):
         self._error(s.str(enum=["f", "g", "h"]).validate, "i")
 
-    # ----- int ---------------
+    # -- int -----
 
     def test_int_validate_type_success(self):
         s.int().validate(123)
@@ -228,7 +231,7 @@ class TestSchema(unittest.TestCase):
     def test_int_validate_enum_error(self):
         self._error(s.int(enum=[6, 7, 8, 9]).validate, 3)
 
-    # ----- float ---------------
+    # -- float -----
 
     def test_float_validate_type_success(self):
         s.float().validate(123.45)
@@ -278,7 +281,7 @@ class TestSchema(unittest.TestCase):
     def test_float_validate_enum_error(self):
         self._error(s.float(enum=[6.7, 8.9, 10.11]).validate, 12.13)
 
-    # ----- bool ---------------
+    # -- bool -----
 
     def test_bool_validate_type_true(self):
         s.bool().validate(True)
@@ -316,7 +319,7 @@ class TestSchema(unittest.TestCase):
     def test_bool_str_decode_error(self):
         self._error(s.bool().str_decode, "123")
 
-    # ----- datetime ---------------
+    # -- datetime -----
 
     def test_datetime_validate_type_success(self):
         s.datetime().validate(datetime(2015, 6, 7, 8, 9, 10, 0, _UTC))
@@ -357,7 +360,7 @@ class TestSchema(unittest.TestCase):
     def test_datetime_str_decode_error(self):
         self._error(s.datetime().str_decode, "1425691090160")
 
-    # ----- uuid ---------------
+    # -- uuid -----
 
     def test_uuid_validate_type_success(self):
         s.uuid().validate(UUID("af327a12-c469-11e4-8e4f-af4f7c44473b"))
@@ -386,7 +389,7 @@ class TestSchema(unittest.TestCase):
     def test_uuid_str_decode_error(self):
         self._error(s.uuid().str_decode, "and_neither_is_this")
 
-    # ----- bytes ---------------
+    # -- bytes -----
 
     def test_bytes_validate_type_success(self):
         s.bytes().validate(bytes([1,2,3]))
@@ -419,7 +422,7 @@ class TestSchema(unittest.TestCase):
     def test_bytes_str_decode_error(self):
         self._error(s.uuid().str_decode, "and_neither_is_this_a_bytes")
 
-    # ----- decorators ---------------
+    # -- decorators -----
 
     def test_params_decorator_mismatch_a(self):
         with self.assertRaises(TypeError):
@@ -446,23 +449,28 @@ class TestSchema(unittest.TestCase):
             return "str_ftw"
         fn()
 
-    # ----- all_of ---------------
+    # -- all_of -----
 
-#    def test_all_of_none_match(self):
-#        self._error(s.all_of([s.str(), s.bool()]).validate, 123)
+    _all_of_schemas = s.all_of([
+        s.dict({"a": s.str()}, additional_properties=True),
+        s.dict({"b": s.int()}, additional_properties=True),
+    ])
 
-#    def test_all_of_one_match(self):
-#        self._error(s.all_of([s.str(), s.bool()]).validate, "hello")
+    def test_all_of_none_match(self):
+        self._error(self._all_of_schemas.validate, {"c": "nope"})
 
-#    def test_all_of_validation_all_match(self):
-#        s.all_of([s.str(min_len=2), s.str(max_len=8)]).validate("hello")
+    def test_all_of_one_match(self):
+        self._error(self._all_of_schemas.validate, {"a": "foo"})
 
-#    def test_all_of_json_code(self):
-#        for value in [ "12", "123", "1234" ]:
-#            schema = s.all_of([s.str(min_len=2), s.str(max_len=4)])
-#            self.assertEqual(schema.json_decode(schema.json_encode(value)), value)
+    def test_all_of_validation_all_match(self):
+        self._all_of_schemas.validate({"a": "foo", "b": 1})
 
-    # ----- any_of ---------------
+    def test_all_of_json_code(self):
+        value = {"a": "foo", "b": 1, "c": [1,2,3]}
+        schema = self._all_of_schemas
+        self.assertEqual(schema.json_decode(schema.json_encode(value)), value)
+
+    # -- any_of -----
 
     def test_any_of_none_match(self):
         self._error(s.any_of([s.str(), s.int()]).validate, 123.45)
@@ -476,7 +484,7 @@ class TestSchema(unittest.TestCase):
             schema = s.any_of([s.float(), s.bool()])
             self.assertEqual(schema.json_decode(schema.json_encode(value)), value)
 
-    # ----- oneof ---------------
+    # -- one_of -----
 
     def test_one_of_none_match(self):
         self._error(s.one_of([s.str(), s.int()]).validate, 123.45)
@@ -492,6 +500,7 @@ class TestSchema(unittest.TestCase):
         for value in [ 123, UUID("06b959d0-65e0-11e7-866d-6be08781d5cb"), False ]:
             schema = s.one_of([s.int(), s.uuid(), s.bool()])
             self.assertEqual(schema.json_decode(schema.json_encode(value)), value)
+
 
 if __name__ == "__main__":
     unittest.main()
