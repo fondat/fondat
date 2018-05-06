@@ -74,7 +74,6 @@ class _type(ABC):
             raise SchemaError("expecting {} type".format(self.python_type.__name__))
         if value is not None and self.enum is not None and value not in self.enum:
             raise SchemaError("value must be one of: {}".format(", ".join([self.str_encode(v) for v in self.enum])))
-        return value
 
     @abstractmethod
     def json_encode(self, value):
@@ -144,6 +143,8 @@ class _dict(_type):
 
     def _process(self, method, value):
         """TODO: Description."""
+        if value is None:
+            return None
         result = {}
         for k, v in value.items():
             try:
@@ -173,31 +174,26 @@ class _dict(_type):
     def validate(self, value):
         """TODO: Description."""
         super().validate(value)
-        if value is None:
-            return None
-        self._process("validate", value)
-        for key, schema in self.properties.items():
-            if schema.required and key not in value:
-                raise SchemaError("value required", key)
+        if value is not None:
+            self._process("validate", value)
+            for key, schema in self.properties.items():
+                if schema.required and key not in value:
+                    raise SchemaError("value required", key)
         return value
 
     def json_encode(self, value):
         """Encode the value into JSON object model representation."""
-        if value is None:
-            return None
         value = self.defaults(value)
         self.validate(value)
-        if not isinstance(value, dict):
-            value = dict(value) # make JSON encoder happy
+        if value is not None and not isinstance(value, dict):
+            value = dict(value)  # make JSON encoder happy
         return self._process("json_encode", value)
 
     def json_decode(self, value):
         """Decode the value from JSON object model representation."""
-        if value is None:
-            return None
-        result = self.defaults(self._process("json_decode", value))
-        self.validate(result)
-        return result
+        value = self.defaults(self._process("json_decode", value))
+        self.validate(value)
+        return value
 
     def json_schema(self):
         result = super().json_schema()
@@ -241,6 +237,8 @@ class _list(_type):
 
     def _process(self, method, value):
         """TODO: Description."""
+        if value is None:
+            return None
         result = []
         try:
             for n, item in zip(range(len(value)), value):
@@ -252,39 +250,34 @@ class _list(_type):
 
     @staticmethod
     def _check_not_str(value):
-        if value is not None and isinstance(value, str):  # strings are iterable, but not what we want
+        if isinstance(value, str):  # strings are iterable, but not what we want
             raise SchemaError("expecting a Sequence type")
 
     def validate(self, value):
         """TODO: Description."""
         self._check_not_str(value)
         super().validate(value)
-        if value is None:
-            return None
-        self._process("validate", value)
-        if len(value) < self.min_items:
-            raise SchemaError("expecting minimum number of {} items".format(self.min_items))
-        if self.max_items is not None and len(value) > self.max_items:
-            raise SchemaError("expecting maximum number of {} items".format(self.max_items))
-        if self.unique_items and len(value) != len(set(value)):
-            raise SchemaError("expecting items to be unique")
+        if value is not None:
+            self._process("validate", value)
+            if len(value) < self.min_items:
+                raise SchemaError("expecting minimum number of {} items".format(self.min_items))
+            if self.max_items is not None and len(value) > self.max_items:
+                raise SchemaError("expecting maximum number of {} items".format(self.max_items))
+            if self.unique_items and len(value) != len(set(value)):
+                raise SchemaError("expecting items to be unique")
         return value
 
     def json_encode(self, value):
         """Encode the value into JSON object model representation."""
         self._check_not_str(value)
         self.validate(value)
-        if value is None:
-            return None
-        if not isinstance(value, list):
+        if value is not None and not isinstance(value, list):
             value = list(value)  # make JSON encoder happy
         return self._process("json_encode", value)
 
     def json_decode(self, value):
         """Decode the value from JSON object model representation."""
         self._check_not_str(value)
-        if value is None:
-            return None
         result = self._process("json_decode", value)
         self.validate(result)
         return result
@@ -302,20 +295,19 @@ class _list(_type):
 
     def str_encode(self, value):
         """Encode the value into string representation."""
+        self.validate(value)
         if value is None:
             return None
-        self.validate(value)
         sio = StringIO()
         csv.writer(sio).writerow(self._process("str_encode", value))
         return sio.getvalue().rstrip("\r\n")
 
     def str_decode(self, value):
         """Decode the value from string representation."""
-        if value is None:
-            return None
-        result = self._process("str_decode", csv.reader([value]).__next__())
-        self.validate(result)
-        return result
+        if value is not None:
+            value = self._process("str_decode", csv.reader([value]).__next__())
+        self.validate(value)
+        return value
 
 
 import re
@@ -345,23 +337,23 @@ class _str(_type):
     def validate(self, value):
         """TODO: Description."""
         super().validate(value)
-        if value is None:
-            return value
-        if len(value) < self.min_len:
-            raise SchemaError("expecting minimum length of {}".format(self.min_len))
-        if self.max_len is not None and len(value) > self.max_len:
-            raise SchemaError("expecting maximum length of {}".format(self.max_len))
-        if self.pattern is not None and not self.pattern.match(value):
-            raise SchemaError("expecting pattern: {}".format(self.pattern.pattern))
-        return value
+        if value is not None:
+            if len(value) < self.min_len:
+                raise SchemaError("expecting minimum length of {}".format(self.min_len))
+            if self.max_len is not None and len(value) > self.max_len:
+                raise SchemaError("expecting maximum length of {}".format(self.max_len))
+            if self.pattern is not None and not self.pattern.match(value):
+                raise SchemaError("expecting pattern: {}".format(self.pattern.pattern))
 
     def json_encode(self, value):
         """Encode the value into JSON object model representation."""
-        return self.validate(value)
+        self.validate(value)
+        return value
 
     def json_decode(self, value):
         """Decode the value from JSON object model representation."""
-        return self.validate(value)
+        self.validate(value)
+        return value
 
     def json_schema(self):
         result = super().json_schema()
@@ -375,11 +367,13 @@ class _str(_type):
  
     def str_encode(self, value):
         """Encode the value into string representation."""
-        return self.validate(value)
+        self.validate(value)
+        return value
 
     def str_decode(self, value):
         """Decode the value from string representation."""
-        return self.validate(value)
+        self.validate(value)
+        return value
 
 
 class _number(_type):
@@ -396,17 +390,16 @@ class _number(_type):
     def validate(self, value):
         """TODO: Description."""
         super().validate(value)
-        if value is None:
-            return None
-        if self.minimum is not None and value < self.minimum:
-            raise SchemaError("expecting minimum value of {}".format(self.minimum))
-        if self.maximum is not None and value > self.maximum:
-            raise SchemaError("expecting maximum value of {}".format(self.maximum))
-        return value
+        if value is not None:
+            if self.minimum is not None and value < self.minimum:
+                raise SchemaError("expecting minimum value of {}".format(self.minimum))
+            if self.maximum is not None and value > self.maximum:
+                raise SchemaError("expecting maximum value of {}".format(self.maximum))
 
     def json_encode(self, value):
         """Encode the value into JSON object model representation."""
-        return self.validate(value)
+        self.validate(value)
+        return value
 
     def json_schema(self):
         result = super().json_schema()
@@ -419,9 +412,7 @@ class _number(_type):
     def str_encode(self, value):
         """Encode the value into string representation."""
         self.validate(value)
-        if value is None:
-            return None
-        return str(value)
+        return None if value is None else str(value)
 
 
 class _int(_number):
@@ -444,32 +435,28 @@ class _int(_number):
 
     def validate(self, value):
         super().validate(value)
-        if value is None:
-            return None
         if isinstance(value, bool):  # bool is a subclass of int
             raise SchemaError("expecting int type")
-        return value
 
     def json_decode(self, value):
         """Decode the value from JSON object model representation."""
-        if value is None:
-            return None
         result = value
         if isinstance(result, float):
             result = result.__int__()
             if result != value: # 1.0 == 1
                 raise SchemaError("expecting integer value")
-        return self.validate(result)
+        self.validate(result)
+        return result
 
     def str_decode(self, value):
         """Decode the value from string representation."""
-        if value is None:
-            return None
-        try:
-            result = int(value)
-        except ValueError as ve:
-            raise SchemaError("expecting an integer value") from ve
-        return self.validate(result)
+        if value is not None:
+            try:
+                value = int(value)
+            except ValueError as ve:
+                raise SchemaError("expecting an integer value") from ve
+        self.validate(value)
+        return value
 
 
 class _float(_number):
@@ -492,7 +479,9 @@ class _float(_number):
 
     def json_decode(self, value):
         """Decode the value from JSON object model representation."""
-        return self.validate(value.__float__() if isinstance(value, int) else value)
+        value = value.__float__() if isinstance(value, int) else value
+        self.validate(value)
+        return value
 
     def str_decode(self, value):
         """Decode the value from string representation."""
@@ -501,7 +490,8 @@ class _float(_number):
                 value = float(value)
             except ValueError as ve:
                 raise SchemaError("expecting a number") from ve
-        return self.validate(value)
+        self.validate(value)
+        return value
 
 
 class _bool(_type):
@@ -520,15 +510,17 @@ class _bool(_type):
         super().__init__(python_type=bool, json_type="boolean", **kwargs)
 
     def validate(self, value):
-        return super().validate(value)
+        super().validate(value)
 
     def json_encode(self, value):
         """Encode the value into JSON object model representation."""
-        return self.validate(value)
+        self.validate(value)
+        return value
 
     def json_decode(self, value):
         """Decode the value from JSON object model representation."""
-        return self.validate(value)
+        self.validate(value)
+        return value
 
     def str_encode(self, value):
         """Encode the value into string representation."""
@@ -543,7 +535,8 @@ class _bool(_type):
             value = {None: None, "true": True, "false": False}[value]
         except KeyError:
             raise SchemaError("expecting true or false")
-        return self.validate(value)
+        self.validate(value)
+        return value
 
 
 import binascii
@@ -577,7 +570,7 @@ class _bytes(_type):
 
     def validate(self, value):
         """TODO: Description."""
-        return super().validate(value)
+        super().validate(value)
 
     def json_encode(self, value):
         """Encode the value into JSON object model representation."""
@@ -603,10 +596,11 @@ class _bytes(_type):
         if self.format == "binary":
             raise SchemaError("binary format cannot be decoded from string representation")
         try:
-            result = None if value is None else b64decode(value)
+            value = None if value is None else b64decode(value)
         except binascii.Error as be:
             raise SchemaError("expecting a base64-encoded value") from be
-        return self.validate(result)
+        self.validate(value)
+        return value
 
     def bin_encode(self, value):
         """Endode the value into binary representation."""
@@ -648,7 +642,7 @@ class datetime(_type):
 
     def validate(self, value):
         """TODO: Description."""
-        return super().validate(value)
+        super().validate(value)
 
     def json_encode(self, value):
         """Encode the value into JSON object model representation."""
@@ -660,15 +654,20 @@ class datetime(_type):
 
     def str_encode(self, value):
         """Encode the value into string representation."""
-        return None if value is None else isodate.datetime_isoformat(self._to_utc(self.validate(value)))
+        self.validate(value)
+        if value is not None:
+            value = isodate.datetime_isoformat(self._to_utc(value))
+        return value 
 
     def str_decode(self, value):
         """Decode the value from string representation."""
-        try:
-            value = None if value is None else self._to_utc(isodate.parse_datetime(value))
-        except ValueError as ve:
-            raise SchemaError("expecting an ISO 8601 date-time value") from ve
-        return self.validate(value)
+        if value is not None:
+            try:
+                value = self._to_utc(isodate.parse_datetime(value))
+            except ValueError as ve:
+                raise SchemaError("expecting an ISO 8601 date-time value") from ve
+        self.validate(value)
+        return value
 
 
 from uuid import UUID
@@ -693,7 +692,7 @@ class uuid(_type):
 
     def validate(self, value):
         """TODO: Description."""
-        return super().validate(value)
+        super().validate(value)
 
     def json_encode(self, value):
         """Encode the value into JSON object model representation."""
@@ -705,7 +704,8 @@ class uuid(_type):
 
     def str_encode(self, value):
         """Encode the value into string representation."""
-        return None if value is None else str(self.validate(value))
+        self.validate(value)
+        return None if value is None else str(value)
 
     def str_decode(self, value):
         """Decode the value from string representation."""
@@ -716,7 +716,8 @@ class uuid(_type):
                 value = UUID(value)
             except ValueError as ve:
                 raise SchemaError("expecting string to contain UUID value") from ve
-        return self.validate(value)
+        self.validate(value)
+        return value
 
 
 class all_of(_type):
@@ -731,7 +732,6 @@ class all_of(_type):
         """
         schemas: list of schemas to match against.
         required: True if the value is mandatory.
-        nullable: allows expressing None as the value.
         default: The default value, if the item value is not supplied.
         enum: list of values that are valid.
         description: string providing information about the item.
@@ -753,20 +753,24 @@ class all_of(_type):
     def validate(self, value):
         """TODO: Description."""
         super().validate(value)
-        for schema in self.schemas:
-            schema.validate(value)
-        return value
+        if value is not None:
+            for schema in self.schemas:
+                schema.validate(value)
 
     def json_encode(self, value):
         """Encode the value into JSON object model representation."""
-        for schema in self.schemas:
-            value = schema.json_encode(value)
+        self.validate(value)
+        if value is not None:
+            for schema in self.schemas:
+                value = schema.json_encode(value)
         return value
 
     def json_decode(self, value):
         """Decode the value from JSON object model representation."""
-        for schema in self.schemas:
-            value = schema.json_decode(value)
+        if value is not None:
+            for schema in self.schemas:
+                value = schema.json_decode(value)
+        self.validate(value)
         return value
 
     def str_encode(self, value):
@@ -804,15 +808,19 @@ class _xof(_type):
 
     def validate(self, value):
         """TODO: Description."""
-        return self._process("validate", super().validate(value))
+        super().validate(value)
+        self._process("validate", value)
 
     def json_encode(self, value):
         """Encode the value into JSON object model representation."""
+        self.validate(value)
         return self._process("json_encode", value)
 
     def json_decode(self, value):
         """Decode the value from JSON object model representation."""
-        return self._process("json_decode", value)
+        value = self._process("json_decode", value)
+        self.validate(value)
+        return value
 
     def json_schema(self, value):
         result = super().json_schema(value)
@@ -820,11 +828,14 @@ class _xof(_type):
 
     def str_encode(self, value):
         """Encode the value into string representation."""
+        self.validate(value)
         return self._process("str_encode", value)
 
     def str_decode(self, value):
         """Decode the value from string representation."""
-        return self._process("str_decode", value)
+        value = self._process("str_decode", value)
+        self.validate(value)
+        return value
 
 
 class any_of(_xof):

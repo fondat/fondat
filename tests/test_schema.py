@@ -72,6 +72,12 @@ class TestSchema(unittest.TestCase):
     def test_dict_unexpected_property_error(self):
         self._error(s.dict({}).validate, {"foo": "bar"})
 
+    def test_dict_disallow_none(self):
+        self._error(s.dict({"foo": s.str()}).json_encode, None)
+
+    def test_dict_allow_none(self):
+        self.assertEqual(s.dict({"foo": s.str()}, nullable=True).json_encode(None), None)
+
     # -- list -----
 
     def test_list_validate_type_str_success(self):
@@ -137,6 +143,12 @@ class TestSchema(unittest.TestCase):
     def test_list_str_decode_int_error(self):
         self._error(s.list(items=s.int()).str_decode, "12,a,34,56")
 
+    def test_list_disallow_none(self):
+        self._error(s.list(items=s.str()).json_encode, None)
+
+    def test_list_allow_none(self):
+        self.assertEqual(s.list(items=s.str(), nullable=True).json_encode(None), None)
+
     # -- str -----
 
     def test_str_validate_type_success(self):
@@ -184,6 +196,12 @@ class TestSchema(unittest.TestCase):
     def test_str_validate_enum_error(self):
         self._error(s.str(enum=["f", "g", "h"]).validate, "i")
 
+    def test_str_disallow_none(self):
+        self._error(s.str().json_encode, None)
+
+    def test_str_allow_none(self):
+        self.assertEqual(s.str(nullable=True).json_encode(None), None)
+
     # -- int -----
 
     def test_int_validate_type_success(self):
@@ -230,6 +248,12 @@ class TestSchema(unittest.TestCase):
 
     def test_int_validate_enum_error(self):
         self._error(s.int(enum=[6, 7, 8, 9]).validate, 3)
+
+    def test_int_disallow_none(self):
+        self._error(s.int().json_encode, None)
+
+    def test_int_allow_none(self):
+        self.assertEqual(s.int(nullable=True).json_encode(None), None)
 
     # -- float -----
 
@@ -281,6 +305,12 @@ class TestSchema(unittest.TestCase):
     def test_float_validate_enum_error(self):
         self._error(s.float(enum=[6.7, 8.9, 10.11]).validate, 12.13)
 
+    def test_float_disallow_none(self):
+        self._error(s.float().json_encode, None)
+
+    def test_float_allow_none(self):
+        self.assertEqual(s.float(nullable=True).json_encode(None), None)
+
     # -- bool -----
 
     def test_bool_validate_type_true(self):
@@ -318,6 +348,12 @@ class TestSchema(unittest.TestCase):
 
     def test_bool_str_decode_error(self):
         self._error(s.bool().str_decode, "123")
+
+    def test_bool_disallow_none(self):
+        self._error(s.bool().json_encode, None)
+
+    def test_bool_allow_none(self):
+        self.assertEqual(s.bool(nullable=True).json_encode(None), None)
 
     # -- datetime -----
 
@@ -360,6 +396,12 @@ class TestSchema(unittest.TestCase):
     def test_datetime_str_decode_error(self):
         self._error(s.datetime().str_decode, "1425691090160")
 
+    def test_datetime_disallow_none(self):
+        self._error(s.datetime().json_encode, None)
+
+    def test_datetime_allow_none(self):
+        self.assertEqual(s.datetime(nullable=True).json_encode(None), None)
+
     # -- uuid -----
 
     def test_uuid_validate_type_success(self):
@@ -388,6 +430,12 @@ class TestSchema(unittest.TestCase):
 
     def test_uuid_str_decode_error(self):
         self._error(s.uuid().str_decode, "and_neither_is_this")
+
+    def test_uuid_disallow_none(self):
+        self._error(s.uuid().json_encode, None)
+
+    def test_uuid_allow_none(self):
+        self.assertEqual(s.uuid(nullable=True).json_encode(None), None)
 
     # -- bytes -----
 
@@ -421,6 +469,12 @@ class TestSchema(unittest.TestCase):
 
     def test_bytes_str_decode_error(self):
         self._error(s.uuid().str_decode, "and_neither_is_this_a_bytes")
+
+    def test_bytes_disallow_none(self):
+        self._error(s.bytes().json_encode, None)
+
+    def test_bytes_allow_none(self):
+        self.assertEqual(s.bytes(nullable=True).json_encode(None), None)
 
     # -- decorators -----
 
@@ -470,6 +524,7 @@ class TestSchema(unittest.TestCase):
         schema = self._all_of_schemas
         self.assertEqual(schema.json_decode(schema.json_encode(value)), value)
 
+
     # -- any_of -----
 
     def test_any_of_none_match(self):
@@ -483,6 +538,7 @@ class TestSchema(unittest.TestCase):
         for value in [ 123.45, False ]:
             schema = s.any_of([s.float(), s.bool()])
             self.assertEqual(schema.json_decode(schema.json_encode(value)), value)
+
 
     # -- one_of -----
 
