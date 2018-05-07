@@ -13,6 +13,7 @@ import shlex
 import sys
 
 from roax.context import context
+from roax.resource import ResourceError
 from textwrap import dedent
 
 
@@ -74,11 +75,12 @@ def _parse_redirects(args, body_schema, returns_schema):
 class CLI:
     """Command line interface that exposes registered resources."""
 
-    def __init__(self, *, name=None, prompt=None):
+    def __init__(self, *, name=None, prompt=None, debug=False):
         """Initialize a command line interface."""
         super().__init__()
         self.name = name or self.__class__.__name__
         self.prompt = prompt or name + "> "
+        self.debug = debug
         self.resources = {}
         self.private = set()
         self.commands = {}
@@ -106,6 +108,8 @@ class CLI:
                     break
                 except Exception as e:
                     print("ERROR: {}".format(e))
+                    if self.debug:
+                        traceback.print_exc()
         finally:
             self._looping = False
 
@@ -190,7 +194,7 @@ class CLI:
         params = operation.params or {}
         returns = operation.get("returns")
         body = params.get("_body")
-        stdin, stdout = _parse_redirects(args, params["_body"], returns)
+        stdin, stdout = _parse_redirects(args, params.get("_body"), returns)
         parser = self._build_parser(resource_name, operation)
         parsed = {k: v for k, v in vars(parser.parse_args(args)).items() if v is not None}
         for name in (n for n in parsed if n != "_body"):
@@ -216,10 +220,10 @@ class CLI:
         try:
             result = resource.call(operation_name, parsed)
         except ResourceException as re:
-            print("ERROR: detail: {} code: {}.".format(re.code, re.detail))
+            print("ERROR: {} (code: {}).".format(re.detail, re.code))
             return False
         except Exception as e:
-            print("ERROR: detail: {}.".format(e))
+            print("ERROR: {}.".format(e))
             return False
         print("SUCCESS.")
         if returns:
