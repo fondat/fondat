@@ -960,8 +960,8 @@ def call(function, args, kwargs, params=None, returns=None):
             if params is not None and p.name in params:
                 try:
                     params[p.name].validate(build[p.name])
-                except SchemaError as se:
-                    se.msg = "parameter: " + se.msg
+                except SchemaError as se:   
+                    se.msg = "parameter: {}: {}".format(p.name, se.msg)
                     raise
         elif p.default is not p.empty:
             value = p.default

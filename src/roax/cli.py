@@ -11,6 +11,7 @@ import readline
 import roax.schema as s
 import shlex
 import sys
+import traceback
 
 from roax.context import context
 from roax.resource import ResourceError
@@ -200,7 +201,7 @@ class CLI:
     def _process_resource(self, resource_name, args):
         resource = self.resources[resource_name]
         operation_name = args.pop(0).replace("-", "_") if args else None
-        operation = getattr(resource.operations, operation_name, None)
+        operation = resource.operations.get(operation_name)
         if not operation:
             return self._help_resource(resource_name)
         params = operation.params or {}
@@ -213,7 +214,7 @@ class CLI:
             try:
                 parsed[name] = params[name].str_decode(parsed[name])
             except s.SchemaError as se:
-                print("{} {}: error: argument {}: {}".format(resource_name, operation_name, name, se.msg))
+                print("ERROR: parameter {}: {}".format(name, se.msg))
                 return False
         if body:
             try:
@@ -230,8 +231,8 @@ class CLI:
                 print("ERROR: {} {}: content body: {}".format(resource_name, operation_name, se.msg))
                 return False
         try:
-            result = resource.call(operation_name, parsed)
-        except ResourceException as re:
+            result = operation.function(**parsed)
+        except ResourceError as re:
             print("ERROR: {} (code: {}).".format(re.detail, re.code))
             return False
         except Exception as e:
@@ -261,13 +262,15 @@ class CLI:
         return False
 
     def _help_resource(self, resource_name, args=None):
-        operation = getattr(self.resources[resource_name].operations, args.pop(0), None) if args else None
+        operation_name = args.pop(0).replace("-", "_") if args else None
+        operation = self.resources[resource_name].operations.get(operation_name)
         if operation:
             return self._help_operation(resource_name, operation)
         print("Usage: {} operation [ARGS] [<INFILE] [>OUTFILE]".format(resource_name))
         print("  {}".format(self.resources[resource_name].description))
         print("Operations:")
-        operations = {o["name"]: o["summary"] for o in self.resources[resource_name].operations.values()}
+        ops = self.resources[resource_name].operations.values()
+        operations = {o.name.replace("_", "-"): o.summary for o in ops}
         _print_listing(operations, indent="  ")
 
     def _help_operation(self, resource_name, operation):
