@@ -36,11 +36,10 @@ class InvalidOperationTypeResource(Resource):
 
     def __init__(self):
         super().__init__()
-        self.not_a_valid_operation_type = operation()(self.not_a_valid_operation_type)
-    
+        self.not_a_valid_operation_type = operation()(self.not_a_valid_operation_type)    
+
     def not_a_valid_operation_type(self):
         pass
-
 
 class TestResource(unittest.TestCase):
 
@@ -51,7 +50,7 @@ class TestResource(unittest.TestCase):
         result = R2().call("create", params={"body": {"foo": "bar"}})
 
     def test_invalid_operation_type(self):
-        with self.assertRaises(TypeError):
+        with self.assertRaises(ValueError):
             InvalidOperationTypeResource()
 
     def test_override_operation_type(self):

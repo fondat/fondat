@@ -29,7 +29,8 @@ class SecurityRequirement:
         """
         raise NotImplementedError()
 
-    def json_encode(self):
+    @property
+    def json(self):
         """Return the JSON representation of the security requirement."""
         return []
 
@@ -42,18 +43,22 @@ class SecurityScheme:
         self.type = type
         self.description = description
 
-    def json_encode(self):
+    @property
+    def context(self):
+        """The context that the scheme pushes onto the context stack."""
+        result = {}
+        result["context_type"] = "security"
+        result["security_type"] = self.type
+        return result
+
+    @property
+    def json(self):
         """Return the JSON representation of the security scheme."""
         result = {}
         result["type"] = self.type
         if self.description is not None:
             result["description"] = self.description
         return result
-
-    @property
-    def context(self):
-        """The context that the scheme pushes onto the context stack."""
-        return {"context_type": "security", "security_type": self.type}
 
 
 class HTTPSecurityScheme(SecurityScheme):
@@ -63,16 +68,19 @@ class HTTPSecurityScheme(SecurityScheme):
         super().__init__("http", **kwargs)
         self.scheme = scheme
 
-    def json_encode(self):
-        """Return the JSON representation of the security scheme."""
-        result = super().json_encode()
-        result["scheme"] = scheme
-        return result
-
     @property
     def context(self):
         """The context that the scheme pushes onto the context stack."""
-        return {**super().context, "security_scheme": self.scheme}
+        result = super().context
+        result["security_scheme"] = self.scheme
+        return result
+
+    @property
+    def json(self):
+        """Return the JSON representation of the security scheme."""
+        result = super().json
+        result["scheme"] = scheme
+        return result
 
 
 class HTTPBasicSecurityScheme(HTTPSecurityScheme):

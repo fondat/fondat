@@ -12,16 +12,22 @@ import wrapt
 from roax.context import context
 
 
+class _Operation:
+    """A resource operation.""" 
+    def __init__(self, **kwargs):
+        for k in kwargs:
+            self.__setattr__(k, kwargs[k])
+
+
 class Resource:
     """Base class for a resource."""
 
     def _register_operation(self, **operation):
         """Register a resource operation."""
         name = operation["name"]
-        if self.operations.get(name):
+        if name in self.operations:
             raise ValueError("operation already registered: {}".format(name))
-        function = operation.get("function")
-        self.operations[name] = operation
+        self.operations[name] = _Operation(**operation)
 
     def __init__(self, name=None, description=None):
         """
@@ -39,12 +45,12 @@ class Resource:
                 operation = function._roax_operation
             except:
                 continue  # ignore undecorated functions
-            self._register_operation(**{**operation, "function": function})
+            self._register_operation(**{**operation, "resource": self, "function": function})
 
     def call(self, name, params={}):
         """Call a resource operation."""
         try:
-            return self.operations[name]["function"](**params)
+            return self.operations[name].function(**params)
         except KeyError as e:
             raise BadRequest("no such operation: {}".format(name))
 
@@ -88,9 +94,9 @@ def _authorize_operation(requirements):
 
 def operation(
         *, name=None, type=None, summary=None, description=None, params=None,
-        returns=None, security=[], documented=True, deprecated=False):
+        returns=None, security=None, publish=True, deprecated=False):
     """
-    Decorate a function to register it as a resource operation.
+    Decorate a resource function to register it as a resource operation.
 
     name: The operation name. Required if the operation type is "query" or "action".
     type: The type of operation being registered ("create", "read", "update", "delete", "action", "query").
@@ -99,8 +105,8 @@ def operation(
     params: A mapping of operation's parameter names to their schemas.
     returns: The schema of operation's return value.
     security: Security schemes, one of which must be satisfied to perform the operation.
-    documented: Publishes the operation in documentation and help if True.
-    deprecated: Declares the operation as deprecated if True.
+    publish: Publish the operation in documentation.
+    deprecated: Declare the operation as deprecated.
     """
     def decorator(function):
         _name = name
@@ -113,7 +119,7 @@ def operation(
             _type = _name
         valid_types = ["create", "read", "update", "delete", "query", "action"]
         if _type not in valid_types:
-            raise TypeError("operation type must be one of: {}".format(valid_types))
+            raise ValueError("operation type must be one of: {}".format(valid_types))
         def wrapper(wrapped, instance, args, kwargs):
             with context(context_type="operation", operation_resource=wrapped.__self__, operation_name=_name):
                 _authorize_operation(security)
@@ -122,9 +128,10 @@ def operation(
         decorated = s.validate(_params, returns)(wrapt.decorator(wrapper)(function))
         operation = dict(function=decorated, name=_name, type=_type,
             summary=__summary, description=_description, params=_params,
-            returns=returns, security=security, documented=documented, deprecated=deprecated)
+            returns=returns, security=security, publish=publish, deprecated=deprecated)
         try:
-            getattr(function, "__self__")._register_operation(**operation)
+            resource = getattr(function, "__self__")
+            resource._register_operation(**{**operation, "resource": resource})
         except AttributeError:  # not yet bound to an instance
             function._roax_operation = operation  # __init__ will register it
         return decorated

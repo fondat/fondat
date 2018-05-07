@@ -4,12 +4,11 @@
 #
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import logging
 import re
 
-from abc import ABC, abstractmethod
+from copy import copy
 from roax.context import context
 from roax.resource import ResourceError
 from roax.schema import SchemaError
@@ -27,7 +26,7 @@ class _ErrorResponse(Response):
 
 
 def _response(operation, result):
-    returns = operation["returns"]
+    returns = operation.returns
     response = Response()
     if returns and result is not None:
         response.content_type = returns.content_type
@@ -45,7 +44,7 @@ def _response(operation, result):
 
 def _params(request, operation):
     result = {}
-    params = operation["params"]
+    params = operation.params
     for name, param in params.items() if params else []:
         try:
             if name == "_body":
@@ -66,13 +65,25 @@ def _params(request, operation):
             pass
     return result
 
+def _filters(requirements):
+    """Produce set of filters associated with the security requirements."""
+    result = set()
+    for requirement in requirements or []:
+        filter = getattr(scheme, "filter", None)
+        if not filter:
+            scheme = getattr(requirement, "scheme", None)
+            if scheme:
+                filter = getattr(scheme, "filter", None)
+        if filter:
+            result.add(filter)
+    return result
+
 
 _context_patterns = [re.compile(p) for p in (
     "^REQUEST_METHOD$", "^SCRIPT_NAME$", "^PATH_INFO$", "^QUERY_STRING$",
     "^CONTENT_TYPE$", "^CONTENT_LENGTH$", "^SERVER_NAME$", "^SERVER_PORT$",
     "^SERVER_PROTOCOL$", "^HTTP_.*", "^wsgi.version$", "^wsgi.multithread$",
     "^wsgi.multiprocess$", "^wsgi.run_once$")]
-
 
 def _environ(environ):
     result = {}
@@ -83,10 +94,11 @@ def _environ(environ):
     return result
 
 
+
 class App:
     """Roax WSGI application."""
 
-    def __init__(self, url=None, *, title=None, description=None, version=None, security=None):
+    def __init__(self, url, title, version, description=None, security=None):
         """TODO: Description."""
         self.url = url
         self.base = urlparse(self.url).path.rstrip("/")
@@ -94,24 +106,41 @@ class App:
         self.description = description
         self.version = version
         self.security = security or []
-        self.resources = []
+        self.operations = {}
 
-    def register(self, path, resource, public=True):
-        """Registers a resource to the application."""
-        self.resources.append(dict(path=path, resource=resource, public=public))
+    def register(self, path, resource, publish=True):
+        """Register a resource to the application."""
+        resource_path = self.base + "/" + path.lstrip("/").rstrip("/")
+        if not publish:
+            operation = copy(operation)
+            operation.publish = False
+        for operation in resource.operations.values():
+            if operation.type == "create":
+                op_method, op_path = "POST", resource_path
+            elif operation.type == "read":
+                op_method, op_path = "GET", resource_path
+            elif operation.type == "update":
+                op_method, op_path = "PUT", resource_path
+            elif operation.type == "delete":
+                op_method, op_path = "DELETE", resource_path
+            elif operation.type == "action":
+                op_method, op_path = "POST", resource.path + "/" + operation.name
+            elif operation.type == "query":
+                op_method, op_path = "GET", resource.path + "/" + operation.name
+            else:
+                raise ValueError("resource has unknown operation type: {}".format(operation.type))
+            for (op_method, op_path) in self.operations:
+                raise ValueError("operation already defined for {} {}".format(op_method, op_path))
+            self.operations[(op_method, op_path)] = operation
 
     def __call__(self, environ, start_response):
         """TODO: Description."""
         request = Request(environ)
         try:
-            resource, operation = self._resource_operation(request)
-            # security = self.security + operation["security"]
-            filters = []
-            #for s in security:
-            #    if instanceof(s, Filter):
-            #        filters += s
+            operation = self._get_operation(request)
+            filters = set.union(_filters(self.security), _filters(operation.security))
             def handle(request):
-                return _response(operation, resource.call(operation["name"], **_params(request, operation)))
+                return _response(operation, operation.function(**_params(request, operation)))
             with context(context_type="http", http_environ=_environ(environ)):
                 response = Chain(filters, handle).next(request)
         except exc.HTTPException as he:
@@ -125,32 +154,13 @@ class App:
             response = ErrorResponse(exc.HTTPInternalServerError.code, str(e))
         return response(environ, start_response)
 
-    def _resource_operation(self, request):
-        path = request.path_info
-        base = self.base + "/"
-        if path != base and not path.startswith(base):
-            raise exc.HTTPNotFound()
-        path = path[len(self.base):]
-        for resource in self.resources:
-            if path == resource["path"] or path.startswith(resource["path"] + "/"):
-                split = path[1:].split("/", 1)
-                if request.method == "GET":
-                    op_type, op_name = ("query", split[1]) if len(split) > 1 else ("read", "read")
-                elif request.method == "PUT":
-                    op_type, op_name = ("update", "update")
-                elif request.method == "POST":
-                    op_type, op_name = ("action", split[1]) if len(split) > 1 else ("create", "create")
-                elif request.method == "DELETE":
-                    op_type, op_name = ("delete", "delete")
-                else:
-                    raise exc.HTTPMethodNotAllowed()
-                operation = resource["resource"].operations.get(op_name)
-                if not operation or operation["type"] != op_type:
-                    if op_type in ["query", "action"]:
-                        raise exc.HTTPNotFound()
-                    else:
-                        raise exc.HTTPMethodNotAllowed()
-                return (resource, operation)
+    def _get_operation(self, request):
+        operation = self.operations.get((request.method, request.path_info))
+        if operation:
+            return operation
+        for _, op_path in self.operations:
+            if op_path == request.path_info:  # path is defined, but not method
+                raise exc.MethodNotAllowed()
         raise exc.HTTPNotFound()
 
 

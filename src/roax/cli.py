@@ -74,15 +74,22 @@ def _parse_redirects(args, body_schema, returns_schema):
 class CLI:
     """TODO: Description."""
 
-    def __init__(self, *, name=None, prompt=None, resources={}):
+    def __init__(self, *, name=None, prompt=None):
         """TODO: Description."""
         super().__init__()
         self.name = name or self.__class__.__name__
         self.prompt = prompt or name + "> "
-        self.resources = resources
+        self.resources = {}
+        self.private = set()
         self.commands = {}
         self._looping = False
         self._init_commands()
+
+    def register(self, name, resource, publish=True):
+        """Register a resource with the command line interface."""
+        resources[name] = resource
+        if not pubish:
+            private.add(name)
 
     def loop(self):
         """Repeatedly issue a command prompt and process input."""
@@ -155,8 +162,8 @@ class CLI:
         params = operation.get("params", {})
         body = params.get("_body", None)
         parser = argparse.ArgumentParser(
-            prog = "{} {}".format(resource_name, operation["name"]),
-            description = operation["summary"],
+            prog = "{} {}".format(resource_name, operation.name),
+            description = operation.summary,
             add_help = False,
             allow_abbrev = False,
         )
@@ -183,7 +190,7 @@ class CLI:
         operation = resource.operations.get(operation_name)
         if not operation:
             return self._help_resource(resource_name)
-        params = operation["params"] or {}
+        params = operation.params or {}
         returns = operation.get("returns")
         body = params.get("_body")
         stdin, stdout = _parse_redirects(args, params["_body"], returns)
@@ -233,7 +240,7 @@ class CLI:
     def _help_list(self):
         """List all available resources and commands."""
         print("Available resources:")
-        resources = {k: self.resources[k].description for k in self.resources} 
+        resources = {k: self.resources[k].description for k in self.resources if k not in private} 
         _print_listing(resources, indent="  ")
         print("Available commands:")
         commands = {k: self.commands[k][1] for k in self.commands if self.commands[k][1]}
@@ -269,8 +276,8 @@ class CLI:
             if not param.required:
                 arg = "[{}]".format(arg)
             usage.append(arg)
-        print("Usage: {} {} {}".format(resource_name, operation["name"].replace("_", "-"), " ".join(usage)))
-        print("  {}".format(operation["summary"]))
+        print("Usage: {} {} {}".format(resource_name, operation.name.replace("_", "-"), " ".join(usage)))
+        print("  {}".format(operation.summary))
         if listing:
             print("Arguments:")
             _print_listing(listing, indent="  ")
@@ -279,7 +286,7 @@ class CLI:
             if description:
                 print("Body: {}".format(description))
         if operation.get("returns"):
-            description = operation["returns"].description
+            description = operation.returns.description
             if description:
                 print("Response: {}".format(description))
         return False

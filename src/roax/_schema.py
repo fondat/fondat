@@ -75,22 +75,7 @@ class _type(ABC):
         if value is not None and self.enum is not None and value not in self.enum:
             raise SchemaError("value must be one of: {}".format(", ".join([self.str_encode(v) for v in self.enum])))
 
-    @abstractmethod
-    def json_encode(self, value):
-        """
-        Encode the value into JSON object model representation. The method does not
-        dump the value as JSON text; it represents the value such that the Python
-        JSON module can dump as JSON text if required.
-        """
-
-    @abstractmethod
-    def json_decode(self, value):
-        """
-        Decode the value from JSON object model representation. The method does not
-        parse the value as JSON text; it takes a Python value as though the Python JSON
-        module loaded the JSON text.
-        """
-
+    @property
     def json_schema(self):
         """TODO: Description."""
         result = {}
@@ -111,6 +96,22 @@ class _type(ABC):
         if self.deprecated is not None:
             result["deprecated"] = self.deprecated
         return result
+
+    @abstractmethod
+    def json_encode(self, value):
+        """
+        Encode the value into JSON object model representation. The method does not
+        dump the value as JSON text; it represents the value such that the Python
+        JSON module can dump as JSON text if required.
+        """
+
+    @abstractmethod
+    def json_decode(self, value):
+        """
+        Decode the value from JSON object model representation. The method does not
+        parse the value as JSON text; it takes a Python value as though the Python JSON
+        module loaded the JSON text.
+        """
 
     @abstractmethod
     def str_encode(self, value):
@@ -181,6 +182,13 @@ class _dict(_type):
                     raise SchemaError("value required", key)
         return value
 
+    @property
+    def json_schema(self):
+        result = super().json_schema
+        result["properties"] = {k: v.json_schema for k, v in self.properties.items()}
+        result["required"] = [k for k, v in self.properties.items() if v.required]
+        return result
+
     def json_encode(self, value):
         """Encode the value into JSON object model representation."""
         value = self.defaults(value)
@@ -194,12 +202,6 @@ class _dict(_type):
         value = self.defaults(self._process("json_decode", value))
         self.validate(value)
         return value
-
-    def json_schema(self):
-        result = super().json_schema()
-        result["properties"] = {k: v.json_schema() for k, v in self.properties.items()}
-        result["required"] = [k for k, v in self.properties.items() if v.required]
-        return result
 
     def str_encode(self, value):
         """Encode the value into string representation."""
@@ -267,6 +269,18 @@ class _list(_type):
                 raise SchemaError("expecting items to be unique")
         return value
 
+    @property
+    def json_schema(self):
+        result = super().json_schema
+        result["items"] = self.items
+        if self.min_items != 0:
+            result["minItems"] = self.min_items
+        if self.max_items is not None:
+            result["maxItems"] = self.max_items
+        if self.unique_items:
+            result["uniqueItems"] = True
+        return result
+
     def json_encode(self, value):
         """Encode the value into JSON object model representation."""
         self._check_not_str(value)
@@ -280,17 +294,6 @@ class _list(_type):
         self._check_not_str(value)
         result = self._process("json_decode", value)
         self.validate(result)
-        return result
-
-    def json_schema(self):
-        result = super().json_schema()
-        result["items"] = self.items
-        if self.min_items != 0:
-            result["minItems"] = self.min_items
-        if self.max_items is not None:
-            result["maxItems"] = self.max_items
-        if self.unique_items:
-            result["uniqueItems"] = True
         return result
 
     def str_encode(self, value):
@@ -333,6 +336,8 @@ class _str(_type):
         self.min_len = min_len
         self.max_len = max_len
         self.pattern = re.compile(pattern) if pattern is not None else None
+        if "content_type" not in kwargs:
+            self.content_type = "text/plain"
 
     def validate(self, value):
         """TODO: Description."""
@@ -345,6 +350,17 @@ class _str(_type):
             if self.pattern is not None and not self.pattern.match(value):
                 raise SchemaError("expecting pattern: {}".format(self.pattern.pattern))
 
+    @property
+    def json_schema(self):
+        result = super().json_schema
+        if self.min_len != 0:
+             result["minLength"] = min_len
+        if self.max_len is not None:
+            result["maxLength"] = max_len
+        if self.pattern:
+            result["pattern"] = self.pattern.pattern
+        return result
+ 
     def json_encode(self, value):
         """Encode the value into JSON object model representation."""
         self.validate(value)
@@ -355,16 +371,6 @@ class _str(_type):
         self.validate(value)
         return value
 
-    def json_schema(self):
-        result = super().json_schema()
-        if self.min_len != 0:
-             result["minLength"] = min_len
-        if self.max_len is not None:
-            result["maxLength"] = max_len
-        if self.pattern:
-            result["pattern"] = self.pattern.pattern
-        return result
- 
     def str_encode(self, value):
         """Encode the value into string representation."""
         self.validate(value)
@@ -396,18 +402,19 @@ class _number(_type):
             if self.maximum is not None and value > self.maximum:
                 raise SchemaError("expecting maximum value of {}".format(self.maximum))
 
-    def json_encode(self, value):
-        """Encode the value into JSON object model representation."""
-        self.validate(value)
-        return value
-
+    @property
     def json_schema(self):
-        result = super().json_schema()
+        result = super().json_schema
         if self.minimum is not None:
             result["minimum"] = self.minimum
         if self.maximum is not None:
             result["maximum"] = self.maximum
         return result
+
+    def json_encode(self, value):
+        """Encode the value into JSON object model representation."""
+        self.validate(value)
+        return value
 
     def str_encode(self, value):
         """Encode the value into string representation."""
@@ -567,6 +574,8 @@ class _bytes(_type):
         if format not in valid_formats:
             raise SchemaError("format must be one of {}".format(valid_formats))        
         super().__init__(python_type=bytes, json_type="string", format=format, **kwargs)
+        if "content_type" not in kwargs and format == "binary":
+            self.content_type = "application/octet-string"
 
     def validate(self, value):
         """TODO: Description."""
@@ -757,6 +766,12 @@ class all_of(_type):
             for schema in self.schemas:
                 schema.validate(value)
 
+    @property
+    def json_schema(self):
+        result = super().json_schema
+        result["schemas"] = self.schemas
+        return result
+
     def json_encode(self, value):
         """Encode the value into JSON object model representation."""
         self.validate(value)
@@ -811,6 +826,12 @@ class _xof(_type):
         super().validate(value)
         self._process("validate", value)
 
+    @property
+    def json_schema(self):
+        result = super().json_schema
+        result["schemas"] = self.schemas
+        return result
+
     def json_encode(self, value):
         """Encode the value into JSON object model representation."""
         self.validate(value)
@@ -821,10 +842,6 @@ class _xof(_type):
         value = self._process("json_decode", value)
         self.validate(value)
         return value
-
-    def json_schema(self, value):
-        result = super().json_schema(value)
-        result[jskeyword] = self.schemas
 
     def str_encode(self, value):
         """Encode the value into string representation."""

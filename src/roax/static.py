@@ -10,21 +10,23 @@ from roax.resource import Resource, operation
 
 
 class StaticResource(Resource):
-    """
-    TODO: Description.
-    """
+    """A resource that serves a static file."""
 
-    def __init__(self, content, schema, name=None, description=None):
+    def __init__(self, content, schema, name=None, description=None, security=None):
         """
-        TODO: Description.
+        Initialize the static resource.
 
         content: the static content to return in a read operation.
         schema: the schema of the static content.
+        name: The short name of the resource.
+        description: A short description of the resource.
+        security: The security requirements to read the resource.
         """
         super().__init__(name, description)
         self.content = content
         self.schema = schema
-        self.read = operation(params={}, returns=self.schema)(self.read)
+        self.read.__doc__ = "Read the {} resource.".format(name)
+        self.read = operation(params={}, returns=self.schema, security=security)(self.read)
 
     def read(self):
         """Read the static resource."""
