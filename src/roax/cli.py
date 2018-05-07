@@ -173,7 +173,7 @@ class CLI:
         return False
 
     def _build_parser(self, resource_name, operation):
-        params = operation.get("params", {})
+        params = operation.params or {}
         body = params.get("_body", None)
         parser = argparse.ArgumentParser(
             prog = "{} {}".format(resource_name, operation.name),
@@ -200,11 +200,11 @@ class CLI:
     def _process_resource(self, resource_name, args):
         resource = self.resources[resource_name]
         operation_name = args.pop(0).replace("-", "_") if args else None
-        operation = resource.operations.get(operation_name)
+        operation = getattr(resource.operations, operation_name, None)
         if not operation:
             return self._help_resource(resource_name)
         params = operation.params or {}
-        returns = operation.get("returns")
+        returns = operation.returns
         body = params.get("_body")
         stdin, stdout = _parse_redirects(args, params.get("_body"), returns)
         parser = self._build_parser(resource_name, operation)
@@ -261,7 +261,7 @@ class CLI:
         return False
 
     def _help_resource(self, resource_name, args=None):
-        operation = self.resources[resource_name].operations.get(args.pop(0)) if args else None
+        operation = getattr(self.resources[resource_name].operations, args.pop(0), None) if args else None
         if operation:
             return self._help_operation(resource_name, operation)
         print("Usage: {} operation [ARGS] [<INFILE] [>OUTFILE]".format(resource_name))
@@ -271,7 +271,7 @@ class CLI:
         _print_listing(operations, indent="  ")
 
     def _help_operation(self, resource_name, operation):
-        params = operation.get("params") or {}
+        params = operation.params or {}
         usage=[]
         listing={}
         for name in (n for n in params if n != "_body"):
@@ -296,7 +296,7 @@ class CLI:
             description = params["_body"].description
             if description:
                 print("Body: {}".format(description))
-        if operation.get("returns"):
+        if operation.returns:
             description = operation.returns.description
             if description:
                 print("Response: {}".format(description))
