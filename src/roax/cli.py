@@ -103,7 +103,7 @@ class CLI:
         """
         resources[name] = resource
         if not pubish:
-            private.add(name)
+            self.private.add(name)
 
     def loop(self):
         """Repeatedly issue a command prompt and process input."""
@@ -253,7 +253,7 @@ class CLI:
     def _help_list(self):
         """List all available resources and commands."""
         print("Available resources:")
-        resources = {k: self.resources[k].description for k in self.resources if k not in private} 
+        resources = {k: self.resources[k].description for k in self.resources if k not in self.private} 
         _print_listing(resources, indent="  ")
         print("Available commands:")
         commands = {k: self.commands[k][1] for k in self.commands if self.commands[k][1]}
