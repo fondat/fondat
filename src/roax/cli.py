@@ -72,10 +72,10 @@ def _parse_redirects(args, body_schema, returns_schema):
 
 
 class CLI:
-    """TODO: Description."""
+    """Command line interface that exposes registered resources."""
 
     def __init__(self, *, name=None, prompt=None):
-        """TODO: Description."""
+        """Initialize a command line interface."""
         super().__init__()
         self.name = name or self.__class__.__name__
         self.prompt = prompt or name + "> "
@@ -124,7 +124,6 @@ class CLI:
                 print("Invalid command or resource: {}.".format(name))
 
     def _init_commands(self):
-        """TODO: Description."""
         self.commands["help"] = (self._help, "Request help with commands and resources.")
         self.commands["exit"] = (self._exit, "Exit the {} command line.".format(self.name))
         self.commands["quit"] = (self._exit, None)  # alias
@@ -158,7 +157,6 @@ class CLI:
         return False
 
     def _build_parser(self, resource_name, operation):
-        """TODO: Description."""
         params = operation.get("params", {})
         body = params.get("_body", None)
         parser = argparse.ArgumentParser(
@@ -184,7 +182,6 @@ class CLI:
         return parser
 
     def _process_resource(self, resource_name, args):
-        """TODO: Description."""
         resource = self.resources[resource_name]
         operation_name = args.pop(0).replace("-", "_") if args else None
         operation = resource.operations.get(operation_name)
@@ -248,7 +245,6 @@ class CLI:
         return False
 
     def _help_resource(self, resource_name, args=None):
-        """TODO: Description."""
         operation = self.resources[resource_name].operations.get(args.pop(0)) if args else None
         if operation:
             return self._help_operation(resource_name, operation)
@@ -259,7 +255,6 @@ class CLI:
         _print_listing(operations, indent="  ")
 
     def _help_operation(self, resource_name, operation):
-        """TODO: Description."""
         params = operation.get("params") or {}
         usage=[]
         listing={}

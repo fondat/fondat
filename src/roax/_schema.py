@@ -10,7 +10,6 @@ import inspect
 import json
 import wrapt
 
-from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from copy import copy
 
@@ -19,7 +18,7 @@ class SchemaError(Exception):
     """Raised if a value does not conform to its schema."""
 
     def __init__(self, msg, pointer=None):
-        """TODO: Description."""
+        """Initialize the schema error."""
         self.msg = msg
         self.pointer = pointer
 
@@ -32,7 +31,7 @@ class SchemaError(Exception):
         return ": ".join(result)
 
 
-class _type(ABC):
+class _type:
     """Base class for all schema types."""
 
     def __init__(
@@ -67,7 +66,7 @@ class _type(ABC):
         self.deprecated = deprecated
 
     def validate(self, value):
-        """TODO: Description."""
+        """Validate a value against the schema."""
         if value is None and not self.nullable:
             raise SchemaError("value cannot be None")
         if value is not None and not isinstance(value, self.python_type):
@@ -77,7 +76,7 @@ class _type(ABC):
 
     @property
     def json_schema(self):
-        """TODO: Description."""
+        """JSON schema representation of the schema."""
         result = {}
         if self.json_type:
             result["type"] = self.json_type
@@ -97,29 +96,29 @@ class _type(ABC):
             result["deprecated"] = self.deprecated
         return result
 
-    @abstractmethod
     def json_encode(self, value):
         """
         Encode the value into JSON object model representation. The method does not
         dump the value as JSON text; it represents the value such that the Python
         JSON module can dump as JSON text if required.
         """
+        raise NotImplementedError()
 
-    @abstractmethod
     def json_decode(self, value):
         """
         Decode the value from JSON object model representation. The method does not
         parse the value as JSON text; it takes a Python value as though the Python JSON
         module loaded the JSON text.
         """
+        raise NotImplementedError()
 
-    @abstractmethod
     def str_encode(self, value):
         """Encode the value into string representation."""
+        raise NotImplementedError()
 
-    @abstractmethod
     def str_decode(self, value):
         """Decode the value from string representation."""
+        raise NotImplementedError()
 
 
 from collections.abc import Mapping
@@ -143,7 +142,6 @@ class _dict(_type):
         self.additional_properties = additional_properties
 
     def _process(self, method, value):
-        """TODO: Description."""
         if value is None:
             return None
         result = {}
@@ -161,7 +159,7 @@ class _dict(_type):
         return result
 
     def defaults(self, value):
-        """TODO: Description."""
+        """Populate missing dictionary properties with default values."""
         if value is None:
             return None
         result = None
@@ -173,7 +171,7 @@ class _dict(_type):
         return result if result else value
 
     def validate(self, value):
-        """TODO: Description."""
+        """Validate a value against the schema."""
         super().validate(value)
         if value is not None:
             self._process("validate", value)
@@ -184,6 +182,7 @@ class _dict(_type):
 
     @property
     def json_schema(self):
+        """JSON schema representation of the schema."""
         result = super().json_schema
         result["properties"] = {k: v.json_schema for k, v in self.properties.items()}
         result["required"] = [k for k, v in self.properties.items() if v.required]
@@ -238,7 +237,6 @@ class _list(_type):
         self.unique_items = unique_items
 
     def _process(self, method, value):
-        """TODO: Description."""
         if value is None:
             return None
         result = []
@@ -256,7 +254,7 @@ class _list(_type):
             raise SchemaError("expecting a Sequence type")
 
     def validate(self, value):
-        """TODO: Description."""
+        """Validate a value against the schema."""
         self._check_not_str(value)
         super().validate(value)
         if value is not None:
@@ -271,6 +269,7 @@ class _list(_type):
 
     @property
     def json_schema(self):
+        """JSON schema representation of the schema."""
         result = super().json_schema
         result["items"] = self.items
         if self.min_items != 0:
@@ -340,7 +339,7 @@ class _str(_type):
             self.content_type = "text/plain"
 
     def validate(self, value):
-        """TODO: Description."""
+        """Validate a value against the schema."""
         super().validate(value)
         if value is not None:
             if len(value) < self.min_len:
@@ -352,6 +351,7 @@ class _str(_type):
 
     @property
     def json_schema(self):
+        """JSON schema representation of the schema."""
         result = super().json_schema
         if self.min_len != 0:
              result["minLength"] = min_len
@@ -394,7 +394,7 @@ class _number(_type):
         self.maximum = maximum
 
     def validate(self, value):
-        """TODO: Description."""
+        """Validate a value against the schema."""
         super().validate(value)
         if value is not None:
             if self.minimum is not None and value < self.minimum:
@@ -404,6 +404,7 @@ class _number(_type):
 
     @property
     def json_schema(self):
+        """JSON schema representation of the schema."""
         result = super().json_schema
         if self.minimum is not None:
             result["minimum"] = self.minimum
@@ -578,7 +579,7 @@ class _bytes(_type):
             self.content_type = "application/octet-string"
 
     def validate(self, value):
-        """TODO: Description."""
+        """Validate a value against the schema."""
         super().validate(value)
 
     def json_encode(self, value):
@@ -644,13 +645,12 @@ class datetime(_type):
         super().__init__(python_type=datetime, json_type="string", format="date-time", **kwargs)
 
     def _to_utc(self, value):
-        """TODO: Description."""
         if value.tzinfo is None: # naive value interpreted as UTC
             value = value.replace(tzinfo=isodate.tzinfo.Utc())
         return value.astimezone(self._UTC)
 
     def validate(self, value):
-        """TODO: Description."""
+        """Validate a value against the schema."""
         super().validate(value)
 
     def json_encode(self, value):
@@ -700,7 +700,7 @@ class uuid(_type):
         super().__init__(python_type=UUID, json_type="string", format="uuid", **kwargs)
 
     def validate(self, value):
-        """TODO: Description."""
+        """Validate a value against the schema."""
         super().validate(value)
 
     def json_encode(self, value):
@@ -760,7 +760,7 @@ class all_of(_type):
         self.schemas = schemas
 
     def validate(self, value):
-        """TODO: Description."""
+        """Validate a value against the schema."""
         super().validate(value)
         if value is not None:
             for schema in self.schemas:
@@ -768,6 +768,7 @@ class all_of(_type):
 
     @property
     def json_schema(self):
+        """JSON schema representation of the schema."""
         result = super().json_schema
         result["schemas"] = self.schemas
         return result
@@ -806,7 +807,6 @@ class _xof(_type):
         self.schemas = schemas
 
     def _process(self, method, value):
-        """TODO: Description."""
         if value is None:
             return None
         results = []
@@ -817,17 +817,17 @@ class _xof(_type):
                 pass
         return self._evaluate(results)
 
-    @abstractmethod
     def _evaluate(self, method, value):
-        """TODO: Description."""
+        raise NotImplementedError()
 
     def validate(self, value):
-        """TODO: Description."""
+        """Validate a value against the schema."""
         super().validate(value)
         self._process("validate", value)
 
     @property
     def json_schema(self):
+        """JSON schema representation of the schema."""
         result = super().json_schema
         result["schemas"] = self.schemas
         return result
