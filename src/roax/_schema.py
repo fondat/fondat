@@ -40,17 +40,19 @@ class _type:
             default=None, description=None, examples=None, nullable=False,
             deprecated=False):
         """
-        python_type: the Python data type.
-        json_type: the JSON schema data type.
-        format: more finely defines the data type.
-        content_type: the content type used when value is expressed in a body.
-        enum: list of values that are valid.
-        nullable: True if None is a valid value.
-        required: True if the value is mandatory.
-        default: the default value, if the item value is not supplied.
-        description: string providing information about the item.
-        examples: an array of valid values.
-        deprecated: schema should be transitioned out of usage.
+        Initialize the schema type.
+
+        :param python_type: Python data type.
+        :param json_type: JSON schema data type.
+        :param format: More finely defines the data type.
+        :param content_type: Content type used when value is expressed in a body.
+        :param enum: A list of values that are valid.
+        :param nullable: Allow None as a valid value.
+        :param required: Value is mandatory.
+        :param default: Default value if the item value is not supplied.
+        :param description: A description of the schema.
+        :param examples: A list of example valid values.
+        :param deprecated: schema should be transitioned out of usage.
         """
         super().__init__()
         self.python_type = python_type
@@ -66,7 +68,7 @@ class _type:
         self.deprecated = deprecated
 
     def validate(self, value):
-        """Validate a value against the schema."""
+        """Validate value against the schema."""
         if value is None and not self.nullable:
             raise SchemaError("value cannot be None")
         if value is not None and not isinstance(value, self.python_type):
@@ -129,13 +131,15 @@ class _dict(_type):
 
     def __init__(self, properties, *, additional_properties=False, **kwargs):
         """
-        properties: a mapping of name to schema. 
-        additional_properties: True if additional unvalidated properties are allowed.
-        nullable: allows expressing None as the value.
-        required: True if the item is mandatory.
-        default: The default value, if the item value is not supplied.
-        description: string providing information about the item.
-        examples: an array of valid values.
+        Initialize dictionary schema.
+
+        :param properties: A mapping of name to schema. 
+        :param additional_properties: Additional unvalidated properties are allowed.
+        :param nullable: Allow None as a valid value.
+        :param required: Value is mandatory.
+        :param default: Default value if the item value is not supplied.
+        :param description: A description of the schema.
+        :param examples: A list of example valid values.
         """
         super().__init__(python_type=Mapping, json_type="object", **kwargs)
         self.properties = properties
@@ -171,7 +175,7 @@ class _dict(_type):
         return result if result else value
 
     def validate(self, value):
-        """Validate a value against the schema."""
+        """Validate value against the schema."""
         super().validate(value)
         if value is not None:
             self._process("validate", value)
@@ -220,15 +224,17 @@ class _list(_type):
 
     def __init__(self, items, *, min_items=0, max_items=None, unique_items=False, **kwargs):
         """
-        items: the schema which all items should adhere to.
-        min_items: The minimum number of items required.
-        max_items: The maximum number of items required.
-        unique_items: True if all items must have unique values.
-        nullable: allows expressing None as the value.
-        required: True if the value is mandatory.
-        default: The default value, if the item value is not supplied.
-        description: string providing information about the item.
-        examples: an array of valid values.
+        Initialize list schema.
+
+        :params items: Schema which all items must adhere to.
+        :params min_items: The minimum number of items required.
+        :params max_items: The maximum number of items required.
+        :params unique_items: All items must have unique values.
+        :param nullable: Allow None as a valid value.
+        :param required: Value is mandatory.
+        :param default: Default value if the item value is not supplied.
+        :param description: A description of the schema.
+        :param examples: A list of example valid values.
         """
         super().__init__(python_type=Sequence, json_type="array", **kwargs)
         self.items = items
@@ -254,7 +260,7 @@ class _list(_type):
             raise SchemaError("expecting a Sequence type")
 
     def validate(self, value):
-        """Validate a value against the schema."""
+        """Validate value against the schema."""
         self._check_not_str(value)
         super().validate(value)
         if value is not None:
@@ -320,16 +326,18 @@ class _str(_type):
 
     def __init__(self, *, min_len=0, max_len=None, pattern=None, **kwargs):
         """
-        min_len: the minimum character length of the string.
-        max_len: the maximum character length of the string.
-        pattern: the regular expression that the string must match.
-        format: more finely defines the data type.
-        nullable: allows expressing None as the value.
-        required: True if the value is mandatory.
-        default: The default value, if the item value is not supplied.
-        enum: list of values that are valid.
-        description: string providing information about the item.
-        examples: an array of valid values.
+        Initialize string schema.
+
+        :param min_len: Minimum character length of the string.
+        :param max_len: Maximum character length of the string.
+        :param pattern: Regular expression that the string must match.
+        :param format: More finely defines the data type.
+        :param nullable: Allow None as a valid value.
+        :param required: Value is mandatory.
+        :param default: Default value if the item value is not supplied.
+        :param enum: A list of values that are valid.
+        :param description: A description of the schema.
+        :param examples: A list of example valid values.
         """
         super().__init__(python_type=str, json_type="string", **kwargs)
         self.min_len = min_len
@@ -339,7 +347,7 @@ class _str(_type):
             self.content_type = "text/plain"
 
     def validate(self, value):
-        """Validate a value against the schema."""
+        """Validate value against the schema."""
         super().validate(value)
         if value is not None:
             if len(value) < self.min_len:
@@ -388,13 +396,13 @@ class _number(_type):
     """
 
     def __init__(self, *, minimum=None, maximum=None, **kwargs):
-        """TODO: Description."""
+        """Initialize number schema."""
         super().__init__(**kwargs)
         self.minimum = minimum
         self.maximum = maximum
 
     def validate(self, value):
-        """Validate a value against the schema."""
+        """Validate value against the schema."""
         super().validate(value)
         if value is not None:
             if self.minimum is not None and value < self.minimum:
@@ -430,18 +438,21 @@ class _int(_number):
 
     def __init__(self, **kwargs):
         """
-        minimum: the inclusive lower limit of the value.
-        maximum: the inclusive upper limit of the value.
-        nullable: allows expressing None as the value.
-        required: True if the value is mandatory.
-        default: The default value, if the item value is not supplied.
-        enum: list of values that are valid.
-        description: string providing information about the item.
-        examples: an array of valid values.
+        Initialize integer schema.
+        
+        :param minimum: Inclusive lower limit of the value.
+        :param maximum: Inclusive upper limit of the value.
+        :param nullable: Allow None as a valid value.
+        :param required: Value is mandatory.
+        :param default: Default value if the item value is not supplied.
+        :param enum: A list of values that are valid.
+        :param description: A description of the schema.
+        :param examples: A list of example valid values.
         """
         super().__init__(python_type=int, json_type="integer", format="int64", **kwargs)
 
     def validate(self, value):
+        """Validate value against the schema."""
         super().validate(value)
         if isinstance(value, bool):  # bool is a subclass of int
             raise SchemaError("expecting int type")
@@ -474,14 +485,16 @@ class _float(_number):
 
     def __init__(self, **kwargs):
         """
-        minimum: the inclusive lower limit of the value.
-        maximum: the inclusive upper limit of the value.
-        nullable: allows expressing None as the value.
-        required: True if the value is mandatory.
-        default: The default value, if the item value is not supplied.
-        enum: list of values that are valid.
-        description: string providing information about the item.
-        examples: an array of valid values.
+        Initialize floating point schema.
+
+        :param minimum: Inclusive lower limit of the value.
+        :param maximum: Inclusive upper limit of the value.
+        :param nullable: Allow None as a valid value.
+        :param required: Value is mandatory.
+        :param default: Default value if the item value is not supplied.
+        :param enum: A list of values that are valid.
+        :param description: A description of the schema.
+        :param examples: A list of example valid values.
         """
         super().__init__(python_type=float, json_type="number", format="double", **kwargs)
 
@@ -509,16 +522,15 @@ class _bool(_type):
 
     def __init__(self, **kwargs):
         """
-        nullable: allows expressing None as the value.
-        required: True if the value is mandatory.
-        default: The default value, if the item value is not supplied.
-        description: string providing information about the item.
-        examples: an array of valid values.
+        Initialize boolean schema.
+
+        :param nullable: Allow None as a valid value.
+        :param required: Value is mandatory.
+        :param default: Default value if the item value is not supplied.
+        :param description: A description of the schema.
+        :param examples: A list of example valid values.
         """
         super().__init__(python_type=bool, json_type="boolean", **kwargs)
-
-    def validate(self, value):
-        super().validate(value)
 
     def json_encode(self, value):
         """Encode the value into JSON object model representation."""
@@ -564,12 +576,14 @@ class _bytes(_type):
 
     def __init__(self, format="byte", **kwargs):
         """
-        format: "byte" (default) or "binary".
-        nullable: allows expressing None as the value.
-        required: True if the value is mandatory.
-        default: the default value, if the item value is not supplied.
-        description: string providing information about the item.
-        examples: an array of valid values.
+        Initialize byte sequence schema.
+
+        :param format: More finely defines the data type {byte,binary}.
+        :param nullable: Allow None as a valid value.
+        :param required: Value is mandatory.
+        :param default: Default value if the item value is not supplied.
+        :param description: A description of the schema.
+        :param examples: A list of example valid values.
         """
         valid_formats = ["byte", "binary"]
         if format not in valid_formats:
@@ -579,7 +593,7 @@ class _bytes(_type):
             self.content_type = "application/octet-string"
 
     def validate(self, value):
-        """Validate a value against the schema."""
+        """Validate value against the schema."""
         super().validate(value)
 
     def json_encode(self, value):
@@ -634,12 +648,14 @@ class datetime(_type):
 
     def __init__(self, **kwargs):
         """
-        nullable: allows expressing None as the value.
-        required: True if the value is mandatory.
-        default: The default value, if the item value is not supplied.
-        enum: list of values that are valid.
-        description: string providing information about the item.
-        examples: an array of valid values.
+        Initialize byte sequence schema.
+
+        :param nullable: Allow None as a valid value.
+        :param required: Value is mandatory.
+        :param default: Default value if the item value is not supplied.
+        :param enum: A list of values that are valid.
+        :param description: A description of the schema.
+        :param examples: A list of example valid values.
         """
         from datetime import datetime
         super().__init__(python_type=datetime, json_type="string", format="date-time", **kwargs)
@@ -650,7 +666,7 @@ class datetime(_type):
         return value.astimezone(self._UTC)
 
     def validate(self, value):
-        """Validate a value against the schema."""
+        """Validate value against the schema."""
         super().validate(value)
 
     def json_encode(self, value):
@@ -690,17 +706,19 @@ class uuid(_type):
 
     def __init__(self, **kwargs):
         """
-        nullable: allows expressing None as the value.
-        required: True if the value is mandatory.
-        default: The default value, if the item value is not supplied.
-        enum: list of values that are valid.
-        description: string providing information about the item.
-        examples: an array of valid values.
+        Initialize UUID schema.
+
+        :param nullable: Allow None as a valid value.
+        :param required: Value is mandatory.
+        :param default: Default value if the item value is not supplied.
+        :param enum: A list of values that are valid.
+        :param description: A description of the schema.
+        :param examples: A list of example valid values.
         """
         super().__init__(python_type=UUID, json_type="string", format="uuid", **kwargs)
 
     def validate(self, value):
-        """Validate a value against the schema."""
+        """Validate value against the schema."""
         super().validate(value)
 
     def json_encode(self, value):
@@ -739,12 +757,14 @@ class all_of(_type):
 
     def __init__(self, schemas, **kwargs):
         """
-        schemas: list of schemas to match against.
-        required: True if the value is mandatory.
-        default: The default value, if the item value is not supplied.
-        enum: list of values that are valid.
-        description: string providing information about the item.
-        examples: an array of valid values.
+        Initialize all-of schema.
+
+        :params schemas: List of schemas to match against.
+        :param required: Value is mandatory.
+        :param default: Default value if the item value is not supplied.
+        :param enum: A list of values that are valid.
+        :param description: A description of the schema.
+        :param examples: A list of example valid values.
         """
         super().__init__(**kwargs)
         if not schemas:
@@ -760,7 +780,7 @@ class all_of(_type):
         self.schemas = schemas
 
     def validate(self, value):
-        """Validate a value against the schema."""
+        """Validate value against the schema."""
         super().validate(value)
         if value is not None:
             for schema in self.schemas:
@@ -821,7 +841,7 @@ class _xof(_type):
         raise NotImplementedError()
 
     def validate(self, value):
-        """Validate a value against the schema."""
+        """Validate value against the schema."""
         super().validate(value)
         self._process("validate", value)
 
@@ -864,12 +884,14 @@ class any_of(_xof):
 
     def __init__(self, schemas, **kwargs):
         """
-        schemas: list of schemas to match against.
-        required: True if the value is mandatory.
-        default: The default value, if the item value is not supplied.
-        enum: list of values that are valid.
-        description: string providing information about the item.
-        examples: an array of valid values.
+        Initialize any-of schema.
+
+        :param schemas: List of schemas to match against.
+        :param required: Value is mandatory.
+        :param default: Default value if the item value is not supplied.
+        :param enum: A list of values that are valid.
+        :param description: A description of the schema.
+        :param examples: A list of example valid values.
         """
         super().__init__("anyOf", schemas, **kwargs)
         self.schemas = schemas
@@ -889,12 +911,14 @@ class one_of(_xof):
 
     def __init__(self, schemas, **kwargs):
         """
-        schemas: list of schemas to match against.
-        required: True if the value is mandatory.
-        default: The default value, if the item value is not supplied.
-        enum: list of values that are valid.
-        description: string providing information about the item.
-        examples: an array of valid values.
+        Initialize one-of schema.
+
+        :param schemas: List of schemas to match against.
+        :param required: Value is mandatory.
+        :param default: Default value if the item value is not supplied.
+        :param enum: A list of values that are valid.
+        :param description: A description of the schema.
+        :param examples: A list of example valid values.
         """
         super().__init__("oneOf", schemas, **kwargs)
         self.schemas = schemas

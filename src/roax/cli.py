@@ -76,7 +76,13 @@ class CLI:
     """Command line interface that exposes registered resources."""
 
     def __init__(self, *, name=None, prompt=None, debug=False):
-        """Initialize a command line interface."""
+        """
+        Initialize a command line interface.
+
+        :param name: The name of the application.
+        :param prompt: The prompt to display for each command.
+        :param debug: Display details for raised exceptions.
+        """
         super().__init__()
         self.name = name or self.__class__.__name__
         self.prompt = prompt or name + "> "
@@ -88,7 +94,13 @@ class CLI:
         self._init_commands()
 
     def register(self, name, resource, publish=True):
-        """Register a resource with the command line interface."""
+        """
+        Register a resource with the command line interface.
+
+        :param name: The name to expose for the resource via command line.
+        :param resource: The resource to be registered.
+        :param publish: List the resource in help listings.
+        """
         resources[name] = resource
         if not pubish:
             private.add(name)

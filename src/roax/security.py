@@ -17,7 +17,7 @@ class SecurityRequirement:
     """Performs authorization of resource operations."""
 
     def __init__(self, scheme=None):
-        """TODO: Description."""
+        """Initialize security requirement, with reference to its associated scheme."""
         super().__init__()
         self.scheme = scheme
 
@@ -45,7 +45,7 @@ class SecurityScheme:
 
     @property
     def context(self):
-        """The context that the scheme pushes onto the context stack."""
+        """Context that the scheme pushes onto the context stack."""
         result = {}
         result["context_type"] = "security"
         result["security_type"] = self.type
@@ -53,7 +53,7 @@ class SecurityScheme:
 
     @property
     def json(self):
-        """Return the JSON representation of the security scheme."""
+        """JSON representation of the security scheme."""
         result = {}
         result["type"] = self.type
         if self.description is not None:
@@ -70,14 +70,14 @@ class HTTPSecurityScheme(SecurityScheme):
 
     @property
     def context(self):
-        """The context that the scheme pushes onto the context stack."""
+        """Context that the scheme pushes onto the context stack."""
         result = super().context
         result["security_scheme"] = self.scheme
         return result
 
     @property
     def json(self):
-        """Return the JSON representation of the security scheme."""
+        """JSON representation of the security scheme."""
         result = super().json
         result["scheme"] = scheme
         return result

@@ -99,7 +99,15 @@ class App:
     """Roax WSGI application."""
 
     def __init__(self, url, title, version, description=None, security=None):
-        """TODO: Description."""
+        """
+        Initialize WSGI application.
+        
+        :param url: The URL to access the application.
+        :param title: The title of the application.
+        :param version: The API implementation version.
+        :param description: A short description of the application.
+        :param security: Security requirements application operations.
+        """
         self.url = url
         self.base = urlparse(self.url).path.rstrip("/")
         self.title = title
@@ -109,7 +117,13 @@ class App:
         self.operations = {}
 
     def register(self, path, resource, publish=True):
-        """Register a resource to the application."""
+        """
+        Register a resource to the application.
+
+        :param path: Path of resource relative to application URL.
+        :param resource: Resource to be served when path is requested.
+        :param publish: Publish resource in online documentation.
+        """
         resource_path = self.base + "/" + path.lstrip("/").rstrip("/")
         if not publish:
             operation = copy(operation)
@@ -134,7 +148,7 @@ class App:
             self.operations[(op_method, op_path)] = operation
 
     def __call__(self, environ, start_response):
-        """TODO: Description."""
+        """Handle WSGI request."""
         request = Request(environ)
         try:
             operation = self._get_operation(request)
@@ -167,13 +181,11 @@ class App:
 class Chain:
     """A chain of filters, terminated by a handler."""
 
-    def __init__(self, filters=[], handler=None):
+    def __init__(self, filters=[], terminus=None):
+        """Initialize a filter chain."""
         self.filters = filters
-        self.handler = handle
+        self.terminus = terminus
 
     def next(self, request):
         """Calls the next filter in the chain, or the terminus."""
-        if self.filters:
-            return self.filters.pop(0)(request, self)
-        else:
-            return self.handler(request)
+        return self.filters.pop(0)(request, self) if self.filters else self.terminus(request)

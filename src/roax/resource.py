@@ -33,8 +33,8 @@ class Resource:
         """
         Initialize the resource.
 
-        name: The short name of the resource. Default: the class name in lower case.
-        description: A short description of the resource. Default: the resource docstring.
+        :param name: Short name of the resource. Default: the class name in lower case.
+        :param description: Short description of the resource. Default: the resource docstring.
         """
         super().__init__()
         self.name = name or getattr(self, "name", type(self).__name__.lower())
@@ -98,15 +98,15 @@ def operation(
     """
     Decorate a resource function to register it as a resource operation.
 
-    name: The operation name. Required if the operation type is "query" or "action".
-    type: The type of operation being registered ("create", "read", "update", "delete", "action", "query").
-    summary: A short summary of what the operation does.
-    description: A verbose description of the operation (default: function docstring).
-    params: A mapping of operation's parameter names to their schemas.
-    returns: The schema of operation's return value.
-    security: Security schemes, one of which must be satisfied to perform the operation.
-    publish: Publish the operation in documentation.
-    deprecated: Declare the operation as deprecated.
+    :param name: Operation name. Required if the operation type is "query" or "action".
+    :param type: Type of operation being registered {create,read,update,delete,action,query}.
+    :param summary: Short summary of what the operation does.
+    :param description: Verbose description of the operation (default: function docstring).
+    :param params: Mapping of operation's parameter names to their schemas.
+    :param returns: Schema of operation's return value.
+    :param security: Security schemes, one of which must be satisfied to perform the operation.
+    :param publish: Publish the operation in documentation.
+    :param deprecated: Declare the operation as deprecated.
     """
     def decorator(function):
         _name = name
@@ -140,10 +140,13 @@ def operation(
 
 class ResourceError(Exception):
     """Base class for all resource errors."""
+
     def __init__(self, detail, code):
         """
-        detail: textual description of the error.
-        code: the HTTP status most closely associated with the error.
+        Initialize resource error.
+
+        :param detail: textual description of the error.
+        :param code: the HTTP status most closely associated with the error.
         """
         super().__init__(self, detail)
         self.detail = detail

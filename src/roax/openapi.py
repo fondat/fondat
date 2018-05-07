@@ -32,9 +32,9 @@ class OpenAPIResource(Resource):
         """
         Initialize the OpenAPI resource.
 
-        name: The short name of the resource.
-        description: A short description of the resource.
-        security: The security requirements to read the resource.
+        :param name: The short name of the resource.
+        :param description: A short description of the resource.
+        :param security: The security requirements to read the resource.
         """
         super().__init__()
         self.app = app

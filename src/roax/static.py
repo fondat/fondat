@@ -16,11 +16,11 @@ class StaticResource(Resource):
         """
         Initialize the static resource.
 
-        content: the static content to return in a read operation.
-        schema: the schema of the static content.
-        name: The short name of the resource.
-        description: A short description of the resource.
-        security: The security requirements to read the resource.
+        :param content: Static content to return in a read operation.
+        :param schema: Schema of the static content.
+        :param name: Short name of the resource.
+        :param description: Short description of the resource.
+        :param security: Security requirements to read the resource.
         """
         super().__init__(name, description)
         self.content = content
