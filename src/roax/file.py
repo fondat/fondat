@@ -1,4 +1,4 @@
-"""Module to store resource items in the files."""
+"""Module to store resource items in files."""
 
 # Copyright © 2017–2018 Paul Bryan.
 #
@@ -11,7 +11,6 @@ import json
 import os
 import roax.schema as s
 
-from collections import ChainMap
 from copy import copy
 from os.path import expanduser
 from roax.resource import Resource, Conflict, InternalServerError, NotFound, operation
@@ -40,14 +39,20 @@ def _unquote(s):
 
 class FileResource(Resource):
     """
-    A file resource; each item is a stored as a separate file in a directory. This
-    class is appropriate for up to hundreds of items; it is probably not
-    appropriate for thousands or more.
+    Base class for a file-based resource; each item is a stored as a separate file
+    in a directory. This class is appropriate for up to hundreds of items; it is
+    probably not appropriate for thousands or more.
+    
+    The subclass must register the operations it wants to expose. An effective way
+    to do this is to override the function in the subclass, decorated with
+    @operator, and have it in turn call the superclass method.
 
     The way the item file is encoded depends on the document schema:
     - dict: each resource is stored as a text file containing a JSON object.
     - str: each resource stored as a UTF-8 text file.
     - bytes: each resource is a file containing binary data. 
+
+    The list method is suitable to expose as a query operation.
     """
 
     def _filename(self, id):
@@ -85,7 +90,7 @@ class FileResource(Resource):
         file.truncate()
         if isinstance(self.schema, s.dict) and self.id_property in self.schema.properties:
             if self.id_property and self.id_property in self.schema.properties:
-                body = ChainMap({self.id_property: id}, body)
+                body = {**body, self.id_property: id}
             json.dump(self.schema.json_encode(body), file, separators=(",",":"), ensure_ascii=False)
         else:
             file.write(body)    
@@ -94,12 +99,12 @@ class FileResource(Resource):
         """
         Initialize file resource.
 
-        name: The short name of the resource. Default: the class name in lower case.
-        description: A short description of the resource. Default: the resource docstring.
-        dir: The directory to store resource documents in.
-        schema: Document schema, or declare as class or instance variable.
-        extenson: The filename extension to use for each file (including dot).
-        id_property: Name of resource identifier property in document schema. Default: "id".
+        :param name: Short name of the resource. (default: class name in lower case)
+        :param description: Short description of the resource. (default: resource docstring)
+        :param dir: Directory to store resource items in.
+        :param schema: Item schema. Can declare as class or instance variable.
+        :param extenson: Filename extension to use for each file (including dot).
+        :param id_property: Name of resource identifier property in document schema. (default: "id")
         """
         super().__init__()
         self.schema = schema or self.schema
@@ -112,36 +117,14 @@ class FileResource(Resource):
         self.extension = extension or getattr(self, "extension", "")
         self.__doc__ = self.schema.description
 
-        def _p(function):
-            result = {}
-            for param in inspect.signature(function).parameters.values():
-                if param.name == "id":
-                    schema = self.id_schema
-                elif param.name == "_body":
-                    schema = self.schema
-                else:
-                    raise s.SchemaError("operation doesn't support {} parameter".format(param.name))
-                schema = copy(schema)
-                schema.required = param.default is inspect._empty
-                if param.default is not inspect._empty:
-                    schema.default = param.default
-                result[param.name] = schema
-            return result
-
-        self.create = operation(params=_p(self.create), returns=s.dict({"id": self.id_schema}))(self.create)
-        self.read = operation(params=_p(self.read), returns=self.schema)(self.read)
-        self.update = operation(params=_p(self.update), returns=None)(self.update)
-        self.delete = operation(params=_p(self.delete), returns=None)(self.delete)
-        self.query_ids = operation(type="query", params={}, returns=s.list(self.id_schema))(self.query_ids)
-
-    def create(self, _body, id):
+    def create(self, id, _body):
         """Create a resource item."""
         try:
             with self._open(id, "x") as file:
                 self._write(file, _body, id)
         except NotFound:
             raise InternalServerError("file resource directory not found")
-        return { "id": id }
+        return {"id": id}
 
     def read(self, id):
         """Read a resource item."""
@@ -163,8 +146,8 @@ class FileResource(Resource):
         except FileNotFoundError:
             raise NotFound("resource not found")
 
-    def query_ids(self):
-        """Return all resource item identifiers."""
+    def list(self):
+        """Query to return a list of all resource item identifiers."""
         result = []
         for name in os.listdir(self.dir):
             if name.endswith(self.extension):
