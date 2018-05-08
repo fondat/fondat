@@ -102,7 +102,7 @@ class OpenAPIResource(Resource):
                     b["description"] = _body.description
                     b["content"] = {_body.content_type: {"schema": _body.json_schema}}
                     b["required"] = _body.required
-                obj["requestBody"] = b
+                    obj["requestBody"] = b
             if operation.returns:
                 obj["responses"] = {
                     "200": {

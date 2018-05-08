@@ -277,7 +277,7 @@ class _list(_type):
     def json_schema(self):
         """JSON schema representation of the schema."""
         result = super().json_schema
-        result["items"] = self.items
+        result["items"] = self.items.json_schema
         if self.min_items != 0:
             result["minItems"] = self.min_items
         if self.max_items is not None:
@@ -362,9 +362,9 @@ class _str(_type):
         """JSON schema representation of the schema."""
         result = super().json_schema
         if self.min_len != 0:
-             result["minLength"] = min_len
+             result["minLength"] = self.min_len
         if self.max_len is not None:
-            result["maxLength"] = max_len
+            result["maxLength"] = self.max_len
         if self.pattern:
             result["pattern"] = self.pattern.pattern
         return result

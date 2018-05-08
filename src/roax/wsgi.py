@@ -143,7 +143,7 @@ class App:
                 op_method, op_path = "GET", resource.path + "/" + operation.name
             else:
                 raise ValueError("resource has unknown operation type: {}".format(operation.type))
-            for (op_method, op_path) in self.operations:
+            if (op_method, op_path) in self.operations:
                 raise ValueError("operation already defined for {} {}".format(op_method, op_path))
             self.operations[(op_method, op_path)] = operation
 

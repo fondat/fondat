@@ -102,8 +102,8 @@ class CLI:
         :param resource: The resource to be registered.
         :param publish: List the resource in help listings.
         """
-        resources[name] = resource
-        if not pubish:
+        self.resources[name] = resource
+        if not publish:
             self.private.add(name)
 
     def loop(self):
@@ -114,7 +114,7 @@ class CLI:
         try:
             while self._looping:
                 try:
-                    self.process(shlex.split(input(self.prompt)))
+                    self.process(input(self.prompt))
                 except SystemExit:  # argparse trying to terminate
                     pass
                 except (EOFError, StopIteration, KeyboardInterrupt):
@@ -126,12 +126,12 @@ class CLI:
         finally:
             self._looping = False
 
-    def process(self, args):
+    def process(self, line):
         """Process a single command line."""
+        args = shlex.split(line)
         if not args:
             return
-        with context(type="cli", cli_command=" ".join(args)):
-            args = list(args)  # make it safe to modify args as we go
+        with context(type="cli", cli_command=line):
             name = args.pop(0)
             if name in self.resources:
                 self._process_resource(name, args)
