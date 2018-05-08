@@ -14,6 +14,10 @@ from collections.abc import Sequence
 from copy import copy
 
 
+def _fixup_pointer(se, name):
+    se.pointer = str(name) if not se.pointer else "{}/{}".format(name, se.pointer)
+
+
 class SchemaError(Exception):
     """Raised if a value does not conform to its schema."""
 
@@ -158,7 +162,7 @@ class _dict(_type):
                         raise SchemaError("unexpected property")
                     result[k] = v  # pass through                    
             except SchemaError as se:
-                se.pointer = str(k) if se.pointer is None else "/".join([str(k), se.pointer])
+                _fixup_pointer(se, k)
                 raise
         return result
 
@@ -250,7 +254,7 @@ class _list(_type):
             for n, item in zip(range(len(value)), value):
                 result.append(getattr(self.items, method)(item))
         except SchemaError as se:
-            se.pointer = str(n) if se.pointer is None else "/".join([str(n), se.pointer])
+            _fixup_pointer(se, n)
             raise
         return result
 
@@ -930,7 +934,6 @@ class one_of(_xof):
             raise SchemaError("value matches more than one schema")
         return values[0] # return first matching value
 
-
 def call(function, args, kwargs, params=None, returns=None):
     """
     Call a function, validating its input parameters and return value.
@@ -960,8 +963,8 @@ def call(function, args, kwargs, params=None, returns=None):
             if params is not None and p.name in params:
                 try:
                     params[p.name].validate(build[p.name])
-                except SchemaError as se:   
-                    se.msg = "parameter: {}: {}".format(p.name, se.msg)
+                except SchemaError as se:
+                    _fixup_pointer(se, p.name)
                     raise
         elif p.default is not p.empty:
             value = p.default
