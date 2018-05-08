@@ -158,14 +158,14 @@ class App:
             with context(context_type="http", http_environ=_environ(environ)):
                 response = Chain(filters, handle).next(request)
         except exc.HTTPException as he:
-            response = ErrorResponse(he.code, he.detail)
+            response = _ErrorResponse(he.code, he.detail)
         except ResourceError as re:
-            response = ErrorResponse(re.code, re.detail)
+            response = _ErrorResponse(re.code, re.detail)
         except SchemaError as se:
-            response = ErrorResponse(exc.HTTPBadRequest.code, str(se))
+            response = _ErrorResponse(exc.HTTPBadRequest.code, str(se))
         except Exception as e:
             logging.exception(str(e))
-            response = ErrorResponse(exc.HTTPInternalServerError.code, str(e))
+            response = _ErrorResponse(exc.HTTPInternalServerError.code, str(e))
         return response(environ, start_response)
 
     def _get_operation(self, request):
