@@ -1,11 +1,41 @@
 
-import roax.wsgi
+import roax.schema as s
 import unittest
+
+from roax.resource import Resource, operation
+from roax.wsgi import App
+from webob import Request
+
+_r1_schema = s.dict({
+    "id": s.str(),
+    "foo": s.int(),
+    "bar": s.bool(),
+})
+
+class _Resource1(Resource):
+    
+    schema = _r1_schema
+    
+    @operation(
+        params = {"id": _r1_schema.properties["id"], "_body": _r1_schema},
+        returns = s.dict({"id": _r1_schema.properties["id"]}),
+    )
+    def create(self, id, _body):
+        return {"id": id}
+
+app = App("/", "Title", "1.0")
+app.register("/r1", _Resource1())
+
 
 class TestWSGI(unittest.TestCase):
 
-    def test_routing_success(self):
-        app = roax.wsgi.App(".", "Title", "1.0")
+    def test_create(self):
+        request = Request.blank("/r1?id=id1")
+        request.method = "POST"
+        request.json = {"id": "id1", "foo": 1, "bar": True}
+        response = request.get_response(app)
+        result = response.json
+        self.assertEqual(result, {"id": "id1"})
 
 if __name__ == "__main__":
     unittest.main()
