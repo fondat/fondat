@@ -138,9 +138,9 @@ class App:
             elif operation.type == "delete":
                 op_method, op_path = "DELETE", resource_path
             elif operation.type == "action":
-                op_method, op_path = "POST", resource.path + "/" + operation.name
+                op_method, op_path = "POST", resource_path + "/" + operation.name
             elif operation.type == "query":
-                op_method, op_path = "GET", resource.path + "/" + operation.name
+                op_method, op_path = "GET", resource_path + "/" + operation.name
             else:
                 raise ValueError("resource has unknown operation type: {}".format(operation.type))
             if (op_method, op_path) in self.operations:
