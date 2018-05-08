@@ -56,7 +56,7 @@ def _params(request, operation):
                     result["_body"] = param.str_decode(request.text)
                 else:
                     try:
-                        result["_body"] = request.json
+                        result["_body"] = param.json_decode(request.json)
                     except:
                         raise SchemaError("invalid entity-body JSON representation")
             else:
