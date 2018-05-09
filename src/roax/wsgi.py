@@ -49,7 +49,7 @@ def _params(request, operation):
         try:
             if name == "_body":
                 if param.required and not request.is_body_readable:
-                    raise SchemaException("missing request entity-body")
+                    raise SchemaError("missing request entity-body")
                 if param.json_type == "string" and param.format == "binary":
                     result["_body"] = param.bin_decode(request.body)
                 elif param.json_type == "string" and param.format == "raw":
