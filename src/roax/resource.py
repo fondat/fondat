@@ -149,7 +149,7 @@ class ResourceError(Exception):
         :param code: the HTTP status most closely associated with the error.
         """
         super().__init__(self, detail)
-        self.detail = detail
+        self.detail = detail or self.__class__.__name__
         self.code = code
 
     def __str__(self):
@@ -159,26 +159,33 @@ class ResourceError(Exception):
 class BadRequest(ResourceError):
     """Raised if the request is malformed."""
     def __init__(self, detail=None):
-        super().__init__(detail, 400)
+        super().__init__(detail or "bad request", 400)
 
 
 class Unauthorized(ResourceError):
     """Raised if the request lacks valid authentication credentials."""
-    def __init__(self, realm, detail=None):
-        super().__init__(detail, 401)
-        self.realm = realm        
+
+    def __init__(self, detail=None, challenge=None):
+        """
+        Initialize resource error.
+
+        :param detail: Human-readable description of the error.
+        :param challenge: Applicable authentication scheme and parameters.
+        """ 
+        super().__init__(detail or "unauthorized", 401)
+        self.challenge = challenge
 
 
 class Forbidden(ResourceError):
     """Raised if authorization to the resource is refused."""
     def __init__(self, detail=None):
-        super().__init__(detail, 403)
+        super().__init__(detail or "forbidden", 403)
 
         
 class NotFound(ResourceError):
     """Raised if the resource could not be found."""
     def __init__(self, detail=None):
-        super().__init__(detail, 404)
+        super().__init__(detail or "not found", 404)
 
 
 class OperationNotAllowed(ResourceError):
@@ -190,16 +197,16 @@ class OperationNotAllowed(ResourceError):
 class Conflict(ResourceError):
     """Raised if there is a conflict with the current state of the resource."""
     def __init__(self, detail=None):
-        super().__init__(detail, 409)
+        super().__init__(detail or "conflict", 409)
 
 
 class PreconditionFailed(ResourceError):
     """Raised if the revision provided does not match the current resource."""
     def __init__(self, detail=None):
-        super().__init__(detail, 412)
+        super().__init__(detail or "precondition failed", 412)
 
 
 class InternalServerError(ResourceError):
     """Raised if the server encountered an unexpected condition."""
     def __init__(self, detail=None):
-        super().__init__(detail, 500)
+        super().__init__(detail or "internal server error", 500)
