@@ -152,6 +152,9 @@ class ResourceError(Exception):
         self.detail = detail
         self.code = code
 
+    def __str__(self):
+        return self.detail
+
 
 class BadRequest(ResourceError):
     """Raised if the request is malformed."""

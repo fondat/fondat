@@ -257,14 +257,7 @@ class CLI:
             except s.SchemaError as se:
                 self._print("ERROR: {} {}: content body: {}".format(resource_name, operation_name, se.msg))
                 return False
-        try:
-            result = operation.function(**parsed)
-        except ResourceError as re:
-            self._print("ERROR: {} (code: {}).".format(re.detail, re.code))
-            return False
-        except Exception as e:
-            self._print("ERROR: {}.".format(e))
-            return False
+        result = operation.function(**parsed)
         self._print("SUCCESS.")
         if returns:
             description = (returns.description or "response.").lower()
