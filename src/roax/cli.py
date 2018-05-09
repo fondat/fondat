@@ -43,7 +43,7 @@ def _parse_arguments(params, args):
             name = None
     return result
 
-def _parse_redirects(inp, out, args, body_schema, returns_schema):
+def _parse_redirects(inp, out, args, body, returns):
     """Parse redirections in command line arguments; removes them from arguments list."""    
     n = 0
     while n < len(args):
@@ -66,11 +66,11 @@ def _parse_redirects(inp, out, args, body_schema, returns_schema):
         if "<" in filename or ">" in filename:
             raise ValueError("invalid redirection file name")
         if redir == "<":
-            inp = open(filename, _mode("rb", body_schema))
+            inp = open(filename, _mode("rb", body))
         elif redir == ">":
-            out = open(filename, _mode("wb", returns_schema))
+            out = open(filename, _mode("wb", returns))
         elif redir == ">>":
-            out = open(filename, _mode("ab", returns_schema))
+            out = open(filename, _mode("ab", returns))
     return inp, out
 
 def _write(out, schema, value):
@@ -141,18 +141,12 @@ class CLI:
         if self._looping:
             raise ValueError("already looping")
         self._looping = True
-        try:
-            while self._looping:
-                try:
-                    self.process(input(self.prompt))
-                except (EOFError, StopIteration, KeyboardInterrupt):
-                    break
-                except Exception as e:
-                    self._print("ERROR: {}".format(e))
-                    if self.debug:
-                        traceback.print_exc()
-        finally:
-            self._looping = False
+        while self._looping:
+            try:
+                self.process(input(self.prompt))
+            except (EOFError, StopIteration, KeyboardInterrupt):
+                break
+        self._looping = False
 
     def process(self, line, inp=None, out=None):
         """
@@ -174,7 +168,9 @@ class CLI:
                 try:
                     return self._process_resource(name, args, inp, out)
                 except Exception as e:
-                    self._print(e)
+                    self._print("ERROR: {}".format(e))
+                    if self.debug:
+                        traceback.print_exc()
                     return False
             elif name in self.commands:
                 return self.commands[name][0](args)
@@ -254,10 +250,10 @@ class CLI:
                 description = (body.description or "content body.").lower()
                 if inp == sys.stdin:
                     self._print("Enter {}".format(description))
-                    self._print("When complete, input EOF (^D on *nix, ^Z on Windows):")
+                    self._print("When complete, input EOF (*nix: Ctrl-D, Windows: Ctrl-Z+Return):")
                 else:
-                    self._print("Reading body from {}...".format(getattr(inp, name, "stream")))
-                parsed["_body"] = _read(inp, body_schema)
+                    self._print("Reading body from {}...".format(getattr(inp, "name", "stream")))
+                parsed["_body"] = _read(inp, body)
             except s.SchemaError as se:
                 self._print("ERROR: {} {}: content body: {}".format(resource_name, operation_name, se.msg))
                 return False
@@ -273,7 +269,7 @@ class CLI:
         if returns:
             description = (returns.description or "response.").lower()
             if out != sys.stdout:
-                self._print("Writing response to {}...".format(getattr(out, name, "stream")))
+                self._print("Writing response to {}...".format(getattr(out, "name", "stream")))
             _write(out, returns, result)
         return True
 
