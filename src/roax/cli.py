@@ -6,34 +6,45 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-import argparse
 import readline
 import roax.schema as s
 import shlex
 import sys
 import traceback
 
+from io import BufferedIOBase, RawIOBase, TextIOBase
 from roax.context import context
 from roax.resource import ResourceError
 from textwrap import dedent
 
 
-def _print_listing(listing, indent="", space=4, max_column=24):
-    """Sort a dictionary by key and print as a listing."""
-    names = sorted(listing.keys())
-    ljust = 0
-    for name in names:
-        if len(name) <= max_column and len(name) > ljust:
-            ljust = len(name)
-    for name in names:
-        print("{}{}{}{}".format(indent, name.ljust(ljust), " " * space, listing[name]))    
-
 def _is_binary(schema):
-    return isinstance(schema, s.bytes) and schema.format == "binary"
+    return schema and isinstance(schema, s.bytes) and schema.format == "binary"
 
-def _parse_redirects(args, body_schema, returns_schema):
-    """Parse redirections in command line arguments; removing them from arguments list."""    
-    stdin, stdout = None, None
+def _parse_arguments(params, args):
+    """Parse arguments for supported operation parameters."""
+    result = {}
+    args = list(args)
+    name = None
+    while args:
+        arg = args.pop(0)
+        if name is None:
+            if not arg.startswith("--"):
+                raise ValueError()
+            arg = arg[2:]
+            name, value = arg.split("=", 1) if "=" in arg else (arg, None)
+            if name == "_body" or name not in params:
+                raise ValueError()
+            if value:
+                result[name] = value
+                name = None
+        else:
+            result[name] = arg
+            name = None
+    return result
+
+def _parse_redirects(inp, out, args, body_schema, returns_schema):
+    """Parse redirections in command line arguments; removes them from arguments list."""    
     n = 0
     while n < len(args):
         redir = None
@@ -51,43 +62,62 @@ def _parse_redirects(args, body_schema, returns_schema):
         try:
             filename = args.pop(n)
         except IndexError:
-            raise ValueError("no redirection filename specified")
-        if redir == "<" and not body_schema:
-            raise ValueError("input redirection for operation that takes no body")
-        if redir in (">", ">>") and not returns_schema:
-            raise ValueError("output redirection for operation with no response")
-        if redir == "<" and stdin:
-            raise ValueError("more than one input file specified")
-        elif redir in (">", ">>") and stdout:
-            raise ValueError("more than one output file specified")
+            raise ValueError("no redirection file name specified")
         if "<" in filename or ">" in filename:
-            raise ValueError("invalid character in redirection filename")
-        in_mode = "b" if body_schema and _is_binary(body_schema) else "t"
-        out_mode = "b" if returns_schema and _is_binary(returns_schema) else "t"
+            raise ValueError("invalid redirection file name")
         if redir == "<":
-            stdin = open(filename, "r" + in_mode)
+            inp = open(filename, _mode("rb", body_schema))
         elif redir == ">":
-            stdout = open(filename, "w" + out_mode)
+            out = open(filename, _mode("wb", returns_schema))
         elif redir == ">>":
-            stdout = open(filename, "a" + out_mode)
-    return stdin, stdout
+            out = open(filename, _mode("ab", returns_schema))
+    return inp, out
+
+def _write(out, schema, value):
+    if _is_binary(schema):
+        if isinstance(out, TextIOBase):
+            out = out.buffer
+        encode = schema.bin_encode
+    else:
+        if isinstance(out, BufferedIOBase) or isinstance(out, RawIOBase):
+            out = TextIOWrapper(out, encoding="utf-8")
+        encode = schema.str_encode
+    out.write(encode(value))
+
+def _read(inp, schema):
+    if _is_binary(schema):
+        if isinstance(inp, TextIOBase):
+            inp = inp.buffer
+        decode = schema.bin_decode
+    else:
+        if isinstance(inp, BufferedIOBase) or isinstance(inp, RawIOBase):
+            inp = TextIOWrapper(inp, encoding="utf-8")
+        decode = schema.str_decode
+    return decode(inp.read())
 
 
 class CLI:
     """Command line interface that exposes registered resources."""
 
-    def __init__(self, *, name=None, prompt=None, debug=False):
+    def __init__(self, *, name=None, prompt=None, debug=False, inp=sys.stdin, out=sys.stdout, err=sys.stderr):
         """
         Initialize a command line interface.
 
         :param name: The name of the application.
         :param prompt: The prompt to display for each command.
+        :param silent: Do not display prompts and status messages.
         :param debug: Display details for raised exceptions.
+        :param inp: Input stream for reading bodies. (default: stdin)
+        :param out: Output stream for writing responses. (default: stdout)
+        :param err: Output stream for writing prompts. (default: stderr)
         """
         super().__init__()
-        self.name = name or self.__class__.__name__
-        self.prompt = prompt or name + "> "
+        self.name = name
+        self.prompt = prompt or "{}> ".format(name) if name else "> "
         self.debug = debug
+        self.inp = inp
+        self.out = out
+        self.err = err
         self.resources = {}
         self.private = set()
         self.commands = {}
@@ -115,30 +145,42 @@ class CLI:
             while self._looping:
                 try:
                     self.process(input(self.prompt))
-                except SystemExit:  # argparse trying to terminate
-                    pass
                 except (EOFError, StopIteration, KeyboardInterrupt):
                     break
                 except Exception as e:
-                    print("ERROR: {}".format(e))
+                    self._print("ERROR: {}".format(e))
                     if self.debug:
                         traceback.print_exc()
         finally:
             self._looping = False
 
-    def process(self, line):
-        """Process a single command line."""
+    def process(self, line, inp=None, out=None):
+        """
+        Process a single command line.
+        
+        :param line: Command line string to process.
+        :param inp: Input stream for reading body.
+        :param out: Output stream for writing response.
+        :returns: True if command line was processed successfully.
+        """
+        inp = inp or self.inp
+        out = out or self.out
         args = shlex.split(line)
         if not args:
-            return
+            return True
         with context(type="cli", cli_command=line):
             name = args.pop(0)
             if name in self.resources:
-                self._process_resource(name, args)
+                try:
+                    return self._process_resource(name, args, inp, out)
+                except Exception as e:
+                    self._print(e)
+                    return False
             elif name in self.commands:
-                self.commands[name][0](args)
+                return self.commands[name][0](args)
             else:
-                print("Invalid command or resource: {}.".format(name))
+                self._print("Invalid command or resource: {}.".format(name))
+                return False
 
     def _init_commands(self):
         self.commands["help"] = (self._help, "Request help with commands and resources.")
@@ -158,7 +200,7 @@ class CLI:
             return self._help_resource(name, args)
         elif name in self.commands:
             return self._help_command(name)
-        print("Unrecognized resource or command: {}.".format(name))
+        self._print("Unrecognized resource or command: {}.".format(name))
         return False
 
     def _exit(self, args):
@@ -168,37 +210,26 @@ class CLI:
         """
         raise StopIteration()
 
+    def _print(self, msg):
+        if self.err:
+            print(msg, file=self.err)
+
+    def _print_listing(self, listing, indent="", space=4, max_column=24):
+        """Sort a dictionary by key and print as a listing."""
+        names = sorted(listing.keys())
+        ljust = 0
+        for name in names:
+            if len(name) <= max_column and len(name) > ljust:
+                ljust = len(name)
+        for name in names:
+            self._print("{}{}{}{}".format(indent, name.ljust(ljust), " " * space, listing[name]))    
+
     def _help_command(self, name):
         """Print the function docstring of a command as help text."""
-        print(dedent(self.commands[name][0].__doc__))
+        self._print(dedent(self.commands[name][0].__doc__))
         return False
 
-    def _build_parser(self, resource_name, operation):
-        params = operation.params or {}
-        body = params.get("_body", None)
-        parser = argparse.ArgumentParser(
-            prog = "{} {}".format(resource_name, operation.name),
-            description = operation.summary,
-            add_help = False,
-            allow_abbrev = False,
-        )
-        args = parser.add_argument_group('arguments')
-        if params:
-            for name, schema in ((n, s) for n, s in params.items() if n != "_body"):
-                kwargs = {}
-                kwargs["required"] = schema.required
-                description = schema.description
-                if schema.enum is not None:
-                    enum = (schema.str_encode(v) for v in schema.enum)
-                    description += " [{}]".format("|".join(enum))
-                if schema.default is not None:
-                    description += " (default: {})".format(schema.str_encode(schema.default))
-                kwargs["help"] = description
-                kwargs["metavar"] = schema.python_type.__name__.lower()
-                args.add_argument("--{}".format(name.replace("_","-")), **kwargs)
-        return parser
-
-    def _process_resource(self, resource_name, args):
+    def _process_resource(self, resource_name, args, inp, out):
         resource = self.resources[resource_name]
         operation_name = args.pop(0).replace("-", "_") if args else None
         operation = resource.operations.get(operation_name)
@@ -207,58 +238,53 @@ class CLI:
         params = operation.params or {}
         returns = operation.returns
         body = params.get("_body")
-        stdin, stdout = _parse_redirects(args, params.get("_body"), returns)
-        parser = self._build_parser(resource_name, operation)
-        parsed = {k: v for k, v in vars(parser.parse_args(args)).items() if v is not None}
-        for name in (n for n in parsed if n != "_body"):
+        inp, out = _parse_redirects(inp, out, args, body, returns)
+        try:
+            parsed = _parse_arguments(params, args)
+        except ValueError:
+            return self._help_operation(resource_name, operation)
+        for name in parsed:
             try:
                 parsed[name] = params[name].str_decode(parsed[name])
             except s.SchemaError as se:
-                print("ERROR: parameter {}: {}".format(name, se.msg))
-                return False
+                se.pointer = name if not se.pointer else "{}/{}".format(name, se.pointer)
+                raise
         if body:
             try:
                 description = (body.description or "content body.").lower()
-                if stdin:
-                    print("Redirecting body from file {}: {}".format(stdin.name, description))
+                if inp == sys.stdin:
+                    self._print("Enter {}".format(description))
+                    self._print("When complete, input EOF (^D on *nix, ^Z on Windows):")
                 else:
-                    print("Enter {}".format(description))
-                    print("When complete, input EOF (^D on *nix, ^Z on Windows):")
-                    stdin = sys.stdin.buffer if _is_binary(body) else sys.stdin
-                decode = body.bin_decode if _is_binary(body) else body.str_decode
-                parsed["_body"] = decode(stdin.read())
+                    self._print("Reading body from {}...".format(getattr(inp, name, "stream")))
+                parsed["_body"] = _read(inp, body_schema)
             except s.SchemaError as se:
-                print("ERROR: {} {}: content body: {}".format(resource_name, operation_name, se.msg))
+                self._print("ERROR: {} {}: content body: {}".format(resource_name, operation_name, se.msg))
                 return False
         try:
             result = operation.function(**parsed)
         except ResourceError as re:
-            print("ERROR: {} (code: {}).".format(re.detail, re.code))
+            self._print("ERROR: {} (code: {}).".format(re.detail, re.code))
             return False
         except Exception as e:
-            print("ERROR: {}.".format(e))
+            self._print("ERROR: {}.".format(e))
             return False
-        print("SUCCESS.")
+        self._print("SUCCESS.")
         if returns:
             description = (returns.description or "response.").lower()
-            if stdout:
-                print("Redirecting response to file {}: {}".format(stdout.name, description))
-            else:
-                stdout = sys.stdout.buffer if _is_binary(returns) else sys.stdout
-            if _is_binary(returns):
-                stdout.write(returns.bin_encode(result))
-            else:
-                print(returns.str_encode(result), file=stdout)
+            if out != sys.stdout:
+                self._print("Writing response to {}...".format(getattr(out, name, "stream")))
+            _write(out, returns, result)
         return True
 
     def _help_list(self):
         """List all available resources and commands."""
-        print("Available resources:")
+        self._print("Available resources:")
         resources = {k: self.resources[k].description for k in self.resources if k not in self.private} 
-        _print_listing(resources, indent="  ")
-        print("Available commands:")
+        self._print_listing(resources, indent="  ")
+        self._print("Available commands:")
         commands = {k: self.commands[k][1] for k in self.commands if self.commands[k][1]}
-        _print_listing(commands, indent="  ")
+        self._print_listing(commands, indent="  ")
         return False
 
     def _help_resource(self, resource_name, args=None):
@@ -266,12 +292,13 @@ class CLI:
         operation = self.resources[resource_name].operations.get(operation_name)
         if operation:
             return self._help_operation(resource_name, operation)
-        print("Usage: {} operation [ARGS] [<INFILE] [>OUTFILE]".format(resource_name))
-        print("  {}".format(self.resources[resource_name].description))
-        print("Operations:")
+        self._print("Usage: {} operation [ARGS] [<INFILE] [>OUTFILE]".format(resource_name))
+        self._print("  {}".format(self.resources[resource_name].description))
+        self._print("Operations:")
         ops = self.resources[resource_name].operations.values()
         operations = {o.name.replace("_", "-"): o.summary for o in ops}
-        _print_listing(operations, indent="  ")
+        self._print_listing(operations, indent="  ")
+        return False
 
     def _help_operation(self, resource_name, operation):
         params = operation.params or {}
@@ -290,17 +317,17 @@ class CLI:
             if not param.required:
                 arg = "[{}]".format(arg)
             usage.append(arg)
-        print("Usage: {} {} {}".format(resource_name, operation.name.replace("_", "-"), " ".join(usage)))
-        print("  {}".format(operation.summary))
+        self._print("Usage: {} {} {}".format(resource_name, operation.name.replace("_", "-"), " ".join(usage)))
+        self._print("  {}".format(operation.summary))
         if listing:
-            print("Arguments:")
-            _print_listing(listing, indent="  ")
+            self._print("Arguments:")
+            self._print_listing(listing, indent="  ")
         if "_body" in params:
             description = params["_body"].description
             if description:
-                print("Body: {}".format(description))
+                self._print("Body: {}".format(description))
         if operation.returns:
             description = operation.returns.description
             if description:
-                print("Response: {}".format(description))
+                self._print("Response: {}".format(description))
         return False
