@@ -41,11 +41,19 @@ def context(*args, **varargs):
     if value is not None:
         if s[pos] != value:
             raise RuntimeError("context value on stack was modified")
-        del s[pos + 1:]
+        del s[pos:]
 
-def get_context(**values):
-    """Return the last context value with the specified keys and values, or None if not found."""
+def get_context(*args, **varargs):
+    """
+    Return the last context value with the specified keys and values, or None if
+    not found.
+
+    The value to search for can be expressed as follows:
+    - get_context(mapping): Value is expressed as a mapping object's key-value pairs.
+    - get_context(**kwargs): Value is expressed with name-value pairs in keyword arguments. 
+    """
+    values = dict(*args, **varargs)
     for value in reversed(stack()):
         if isinstance(value, Mapping):
-            if {k: value[k] for k in values} == values:
+            if {k: value.get(k) for k in values} == values:
                 return value
