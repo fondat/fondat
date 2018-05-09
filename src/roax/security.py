@@ -34,11 +34,6 @@ class SecurityRequirement:
         """
         raise NotImplementedError()
 
-    @property
-    def json(self):
-        """JSON representation of the security requirement."""
-        return {}
-
 
 class SecurityScheme:
     """Base class for security schemes."""
@@ -109,14 +104,18 @@ class HTTPBasicSecurityScheme(HTTPSecurityScheme):
         auth = None
         if request.authorization and request.authorization[0].lower() == "basic":
             try:
-                user_id, password = b64decode(authorization[1]).decode().split(":", 1)
+                user_id, password = b64decode(request.authorization[1]).decode().split(":", 1)
             except (binascii.Error, UnicodeDecodeError):
                 pass
-            auth = self.authenticate(username, password)
+            auth = self.authenticate(user_id, password)
             if auth:
-                with context({**auth, **super().context}):
-                    return chain.handle(request)
-        return chain.handle(request)
+                with context({**auth, **self.context}):
+                    return chain.next(request)
+        return chain.next(request)
+
+    def get_context(self):
+        """Return the context that this scheme pushes on the stack."""
+        return get_context(self.context)
 
     @property
     def context(self):
