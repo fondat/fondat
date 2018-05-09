@@ -175,7 +175,7 @@ class App:
         for _, op_path in self.operations:
             if op_path == request.path_info:  # path is defined, but not method
                 raise exc.MethodNotAllowed()
-        raise exc.HTTPNotFound()
+        raise exc.HTTPNotFound("resource or operation not found")
 
 
 class Chain:
