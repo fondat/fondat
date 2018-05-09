@@ -162,7 +162,7 @@ class CLI:
         args = shlex.split(line)
         if not args:
             return True
-        with context(type="cli", cli_command=line):
+        with context(context_type="cli", cli_command=line):
             name = args.pop(0)
             if name in self.resources:
                 try:
