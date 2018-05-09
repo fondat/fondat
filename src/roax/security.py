@@ -17,22 +17,27 @@ class SecurityRequirement:
     """Performs authorization of resource operations."""
 
     def __init__(self, scheme=None):
-        """Initialize security requirement, with reference to its associated scheme."""
+        """
+        Initialize security requirement.
+
+        :param scheme: Associated security scheme, if applicable.
+        """
         super().__init__()
         self.scheme = scheme
+        self.json = {}
 
     def authorize(self):
         """
-        Perform authorization of the operation. Raises an exception if authorization
-        fails. The exception raised should be a ResourceError, or be meaningful to its
-        associated security scheme.        
+        Determine authorization for the operation. Raises an exception if authorization
+        is not granted. The exception raised should be a ResourceError (like
+        Unauthorized), or be meaningful relative to its associated security scheme.        
         """
         raise NotImplementedError()
 
     @property
     def json(self):
-        """Return the JSON representation of the security requirement."""
-        return []
+        """JSON representation of the security requirement."""
+        return {}
 
 
 class SecurityScheme:
@@ -79,16 +84,21 @@ class HTTPSecurityScheme(SecurityScheme):
     def json(self):
         """JSON representation of the security scheme."""
         result = super().json
-        result["scheme"] = scheme
+        result["http_scheme"] = scheme
         return result
 
 
 class HTTPBasicSecurityScheme(HTTPSecurityScheme):
     """Base class for HTTP basic authentication security scheme."""
 
-    def __init__(self, **kwargs):
+    def Unauthorized(detail=None):
+        """Return an Unauthorized exception populated with scheme and realm."""
+        return Unauthorized(detail, "Basic realm={}".format(self.realm))
+
+    def __init__(self, realm, **kwargs):
         """TODO: Description."""
         super().__init__("basic", **kwargs)
+        self.realm = realm
 
     def filter(self, request, chain):
         """
@@ -107,6 +117,13 @@ class HTTPBasicSecurityScheme(HTTPSecurityScheme):
                 with context({**auth, **super().context}):
                     return chain.handle(request)
         return chain.handle(request)
+
+    @property
+    def context(self):
+        """Context that the scheme pushes onto the context stack."""
+        result = super().context
+        result["http_realm"] = self.realm
+        return result
 
     def authenticate(user_id, password):
         """
@@ -127,7 +144,7 @@ class CLISecurityRequirement(SecurityRequirement):
 
     def authorize(self):
         """Perform authorization of the operation."""
-        if not get_context({"type": "cli"}):
+        if not get_context({"context_type": "cli"}):
             raise Unauthorized()
 
 
