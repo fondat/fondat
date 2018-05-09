@@ -69,13 +69,11 @@ def _filters(requirements):
     """Produce set of filters associated with the security requirements."""
     result = set()
     for requirement in requirements or []:
-        filter = getattr(scheme, "filter", None)
-        if not filter:
-            scheme = getattr(requirement, "scheme", None)
-            if scheme:
-                filter = getattr(scheme, "filter", None)
-        if filter:
-            result.add(filter)
+        scheme = getattr(requirement, "scheme", None)
+        if scheme:
+            filter = getattr(scheme, "filter", None)
+            if filter:
+                result.add(filter)
     return result
 
 
@@ -98,7 +96,7 @@ def _environ(environ):
 class App:
     """Roax WSGI application."""
 
-    def __init__(self, url, title, version, description=None, security=None):
+    def __init__(self, url, title, version, description=None):
         """
         Initialize WSGI application.
         
@@ -106,14 +104,12 @@ class App:
         :param title: The title of the application.
         :param version: The API implementation version.
         :param description: A short description of the application.
-        :param security: Security requirements application operations.
         """
         self.url = url
         self.base = urlparse(self.url).path.rstrip("/")
         self.title = title
         self.description = description
         self.version = version
-        self.security = security or []
         self.operations = {}
 
     def register(self, path, resource, publish=True):
@@ -152,7 +148,7 @@ class App:
         request = Request(environ)
         try:
             operation = self._get_operation(request)
-            filters = set.union(_filters(self.security), _filters(operation.security))
+            filters = _filters(operation.security)
             def handle(request):
                 return _response(operation, operation.function(**_params(request, operation)))
             with context(context_type="http", http_environ=_environ(environ)):
@@ -183,7 +179,7 @@ class Chain:
 
     def __init__(self, filters=[], terminus=None):
         """Initialize a filter chain."""
-        self.filters = filters
+        self.filters = list(filters)
         self.terminus = terminus
 
     def next(self, request):
