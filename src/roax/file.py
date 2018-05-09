@@ -67,9 +67,9 @@ class FileResource(Resource):
                 fcntl.flock(file.fileno(), fcntl.LOCK_EX)
             return file
         except FileNotFoundError:
-            raise NotFound("resource not found")
+            raise NotFound("{} item not found".format(self.name))
         except FileExistsError:
-            raise Conflict("resource already exists")
+            raise Conflict("{} item already exists".format(self.name))
 
     def _read(self, file):
         file.seek(0)
@@ -144,7 +144,7 @@ class FileResource(Resource):
         try:
             os.remove(self._filename(id))
         except FileNotFoundError:
-            raise NotFound("resource not found")
+            raise NotFound("{} item not found".format(self.name))
 
     def list(self):
         """Query to return a list of all resource item identifiers."""
