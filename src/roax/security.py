@@ -1,4 +1,4 @@
-"""Module to perform resource authentication and authorization."""
+"""Module for authentication and authorization to resource operations."""
 
 # Copyright © 2017–2018 Paul Bryan.
 #
@@ -7,10 +7,10 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import binascii
+import roax.context as context
 
 from base64 import b64decode
-from roax.context import context, get_context
-from roax.resource import Unauthorized
+from roax.resource import Forbidden, Unauthorized
 
 
 class SecurityRequirement:
@@ -109,13 +109,13 @@ class HTTPBasicSecurityScheme(HTTPSecurityScheme):
                 pass
             auth = self.authenticate(user_id, password)
             if auth:
-                with context({**auth, **self.context}):
+                with context.context({**auth, **self.context}):
                     return chain.next(request)
         return chain.next(request)
 
     def get_context(self):
         """Return the context that this scheme pushes on the stack."""
-        return get_context(self.context)
+        return context.get_context(self.context)
 
     @property
     def context(self):
@@ -135,16 +135,47 @@ class HTTPBasicSecurityScheme(HTTPSecurityScheme):
         raise NotImplementedError()
 
 
-class CLISecurityRequirement(SecurityRequirement):
+class ContextSecurityRequirement(SecurityRequirement):
+    """
+    Authorizes an operation if a context with the specified properies exists on the
+    context stack.
+    """
+
+    def __init__(self, *args, **varargs):
+        """
+        Initialize context security requirement.
+
+        The context value to search for can be expressed as follows:
+        - ContextSecurityRequirement(mapping): Mapping object's key-value pairs.
+        - ContextSecurityRequirement(**kwargs): Name-value pairs in keyword arguments. 
+
+        """
+        self.context = dict(*args, **varargs)
+
+    def authorize(self):
+        if not context.get_context(self.context):
+            raise Forbidden()
+
+
+class CLISecurityRequirement(ContextSecurityRequirement):
     """
     Security requirement that authorizes an operation if it was initiated (directly
     or indirectly) from the command line interface.
     """
+    def __init__(self):
+        super().__init__(context_type="cli")
 
+
+class NestedSecurityRequirement(SecurityRequirement):
+    """
+    Authorizes an operation if it's called (directly or indirectly) from another
+    operation.
+    """
     def authorize(self):
-        """Perform authorization of the operation."""
-        if not get_context({"context_type": "cli"}):
-            raise Unauthorized()
+        if sum(1 for c in context.stack() if c["context_type"] == "operation") < 2:
+            raise Forbidden()
 
 
 cli = CLISecurityRequirement()
+
+nested = NestedSecurityRequirement()
