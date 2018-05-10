@@ -86,14 +86,14 @@ class HTTPSecurityScheme(SecurityScheme):
 class HTTPBasicSecurityScheme(HTTPSecurityScheme):
     """Base class for HTTP basic authentication security scheme."""
 
-    def Unauthorized(detail=None):
-        """Return an Unauthorized exception populated with scheme and realm."""
-        return Unauthorized(detail, "Basic realm={}".format(self.realm))
-
     def __init__(self, realm, **kwargs):
         """TODO: Description."""
         super().__init__("basic", **kwargs)
         self.realm = realm
+
+    def Unauthorized(self, detail=None):
+        """Return an Unauthorized exception populated with scheme and realm."""
+        return Unauthorized(detail, "Basic realm={}".format(self.realm))
 
     def filter(self, request, chain):
         """
