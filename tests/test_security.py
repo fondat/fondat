@@ -3,19 +3,14 @@ import roax.schema as s
 import unittest
 
 from roax.context import context, get_context
-from roax.resource import Resource, Unauthorized, operation
-from roax.security import SecurityRequirement
-
-class Req1(SecurityRequirement):
-    def authorize(self):
-        if not get_context(req1=True):
-            raise Unauthorized()
+from roax.resource import Forbidden, Resource, operation
+from roax.security import ContextSecurityRequirement, SecurityRequirement, nested
 
 class Never(SecurityRequirement):
     def authorized(self):
-        raise Unauthorized()
+        raise Forbidden()
 
-req1 = Req1()
+req1 = ContextSecurityRequirement(req1=True)
 
 never = Never()
 
@@ -39,6 +34,24 @@ class R1(Resource):
     def bar(self):
         return "bar_success"
 
+    @operation(
+        type = "action",
+        params = {},
+        returns = s.str(),
+        security = [nested],
+    )
+    def nestee(self):
+        return "nest_success"
+
+    @operation(
+        type = "action",
+        params = {},
+        returns = s.str(),
+    )
+    def nester(self):
+        return self.nestee()
+
+
 class TestSecurity(unittest.TestCase):
 
     def test_security_req_success(self):
@@ -48,8 +61,13 @@ class TestSecurity(unittest.TestCase):
 
     def test_security_req_unauth(self):
         r1 = R1()
-        with self.assertRaises(Unauthorized):
+        with self.assertRaises(Forbidden):
             r1.foo()
+
+    def test_security_req_nested(self):
+        r1 = R1()
+        self.assertEqual(r1.nester(), "nest_success")
+
 
 if __name__ == "__main__":
     unittest.main()
