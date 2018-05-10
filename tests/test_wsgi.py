@@ -4,7 +4,6 @@ import unittest
 
 from base64 import b64encode
 from datetime import datetime
-from roax.context import get_context
 from roax.resource import Resource, Unauthorized, operation
 from roax.security import SecurityRequirement, HTTPBasicSecurityScheme
 from roax.wsgi import App

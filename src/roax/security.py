@@ -115,7 +115,7 @@ class HTTPBasicSecurityScheme(HTTPSecurityScheme):
 
     def get_context(self):
         """Return the context that this scheme pushes on the stack."""
-        return context.get_context(self.context)
+        return context.last(self.context)
 
     @property
     def context(self):
@@ -153,7 +153,7 @@ class ContextSecurityRequirement(SecurityRequirement):
         self.context = dict(*args, **varargs)
 
     def authorize(self):
-        if not context.get_context(self.context):
+        if not context.last(self.context):
             raise Forbidden()
 
 
@@ -172,7 +172,7 @@ class NestedSecurityRequirement(SecurityRequirement):
     operation.
     """
     def authorize(self):
-        if sum(1 for c in context.stack() if c["context_type"] == "operation") < 2:
+        if len(context.find(context_type="operation")) < 2:
             raise Forbidden()
 
 

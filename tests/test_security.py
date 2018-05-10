@@ -2,7 +2,7 @@
 import roax.schema as s
 import unittest
 
-from roax.context import context, get_context
+from roax.context import context
 from roax.resource import Forbidden, Resource, operation
 from roax.security import ContextSecurityRequirement, SecurityRequirement, nested
 
