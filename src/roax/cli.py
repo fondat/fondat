@@ -10,10 +10,10 @@ import readline
 import roax.schema as s
 import shlex
 import sys
+import roax.context as context
 import traceback
 
 from io import BufferedIOBase, RawIOBase, TextIOBase
-from roax.context import context
 from roax.resource import ResourceError
 from textwrap import dedent
 
@@ -43,8 +43,8 @@ def _parse_arguments(params, args):
             name = None
     return result
 
-def _parse_redirects(inp, out, args, body, returns):
-    """Parse redirections in command line arguments; removes them from arguments list."""    
+def _parse_redirects(args, body, returns):
+    result = {}
     n = 0
     while n < len(args):
         redir = None
@@ -65,13 +65,33 @@ def _parse_redirects(inp, out, args, body, returns):
             raise ValueError("no redirection file name specified")
         if "<" in filename or ">" in filename:
             raise ValueError("invalid redirection file name")
-        if redir == "<":
-            inp = open(filename, _mode("rb", body))
-        elif redir == ">":
-            out = open(filename, _mode("wb", returns))
-        elif redir == ">>":
-            out = open(filename, _mode("ab", returns))
-    return inp, out
+        if redir:
+            result[redir] = filename
+    return result
+
+
+class _open_redirects:
+
+    def __init__(self, inp, out, args, body, returns):
+        self.redirs = _parse_redirects(args, body, returns)
+        self.in_out = [inp, out]
+        self.body_returns = [body, returns]
+
+    def __enter__(self):
+        modes = {"<": "rb", ">": "wb", ">>": "ab"}
+        offset = {"<": 0, ">": 1, ">>": 1}
+        for r in list(self.redirs):
+            file = open(self.redirs[r], modes[r])
+            self.in_out[offset[r]] = file
+            self.redirs[r] = file
+        return tuple(self.in_out)
+
+    def __exit__(self, *args):
+        for file in self.redirs.values():
+            try:
+                file.close()
+            except:
+                pass
 
 def _write(out, schema, value):
     if _is_binary(schema):
@@ -99,7 +119,7 @@ def _read(inp, schema):
 class CLI:
     """Command line interface that exposes registered resources."""
 
-    def __init__(self, *, name=None, prompt=None, debug=False, inp=sys.stdin, out=sys.stdout, err=sys.stderr):
+    def __init__(self, *, name=None, prompt=None, debug=False, err=sys.stderr):
         """
         Initialize a command line interface.
 
@@ -115,8 +135,6 @@ class CLI:
         self.name = name
         self.prompt = prompt or "{}> ".format(name) if name else "> "
         self.debug = debug
-        self.inp = inp
-        self.out = out
         self.err = err
         self.resources = {}
         self.private = set()
@@ -148,21 +166,17 @@ class CLI:
                 break
         self._looping = False
 
-    def process(self, line, inp=None, out=None):
+    def process(self, line, inp=sys.stdin, out=sys.stdout):
         """
         Process a single command line.
         
         :param line: Command line string to process.
-        :param inp: Input stream for reading body.
-        :param out: Output stream for writing response.
         :returns: True if command line was processed successfully.
         """
-        inp = inp or self.inp
-        out = out or self.out
         args = shlex.split(line)
         if not args:
             return True
-        with context(context_type="cli", cli_command=line):
+        with context.root(context_type="cli", cli_command=line):
             name = args.pop(0)
             if name in self.resources:
                 try:
@@ -234,36 +248,36 @@ class CLI:
         params = operation.params or {}
         returns = operation.returns
         body = params.get("_body")
-        inp, out = _parse_redirects(inp, out, args, body, returns)
-        try:
-            parsed = _parse_arguments(params, args)
-        except ValueError:
-            return self._help_operation(resource_name, operation)
-        for name in parsed:
+        with _open_redirects(inp, out, args, body, returns) as (inp, out):
             try:
-                parsed[name] = params[name].str_decode(parsed[name])
-            except s.SchemaError as se:
-                se.pointer = name if not se.pointer else "{}/{}".format(name, se.pointer)
-                raise
-        if body:
-            try:
-                description = (body.description or "content body.").lower()
-                if inp == sys.stdin:
-                    self._print("Enter {}".format(description))
-                    self._print("When complete, input EOF (*nix: Ctrl-D, Windows: Ctrl-Z+Return):")
-                else:
-                    self._print("Reading body from {}...".format(getattr(inp, "name", "stream")))
-                parsed["_body"] = _read(inp, body)
-            except s.SchemaError as se:
-                self._print("ERROR: {} {}: content body: {}".format(resource_name, operation_name, se.msg))
-                return False
-        result = operation.function(**parsed)
-        self._print("SUCCESS.")
-        if returns:
-            description = (returns.description or "response.").lower()
-            if out != sys.stdout:
-                self._print("Writing response to {}...".format(getattr(out, "name", "stream")))
-            _write(out, returns, result)
+                parsed = _parse_arguments(params, args)
+            except ValueError:
+                return self._help_operation(resource_name, operation)
+            for name in parsed:
+                try:
+                    parsed[name] = params[name].str_decode(parsed[name])
+                except s.SchemaError as se:
+                    se.pointer = name if not se.pointer else "{}/{}".format(name, se.pointer)
+                    raise
+            if body:
+                try:
+                    description = (body.description or "content body.").lower()
+                    if inp == sys.stdin:
+                        self._print("Enter {}".format(description))
+                        self._print("When complete, input EOF (*nix: Ctrl-D, Windows: Ctrl-Z+Return):")
+                    else:
+                        self._print("Reading body from {}...".format(getattr(inp, "name", "stream")))
+                    parsed["_body"] = _read(inp, body)
+                except s.SchemaError as se:
+                    self._print("ERROR: {} {}: content body: {}".format(resource_name, operation_name, se.msg))
+                    return False
+            result = operation.function(**parsed)
+            self._print("SUCCESS.")
+            if returns:
+                description = (returns.description or "response.").lower()
+                if out != sys.stdout:
+                    self._print("Writing response to {}...".format(getattr(out, "name", "stream")))
+                _write(out, returns, result)
         return True
 
     def _help_list(self):
