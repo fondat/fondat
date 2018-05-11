@@ -171,7 +171,7 @@ class CLI:
         Process a single command line.
         
         :param line: Command line string to process.
-        :returns: True if command line was processed successfully.
+        :return: True if command line was processed successfully.
         """
         args = shlex.split(line)
         if not args:
@@ -257,7 +257,8 @@ class CLI:
                 try:
                     parsed[name] = params[name].str_decode(parsed[name])
                 except s.SchemaError as se:
-                    se.pointer = name if not se.pointer else "{}/{}".format(name, se.pointer)
+                    se.push(name)
+                    self._help_operation(resource_name, operation)
                     raise
             if body:
                 try:
