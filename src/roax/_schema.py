@@ -14,10 +14,6 @@ from collections.abc import Sequence
 from copy import copy
 
 
-def _fixup_pointer(se, name):
-    se.pointer = str(name) if not se.pointer else "{}/{}".format(name, se.pointer)
-
-
 class SchemaError(Exception):
     """Raised if a value does not conform to its schema."""
 
@@ -25,6 +21,10 @@ class SchemaError(Exception):
         """Initialize the schema error."""
         self.msg = msg
         self.pointer = pointer
+
+    def push(self, name):
+        """Push a name in front of the pointer."""
+        self.pointer = name if not self.pointer else "{}/{}".format(name, self.pointer)
 
     def __str__(self):
         result = []
@@ -162,7 +162,7 @@ class _dict(_type):
                         raise SchemaError("unexpected property")
                     result[k] = v  # pass through                    
             except SchemaError as se:
-                _fixup_pointer(se, k)
+                se.push(k)
                 raise
         return result
 
@@ -254,7 +254,7 @@ class _list(_type):
             for n, item in zip(range(len(value)), value):
                 result.append(getattr(self.items, method)(item))
         except SchemaError as se:
-            _fixup_pointer(se, n)
+            se.push(n)
             raise
         return result
 
@@ -964,7 +964,7 @@ def call(function, args, kwargs, params=None, returns=None):
                 try:
                     params[p.name].validate(build[p.name])
                 except SchemaError as se:
-                    _fixup_pointer(se, p.name)
+                    se.push(p.name)
                     raise
         elif p.default is not p.empty:
             value = p.default
