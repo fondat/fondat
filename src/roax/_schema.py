@@ -76,9 +76,9 @@ class _type:
         if value is None and not self.nullable:
             raise SchemaError("value cannot be None")
         if value is not None and not isinstance(value, self.python_type):
-            raise SchemaError("expecting {} type for value {}".format(self.python_type.__name__, value))
+            raise SchemaError("value "{}" does not match expected type {}".format(value, self.python_type.__name__))
         if value is not None and self.enum is not None and value not in self.enum:
-            raise SchemaError("value '{}' must be one of: {}".format(value, ", ".join([self.str_encode(v) for v in self.enum])))
+            raise SchemaError('value "{}" is not one of: {}".format(value, ", ".join([self.str_encode(v) for v in self.enum])))
 
     @property
     def json_schema(self):
