@@ -254,24 +254,23 @@ class CLI:
                 parsed = _parse_arguments(params, args)
             except ValueError:
                 return self._help_operation(resource_name, operation)
-            for name in parsed:
-                try:
-                    parsed[name] = params[name].str_decode(parsed[name])
-                except s.SchemaError as se:
-                    se.push(name)
-                    self._help_operation(resource_name, operation)
-                    raise
-            if body:
-                description = (body.description or "content body.").lower()
-                if inp == sys.stdin:
-                    self._print("Enter {}".format(description))
-                    self._print("When complete, input EOF (*nix: Ctrl-D, Windows: Ctrl-Z+Return):")
-                else:
-                    self._print("Reading body from {}...".format(getattr(inp, "name", "stream")))
-                parsed["_body"] = _read(inp, body)
             try:
+                for name in parsed:
+                    parsed[name] = params[name].str_decode(parsed[name])
+                if body:
+                    name = "content body"
+                    description = (body.description or "{}.".format(name)).lower()
+                    if inp == sys.stdin:
+                        self._print("Enter {}".format(description))
+                        self._print("When complete, input EOF (*nix: Ctrl-D, Windows: Ctrl-Z+Return):")
+                    else:
+                        self._print("Reading body from {}...".format(getattr(inp, "name", "stream")))
+                    parsed["_body"] = _read(inp, body)
+                name = None
                 result = operation.function(**parsed)
-            except SchemaError as se:
+            except s.SchemaError as se:
+                if name:
+                    se.push(name)
                 self._help_operation(resource_name, operation)
                 raise
             self._print("SUCCESS.")
