@@ -14,6 +14,38 @@ from contextlib import contextmanager
 
 _local = threading.local()
 
+
+class context():
+    """
+    Context manager that pushes a value onto the context stack. Pops the value upon
+    completion.
+    """
+
+    def __init__(self, *args, **varargs):
+        """
+        Initialize context manager.
+
+        Accepts context values as follows:
+        - context(None): Nothing is pushed onto the stack.
+        - context(mapping): Context is initialized from a mapping object's key-value pairs.
+        - context(**kwargs): Context is initialized with name-value pairs in keyword arguments. 
+        """
+        self.value = dict(*args, **varargs)
+
+    def __enter__(self):
+        self.pushed = push(self.value)
+
+    def __exit__(self, *args):
+        pop(self.pushed)
+
+
+def _values(*args, **varargs):
+    """Conveniently parse values as single mapping or as kwargs."""
+    if len(args) == 1 and args[0] is None:
+        return None
+    return dict(*args, **varargs)
+
+
 def get_stack():
     """Return the current context stack."""
     try:
@@ -22,19 +54,18 @@ def get_stack():
         _local.stack = []
         return _local.stack
 
-@contextmanager
-def context(*args, **varargs):
+def root(*args, **varargs):
     """
-    Context manager that pushes and pops a value on the context stack.
+    Context manager that pushes the value onto the context stack, clearing the
+    stack first to ensure that no values from previous activity is present.
 
-    This function accepts context values as follows:
-    - context(None): Nothing is pushed onto the stack.
-    - context(mapping): Context is initialized from a mapping object's key-value pairs.
-    - context(**kwargs): Context is initialized with name-value pairs in keyword arguments. 
+    Accepts context values as follows:
+    - root(None): Nothing is pushed onto the stack.
+    - root(mapping): Context is initialized from a mapping object's key-value pairs.
+    - root(**kwargs): Context is initialized with name-value pairs in keyword arguments. 
     """
-    pushed = push(*args, **varargs)
-    yield None
-    pop(pushed)
+    clear()
+    return context(*args, **varargs)
 
 def push(*args, **varargs):
     """
@@ -48,7 +79,7 @@ def push(*args, **varargs):
     """
     stack = get_stack()
     pos = None
-    value = None if len(args) == 1 and args[0] is None else dict(*args, **varargs)
+    value = _values(*args, **varargs)
     if value is not None:
         stack.append(value)
         pos = len(stack) - 1
@@ -76,7 +107,9 @@ def last(*args, **varargs):
     - last(mapping): Value is expressed as a mapping object's key-value pairs.
     - last(**kwargs): Value is expressed with name-value pairs in keyword arguments. 
     """
-    values = dict(*args, **varargs)
+    values = _values(*args, **varargs)
+    if not values:
+        return None
     for value in reversed(get_stack()):
         if isinstance(value, Mapping):
             if {k: value.get(k) for k in values} == values:
@@ -93,9 +126,15 @@ def find(*args, **varargs):
     - find(**kwargs): Value is expressed with name-value pairs in keyword arguments. 
     """
     result = []
-    values = dict(*args, **varargs)
+    values = _values(*args, **varargs)
+    if not values:
+        return None
     for value in get_stack():
         if isinstance(value, Mapping):
             if {k: value.get(k) for k in values} == values:
                 result.append(value)
     return result
+
+def clear():
+    """Clear the context stack."""
+    get_stack().clear()
