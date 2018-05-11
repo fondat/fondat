@@ -15,6 +15,15 @@ from contextlib import contextmanager
 _local = threading.local()
 
 
+def get_stack():
+    """Return the current context stack."""
+    try:
+        return _local.stack
+    except AttributeError:  # newly seen thread
+        _local.stack = []
+        return _local.stack
+
+
 class push():
     """
     Push a value onto the context stack. Returns a value that is passed to the
@@ -39,15 +48,6 @@ class push():
 
     def __exit__(self, *args):
         pop(self)
-
-
-def get_stack():
-    """Return the current context stack."""
-    try:
-        return _local.stack
-    except AttributeError:  # newly seen thread
-        _local.stack = []
-        return _local.stack
 
 
 def pop(pushed):
