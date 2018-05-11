@@ -151,7 +151,7 @@ class FileResource(Resource):
         result = []
         for name in os.listdir(self.dir):
             if name.endswith(self.extension):
-                name = name[0:0-len(self.extension)]
+                name = name[:len(name) - len(self.extension)]
                 str_id = _unquote(name)
                 if name != _quote(str_id):  # ignore improperly encoded names
                     continue
