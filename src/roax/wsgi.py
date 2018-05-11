@@ -7,10 +7,10 @@
 
 import logging
 import re
+import roax.context as context
+import roax.resource as resource
 
 from copy import copy
-from roax.context import context
-from roax.resource import ResourceError
 from roax.schema import SchemaError
 from urllib.parse import urlparse
 from webob import Request, Response, exc
@@ -56,9 +56,10 @@ def _params(request, operation):
                     result["_body"] = param.str_decode(request.text)
                 else:
                     try:
-                        result["_body"] = param.json_decode(request.json)
+                        json = request.json
                     except:
-                        raise SchemaError("invalid entity-body JSON representation")
+                        raise SchemaError("invalid JSON in entity-body")
+                    result["_body"] = param.json_decode(json)
             else:
                 result[name] = param.str_decode(request.params[name])
         except KeyError:
@@ -121,41 +122,47 @@ class App:
         :param publish: Publish resource in online documentation.
         """
         resource_path = self.base + "/" + path.lstrip("/").rstrip("/")
-        if not publish:
-            operation = copy(operation)
-            operation.publish = False
-        for operation in resource.operations.values():
-            if operation.type == "create":
+        for op in resource.operations.values():
+            if op.security is None:
+                raise ValueError("operation {} must define security requirements".format(op.name))
+            if op.type == "create":
                 op_method, op_path = "POST", resource_path
-            elif operation.type == "read":
+            elif op.type == "read":
                 op_method, op_path = "GET", resource_path
-            elif operation.type == "update":
+            elif op.type == "update":
                 op_method, op_path = "PUT", resource_path
-            elif operation.type == "delete":
+            elif op.type == "delete":
                 op_method, op_path = "DELETE", resource_path
-            elif operation.type == "action":
-                op_method, op_path = "POST", resource_path + "/" + operation.name
-            elif operation.type == "query":
-                op_method, op_path = "GET", resource_path + "/" + operation.name
+            elif op.type == "action":
+                op_method, op_path = "POST", resource_path + "/" + op.name
+            elif op.type == "query":
+                op_method, op_path = "GET", resource_path + "/" + op.name
             else:
-                raise ValueError("resource has unknown operation type: {}".format(operation.type))
+                raise ValueError("operation {} has unknown operation type: {}".format(op.name, op.type))
+            if not publish:
+                op = copy(op)
+                op.publish = False
             if (op_method, op_path) in self.operations:
                 raise ValueError("operation already defined for {} {}".format(op_method, op_path))
-            self.operations[(op_method, op_path)] = operation
+            self.operations[(op_method, op_path)] = op
 
     def __call__(self, environ, start_response):
         """Handle WSGI request."""
         request = Request(environ)
         try:
-            operation = self._get_operation(request)
-            filters = _filters(operation.security)
-            def handle(request):
-                return _response(operation, operation.function(**_params(request, operation)))
-            with context(context_type="http", http_environ=_environ(environ)):
+            with context.root(context_type="http", http_environ=_environ(environ)):
+                operation = self._get_operation(request)
+                filters = _filters(operation.security)
+                try:
+                    params = _params(request, operation)
+                except Exception as e:  # authorization trumps input validation
+                    resource.authorize(operation.security)
+                def handle(request):
+                    return _response(operation, operation.function(**params))
                 response = Chain(filters, handle).next(request)
         except exc.HTTPException as he:
             response = _ErrorResponse(he.code, he.detail)
-        except ResourceError as re:
+        except resource.ResourceError as re:
             response = _ErrorResponse(re.code, re.detail)
         except SchemaError as se:
             response = _ErrorResponse(exc.HTTPBadRequest.code, str(se))
