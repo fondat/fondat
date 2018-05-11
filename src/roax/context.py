@@ -26,7 +26,6 @@ class context():
         Initialize context manager.
 
         Accepts context values as follows:
-        - context(None): Nothing is pushed onto the stack.
         - context(mapping): Context is initialized from a mapping object's key-value pairs.
         - context(**kwargs): Context is initialized with name-value pairs in keyword arguments. 
         """
@@ -39,13 +38,6 @@ class context():
         pop(self.pushed)
 
 
-def _values(*args, **varargs):
-    """Conveniently parse values as single mapping or as kwargs."""
-    if len(args) == 1 and args[0] is None:
-        return None
-    return dict(*args, **varargs)
-
-
 def get_stack():
     """Return the current context stack."""
     try:
@@ -54,35 +46,20 @@ def get_stack():
         _local.stack = []
         return _local.stack
 
-def root(*args, **varargs):
-    """
-    Context manager that pushes the value onto the context stack, clearing the
-    stack first to ensure that no values from previous activity is present.
-
-    Accepts context values as follows:
-    - root(None): Nothing is pushed onto the stack.
-    - root(mapping): Context is initialized from a mapping object's key-value pairs.
-    - root(**kwargs): Context is initialized with name-value pairs in keyword arguments. 
-    """
-    clear()
-    return context(*args, **varargs)
-
 def push(*args, **varargs):
     """
     Push a value onto the context stack. Returns a value that is passed into
     pop() function to pop it from the stack.
 
     This function accepts context values as follows:
-    - push(None): Nothing is pushed onto the stack.
     - push(mapping): Context is initialized from a mapping object's key-value pairs.
     - push(**kwargs): Context is initialized with name-value pairs in keyword arguments. 
     """
     stack = get_stack()
     pos = None
-    value = _values(*args, **varargs)
-    if value is not None:
-        stack.append(value)
-        pos = len(stack) - 1
+    value = dict(*args, **varargs)
+    stack.append(value)
+    pos = len(stack) - 1
     return (pos, value)
 
 def pop(pushed):
@@ -93,10 +70,9 @@ def pop(pushed):
     """
     pos, value = pushed
     stack = get_stack()
-    if pos is not None:
-        if stack[pos] != value:
-            raise RuntimeError("context value on stack was modified")
-        del stack[pos:]
+    if stack[pos] != value:
+        raise RuntimeError("context value on stack was modified")
+    del stack[pos:]
 
 def last(*args, **varargs):
     """
@@ -107,9 +83,7 @@ def last(*args, **varargs):
     - last(mapping): Value is expressed as a mapping object's key-value pairs.
     - last(**kwargs): Value is expressed with name-value pairs in keyword arguments. 
     """
-    values = _values(*args, **varargs)
-    if not values:
-        return None
+    values = dict(*args, **varargs)
     for value in reversed(get_stack()):
         if isinstance(value, Mapping):
             if {k: value.get(k) for k in values} == values:
@@ -126,9 +100,7 @@ def find(*args, **varargs):
     - find(**kwargs): Value is expressed with name-value pairs in keyword arguments. 
     """
     result = []
-    values = _values(*args, **varargs)
-    if not values:
-        return None
+    values = dict(*args, **varargs)
     for value in get_stack():
         if isinstance(value, Mapping):
             if {k: value.get(k) for k in values} == values:

@@ -99,11 +99,11 @@ class TestWSGI(unittest.TestCase):
         self.assertEqual(response.status_code, 200)  # OK
         self.assertEqual(response.text, "foo_success")
 
-#    def test_http_validation_and_auth_failure(self):
-#        request = Request.blank("/r1/validate_uuid?uuid=not-a-uuid")
-#        request.method = "POST"
-#        response = request.get_response(app)
-#        self.assertEqual(response.status_code, 401)  # authorization should trump validation
+    def test_http_validation_and_auth_failure(self):
+        request = Request.blank("/r1/validate_uuid?uuid=not-a-uuid")
+        request.method = "POST"
+        response = request.get_response(app)
+        self.assertEqual(response.status_code, 401)  # authorization should trump validation
 
 if __name__ == "__main__":
     unittest.main()

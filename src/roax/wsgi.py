@@ -150,13 +150,14 @@ class App:
         """Handle WSGI request."""
         request = Request(environ)
         try:
-            with context.root(context_type="http", http_environ=_environ(environ)):
+#            context.clear()
+            with context.context(context_type="http", http_environ=_environ(environ)):
                 operation = self._get_operation(request)
                 filters = _filters(operation.security)
-#                try:
-                params = _params(request, operation)
-#                except Exception as e:  # authorization trumps input validation
-#                    resource.authorize(operation.security)
+                try:
+                    params = _params(request, operation)
+                except Exception as e:  # authorization trumps input validation
+                    resource.authorize(operation.security)
                 def handle(request):
                     return _response(operation, operation.function(**params))
                 response = Chain(filters, handle).next(request)
