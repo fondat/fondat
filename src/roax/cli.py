@@ -103,6 +103,7 @@ def _write(out, schema, value):
             out = TextIOWrapper(out, encoding="utf-8")
         encode = schema.str_encode
     out.write(encode(value))
+    out.flush()
 
 def _read(inp, schema):
     if _is_binary(schema):
@@ -261,24 +262,26 @@ class CLI:
                     self._help_operation(resource_name, operation)
                     raise
             if body:
-                try:
-                    description = (body.description or "content body.").lower()
-                    if inp == sys.stdin:
-                        self._print("Enter {}".format(description))
-                        self._print("When complete, input EOF (*nix: Ctrl-D, Windows: Ctrl-Z+Return):")
-                    else:
-                        self._print("Reading body from {}...".format(getattr(inp, "name", "stream")))
-                    parsed["_body"] = _read(inp, body)
-                except s.SchemaError as se:
-                    self._print("ERROR: {} {}: content body: {}".format(resource_name, operation_name, se.msg))
-                    return False
-            result = operation.function(**parsed)
+                description = (body.description or "content body.").lower()
+                if inp == sys.stdin:
+                    self._print("Enter {}".format(description))
+                    self._print("When complete, input EOF (*nix: Ctrl-D, Windows: Ctrl-Z+Return):")
+                else:
+                    self._print("Reading body from {}...".format(getattr(inp, "name", "stream")))
+                parsed["_body"] = _read(inp, body)
+            try:
+                result = operation.function(**parsed)
+            except SchemaError as se:
+                self._help_operation(resource_name, operation)
+                raise
             self._print("SUCCESS.")
             if returns:
                 description = (returns.description or "response.").lower()
-                if out != sys.stdout:
+                if out is not sys.stdout:
                     self._print("Writing response to {}...".format(getattr(out, "name", "stream")))
                 _write(out, returns, result)
+                if out is sys.stdout:
+                    self._print()
         return True
 
     def _help_list(self):
