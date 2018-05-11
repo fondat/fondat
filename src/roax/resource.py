@@ -84,9 +84,8 @@ def authorize(security):
         except Exception as e:
             if not exception:
                 exception = e
-        else:  # one security requirement authorized the operation
-            exception = None
-            break
+        else:  # one security requirement authorizes the operation
+            return
     if exception:
         raise exception
 
