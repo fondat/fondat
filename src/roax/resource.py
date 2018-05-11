@@ -6,10 +6,9 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+import roax.context as context
 import roax.schema as s
 import wrapt
-
-from roax.context import context
 
 
 class _Operation:
@@ -71,15 +70,15 @@ def _summary(function):
     return " ".join(result)
 
 
-def _authorize_operation(requirements):
+def authorize(security):
     """
     Peforms authorization of the operation. If one security requirement does not
     raise an exception, then authorization is granted. If all security requirements
     raise exceptions, then authorization is denied, and the exception raised by the
-    first security requirement is re-raised.
+    first security requirement is raised.
     """
     exception = None
-    for requirement in requirements or []:
+    for requirement in security or []:
         try:
             requirement.authorize()
         except Exception as e:
@@ -121,8 +120,8 @@ def operation(
         if _type not in valid_types:
             raise ValueError("operation type must be one of: {}".format(valid_types))
         def wrapper(wrapped, instance, args, kwargs):
-            with context(context_type="operation", operation_resource=wrapped.__self__, operation_name=_name):
-                _authorize_operation(security)
+            with context.context(context_type="operation", operation_resource=wrapped.__self__, operation_name=_name):
+                authorize(security)
                 return wrapped(*args, **kwargs)
         _params = s.function_params(function, params)
         decorated = s.validate(_params, returns)(wrapt.decorator(wrapper)(function))
