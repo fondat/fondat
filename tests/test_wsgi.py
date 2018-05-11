@@ -40,12 +40,14 @@ class _Resource1(Resource):
     @operation(
         params = {"id": _r1_schema.properties["id"], "_body": _r1_schema},
         returns = s.dict({"id": _r1_schema.properties["id"]}),
+        security = [],
     )
     def create(self, id, _body):
         return {"id": id}
 
     @operation(
         params = {"id": _r1_schema.properties["id"], "_body": _r1_schema},
+        security = [],
     )
     def update(self, id, _body):
         return
@@ -58,6 +60,14 @@ class _Resource1(Resource):
     )
     def foo(self):
         return "foo_success"
+
+    @operation(
+        type = "action",
+        params = {"uuid": s.uuid()},
+        security = [http1],
+    )
+    def validate_uuid(self, uuid):
+        pass
 
 app = App("/", "Title", "1.0")
 app.register("/r1", _Resource1())
@@ -88,6 +98,12 @@ class TestWSGI(unittest.TestCase):
         response = request.get_response(app)
         self.assertEqual(response.status_code, 200)  # OK
         self.assertEqual(response.text, "foo_success")
+
+    def test_http_validation_and_auth_failure(self):
+        request = Request.blank("/r1/validate_uuid?uuid=not-a-uuid")
+        request.method = "POST"
+        response = request.get_response(app)
+        self.assertEqual(response.status_code, 401)  # authorization should trump validation
 
 if __name__ == "__main__":
     unittest.main()
