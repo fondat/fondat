@@ -7,10 +7,10 @@
 
 import logging
 import re
-import roax.context as context
 import roax.resource as resource
 
 from copy import copy
+from roax.context import context
 from roax.schema import SchemaError
 from urllib.parse import urlparse
 from webob import Request, Response, exc
@@ -150,17 +150,16 @@ class App:
         """Handle WSGI request."""
         request = Request(environ)
         try:
-#            context.clear()
-            with context.context(context_type="http", http_environ=_environ(environ)):
+            with context(context_type="http", http_environ=_environ(environ)):
                 operation = self._get_operation(request)
-                filters = _filters(operation.security)
-                try:
-                    params = _params(request, operation)
-                except Exception as e:  # authorization trumps input validation
-                    resource.authorize(operation.security)
                 def handle(request):
+                    try:
+                        params = _params(request, operation)
+                    except Exception:  # authorization trumps input validation
+                        resource.authorize(operation.security)
+                        raise
                     return _response(operation, operation.function(**params))
-                response = Chain(filters, handle).next(request)
+                response = Chain(_filters(operation.security), handle).next(request)
         except exc.HTTPException as he:
             response = _ErrorResponse(he.code, he.detail)
         except resource.ResourceError as re:

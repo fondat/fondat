@@ -56,7 +56,6 @@ def push(*args, **varargs):
     - push(**kwargs): Context is initialized with name-value pairs in keyword arguments. 
     """
     stack = get_stack()
-    pos = None
     value = dict(*args, **varargs)
     stack.append(value)
     pos = len(stack) - 1

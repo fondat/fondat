@@ -10,10 +10,10 @@ import readline
 import roax.schema as s
 import shlex
 import sys
-import roax.context as context
 import traceback
 
 from io import BufferedIOBase, RawIOBase, TextIOBase
+from roax.context import context
 from roax.resource import ResourceError
 from textwrap import dedent
 
@@ -176,8 +176,7 @@ class CLI:
         args = shlex.split(line)
         if not args:
             return True
-        context.clear()
-        with context.context(context_type="cli", cli_command=line):
+        with context(context_type="cli", cli_command=line):
             name = args.pop(0)
             if name in self.resources:
                 try:
