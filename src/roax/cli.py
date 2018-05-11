@@ -221,9 +221,9 @@ class CLI:
         """
         raise StopIteration()
 
-    def _print(self, msg):
+    def _print(self, *args):
         if self.err:
-            print(msg, file=self.err)
+            print(*args, file=self.err)
 
     def _print_listing(self, listing, indent="", space=4, max_column=24):
         """Sort a dictionary by key and print as a listing."""
