@@ -109,7 +109,7 @@ class HTTPBasicSecurityScheme(HTTPSecurityScheme):
                 pass
             auth = self.authenticate(user_id, password)
             if auth:
-                with context.context({**auth, **self.context}):
+                with context.push({**auth, **self.context}):
                     return chain.next(request)
         return chain.next(request)
 

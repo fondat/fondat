@@ -8,9 +8,9 @@
 import logging
 import re
 import roax.resource as resource
+import roax.context as context
 
 from copy import copy
-from roax.context import context
 from roax.schema import SchemaError
 from urllib.parse import urlparse
 from webob import Request, Response, exc
@@ -150,7 +150,7 @@ class App:
         """Handle WSGI request."""
         request = Request(environ)
         try:
-            with context(context_type="http", http_environ=_environ(environ)):
+            with context.push(context_type="http", http_environ=_environ(environ)):
                 operation = self._get_operation(request)
                 def handle(request):
                     try:

@@ -119,7 +119,7 @@ def operation(
         if _type not in valid_types:
             raise ValueError("operation type must be one of: {}".format(valid_types))
         def wrapper(wrapped, instance, args, kwargs):
-            with context.context(context_type="operation", operation_resource=wrapped.__self__, operation_name=_name):
+            with context.push(context_type="operation", operation_resource=wrapped.__self__, operation_name=_name):
                 authorize(security)
                 return wrapped(*args, **kwargs)
         _params = s.function_params(function, params)

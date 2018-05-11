@@ -56,7 +56,7 @@ class TestSecurity(unittest.TestCase):
 
     def test_security_req_success(self):
         r1 = R1()
-        with context.context(req1=True):
+        with context.push(req1=True):
             self.assertEqual(r1.foo(), "foo_success")
 
     def test_security_req_unauth(self):

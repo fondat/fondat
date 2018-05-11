@@ -7,13 +7,13 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import readline
+import roax.context as context
 import roax.schema as s
 import shlex
 import sys
 import traceback
 
 from io import BufferedIOBase, RawIOBase, TextIOBase
-from roax.context import context
 from roax.resource import ResourceError
 from textwrap import dedent
 
@@ -176,7 +176,7 @@ class CLI:
         args = shlex.split(line)
         if not args:
             return True
-        with context(context_type="cli", cli_command=line):
+        with context.push(context_type="cli", cli_command=line):
             name = args.pop(0)
             if name in self.resources:
                 try:

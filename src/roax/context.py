@@ -15,10 +15,10 @@ from contextlib import contextmanager
 _local = threading.local()
 
 
-class context():
+class push():
     """
-    Context manager that pushes a value onto the context stack. Pops the value upon
-    completion.
+    Push a value onto the context stack. Returns a value that is passed to the
+    pop() function to pop it from the stack.
     """
 
     def __init__(self, *args, **varargs):
@@ -26,16 +26,19 @@ class context():
         Initialize context manager.
 
         Accepts context values as follows:
-        - context(mapping): Context is initialized from a mapping object's key-value pairs.
-        - context(**kwargs): Context is initialized with name-value pairs in keyword arguments. 
+        - push(mapping): Context is initialized from a mapping object's key-value pairs.
+        - push(**kwargs): Context is initialized with name-value pairs in keyword arguments. 
         """
+        stack = get_stack()
         self.value = dict(*args, **varargs)
+        stack.append(self.value)
+        self.pos = len(stack) - 1
 
     def __enter__(self):
-        self.pushed = push(self.value)
+        return self
 
     def __exit__(self, *args):
-        pop(self.pushed)
+        pop(self)
 
 
 def get_stack():
@@ -46,32 +49,20 @@ def get_stack():
         _local.stack = []
         return _local.stack
 
-def push(*args, **varargs):
-    """
-    Push a value onto the context stack. Returns a value that is passed into
-    pop() function to pop it from the stack.
-
-    This function accepts context values as follows:
-    - push(mapping): Context is initialized from a mapping object's key-value pairs.
-    - push(**kwargs): Context is initialized with name-value pairs in keyword arguments. 
-    """
-    stack = get_stack()
-    value = dict(*args, **varargs)
-    stack.append(value)
-    pos = len(stack) - 1
-    return (pos, value)
 
 def pop(pushed):
     """
     Pop a value that was pushed onto the context stack.
 
-    :param pushed: The value returned from the push() function.
+    :param pushed: The value returned from push().
     """
-    pos, value = pushed
+    pos = pushed.pos
+    value = pushed.value
     stack = get_stack()
     if stack[pos] != value:
         raise RuntimeError("context value on stack was modified")
     del stack[pos:]
+
 
 def last(*args, **varargs):
     """
@@ -87,6 +78,7 @@ def last(*args, **varargs):
         if isinstance(value, Mapping):
             if {k: value.get(k) for k in values} == values:
                 return value
+
 
 def find(*args, **varargs):
     """
@@ -105,7 +97,3 @@ def find(*args, **varargs):
             if {k: value.get(k) for k in values} == values:
                 result.append(value)
     return result
-
-def clear():
-    """Clear the context stack."""
-    get_stack().clear()
