@@ -1,8 +1,8 @@
 
+import roax.context as context
 import roax.schema as s
 import unittest
 
-from roax.context import context
 from roax.resource import Forbidden, Resource, operation
 from roax.security import ContextSecurityRequirement, SecurityRequirement, nested
 
@@ -56,13 +56,19 @@ class TestSecurity(unittest.TestCase):
 
     def test_security_req_success(self):
         r1 = R1()
-        with context(req1=True):
+        with context.context(req1=True):
             self.assertEqual(r1.foo(), "foo_success")
 
     def test_security_req_unauth(self):
         r1 = R1()
         with self.assertRaises(Forbidden):
             r1.foo()
+
+    def test_security_req_multiple_unnested(self):
+        r1 = R1()
+        for n in range(0, 3):
+            with self.assertRaises(Forbidden):
+                r1.nestee()
 
     def test_security_req_nested(self):
         r1 = R1()
