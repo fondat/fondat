@@ -10,7 +10,7 @@ from roax.resource import Resource, operation
 
 
 class StaticResource(Resource):
-    """A resource that serves a static file."""
+    """A resource that serves static content."""
 
     def __init__(self, content, schema, name=None, description=None, security=None):
         """
