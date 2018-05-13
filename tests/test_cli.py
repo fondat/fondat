@@ -15,17 +15,17 @@ class TestResource(Resource):
             raise BadRequest("_body not hello_body")
         return {"id": "foo"}
 
-    @operation(type="action", params={"a": s.int(), "b": s.str()}, returns=s.str())
-    def foo(self, a, b):
+    @operation(type="action", params={"a_a": s.int(), "b": s.str()}, returns=s.str())
+    def foo(self, a_a, b):
         return "hoot"
 
-cli = CLI(err=None)
+cli = CLI(debug=False, err=None)
 cli.register("test", TestResource())
 
 class TestCLI(unittest.TestCase):
 
     def test_cli_params(self):
-        line = "test foo --a=1 --b=abc"
+        line = "test foo --a-a=1 --b=abc"
         out = StringIO()
         self.assertEqual(cli.process(line, out=out), True)
         self.assertEqual(out.getvalue(), "hoot")

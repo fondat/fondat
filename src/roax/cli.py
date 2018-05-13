@@ -7,19 +7,30 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import readline
+import re
 import roax.context as context
 import roax.schema as s
 import shlex
 import sys
 import traceback
 
-from io import BufferedIOBase, RawIOBase, TextIOBase
+from io import BufferedIOBase, RawIOBase, TextIOBase, TextIOWrapper
 from roax.resource import ResourceError
 from textwrap import dedent
 
 
+_re = re.compile("(_*)(.*)(_*)")
+def _p2a(name):
+    m = _re.match(name)
+    return m.group(1) + m.group(2).replace("_", "-") + m.group(3)
+def _a2p(name):
+    m = _re.match(name)
+    return m.group(1) + m.group(2).replace("-", "_") + m.group(3)
+
+
 def _is_binary(schema):
     return schema and isinstance(schema, s.bytes) and schema.format == "binary"
+
 
 def _parse_arguments(params, args):
     """Parse arguments for supported operation parameters."""
@@ -33,6 +44,7 @@ def _parse_arguments(params, args):
                 raise ValueError()
             arg = arg[2:]
             name, value = arg.split("=", 1) if "=" in arg else (arg, None)
+            name = _a2p(name)
             if name == "_body" or name not in params:
                 raise ValueError()
             if value:
@@ -42,6 +54,7 @@ def _parse_arguments(params, args):
             result[name] = arg
             name = None
     return result
+
 
 def _parse_redirects(args, body, returns):
     result = {}
@@ -242,7 +255,7 @@ class CLI:
 
     def _process_resource(self, resource_name, args, inp, out):
         resource = self.resources[resource_name]
-        operation_name = args.pop(0).replace("-", "_") if args else None
+        operation_name = _a2p(args.pop(0)) if args else None
         operation = resource.operations.get(operation_name)
         if not operation:
             return self._help_resource(resource_name)
@@ -294,7 +307,7 @@ class CLI:
         return False
 
     def _help_resource(self, resource_name, args=None):
-        operation_name = args.pop(0).replace("-", "_") if args else None
+        operation_name = _a2p(args.pop(0)) if args else None
         operation = self.resources[resource_name].operations.get(operation_name)
         if operation:
             return self._help_operation(resource_name, operation)
@@ -302,7 +315,7 @@ class CLI:
         self._print("  {}".format(self.resources[resource_name].description))
         self._print("Operations:")
         ops = self.resources[resource_name].operations.values()
-        operations = {o.name.replace("_", "-"): o.summary for o in ops}
+        operations = {_p2a(o.name): o.summary for o in ops}
         self._print_listing(operations, indent="  ")
         return False
 
@@ -312,7 +325,7 @@ class CLI:
         listing={}
         for name in (n for n in params if n != "_body"):
             param = params[name]
-            munged = name.replace("_", "-")
+            munged = _p2a(name)
             arg = "--{}={}".format(munged, param.python_type.__name__.upper())
             item = param.description or ""
             if param.enum:
@@ -323,7 +336,7 @@ class CLI:
             if not param.required:
                 arg = "[{}]".format(arg)
             usage.append(arg)
-        self._print("Usage: {} {} {}".format(resource_name, operation.name.replace("_", "-"), " ".join(usage)))
+        self._print("Usage: {} {} {}".format(resource_name, _p2a(operation.name), " ".join(usage)))
         self._print("  {}".format(operation.summary))
         if listing:
             self._print("Arguments:")
