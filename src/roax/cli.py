@@ -279,7 +279,7 @@ class CLI:
                 result = operation.function(**parsed)
             except s.SchemaError as se:
                 if name:
-                    se.push(name)
+                    se.push(_p2a(name))
                 self._help_operation(resource_name, operation)
                 raise
             self._print("SUCCESS.")

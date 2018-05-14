@@ -5,7 +5,7 @@ import roax.schema as s
 import tempfile
 import unittest
 
-from io import BytesIO, StringIO
+from io import BytesIO
 from roax.cli import CLI
 from roax.resource import BadRequest, Resource, operation
 
@@ -37,12 +37,13 @@ class TestCLI(unittest.TestCase):
         inp = BytesIO(b"hello_body")
         out = BytesIO()
         self.assertEqual(cli.process(line, inp=inp, out=out), True)
-        self.assertEqual(json.loads(out.getvalue()), {"id": "foo"})
+        out.seek(0)
+        self.assertEqual(json.load(out), {"id": "foo"})
 
     def test_cli_create_binary_body_failure(self):
         line = "test create"
         inp = BytesIO(b"not_a_match")
-        out = StringIO()
+        out = BytesIO()
         self.assertEqual(cli.process(line, inp=inp, out=out), False)
 
     def test_cli_redirect_in_out(self):
