@@ -1,6 +1,8 @@
 
 import json
+import os
 import roax.schema as s
+import tempfile
 import unittest
 
 from io import BytesIO, StringIO
@@ -26,14 +28,14 @@ class TestCLI(unittest.TestCase):
 
     def test_cli_params(self):
         line = "test foo --a-a=1 --b=abc"
-        out = StringIO()
+        out = BytesIO()
         self.assertEqual(cli.process(line, out=out), True)
-        self.assertEqual(out.getvalue(), "hoot")
+        self.assertEqual(out.getvalue(), b"hoot")
 
     def test_cli_create_binary_body_success(self):
         line = "test create"
         inp = BytesIO(b"hello_body")
-        out = StringIO()
+        out = BytesIO()
         self.assertEqual(cli.process(line, inp=inp, out=out), True)
         self.assertEqual(json.loads(out.getvalue()), {"id": "foo"})
 
@@ -42,6 +44,18 @@ class TestCLI(unittest.TestCase):
         inp = BytesIO(b"not_a_match")
         out = StringIO()
         self.assertEqual(cli.process(line, inp=inp, out=out), False)
+
+    def test_cli_redirect_in_out(self):
+        with tempfile.NamedTemporaryFile() as inp:
+            inp.write(b"hello_body")
+            inp.flush()
+            with tempfile.NamedTemporaryFile(delete=False) as out:
+                out_name = out.name
+                line = "test create <{} >{}".format(inp.name, out.name)
+                self.assertEqual(cli.process(line, out=out), True)
+            with open(out_name, "rb") as out:
+                self.assertEqual(json.load(out), {"id": "foo"})
+            os.remove(out_name)
 
 if __name__ == "__main__":
     unittest.main()

@@ -14,7 +14,7 @@ import shlex
 import sys
 import traceback
 
-from io import BufferedIOBase, RawIOBase, TextIOBase, TextIOWrapper
+from io import TextIOWrapper
 from roax.resource import ResourceError
 from textwrap import dedent
 
@@ -107,28 +107,21 @@ class _open_redirects:
                 pass
 
 def _write(out, schema, value):
+    if isinstance(out, TextIOWrapper):
+        out = out.buffer
     if _is_binary(schema):
-        if isinstance(out, TextIOBase):
-            out = out.buffer
-        encode = schema.bin_encode
+        out.write(schema.bin_encode(value))
     else:
-        if isinstance(out, BufferedIOBase) or isinstance(out, RawIOBase):
-            out = TextIOWrapper(out, encoding="utf-8")
-        encode = schema.str_encode
-    out.write(encode(value))
+        out.write(schema.str_encode(value).encode())
     out.flush()
 
 def _read(inp, schema):
+    if isinstance(inp, TextIOWrapper):
+        inp = inp.buffer
     if _is_binary(schema):
-        if isinstance(inp, TextIOBase):
-            inp = inp.buffer
-        decode = schema.bin_decode
+        return schema.bin_decode(inp.read())
     else:
-        if isinstance(inp, BufferedIOBase) or isinstance(inp, RawIOBase):
-            inp = TextIOWrapper(inp, encoding="utf-8")
-        decode = schema.str_decode
-    return decode(inp.read())
-
+        return schema.str_decode(inp.read().decode())
 
 class CLI:
     """Command line interface that exposes registered resources."""
@@ -187,24 +180,24 @@ class CLI:
         :param line: Command line string to process.
         :return: True if command line was processed successfully.
         """
-        args = shlex.split(line)
-        if not args:
-            return True
-        with context.push(context_type="cli", cli_command=line):
-            name = args.pop(0)
-            if name in self.resources:
-                try:
+        try:
+            args = shlex.split(line)
+            if not args:
+                return True
+            with context.push(context_type="cli", cli_command=line):
+                name = args.pop(0)
+                if name in self.resources:
                     return self._process_resource(name, args, inp, out)
-                except Exception as e:
-                    self._print("ERROR: {}".format(e))
-                    if self.debug:
-                        traceback.print_exc()
+                elif name in self.commands:
+                    return self.commands[name][0](args)
+                else:
+                    self._print("Invalid command or resource: {}.".format(name))
                     return False
-            elif name in self.commands:
-                return self.commands[name][0](args)
-            else:
-                self._print("Invalid command or resource: {}.".format(name))
-                return False
+        except Exception as e:
+            self._print("ERROR: {}".format(e))
+            if self.debug:
+                traceback.print_exc()
+            return False
 
     def _init_commands(self):
         self.commands["help"] = (self._help, "Request help with commands and resources.")
@@ -270,8 +263,11 @@ class CLI:
             try:
                 for name in parsed:
                     parsed[name] = params[name].str_decode(parsed[name])
+                for name in (n for n in params if n != "_body"):
+                    if params[name].required and name not in parsed:
+                        raise s.SchemaError("missing required parameter")
                 if body:
-                    name = "content body"
+                    name = "{body}"
                     description = (body.description or "{}.".format(name)).lower()
                     if inp == sys.stdin:
                         self._print("Enter {}".format(description))
