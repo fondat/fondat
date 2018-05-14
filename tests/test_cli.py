@@ -38,7 +38,7 @@ class TestCLI(unittest.TestCase):
         out = BytesIO()
         self.assertEqual(cli.process(line, inp=inp, out=out), True)
         out.seek(0)
-        self.assertEqual(json.load(out), {"id": "foo"})
+        self.assertEqual(json.loads(out.getvalue().decode()), {"id": "foo"})
 
     def test_cli_create_binary_body_failure(self):
         line = "test create"
@@ -55,7 +55,7 @@ class TestCLI(unittest.TestCase):
                 line = "test create <{} >{}".format(inp.name, out.name)
                 self.assertEqual(cli.process(line, out=out), True)
             with open(out_name, "rb") as out:
-                self.assertEqual(json.load(out), {"id": "foo"})
+                self.assertEqual(json.loads(out.read().decode()), {"id": "foo"})
             os.remove(out_name)
 
 if __name__ == "__main__":
