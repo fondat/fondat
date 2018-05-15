@@ -325,7 +325,7 @@ class CLI:
             arg = "--{}={}".format(munged, param.python_type.__name__.upper())
             item = param.description or ""
             if param.enum:
-                item += "  {" + ",".join((param.str_encode(e) for e in param.enum)) + "}"
+                item += "  {" + ",".join((param.str_encode(e) for e in sorted(param.enum))) + "}"
             if param.default is not None:
                 item += "  (default: {})".format(param.str_encode(param.default))
             listing["--{}".format(munged)] = item
