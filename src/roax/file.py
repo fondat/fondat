@@ -147,7 +147,7 @@ class FileResource(Resource):
             raise NotFound("{} item not found".format(self.name))
 
     def list(self):
-        """Query to return a list of all resource item identifiers."""
+        """Return a list of all resource item identifiers."""
         result = []
         for name in os.listdir(self.dir):
             if name.endswith(self.extension):
