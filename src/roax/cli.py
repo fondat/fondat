@@ -6,6 +6,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+import json
 import readline
 import re
 import roax.context as context
@@ -20,17 +21,17 @@ from textwrap import dedent
 
 
 _re = re.compile("(_*)(.*)(_*)")
+
 def _p2a(name):
     m = _re.match(name)
     return m.group(1) + m.group(2).replace("_", "-") + m.group(3)
+
 def _a2p(name):
     m = _re.match(name)
     return m.group(1) + m.group(2).replace("-", "_") + m.group(3)
 
-
 def _is_binary(schema):
     return schema and isinstance(schema, s.bytes) and schema.format == "binary"
-
 
 def _parse_arguments(params, args):
     """Parse arguments for supported operation parameters."""
@@ -54,7 +55,6 @@ def _parse_arguments(params, args):
             result[name] = arg
             name = None
     return result
-
 
 def _parse_redirects(args, body, returns):
     result = {}
@@ -82,6 +82,29 @@ def _parse_redirects(args, body, returns):
             result[redir] = filename
     return result
 
+def _read(inp, schema):
+    if isinstance(inp, TextIOWrapper):
+        inp = inp.buffer
+    value = inp.read()
+    if _is_binary(schema):
+        return schema.bin_decode(value)
+    elif isinstance(schema, s.dict) or isinstance(schema, s.list):
+        return schema.json_decode(value.decode())
+    else:
+        return schema.str_decode(value.decode())
+
+def _write(out, schema, value):
+    if isinstance(out, TextIOWrapper):
+        out = out.buffer
+    if _is_binary(schema):
+        value = schema.bin_encode(value)
+    elif isinstance(schema, s.dict) or isinstance(schema, s.list):
+        value = json.dumps(schema.json_encode(value)).encode()
+    else:
+        value = schema.str_encode(value).encode()
+    out.write(value)
+    out.flush()
+
 
 class _open_redirects:
 
@@ -106,22 +129,6 @@ class _open_redirects:
             except:
                 pass
 
-def _write(out, schema, value):
-    if isinstance(out, TextIOWrapper):
-        out = out.buffer
-    if _is_binary(schema):
-        out.write(schema.bin_encode(value))
-    else:
-        out.write(schema.str_encode(value).encode())
-    out.flush()
-
-def _read(inp, schema):
-    if isinstance(inp, TextIOWrapper):
-        inp = inp.buffer
-    if _is_binary(schema):
-        return schema.bin_decode(inp.read())
-    else:
-        return schema.str_decode(inp.read().decode())
 
 class CLI:
     """Command line interface that exposes registered resources."""
