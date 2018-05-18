@@ -6,12 +6,29 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+import binascii
+import csv
 import inspect
+import isodate
 import json
+import re
 import wrapt
 
-from collections.abc import Sequence
+from base64 import b64decode, b64encode
+from collections.abc import Mapping, Sequence
+from datetime import datetime
 from copy import copy
+from io import StringIO
+from uuid import UUID
+
+
+def _csv_encode(value):
+    sio = StringIO()
+    csv.writer(sio).writerow()
+    return sio.getvalue().rstrip("\r\n")
+    
+def _csv_decode(value):
+    return csv.reader([value]).__next__()
 
 
 class SchemaError(Exception):
@@ -24,6 +41,7 @@ class SchemaError(Exception):
 
     def push(self, name):
         """Push a name in front of the pointer."""
+        name = str(name)
         self.pointer = name if not self.pointer else "{}/{}".format(name, self.pointer)
 
     def __str__(self):
@@ -127,7 +145,6 @@ class _type:
         raise NotImplementedError()
 
 
-from collections.abc import Mapping
 class _dict(_type):
     """
     Schema type for dictionaries.
@@ -186,7 +203,6 @@ class _dict(_type):
             for key, schema in self.properties.items():
                 if schema.required and key not in value:
                     raise SchemaError("value required", key)
-        return value
 
     @property
     def json_schema(self):
@@ -219,11 +235,12 @@ class _dict(_type):
         return self.json_decode(json.loads(value))
 
 
-import csv
-from io import StringIO
 class _list(_type):
     """
     Schema type for lists.
+
+    List values are represented in JSON as an array and string as comma-separated
+    values.
     """
 
     def __init__(self, items, *, min_items=0, max_items=None, unique_items=False, **kwargs):
@@ -249,10 +266,11 @@ class _list(_type):
     def _process(self, method, value):
         if value is None:
             return None
+        method = getattr(self.items, method)
         result = []
         try:
             for n, item in zip(range(len(value)), value):
-                result.append(getattr(self.items, method)(item))
+                result.append(method(item))
         except SchemaError as se:
             se.push(n)
             raise
@@ -275,7 +293,6 @@ class _list(_type):
                 raise SchemaError("expecting maximum number of {} items".format(self.max_items))
             if self.unique_items and len(value) != len(set(value)):
                 raise SchemaError("expecting items to be unique")
-        return value
 
     @property
     def json_schema(self):
@@ -310,19 +327,99 @@ class _list(_type):
         self.validate(value)
         if value is None:
             return None
-        sio = StringIO()
-        csv.writer(sio).writerow(self._process("str_encode", value))
-        return sio.getvalue().rstrip("\r\n")
+        return _csv_encode(self._process("str_encode", value))
 
     def str_decode(self, value):
         """Decode the value from string representation."""
         if value is not None:
-            value = self._process("str_decode", csv.reader([value]).__next__())
+            value = self._process("str_decode", _csv_decode(value))
         self.validate(value)
         return value
 
 
-import re
+class _set(_type):
+    """
+    Schema type for sets.
+
+    Set values are represented in JSON as an array and string as comma-separated
+    values.
+    """
+
+    def __init__(self, items, **kwargs):
+        """
+        Initialize set schema.
+
+        :params items: Schema which set items must adhere to.
+        :param nullable: Allow None as a valid value.
+        :param required: Value is mandatory.
+        :param default: Default value if the item value is not supplied.
+        :param description: A description of the schema.
+        :param examples: A list of example valid values.
+        """
+        super().__init__(python_type=set, json_type="array", **kwargs)
+        self.items = items
+
+    def _process(self, method, value):
+        if value is None:
+            return None
+        method = getattr(self.items, method)
+        result = set()
+        for item in value:
+            result.add(method(item))
+        return result
+
+    def validate(self, value):
+        """Validate value against the schema."""
+        super().validate(value)
+        if value is not None:
+            self._process("validate", value)
+
+    @property
+    def json_schema(self):
+        """JSON schema representation of the schema."""
+        result = super().json_schema
+        result["items"] = self.items.json_schema
+        result["uniqueItems"] = True
+        return result
+
+    def json_encode(self, value):
+        """Encode the value into JSON object model representation."""
+        self.validate(value)
+        if value is not None:
+            value = list(self._process("json_encode", value))
+            value.sort()
+        return value
+
+    def json_decode(self, value):
+        """Decode the value from JSON object model representation."""
+        if value is not None:
+            result = self._process("json_decode", value)
+            if len(result) != len(value):
+                raise SchemaError("expecting items to be unique")
+            value = result
+        self.validate(value)
+        return value
+
+    def str_encode(self, value):
+        """Encode the value into string representation."""
+        self.validate(value)
+        if value is None:
+            return None
+        result = list(self._process("str_encode", value))
+        result.sort()
+        return _csv_encode()
+
+    def str_decode(self, value):
+        """Decode the value from string representation."""
+        if value is not None:
+            csv = _csv_decode(value)
+            value = self._process("str_decode", csv)
+            if len(value) != len(csv):
+                raise SchemaError("expecting items to be unique")
+        self.validate(value)
+        return value
+
+
 class _str(_type):
     """
     Schema type for Unicode character strings.
@@ -563,8 +660,6 @@ class _bool(_type):
         return value
 
 
-import binascii
-from base64 import b64decode, b64encode
 class _bytes(_type):
     """
     Schema type for byte sequences.
@@ -595,10 +690,6 @@ class _bytes(_type):
         super().__init__(python_type=bytes, json_type="string", format=format, **kwargs)
         if "content_type" not in kwargs and format == "binary":
             self.content_type = "application/octet-string"
-
-    def validate(self, value):
-        """Validate value against the schema."""
-        super().validate(value)
 
     def json_encode(self, value):
         """Encode the value into JSON object model representation."""
@@ -639,8 +730,7 @@ class _bytes(_type):
         return value
 
 
-import isodate
-class datetime(_type):
+class _datetime(_type):
     """
     Schema type for datetime values.
 
@@ -661,17 +751,12 @@ class datetime(_type):
         :param description: A description of the schema.
         :param examples: A list of example valid values.
         """
-        from datetime import datetime
         super().__init__(python_type=datetime, json_type="string", format="date-time", **kwargs)
 
     def _to_utc(self, value):
         if value.tzinfo is None: # naive value interpreted as UTC
             value = value.replace(tzinfo=isodate.tzinfo.Utc())
         return value.astimezone(self._UTC)
-
-    def validate(self, value):
-        """Validate value against the schema."""
-        super().validate(value)
 
     def json_encode(self, value):
         """Encode the value into JSON object model representation."""
@@ -699,7 +784,6 @@ class datetime(_type):
         return value
 
 
-from uuid import UUID
 class uuid(_type):
     """
     Schema type for universally unique identifiers.
@@ -720,10 +804,6 @@ class uuid(_type):
         :param examples: A list of example valid values.
         """
         super().__init__(python_type=UUID, json_type="string", format="uuid", **kwargs)
-
-    def validate(self, value):
-        """Validate value against the schema."""
-        super().validate(value)
 
     def json_encode(self, value):
         """Encode the value into JSON object model representation."""

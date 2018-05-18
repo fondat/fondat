@@ -149,6 +149,62 @@ class TestSchema(unittest.TestCase):
     def test_list_allow_none(self):
         self.assertEqual(s.list(items=s.str(), nullable=True).json_encode(None), None)
 
+    # -- set -----
+
+    def test_set_validate_type_str_success(self):
+        s.set(items=s.str()).validate({"a", "b", "c"})
+
+    def test_set_validate_type_int_success(self):
+        s.set(items=s.int()).validate({1, 2, 3})
+
+    def test_set_validate_type_str_error(self):
+        self._error(s.set(items=s.str()).validate, {4, 5, 6})
+
+    def test_set_validate_type_int_error(self):
+        self._error(s.set(items=s.int()).validate, {"d", "e", "f"})
+
+    def test_set_validate_type_error(self):
+        self._error(s.set(items=s.bool()).validate, "this_is_not_a_set")
+
+    def test_set_json_encode_success(self):
+        schema = s.set(s.str())
+        value = {"a", "b", "c"}
+        encdec = schema.json_decode(schema.json_encode(value))
+        self.assertEqual(encdec, value) 
+    
+    def test_set_json_encode_type_error(self):
+        self._error(s.set(items=s.str()).json_encode, "i_am_not_a_list")
+
+    def test_set_json_encode_item_type_error(self):
+        self._error(s.set(items=s.str()).json_encode, {1, 2, 3})
+
+    def test_set_json_decode_success(self):
+        self._equal(s.set(items=s.float()).json_decode, {1.2, 3.4, 5.6})
+
+    def test_set_json_decode_error(self):
+        self._error(s.set(items=s.str()).json_decode, "not_a_set_either")
+
+    def test_set_str_decode_str_success(self):
+        self.assertEqual(s.set(items=s.str()).str_decode("a,b,c"), {"a", "b", "c"})
+
+    def test_set_str_decode_int_success(self):
+        self.assertEqual(s.set(items=s.int()).str_decode("12,34,56"), {12, 34, 56})
+
+    def test_set_str_decode_float_success(self):
+        self.assertEqual(s.set(items=s.float()).str_decode("12.34,56.78"), {12.34, 56.78})
+
+    def test_set_str_decode_crazy_csv_scenario(self):
+        self.assertEqual(s.set(items=s.str()).str_decode('a,"b,c",d,"""e"""'), {"a","b,c","d",'"e"'})
+
+    def test_set_str_decode_int_error(self):
+        self._error(s.set(items=s.int()).str_decode, "12,a,34,56")
+
+    def test_set_disallow_none(self):
+        self._error(s.set(items=s.str()).json_encode, None)
+
+    def test_set_allow_none(self):
+        self.assertEqual(s.set(items=s.str(), nullable=True).json_encode(None), None)
+
     # -- str -----
 
     def test_str_validate_type_success(self):
