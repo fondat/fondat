@@ -176,7 +176,7 @@ class CLI:
         while self._looping:
             try:
                 self.process(input(self.prompt))
-            except (EOFError, StopIteration, KeyboardInterrupt):
+            except (EOFError, KeyboardInterrupt):
                 break
         self._looping = False
 
@@ -200,6 +200,8 @@ class CLI:
                 else:
                     self._print("Invalid command or resource: {}.".format(name))
                     return False
+        except (EOFError, KeyboardInterrupt):
+            raise
         except Exception as e:
             self._print("ERROR: {}".format(e))
             if self.debug:
@@ -232,7 +234,7 @@ class CLI:
         Usage: exit
           Exit the command line interface.\
         """
-        raise StopIteration()
+        raise EOFError()
 
     def _print(self, *args):
         if self.err:
