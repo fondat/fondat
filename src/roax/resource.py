@@ -30,10 +30,11 @@ class Resource:
 
     def __init__(self, name=None, description=None):
         """
-        Initialize the resource.
+        Initialize resource. Arguments can be alternatively declared as class
+        or instance variables.
 
-        :param name: Short name of the resource. Default: the class name in lower case.
-        :param description: Short description of the resource. Default: the resource docstring.
+        :param name: Short name of the resource.  (Default: the class name in lower case.)
+        :param description: Short description of the resource.  (Default: the resource docstring.)
         """
         super().__init__()
         self.name = name or getattr(self, "name", type(self).__name__.lower())
@@ -97,7 +98,7 @@ def operation(
     Decorate a resource function to register it as a resource operation.
 
     :param name: Operation name. Required if the operation type is "query" or "action".
-    :param type: Type of operation being registered {create,read,update,delete,action,query}.
+    :param type: Type of operation being registered {create,read,update,delete,action,query,patch}.
     :param summary: Short summary of what the operation does.
     :param description: Verbose description of the operation (default: function docstring).
     :param params: Mapping of operation's parameter names to their schemas.
@@ -113,9 +114,9 @@ def operation(
         __summary = summary or _summary(function)
         if _name is None:
             _name = function.__name__
-        if _type is None and _name in ["create", "read", "update", "delete"]:
+        if _type is None and _name in {"create", "read", "update", "delete", "patch"}:
             _type = _name
-        valid_types = ["create", "read", "update", "delete", "query", "action"]
+        valid_types = {"create", "read", "update", "delete", "query", "action", "patch"}
         if _type not in valid_types:
             raise ValueError("operation type must be one of: {}".format(valid_types))
         def wrapper(wrapped, instance, args, kwargs):
@@ -139,7 +140,7 @@ def operation(
 class ResourceError(Exception):
     """Base class for all resource errors."""
 
-    def __init__(self, detail, code):
+    def __init__(self, detail=None, code=None):
         """
         Initialize resource error.
 
@@ -147,8 +148,8 @@ class ResourceError(Exception):
         :param code: the HTTP status most closely associated with the error.
         """
         super().__init__(self, detail)
-        self.detail = detail or self.__class__.__name__
-        self.code = code
+        self.detail = detail or getattr(self, "detail", "Internal Server Error")
+        self.code = code or getattr(self, "code", 500)
 
     def __str__(self):
         return self.detail
@@ -156,12 +157,12 @@ class ResourceError(Exception):
 
 class BadRequest(ResourceError):
     """Raised if the request is malformed."""
-    def __init__(self, detail=None):
-        super().__init__(detail or "bad request", 400)
+    code, detail = 400, "Bad Request"
 
 
 class Unauthorized(ResourceError):
     """Raised if the request lacks valid authentication credentials."""
+    code, description = 401, "Unauthorized"
 
     def __init__(self, detail=None, challenge=None):
         """
@@ -170,41 +171,35 @@ class Unauthorized(ResourceError):
         :param detail: Human-readable description of the error.
         :param challenge: Applicable authentication scheme and parameters.
         """ 
-        super().__init__(detail or "unauthorized", 401)
+        super().__init__(detail)
         self.challenge = challenge
 
 
 class Forbidden(ResourceError):
     """Raised if authorization to the resource is refused."""
-    def __init__(self, detail=None):
-        super().__init__(detail or "forbidden", 403)
+    code, detail = 403, "Forbidden"
 
         
 class NotFound(ResourceError):
     """Raised if the resource could not be found."""
-    def __init__(self, detail=None):
-        super().__init__(detail or "not found", 404)
+    code, detail = 404, "Not Found"
 
 
 class OperationNotAllowed(ResourceError):
     """Raised if the resource does not allow the requested operation."""
-    def __init__(self, detail=None):
-        super().__init__(detail, 405)
+    code, detail = 405, "Operation Not Allowed"
 
 
 class Conflict(ResourceError):
     """Raised if there is a conflict with the current state of the resource."""
-    def __init__(self, detail=None):
-        super().__init__(detail or "conflict", 409)
+    code, detail = 409, "Conflict"
 
 
 class PreconditionFailed(ResourceError):
     """Raised if the revision provided does not match the current resource."""
-    def __init__(self, detail=None):
-        super().__init__(detail or "precondition failed", 412)
+    code, detail = 412, "Precondition Failed"
 
 
 class InternalServerError(ResourceError):
     """Raised if the server encountered an unexpected condition."""
-    def __init__(self, detail=None):
-        super().__init__(detail or "internal server error", 500)
+    code, detail = 500, "Internal Server Error"
