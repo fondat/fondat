@@ -18,7 +18,7 @@ from base64 import b64decode, b64encode
 from collections.abc import Mapping, Sequence
 from datetime import datetime
 from copy import copy
-from io import StringIO
+from io import IOBase, StringIO
 from uuid import UUID
 
 
@@ -58,7 +58,7 @@ class _type:
 
     def __init__(
             self, *, python_type=object, json_type=None, format=None,
-            content_type="application/json", enum=None, required=True,
+            content_type="text/plain", enum=None, required=True,
             default=None, description=None, examples=None, nullable=False,
             deprecated=False):
         """
@@ -67,7 +67,7 @@ class _type:
         :param python_type: Python data type.
         :param json_type: JSON schema data type.
         :param format: More finely defines the data type.
-        :param content_type: Content type used when value is expressed in a body.
+        :param content_type: Content type used when value is expressed in a body. (default: text/plain)
         :param enum: A list of values that are valid.
         :param nullable: Allow None as a valid value.
         :param required: Value is mandatory.
@@ -144,17 +144,29 @@ class _type:
         """Decode the value from string representation."""
         raise NotImplementedError()
 
+    def bin_encode(self, value):
+        """Encode the value into binary representation."""
+        return None if value is None else self.str_encode(value).encode()
+
+    def bin_decode(self, value):
+        """Decode the value from binary representation."""
+        try:
+            return None if value is None else self.str_decode(value.decode())
+        except ValueError as ve:
+            raise SchemaError("binary decode failed") from ve
+
 
 class _dict(_type):
     """
     Schema type for dictionaries.
     """
 
-    def __init__(self, properties, *, additional_properties=False, **kwargs):
+    def __init__(self, properties, *, content_type="application/json", additional_properties=False, **kwargs):
         """
         Initialize dictionary schema.
 
-        :param properties: A mapping of name to schema. 
+        :param properties: A mapping of name to schema.
+        :param content_type: Content type used when value is expressed in a body. (default: application/json)
         :param additional_properties: Additional unvalidated properties are allowed.
         :param nullable: Allow None as a valid value.
         :param required: Value is mandatory.
@@ -162,7 +174,7 @@ class _dict(_type):
         :param description: A description of the schema.
         :param examples: A list of example valid values.
         """
-        super().__init__(python_type=Mapping, json_type="object", **kwargs)
+        super().__init__(python_type=Mapping, json_type="object", content_type=content_type, **kwargs)
         self.properties = properties
         self.additional_properties = additional_properties
 
@@ -243,11 +255,12 @@ class _list(_type):
     values.
     """
 
-    def __init__(self, items, *, min_items=0, max_items=None, unique_items=False, **kwargs):
+    def __init__(self, items, *, content_type="application/json", min_items=0, max_items=None, unique_items=False, **kwargs):
         """
         Initialize list schema.
 
         :params items: Schema which all items must adhere to.
+        :param content_type: Content type used when value is expressed in a body. (default: application/json)
         :params min_items: The minimum number of items required.
         :params max_items: The maximum number of items required.
         :params unique_items: All items must have unique values.
@@ -257,7 +270,7 @@ class _list(_type):
         :param description: A description of the schema.
         :param examples: A list of example valid values.
         """
-        super().__init__(python_type=Sequence, json_type="array", **kwargs)
+        super().__init__(python_type=Sequence, json_type="array", content_type=content_type, **kwargs)
         self.items = items
         self.min_items = min_items
         self.max_items = max_items
@@ -345,18 +358,19 @@ class _set(_type):
     values.
     """
 
-    def __init__(self, items, **kwargs):
+    def __init__(self, items, *, content_type="application/json", **kwargs):
         """
         Initialize set schema.
 
         :params items: Schema which set items must adhere to.
+        :param content_type: Content type used when value is expressed in a body. (default: application/json)
         :param nullable: Allow None as a valid value.
         :param required: Value is mandatory.
         :param default: Default value if the item value is not supplied.
         :param description: A description of the schema.
         :param examples: A list of example valid values.
         """
-        super().__init__(python_type=set, json_type="array", **kwargs)
+        super().__init__(python_type=set, json_type="array", content_type=content_type, **kwargs)
         self.items = items
 
     def _process(self, method, value):
@@ -425,12 +439,13 @@ class _str(_type):
     Schema type for Unicode character strings.
     """
 
-    def __init__(self, *, min_len=0, max_len=None, pattern=None, **kwargs):
+    def __init__(self, *, min_length=0, max_length=None, pattern=None, **kwargs):
         """
         Initialize string schema.
 
-        :param min_len: Minimum character length of the string.
-        :param max_len: Maximum character length of the string.
+        :param content_type: Content type used when value is expressed in a body. (default: text/plain)
+        :param min_length: Minimum character length of the string.
+        :param max_length: Maximum character length of the string.
         :param pattern: Regular expression that the string must match.
         :param format: More finely defines the data type.
         :param nullable: Allow None as a valid value.
@@ -441,20 +456,18 @@ class _str(_type):
         :param examples: A list of example valid values.
         """
         super().__init__(python_type=str, json_type="string", **kwargs)
-        self.min_len = min_len
-        self.max_len = max_len
+        self.min_length = min_length
+        self.max_length = max_length
         self.pattern = re.compile(pattern) if pattern is not None else None
-        if "content_type" not in kwargs:
-            self.content_type = "text/plain"
 
     def validate(self, value):
         """Validate value against the schema."""
         super().validate(value)
         if value is not None:
-            if len(value) < self.min_len:
-                raise SchemaError("expecting minimum length of {}".format(self.min_len))
-            if self.max_len is not None and len(value) > self.max_len:
-                raise SchemaError("expecting maximum length of {}".format(self.max_len))
+            if len(value) < self.min_length:
+                raise SchemaError("expecting minimum length of {}".format(self.min_length))
+            if self.max_length is not None and len(value) > self.max_length:
+                raise SchemaError("expecting maximum length of {}".format(self.max_length))
             if self.pattern is not None and not self.pattern.match(value):
                 raise SchemaError("expecting pattern: {}".format(self.pattern.pattern))
 
@@ -462,9 +475,9 @@ class _str(_type):
     def json_schema(self):
         """JSON schema representation of the schema."""
         result = super().json_schema
-        if self.min_len != 0:
+        if self.min_length != 0:
              result["minLength"] = self.min_len
-        if self.max_len is not None:
+        if self.max_length is not None:
             result["maxLength"] = self.max_len
         if self.pattern:
             result["pattern"] = self.pattern.pattern
@@ -541,6 +554,7 @@ class _int(_number):
         """
         Initialize integer schema.
         
+        :param content_type: Content type used when value is expressed in a body. (default: text/plain)
         :param minimum: Inclusive lower limit of the value.
         :param maximum: Inclusive upper limit of the value.
         :param nullable: Allow None as a valid value.
@@ -563,7 +577,7 @@ class _int(_number):
         result = value
         if isinstance(result, float):
             result = result.__int__()
-            if result != value: # 1.0 == 1
+            if result != value:  # 1.0 == 1
                 raise SchemaError("expecting integer value")
         self.validate(result)
         return result
@@ -588,6 +602,7 @@ class _float(_number):
         """
         Initialize floating point schema.
 
+        :param content_type: Content type used when value is expressed in a body. (default: text/plain)
         :param minimum: Inclusive lower limit of the value.
         :param maximum: Inclusive upper limit of the value.
         :param nullable: Allow None as a valid value.
@@ -625,6 +640,7 @@ class _bool(_type):
         """
         Initialize boolean schema.
 
+        :param content_type: Content type used when value is expressed in a body. (default: text/plain)
         :param nullable: Allow None as a valid value.
         :param required: Value is mandatory.
         :param default: Default value if the item value is not supplied.
@@ -673,10 +689,11 @@ class _bytes(_type):
     For this reason, it cannot be expressed in string or JSON representation. 
     """
 
-    def __init__(self, format="byte", **kwargs):
+    def __init__(self, *, format="byte", content_type="application/octet-stream", **kwargs):
         """
         Initialize byte sequence schema.
 
+        :param content_type: Content type used when value is expressed in a body. (default: application/octet-stream)
         :param format: More finely defines the data type {byte,binary}.
         :param nullable: Allow None as a valid value.
         :param required: Value is mandatory.
@@ -684,12 +701,9 @@ class _bytes(_type):
         :param description: A description of the schema.
         :param examples: A list of example valid values.
         """
-        valid_formats = ["byte", "binary"]
-        if format not in valid_formats:
-            raise SchemaError("format must be one of {}".format(valid_formats))        
-        super().__init__(python_type=bytes, json_type="string", format=format, **kwargs)
-        if "content_type" not in kwargs and format == "binary":
-            self.content_type = "application/octet-string"
+        if format not in {"byte", "binary"}:
+            raise SchemaError("format must be one of {}".format(valid_formats))
+        super().__init__(python_type=bytes, json_type="string", format=format, content_type=content_type, **kwargs)
 
     def json_encode(self, value):
         """Encode the value into JSON object model representation."""
@@ -722,12 +736,12 @@ class _bytes(_type):
         return value
 
     def bin_encode(self, value):
-        """Endode the value into binary representation."""
-        return value
+        """Encode the value into binary representation."""
+        return value if self.format == "binary" else super().bin_encode(value)
 
     def bin_decode(self, value):
         """Decode the value from binary representation."""
-        return value
+        return value if self.format == "binary" else super().bin_decode(value)
 
 
 class _datetime(_type):
@@ -744,6 +758,7 @@ class _datetime(_type):
         """
         Initialize byte sequence schema.
 
+        :param content_type: Content type used when value is expressed in a body. (default: text/plain)
         :param nullable: Allow None as a valid value.
         :param required: Value is mandatory.
         :param default: Default value if the item value is not supplied.
@@ -796,6 +811,7 @@ class uuid(_type):
         """
         Initialize UUID schema.
 
+        :param content_type: Content type used when value is expressed in a body. (default: text/plain)
         :param nullable: Allow None as a valid value.
         :param required: Value is mandatory.
         :param default: Default value if the item value is not supplied.
@@ -1013,6 +1029,27 @@ class one_of(_xof):
         elif len(values) > 1:
             raise SchemaError("value matches more than one schema")
         return values[0] # return first matching value
+
+
+class reader(_type):
+    """
+    Schema type for file-like object to read binary content. Allows large-payload
+    values to be transmitted without allocating all in memory. In operations, only
+    used in _body parameter and return values.
+    """    
+    def __init__(self, *, content_type="application/octet-stream", **kwargs):
+        """
+        Initialize reader schema.
+
+        :param content_type: Content type used when value is expressed in a body. (default: application/octet-stream)
+        """
+        super().__init__(python_type=IOBase, json_type="string", format="binary", content_type=content_type, **kwargs)
+
+    def validate(self, value):
+        super().validate(value)
+        if not value.readable():
+            raise SchemaError("expecting readable file-like object")
+
 
 def call(function, args, kwargs, params=None, returns=None):
     """

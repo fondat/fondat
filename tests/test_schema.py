@@ -5,9 +5,9 @@ import roax.schema as s
 import unittest
 
 from base64 import b64encode
+from io import BytesIO
 from datetime import datetime
 from uuid import UUID
-
 
 _UTC = isodate.tzinfo.Utc()
 
@@ -213,17 +213,17 @@ class TestSchema(unittest.TestCase):
     def test_str_validate_type_error(self):
         self._error(s.str().validate, 123)
 
-    def test_str_validate_min_len_success(self):
-        s.str(min_len=3).validate("12345")
+    def test_str_validate_min_length_success(self):
+        s.str(min_length=3).validate("12345")
 
-    def test_str_validate_min_len_error(self):
-        self._error(s.str(min_len=4).validate, "123")
+    def test_str_validate_min_length_error(self):
+        self._error(s.str(min_length=4).validate, "123")
 
-    def test_str_validate_max_len_success(self):
-        s.str(max_len=5).validate("12345")
+    def test_str_validate_max_length_success(self):
+        s.str(max_length=5).validate("12345")
 
-    def test_str_validate_max_len_error(self):
-        self._error(s.str(max_len=6).validate, "1234567")
+    def test_str_validate_max_length_error(self):
+        self._error(s.str(max_length=6).validate, "1234567")
 
     def test_str_validate_pattern_success(self):
         s.str(pattern=re.compile(r"^abc$")).validate("abc")
@@ -595,7 +595,6 @@ class TestSchema(unittest.TestCase):
             schema = s.any_of([s.float(), s.bool()])
             self.assertEqual(schema.json_decode(schema.json_encode(value)), value)
 
-
     # -- one_of -----
 
     def test_one_of_none_match(self):
@@ -612,6 +611,14 @@ class TestSchema(unittest.TestCase):
         for value in [ 123, UUID("06b959d0-65e0-11e7-866d-6be08781d5cb"), False ]:
             schema = s.one_of([s.int(), s.uuid(), s.bool()])
             self.assertEqual(schema.json_decode(schema.json_encode(value)), value)
+
+    # -- reader -----
+
+    def test_reader_validate_type_success(self):
+        s.reader().validate(BytesIO())
+
+    def test_reader_validate_type_error(self):
+        self._error(s.reader().validate, "this_is_not_a_reader_object")
 
 
 if __name__ == "__main__":
