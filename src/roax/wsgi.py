@@ -9,38 +9,51 @@ import logging
 import re
 import roax.resource as resource
 import roax.context as context
+import roax.schema as s
 
 from copy import copy
+from mimetypes import guess_type
+from os.path import isdir, isfile
+from pathlib import Path
 from roax.schema import SchemaError
+from roax.static import StaticResource
 from urllib.parse import urlparse
 from webob import Request, Response, exc
 
 
 class _ErrorResponse(Response):
-
     def __init__(self, code, message):
         super().__init__()
         self.status_code = code
         self.content_type = "application/json"
         self.json = {"error": code, "message": message}
 
+class _App_Iter:
+    def __init__(self, reader, chunk_size=4096):
+        self.reader = reader
+        self.chunk_size = chunk_size
+    def __iter__(self):
+        return self
+    def __next__(self):
+        buf = self.reader.read(self.chunk_size)
+        if not buf:
+            self.reader.close()
+            raise StopIteration
+        return buf
 
 def _response(operation, result):
     returns = operation.returns
     response = Response()
     if returns and result is not None:
         response.content_type = returns.content_type
-        if returns.json_type == "string" and returns.format == "binary":
-            response.body = result
-        elif returns.json_type == "string" and returns.format == "raw":
-            response.text = result
+        if isinstance(returns, s.reader):
+            response.app_iter = _App_Iter(result)
         else:
-            response.json = returns.json_encode(result)
+            response.body = returns.bin_encode(result)
     else:
         response.status_code = exc.HTTPNoContent.code
         response.content_type = None
     return response
-
 
 def _params(request, operation):
     result = {}
@@ -50,16 +63,10 @@ def _params(request, operation):
             if name == "_body":
                 if param.required and not request.is_body_readable:
                     raise SchemaError("missing request entity-body")
-                if param.json_type == "string" and param.format == "binary":
-                    result["_body"] = param.bin_decode(request.body)
-                elif param.json_type == "string" and param.format == "raw":
-                    result["_body"] = param.str_decode(request.text)
+                if isinstance(param, s.reader):
+                    result["_body"] = request.body_file_raw
                 else:
-                    try:
-                        json = request.json
-                    except:
-                        raise SchemaError("invalid JSON in entity-body")
-                    result["_body"] = param.json_decode(json)
+                    result["_body"] = param.bin_decode(request.body)
             else:
                 result[name] = param.str_decode(request.params[name])
         except KeyError:
@@ -77,7 +84,6 @@ def _filters(requirements):
                 result.add(filter)
     return result
 
-
 _context_patterns = [re.compile(p) for p in (
     "^REQUEST_METHOD$", "^SCRIPT_NAME$", "^PATH_INFO$", "^QUERY_STRING$",
     "^CONTENT_TYPE$", "^CONTENT_LENGTH$", "^SERVER_NAME$", "^SERVER_PORT$",
@@ -91,7 +97,6 @@ def _environ(environ):
             if pattern.match(key):
                 result[key] = value
     return result
-
 
 
 class App:
@@ -121,10 +126,13 @@ class App:
         :param resource: Resource to be served when path is requested.
         :param publish: Publish resource in online documentation.
         """
-        resource_path = self.base + "/" + path.lstrip("/").rstrip("/")
+        resource_path = (self.base + "/" + path.lstrip("/")).rstrip("/")
         for op in resource.operations.values():
             if op.security is None:
-                raise ValueError("operation {} must define security requirements".format(op.name))
+                raise ValueError("operation {} must express security requirements".format(op.name))
+            for name, schema in ((k, op.params[k]) for k in op.params or {} if k != "_body"):
+                if isinstance(schema, s.reader):
+                    raise ValueError("operation {} {} parameter cannot be reader schema type".format(op.name, name))
             if op.type == "create":
                 op_method, op_path = "POST", resource_path
             elif op.type == "read":
@@ -137,6 +145,8 @@ class App:
                 op_method, op_path = "POST", resource_path + "/" + op.name
             elif op.type == "query":
                 op_method, op_path = "GET", resource_path + "/" + op.name
+            elif op.type == "patch":
+                op_method, op_path = "PATCH", resource_path
             else:
                 raise ValueError("operation {} has unknown operation type: {}".format(op.name, op.type))
             if not publish:
@@ -145,6 +155,51 @@ class App:
             if (op_method, op_path) in self.operations:
                 raise ValueError("operation already defined for {} {}".format(op_method, op_path))
             self.operations[(op_method, op_path)] = op
+
+    def register_static(self, path, file_dir, security, index="index.html"):
+        """
+        Register a file or directory as static resource(s). Each file will be
+        registered as an individual resource in the application. If registering a
+        directory, this method will not traverse or register any subdirectories.
+
+        If registering a single file, the path parameter is the path that the file will
+        be registered under. For example, "/" would resolve to the root of the
+        application's path.
+
+        If registering a directory, the path parameter is the path that will "contain"
+        all files in the directory. If a file name matching the index argument is
+        found in the directory, it will also be registered as the path itself.
+
+        Every file is registered as a static resource; all content will be held in
+        memory as byte arrays. This method is apprpriate for a handful of files; for a
+        large set of files, it would likely be more appropriate to serve them using a
+        dedicated web server.
+
+        :param path: Path of resource relative to application URL.
+        :param file_dir: Filesystem path of file or directory to register.
+        :security: List of security requirements to apply to resource(s).
+        :index: Name of file in directory to make path root resource. (default: index.html)
+        """
+        def _static(fs_path):
+            content = fs_path.read_bytes()
+            content_type, encoding = guess_type(fs_path.name)
+            if content_type is None or encoding is not None:
+                content_type = "application/octet-stream"
+            schema = s.bytes(format="binary", content_type=content_type)
+            return StaticResource(content, schema, fs_path.name, "Static resource.", security)
+        path = path.rstrip("/")
+        fs_path = Path(file_dir).expanduser()
+        if fs_path.is_file():
+            self.register(path, _static(fs_path))
+        elif fs_path.is_dir():
+            for child in fs_path.iterdir():
+                if child.is_file():
+                    resource = _static(child)
+                    self.register("{}/{}".format(path, child.name), resource)
+                    if child.name == index:
+                        self.register(path, resource)
+        else:
+            raise ValueException("invalid file or directory: {}".format(file_dir))
 
     def __call__(self, environ, start_response):
         """Handle WSGI request."""
@@ -172,7 +227,7 @@ class App:
         return response(environ, start_response)
 
     def _get_operation(self, request):
-        operation = self.operations.get((request.method, request.path_info))
+        operation = self.operations.get((request.method, request.path_info.rstrip("/")))
         if operation:
             return operation
         for _, op_path in self.operations:
