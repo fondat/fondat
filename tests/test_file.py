@@ -3,7 +3,8 @@ import roax.resource as r
 import roax.schema as s
 import unittest
 
-from roax.file import FileResource, operation
+from roax.file import FileResource
+from roax.resource import operation
 from tempfile import TemporaryDirectory
 from uuid import uuid4
 
@@ -21,6 +22,7 @@ class TestFileResource(unittest.TestCase):
         class FooResource(FileResource):
 
             schema = _schema
+            id_schema = _schema.properties["id"]
 
             @operation(params={"_body": _schema}, returns=s.dict({"id": _schema.properties["id"]}))
             def create(self, _body):
@@ -28,7 +30,7 @@ class TestFileResource(unittest.TestCase):
 
             @operation(params={"id": _schema.properties["id"]}, returns=_schema)
             def read(self, id):
-                return super().read(id)
+                return {**super().read(id), "id": id}
 
             @operation(params={"id": _schema.properties["id"], "_body": _schema})
             def update(self, id, _body):

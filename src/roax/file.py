@@ -6,17 +6,17 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-import inspect
 import json
 import os
 import roax.schema as s
 
 from copy import copy
 from os.path import expanduser
-from roax.resource import Resource, Conflict, InternalServerError, NotFound, operation
+from roax.patch import merge_patch
+from roax.resource import Resource, Conflict, InternalServerError, NotFound
 
 try:
-    import fcntl
+    import fcntl  # supported in *nix
 except ImportError:
     fcntl = None
 
@@ -40,111 +40,54 @@ def _unquote(s):
 class FileResource(Resource):
     """
     Base class for a file-based resource; each item is a stored as a separate file
-    in a directory. This class is appropriate for up to hundreds of items; it is
-    probably not appropriate for thousands or more.
-    
-    The subclass must register the operations it wants to expose. An effective way
-    to do this is to override the function in the subclass, decorated with
-    @operator, and have it in turn call the superclass method.
+    in a directory.
 
-    The way the item file is encoded depends on the document schema:
-    - dict: each resource is stored as a text file containing a JSON object.
-    - str: each resource stored as a UTF-8 text file.
-    - bytes: each resource is a file containing binary data. 
-
-    The list method is suitable to expose as a query operation.
+    This class is appropriate for up to hundreds or thousands of items; it is
+    probably not appropriate for tens of thousands or more.
     """
 
-    def _filename(self, id):
-        return "{}/{}{}".format(self.dir, _quote(self.id_schema.str_encode(id)), self.extension)
-
-    def _open(self, id, mode):
-        try:
-            encoding = None if isinstance(self.schema, s.bytes) else "utf-8"
-            mode = (mode + "b") if isinstance(self.schema, s.bytes) else mode
-            file = open(self._filename(id), mode, encoding=encoding)
-            if fcntl:
-                fcntl.flock(file.fileno(), fcntl.LOCK_EX)
-            return file
-        except FileNotFoundError:
-            raise NotFound("{} item not found".format(self.name))
-        except FileExistsError:
-            raise Conflict("{} item already exists".format(self.name))
-
-    def _read(self, file):
-        file.seek(0)
-        try:
-            if isinstance(self.schema, s.dict):
-                return self.schema.json_decode(json.load(file))
-            else:
-                result = file.read()
-                self.schema.validate(result)
-                return result
-        except ValueError:
-            raise InternalServerError("malformed document")
-        except s.SchemaError:
-            raise InternalServerError("document failed schema validation")
-
-    def _write(self, file, body, id):
-        file.seek(0)
-        file.truncate()
-        if isinstance(self.schema, s.dict) and self.id_property in self.schema.properties:
-            if self.id_property and self.id_property in self.schema.properties:
-                body = {**body, self.id_property: id}
-            json.dump(self.schema.json_encode(body), file, separators=(",",":"), ensure_ascii=False)
-        else:
-            file.write(body)    
-
-    def __init__(self, dir, name=None, description=None, *, schema=None, extension=None, id_property=None):
+    def __init__(self, dir=None, name=None, description=None, schema=None, id_schema=None, extension=None):
         """
-        Initialize file resource.
+        Initialize file resource. All arguments can be alternatively declared as class
+        or instance variables.
 
-        :param name: Short name of the resource. (default: class name in lower case)
-        :param description: Short description of the resource. (default: resource docstring)
+        :param name: Short name of the resource. (default: the class name in lower case)
+        :param description: Short description of the resource. (default: the resource docstring)
         :param dir: Directory to store resource items in.
-        :param schema: Item schema. Can declare as class or instance variable.
+        :param schema: Schema for resource items.
+        ;param id_schema: Schema for resource item identifiers. (default: str)
         :param extenson: Filename extension to use for each file (including dot).
-        :param id_property: Name of resource identifier property in document schema. (default: "id")
         """
-        super().__init__()
+        super().__init__(name, description)
+        self.dir = expanduser((dir or self.dir).rstrip("/"))
         self.schema = schema or self.schema
-        self.id_property = id_property or getattr(self, "id_property", "id")
-        if not isinstance(self.schema, s.dict) or self.id_property not in self.schema.properties:
-            self.id_property = None
-        self.id_schema = self.schema.properties[self.id_property] if self.id_property else s.str()
-        self.dir = expanduser(dir.rstrip("/"))
-        os.makedirs(self.dir, exist_ok=True)
+        self.id_schema = id_schema or getattr(self, "id_schema", s.str())
         self.extension = extension or getattr(self, "extension", "")
+        os.makedirs(self.dir, exist_ok=True)
         self.__doc__ = self.schema.description
 
     def create(self, id, _body):
         """Create a resource item."""
         try:
-            with self._open(id, "x") as file:
-                self._write(file, _body, id)
+            self._write("xb", id, _body)
         except NotFound:
             raise InternalServerError("file resource directory not found")
         return {"id": id}
 
     def read(self, id):
         """Read a resource item."""
-        with self._open(id, "r") as file:
-            body = self._read(file)
-        if isinstance(self.schema, s.dict) and self.id_property in self.schema.properties:
-            body[self.id_property] = id  # filename is canonical identifier
-        return body
+        return self._read("rb", id)
 
     def update(self, id, _body):
         """Update a resource item."""
-        with self._open(id, "r+") as file:
-            self._write(file, _body, id)
+        return self._write("wb", id, _body)
 
     def delete(self, id):
         """Delete a resource item."""
         try:
             os.remove(self._filename(id))
         except FileNotFoundError:
-            raise NotFound("{} item not found".format(self.name))
+            raise NotFound("{} item not found: {}".format(self.name, id))
 
     def list(self):
         """Return a list of all resource item identifiers."""
@@ -160,3 +103,31 @@ class FileResource(Resource):
                 except s.SchemaError:
                     pass  # ignore filenames that can't be parsed
         return result
+
+    def _filename(self, id):
+        """Return the full filename for the specified resource item identifier."""
+        return "{}/{}{}".format(self.dir, _quote(self.id_schema.str_encode(id)), self.extension)
+
+    def _open(self, id, mode):
+        try:
+            file = open(self._filename(id), mode)
+            if fcntl:
+                fcntl.flock(file.fileno(), fcntl.LOCK_EX)
+            return file
+        except FileNotFoundError:
+            raise NotFound("{} item not found: {}".format(self.name, id))
+        except FileExistsError:
+            raise Conflict("{} item already exists: {}".format(self.name, id))
+
+    def _read(self, mode, id):
+        with self._open(id, mode) as file:
+            try:
+                result = self.schema.bin_decode(file.read())
+                self.schema.validate(result)
+            except s.SchemaError as se:
+                raise InternalServerError("content read from file failed schema validation") from se
+        return result
+
+    def _write(self, mode, id, body):
+        with self._open(id, mode) as file:
+            file.write(self.schema.bin_encode(body))
