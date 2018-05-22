@@ -130,9 +130,6 @@ class App:
         for op in resource.operations.values():
             if op.security is None:
                 raise ValueError("operation {} must express security requirements".format(op.name))
-            for name, schema in ((k, op.params[k]) for k in op.params or {} if k != "_body"):
-                if isinstance(schema, s.reader):
-                    raise ValueError("operation {} {} parameter cannot be reader schema type".format(op.name, name))
             if op.type == "create":
                 op_method, op_path = "POST", resource_path
             elif op.type == "read":

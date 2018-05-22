@@ -4,6 +4,7 @@ import unittest
 
 from base64 import b64encode
 from datetime import datetime
+from io import BytesIO
 from roax.resource import Resource, Unauthorized, operation
 from roax.security import SecurityRequirement, HTTPBasicSecurityScheme
 from roax.wsgi import App
@@ -69,6 +70,15 @@ class _Resource1(Resource):
     def validate_uuid(self, uuid):
         pass
 
+    @operation(
+        type = "action",
+        params = {"_body": s.reader()},
+        returns = s.reader(),
+        security = [],
+    )
+    def echo(self, _body):
+        return BytesIO(_body.read())
+
 app = App("/", "Title", "1.0")
 app.register("/r1", _Resource1())
 
@@ -104,6 +114,14 @@ class TestWSGI(unittest.TestCase):
         request.method = "POST"
         response = request.get_response(app)
         self.assertEqual(response.status_code, 401)  # authorization should trump validation
+
+    def test_echo(self):
+        value = b"This is an echo test."
+        request = Request.blank("/r1/echo")
+        request.method = "POST"
+        request.body = value
+        response = request.get_response(app)
+        self.assertEqual(response.body, value)
 
 if __name__ == "__main__":
     unittest.main()
