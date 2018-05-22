@@ -24,9 +24,9 @@ from uuid import UUID
 
 def _csv_encode(value):
     sio = StringIO()
-    csv.writer(sio).writerow()
+    csv.writer(sio).writerow(value) 
     return sio.getvalue().rstrip("\r\n")
-    
+
 def _csv_decode(value):
     return csv.reader([value]).__next__()
 

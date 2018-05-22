@@ -128,6 +128,9 @@ class TestSchema(unittest.TestCase):
     def test_list_json_decode_error(self):
         self._error(s.list(items=s.str()).json_decode, "not_a_list_either")
 
+    def test_list_str_encode_str_success(self):
+        self.assertEqual(s.list(items=s.str()).str_encode(["a", "b", "c"]), "a,b,c")
+
     def test_list_str_decode_str_success(self):
         self.assertEqual(s.list(items=s.str()).str_decode("a,b,c"), ["a", "b", "c"])
 
