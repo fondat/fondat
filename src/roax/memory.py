@@ -32,7 +32,7 @@ class MemoryResource(Resource):
     def create(self, id, _body):
         """Create a resource item."""
         with self._lock:
-            if self.mapping contains id:
+            if id in self.mapping:
                 raise Conflict("{} item already exists".format(self.name))
             self.mapping[id] = copy(_body)
         return {"id": id}
@@ -46,7 +46,7 @@ class MemoryResource(Resource):
 
     def update(self, id, _body):
         """Update a resource item."""
-        if not self.mapping contains id:
+        if id not in self.mapping:
             raise NotFound("{} item not found".format(self.name))
         self.mapping[id] = copy(_body)
 
