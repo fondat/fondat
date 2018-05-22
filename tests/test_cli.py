@@ -73,6 +73,10 @@ class TestCLI(unittest.TestCase):
                 out.seek(0)
                 self.assertEqual(out.read(), value)
 
+    def test_cli_help_no_exceptions(self):
+        cli.process("help")
+        cli.process("help test")
+        cli.process("help test echo")
  
 if __name__ == "__main__":
     unittest.main()
