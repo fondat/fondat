@@ -16,3 +16,5 @@ Repository
    :target: https://travis-ci.org/pbryan/roax
 .. |PyPI| image:: https://img.shields.io/pypi/v/roax.svg
    :target: https://pypi.org/project/roax/
+.. |Codecov| image:: https://codecov.io/gh/pbryan/roax/branch/master/graph/badge.svg
+   :target: https://codecov.io/gh/pbryan/roax
