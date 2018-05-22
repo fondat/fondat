@@ -1034,8 +1034,8 @@ class one_of(_xof):
 class reader(_type):
     """
     Schema type for file-like object to read binary content. Allows large-payload
-    values to be transmitted without allocating all in memory. In operations, only
-    used in _body parameter and return values.
+    values to be transmitted without allocating all in memory. In operations, this
+    schema type can only used in _body parameter and return values.
     """    
     def __init__(self, *, content_type="application/octet-stream", **kwargs):
         """
@@ -1118,6 +1118,8 @@ def function_params(function, params):
             raise TypeError("function with **kwargs not supported")
         schema = params.get(p.name)
         if schema:
+            if isinstance(schema, reader) and p.name != "_body":
+                raise TypeError("parameter cannot use reader schema type: {}".format(p.name))
             schema = copy(schema)
             schema.required = p.default is p.empty
             schema.default = p.default if p.default is not p.empty else None
