@@ -1,7 +1,7 @@
 Roax
 ====
 
-|Travis| |Codecov| |PyPI| |Status|
+|Travis| |Codecov| |PyPI| |Status| |License|
 
 Ro·ax
 /ɹoʊ.æks/
@@ -19,3 +19,5 @@ Repository
 .. |PyPI| image:: https://img.shields.io/pypi/v/roax.svg
    :target: https://pypi.org/project/roax/
 .. |Status| image:: https://img.shields.io/pypi/status/roax.svg
+.. |License| image:: https://img.shields.io/github/license/pbryan/roax.svg
+   :target: https://github.com/pbryan/roax/blob/master/LICENSE
