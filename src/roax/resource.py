@@ -162,7 +162,7 @@ class BadRequest(ResourceError):
 
 class Unauthorized(ResourceError):
     """Raised if the request lacks valid authentication credentials."""
-    code, description = 401, "Unauthorized"
+    code, detail = 401, "Unauthorized"
 
     def __init__(self, detail=None, challenge=None):
         """
@@ -171,7 +171,7 @@ class Unauthorized(ResourceError):
         :param detail: Human-readable description of the error.
         :param challenge: Applicable authentication scheme and parameters.
         """ 
-        super().__init__(detail)
+        super().__init__()
         self.challenge = challenge
 
 
