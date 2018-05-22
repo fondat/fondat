@@ -349,6 +349,22 @@ class _list(_type):
         self.validate(value)
         return value
 
+    def bin_encode(self, value):
+        """Encode the value into binary representation."""
+        if value is not None:
+            try:
+                return json.dumps(self.json_encode(value)).encode()
+            except (TypeError, ValueError) as e:
+                raise SchemaError(str(ve)) from e
+
+    def bin_decode(self, value):
+        """Decode the value from binary representation."""
+        if value is not None:
+            try:
+                return self.json_decode(json.loads(value.decode()))
+            except (TypeError, ValueError) as e:
+                raise SchemaError(str(ve)) from e
+
 
 class _set(_type):
     """
@@ -432,6 +448,22 @@ class _set(_type):
                 raise SchemaError("expecting items to be unique")
         self.validate(value)
         return value
+
+    def bin_encode(self, value):
+        """Encode the value into binary representation."""
+        if value is not None:
+            try:
+                return json.dumps(self.json_encode(value)).encode()
+            except (TypeError, ValueError) as e:
+                raise SchemaError(str(ve)) from e
+
+    def bin_decode(self, value):
+        """Decode the value from binary representation."""
+        if value is not None:
+            try:
+                return self.json_decode(json.loads(value.decode()))
+            except (TypeError, ValueError) as e:
+                raise SchemaError(str(ve)) from e
 
 
 class _str(_type):

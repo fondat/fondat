@@ -1,5 +1,6 @@
 
 import isodate
+import json
 import re
 import roax.schema as s
 import unittest
@@ -128,11 +129,17 @@ class TestSchema(unittest.TestCase):
     def test_list_json_decode_error(self):
         self._error(s.list(items=s.str()).json_decode, "not_a_list_either")
 
-    def test_list_str_encode_str_success(self):
+    def test_list_str_encode_success(self):
         self.assertEqual(s.list(items=s.str()).str_encode(["a", "b", "c"]), "a,b,c")
 
-    def test_list_str_decode_str_success(self):
+    def test_list_str_decode_success(self):
         self.assertEqual(s.list(items=s.str()).str_decode("a,b,c"), ["a", "b", "c"])
+
+    def test_list_bin_encode_success(self):
+        self.assertEqual(json.loads(s.list(items=s.str()).bin_encode(["a", "b", "c"]).decode()), json.loads('["a","b","c"]'))
+
+    def test_list_bin_decode_success(self):
+        self.assertEqual(s.list(items=s.str()).bin_decode(b'["a","b","c"]'), ["a", "b", "c"])
 
     def test_list_str_decode_int_success(self):
         self.assertEqual(s.list(items=s.int()).str_decode("12,34,56"), [12, 34, 56])
@@ -201,6 +208,12 @@ class TestSchema(unittest.TestCase):
 
     def test_set_str_decode_int_error(self):
         self._error(s.set(items=s.int()).str_decode, "12,a,34,56")
+
+    def test_set_bin_encode_success(self):
+        self.assertEqual(json.loads(s.set(items=s.str()).bin_encode({"a", "b", "c"}).decode()), json.loads('["a","b","c"]'))
+
+    def test_set_bin_decode_success(self):
+        self.assertEqual(s.set(items=s.str()).bin_decode(b'["a","b","c"]'), {"a", "b", "c"})
 
     def test_set_disallow_none(self):
         self._error(s.set(items=s.str()).json_encode, None)
