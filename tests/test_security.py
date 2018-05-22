@@ -8,7 +8,7 @@ from roax.security import ContextSecurityRequirement, SecurityRequirement, neste
 
 class Never(SecurityRequirement):
     def authorized(self):
-        raise Forbidden()
+        raise Forbidden
 
 req1 = ContextSecurityRequirement(req1=True)
 

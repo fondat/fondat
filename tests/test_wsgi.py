@@ -16,7 +16,7 @@ class TestSecurityRequirement(SecurityRequirement):
     def authorize(self):
         ctx = self.scheme.get_context()
         if not ctx or ctx["role"] != "god":
-            raise Unauthorized()
+            raise Unauthorized
 
 class TestSecurityScheme(HTTPBasicSecurityScheme):
     def authenticate(self, user_id, password):

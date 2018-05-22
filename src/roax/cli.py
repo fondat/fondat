@@ -43,12 +43,12 @@ def _parse_arguments(params, args):
         arg = args.pop(0)
         if name is None:
             if not arg.startswith("--"):
-                raise ValueError()
+                raise ValueError
             arg = arg[2:]
             name, value = arg.split("=", 1) if "=" in arg else (arg, None)
             name = _a2p(name)
             if name == "_body" or name not in params:
-                raise ValueError()
+                raise ValueError
             if value:
                 result[name] = value
                 name = None
@@ -235,7 +235,7 @@ class CLI:
         Usage: exit
           Exit the command line interface.\
         """
-        raise EOFError()
+        raise EOFError
 
     def _print(self, *args):
         if self.err:

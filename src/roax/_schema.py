@@ -126,7 +126,7 @@ class _type:
         dump the value as JSON text; it represents the value such that the Python
         JSON module can dump as JSON text if required.
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def json_decode(self, value):
         """
@@ -134,15 +134,15 @@ class _type:
         parse the value as JSON text; it takes a Python value as though the Python JSON
         module loaded the JSON text.
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def str_encode(self, value):
         """Encode the value into string representation."""
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def str_decode(self, value):
         """Decode the value from string representation."""
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def bin_encode(self, value):
         """Encode the value into binary representation."""
@@ -938,7 +938,7 @@ class _xof(_type):
         return self._evaluate(results)
 
     def _evaluate(self, method, value):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def validate(self, value):
         """Validate value against the schema."""

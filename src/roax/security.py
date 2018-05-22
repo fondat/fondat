@@ -32,7 +32,7 @@ class SecurityRequirement:
         is not granted. The exception raised should be a ResourceError (like
         Unauthorized), or be meaningful relative to its associated security scheme.        
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
 
 class SecurityScheme:
@@ -132,7 +132,7 @@ class HTTPBasicSecurityScheme(HTTPSecurityScheme):
         fails, None is returned. This method should not raise an exception
         unless an unrecoverable error occurs.
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
 
 class ContextSecurityRequirement(SecurityRequirement):
@@ -154,7 +154,7 @@ class ContextSecurityRequirement(SecurityRequirement):
 
     def authorize(self):
         if not context.last(self.context):
-            raise Forbidden()
+            raise Forbidden
 
 
 class CLISecurityRequirement(ContextSecurityRequirement):
@@ -173,7 +173,7 @@ class NestedSecurityRequirement(SecurityRequirement):
     """
     def authorize(self):
         if len(context.find(context_type="operation")) < 2:
-            raise Forbidden()
+            raise Forbidden
 
 
 cli = CLISecurityRequirement()
