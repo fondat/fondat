@@ -17,6 +17,7 @@ import traceback
 
 from io import TextIOWrapper
 from roax.resource import ResourceError
+from shutil import copyfileobj
 from textwrap import dedent
 
 
@@ -283,7 +284,10 @@ class CLI:
                         self._print("When complete, input EOF (*nix: Ctrl-D, Windows: Ctrl-Z+Return):")
                     else:
                         self._print("Reading body from {}...".format(getattr(inp, "name", "stream")))
-                    parsed["_body"] = _read(inp, body)
+                    if isinstance(body, s.reader):
+                        parsed["_body"] = inp
+                    else:
+                        parsed["_body"] = _read(inp, body)
                 name = None
                 result = operation.function(**parsed)
             except s.SchemaError as se:
@@ -296,7 +300,11 @@ class CLI:
                 description = (returns.description or "response.").lower()
                 if out is not sys.stdout:
                     self._print("Writing response to {}...".format(getattr(out, "name", "stream")))
-                _write(out, returns, result)
+                if isinstance(returns, s.reader):
+                    copyfileobj(result, out)
+                    result.close()
+                else:
+                    _write(out, returns, result)
                 if out is sys.stdout:
                     self._print()
         return True

@@ -21,6 +21,10 @@ class TestResource(Resource):
     def foo(self, a_a, b):
         return "hoot"
 
+    @operation(type="action", params={"_body": s.reader()}, returns=s.reader())
+    def echo(self, _body):
+        return BytesIO(_body.read())
+
 cli = CLI(debug=False, err=None)
 cli.register("test", TestResource())
 
@@ -58,5 +62,17 @@ class TestCLI(unittest.TestCase):
                 self.assertEqual(json.loads(out.read().decode()), {"id": "foo"})
             os.remove(out_name)
 
+    def test_cli_reader_in_out(self):
+        value = b"This is a value to be tested."
+        with tempfile.NamedTemporaryFile() as inp:
+            inp.write(value)
+            inp.seek(0)
+            with tempfile.NamedTemporaryFile() as out:
+                line = "test echo <{} >{}".format(inp.name, out.name)
+                cli.process(line)
+                out.seek(0)
+                self.assertEqual(out.read(), value)
+
+ 
 if __name__ == "__main__":
     unittest.main()
