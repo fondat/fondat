@@ -1,7 +1,17 @@
 os: "linux"
+
 language: "python"
+
 python:
     - "3.5"
     - "3.6"
     - "pypy3.5"
-script: "python setup.py test"
+
+install:
+    - pip install codecov
+
+script:
+    - coverage run setup.py test
+
+after_success:
+    - codecov
