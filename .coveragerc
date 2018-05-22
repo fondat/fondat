@@ -1,2 +1,6 @@
 [run]
-source=src
+source = src
+
+[report]
+exclude_lines = 
+    raise NotImplementedError
