@@ -1,7 +1,7 @@
 Roax
 ====
 
-|Travis| |Codecov| |PyPI|
+|Travis| |Codecov| |PyPI| |Status|
 
 Ro·ax
 /ɹoʊ.æks/
@@ -18,3 +18,4 @@ Repository
    :target: https://codecov.io/gh/pbryan/roax
 .. |PyPI| image:: https://img.shields.io/pypi/v/roax.svg
    :target: https://pypi.org/project/roax/
+.. |Status| image:: https://img.shields.io/pypi/status/roax.svg
