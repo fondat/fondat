@@ -8,7 +8,9 @@ from io import BytesIO
 from roax.resource import Resource, Unauthorized, operation
 from roax.security import SecurityRequirement, HTTPBasicSecurityScheme
 from roax.wsgi import App
+from tempfile import TemporaryDirectory
 from webob import Request
+
 
 class TestSecurityRequirement(SecurityRequirement):
     def __init__(self, scheme):
@@ -122,6 +124,49 @@ class TestWSGI(unittest.TestCase):
         request.body = value
         response = request.get_response(app)
         self.assertEqual(response.body, value)
+
+    def test_static_dir(self):
+        foo = "<html><body>Foo</body></html>"
+        bar = b"binary"
+        with TemporaryDirectory() as td:
+            with open("{}/foo.html".format(td), "w") as f:
+                f.write(foo)
+            with open("{}/bar.bin".format(td), "wb") as f:
+                f.write(bar)
+            a = App("/", "Title", "1.0")
+            a.register_static("/static", td, [])
+            request = Request.blank("/static/foo.html")
+            response = request.get_response(a)
+            self.assertEqual(response.body, foo.encode())
+            request = Request.blank("/static/bar.bin")
+            response = request.get_response(a)
+            self.assertEqual(response.body, bar)
+            self.assertEqual(response.content_type, "application/octet-stream")
+
+    def test_static_dir_index(self):
+        index = "<html><body>Index</body></html>"
+        with TemporaryDirectory() as td:
+            with open("{}/index.html".format(td), "w") as f:
+                f.write(index)
+            a = App("/", "Title", "1.0")
+            a.register_static("/static", td, [])
+            for path in ["/static", "/static/", "/static/index.html"]:
+                request = Request.blank(path)
+                response = request.get_response(a)
+                self.assertEqual(response.body, index.encode())
+                self.assertEqual(response.content_type, "text/html")
+
+    def test_static_file(self):
+        bar = b"binary"
+        with TemporaryDirectory() as td:
+            filename = "{}/bar.bin".format(td)
+            with open("{}/bar.bin".format(td), "wb") as f:
+                f.write(bar)
+            a = App("/", "Title", "1.0")
+            a.register_static(filename, filename, [])
+            request = Request.blank(filename)
+            response = request.get_response(a)
+            self.assertEqual(response.body, bar)
 
 if __name__ == "__main__":
     unittest.main()
