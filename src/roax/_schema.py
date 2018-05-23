@@ -58,8 +58,8 @@ class _type:
 
     def __init__(
             self, *, python_type=object, json_type=None, format=None,
-            content_type="text/plain", enum=None, required=True,
-            default=None, description=None, examples=None, nullable=False,
+            content_type="text/plain", enum=None, required=False,
+            default=None, description=None, example=None, nullable=False,
             deprecated=False):
         """
         Initialize the schema type.
@@ -73,7 +73,7 @@ class _type:
         :param required: Value is mandatory.
         :param default: Default value if the item value is not supplied.
         :param description: A description of the schema.
-        :param examples: A list of example valid values.
+        :param example: An example of an instance for this schema.
         :param deprecated: schema should be transitioned out of usage.
         """
         super().__init__()
@@ -86,7 +86,7 @@ class _type:
         self.required = required
         self.default = default
         self.description = description
-        self.examples = examples
+        self.example = example
         self.deprecated = deprecated
 
     def validate(self, value):
@@ -114,8 +114,8 @@ class _type:
             result["enum"] = [self.json_encode(v) for v in self.enum]
         if self.description:
             result["description"] = self.description
-        if self.examples:
-            result["examples"] = [self.json_encode(e) for e in self.examples]
+        if self.example:
+            result["example"] = self.json_encode(self.example)
         if self.deprecated is not None:
             result["deprecated"] = self.deprecated
         return result
@@ -172,7 +172,7 @@ class _dict(_type):
         :param required: Value is mandatory.
         :param default: Default value if the item value is not supplied.
         :param description: A description of the schema.
-        :param examples: A list of example valid values.
+        :param example: An example of an instance for this schema.
         """
         super().__init__(python_type=Mapping, json_type="object", content_type=content_type, **kwargs)
         self.properties = properties
@@ -268,7 +268,7 @@ class _list(_type):
         :param required: Value is mandatory.
         :param default: Default value if the item value is not supplied.
         :param description: A description of the schema.
-        :param examples: A list of example valid values.
+        :param example: An example of an instance for this schema.
         """
         super().__init__(python_type=Sequence, json_type="array", content_type=content_type, **kwargs)
         self.items = items
@@ -384,7 +384,7 @@ class _set(_type):
         :param required: Value is mandatory.
         :param default: Default value if the item value is not supplied.
         :param description: A description of the schema.
-        :param examples: A list of example valid values.
+        :param example: An example of an instance for this schema.
         """
         super().__init__(python_type=set, json_type="array", content_type=content_type, **kwargs)
         self.items = items
@@ -485,7 +485,7 @@ class _str(_type):
         :param default: Default value if the item value is not supplied.
         :param enum: A list of values that are valid.
         :param description: A description of the schema.
-        :param examples: A list of example valid values.
+        :param example: An example of an instance for this schema.
         """
         super().__init__(python_type=str, json_type="string", **kwargs)
         self.min_length = min_length
@@ -594,7 +594,7 @@ class _int(_number):
         :param default: Default value if the item value is not supplied.
         :param enum: A list of values that are valid.
         :param description: A description of the schema.
-        :param examples: A list of example valid values.
+        :param example: An example of an instance for this schema.
         """
         super().__init__(python_type=int, json_type="integer", format="int64", **kwargs)
 
@@ -642,7 +642,7 @@ class _float(_number):
         :param default: Default value if the item value is not supplied.
         :param enum: A list of values that are valid.
         :param description: A description of the schema.
-        :param examples: A list of example valid values.
+        :param example: An example of an instance for this schema.
         """
         super().__init__(python_type=float, json_type="number", format="double", **kwargs)
 
@@ -677,7 +677,7 @@ class _bool(_type):
         :param required: Value is mandatory.
         :param default: Default value if the item value is not supplied.
         :param description: A description of the schema.
-        :param examples: A list of example valid values.
+        :param example: An example of an instance for this schema.
         """
         super().__init__(python_type=bool, json_type="boolean", **kwargs)
 
@@ -731,7 +731,7 @@ class _bytes(_type):
         :param required: Value is mandatory.
         :param default: Default value if the item value is not supplied.
         :param description: A description of the schema.
-        :param examples: A list of example valid values.
+        :param example: An example of an instance for this schema.
         """
         if format not in {"byte", "binary"}:
             raise SchemaError("format must be one of {}".format(valid_formats))
@@ -796,7 +796,7 @@ class _datetime(_type):
         :param default: Default value if the item value is not supplied.
         :param enum: A list of values that are valid.
         :param description: A description of the schema.
-        :param examples: A list of example valid values.
+        :param example: An example of an instance for this schema.
         """
         super().__init__(python_type=datetime, json_type="string", format="date-time", **kwargs)
 
@@ -849,7 +849,7 @@ class uuid(_type):
         :param default: Default value if the item value is not supplied.
         :param enum: A list of values that are valid.
         :param description: A description of the schema.
-        :param examples: A list of example valid values.
+        :param example: An example of an instance for this schema.
         """
         super().__init__(python_type=UUID, json_type="string", format="uuid", **kwargs)
 
@@ -896,7 +896,7 @@ class all_of(_type):
         :param default: Default value if the item value is not supplied.
         :param enum: A list of values that are valid.
         :param description: A description of the schema.
-        :param examples: A list of example valid values.
+        :param example: An example of an instance for this schema.
         """
         super().__init__(**kwargs)
         if not schemas:
@@ -1023,7 +1023,7 @@ class any_of(_xof):
         :param default: Default value if the item value is not supplied.
         :param enum: A list of values that are valid.
         :param description: A description of the schema.
-        :param examples: A list of example valid values.
+        :param example: An example of an instance for this schema.
         """
         super().__init__("anyOf", schemas, **kwargs)
         self.schemas = schemas
@@ -1050,7 +1050,7 @@ class one_of(_xof):
         :param default: Default value if the item value is not supplied.
         :param enum: A list of values that are valid.
         :param description: A description of the schema.
-        :param examples: A list of example valid values.
+        :param example: An example of an instance for this schema.
         """
         super().__init__("oneOf", schemas, **kwargs)
         self.schemas = schemas

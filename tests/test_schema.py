@@ -34,7 +34,7 @@ class TestSchema(unittest.TestCase):
         s.dict({"e": s.float()}).validate({"e": 1.2})
 
     def test_dict_validate_required_error(self):
-        self._error(s.dict({"f": s.str()}).validate, {})
+        self._error(s.dict({"f": s.str(required=True)}).validate, {})
 
     def test_dict_validate_optional_success(self):
         s.dict({"k": s.str(), "l": s.str(required=False)}).validate({"k": "m"})
@@ -578,8 +578,8 @@ class TestSchema(unittest.TestCase):
     # -- all_of -----
 
     _all_of_schemas = s.all_of([
-        s.dict({"a": s.str()}, additional_properties=True),
-        s.dict({"b": s.int()}, additional_properties=True),
+        s.dict({"a": s.str(required=True)}, additional_properties=True),
+        s.dict({"b": s.int(required=True)}, additional_properties=True),
     ])
 
     def test_all_of_none_match(self):
