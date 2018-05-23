@@ -508,9 +508,9 @@ class _str(_type):
         """JSON schema representation of the schema."""
         result = super().json_schema
         if self.min_length != 0:
-             result["minLength"] = self.min_len
+             result["minLength"] = self.min_length
         if self.max_length is not None:
-            result["maxLength"] = self.max_len
+            result["maxLength"] = self.max_length
         if self.pattern:
             result["pattern"] = self.pattern.pattern
         return result
