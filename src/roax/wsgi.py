@@ -126,7 +126,7 @@ class App:
         :param resource: Resource to be served when path is requested.
         :param publish: Publish resource in online documentation.
         """
-        resource_path = (self.base + "/" + path.lstrip("/")).rstrip("/")
+        resource_path = (self.base + "/" + path.lstrip("/"))
         for op in resource.operations.values():
             if op.security is None:
                 raise ValueError("operation {} must express security requirements".format(op.name))
@@ -195,7 +195,7 @@ class App:
                     resource = _static(child)
                     self.register("{}/{}".format(path, child.name), resource, publish)
                     if child.name == index:
-                        self.register(path, resource, publish)
+                        self.register("{}/".format(path), resource, publish)
         else:
             raise ValueError("invalid file or directory: {}".format(file_dir))
 
@@ -225,7 +225,7 @@ class App:
         return response(environ, start_response)
 
     def _get_operation(self, request):
-        operation = self.operations.get((request.method, request.path_info.rstrip("/")))
+        operation = self.operations.get((request.method, request.path_info))
         if operation:
             return operation
         for _, op_path in self.operations:
