@@ -51,6 +51,7 @@ class OpenAPIResource(Resource):
         result = {}
         result["openapi"] = "3.0.1"
         result["info"] = self._info()
+        result["servers"] = self._servers()
         result["paths"] = self._paths()
         result["security"] = []
         result["tags"] = self._tags()
@@ -64,11 +65,16 @@ class OpenAPIResource(Resource):
         result["version"] = str(self.app.version)
         return result
 
+    def _servers(self):
+        return [{"url": self.app.url}]
+
     def _paths(self):
         result = {}
         for (op_method, op_path), operation in self.app.operations.items():
             if not operation.publish:
                 continue
+            base_len = len(self.app.base)
+            op_path = op_path[base_len:]
             path_item = result.get(op_path)
             if not path_item:
                 path_item = {}
@@ -122,7 +128,7 @@ class OpenAPIResource(Resource):
 
     def _tags(self):
         resources = {}
-        for operation in self.app.operations.values():
+        for operation in (o for o in self.app.operations.values() if o.publish):
             resources[operation.resource.name] = operation.resource
         result = []
         for name, resource in resources.items():

@@ -153,7 +153,7 @@ class App:
                 raise ValueError("operation already defined for {} {}".format(op_method, op_path))
             self.operations[(op_method, op_path)] = op
 
-    def register_static(self, path, file_dir, security, index="index.html"):
+    def register_static(self, path, file_dir, security, index="index.html", publish=False):
         """
         Register a file or directory as static resource(s). Each file will be
         registered as an individual resource in the application. If registering a
@@ -176,6 +176,7 @@ class App:
         :param file_dir: Filesystem path of file or directory to register.
         :security: List of security requirements to apply to resource(s).
         :index: Name of file in directory to make path root resource. (default: index.html)
+        :param publish: Publish resource(s) in online documentation.
         """
         def _static(fs_path):
             content = fs_path.read_bytes()
@@ -192,11 +193,11 @@ class App:
             for child in fs_path.iterdir():
                 if child.is_file():
                     resource = _static(child)
-                    self.register("{}/{}".format(path, child.name), resource)
+                    self.register("{}/{}".format(path, child.name), resource, publish)
                     if child.name == index:
-                        self.register(path, resource)
+                        self.register(path, resource, publish)
         else:
-            raise ValueException("invalid file or directory: {}".format(file_dir))
+            raise ValueError("invalid file or directory: {}".format(file_dir))
 
     def __call__(self, environ, start_response):
         """Handle WSGI request."""
