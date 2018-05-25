@@ -4,7 +4,7 @@ import roax.schema as s
 import unittest
 
 from roax.file import FileResource
-from roax.resource import operation
+from roax.resource import InternalServerError, NotFound, operation
 from tempfile import TemporaryDirectory
 from uuid import uuid4
 
@@ -101,7 +101,6 @@ class TestFileResource(unittest.TestCase):
             self.assertEqual(frs.list(), [])
 
     def test_crud_bytes(self):
-
         with TemporaryDirectory() as dir:
             frs = FileResource(dir, schema=s.bytes(), extension=".bin")
             body = b"\x00\x0e\0x01\0x01\0x00"
@@ -114,6 +113,31 @@ class TestFileResource(unittest.TestCase):
             self.assertEqual(body, frs.read(id))
             frs.delete(id)
             self.assertEqual(frs.list(), [])
+
+    def test_quote_unquote(self):
+        with TemporaryDirectory() as dir:
+            fr = FileResource(dir, schema=s.bytes(), extension=".bin")
+            body = b"body"
+            id = "resource%identifier"
+            self.assertEqual(id, fr.create(id, body)["id"])
+            fr.delete(id)
+
+    def test_invalid_directory(self):
+        with TemporaryDirectory() as dir:
+            fr = FileResource(dir, schema=s.bytes(), extension=".bin")
+        # directory should now be deleted underneath the resource
+        body = b"body"
+        id = "resource%identifier"
+        with self.assertRaises(InternalServerError):
+            fr.create(id, body)
+        with self.assertRaises(NotFound):
+            fr.read(id)
+        with self.assertRaises(NotFound):
+            fr.update(id, body)
+        with self.assertRaises(NotFound):
+            fr.delete(id)
+        with self.assertRaises(InternalServerError):
+            fr.list()
 
 
 if __name__ == "__main__":
