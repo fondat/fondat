@@ -71,7 +71,7 @@ class FileResource(Resource):
         try:
             self._write("xb", id, _body)
         except NotFound:
-            raise InternalServerError("file resource directory not found")
+            raise InternalServerError("{} resource directory not found".format(self.name))
         return {"id": id}
 
     def read(self, id):
@@ -92,7 +92,11 @@ class FileResource(Resource):
     def list(self):
         """Return a list of all resource item identifiers."""
         result = []
-        for name in os.listdir(self.dir):
+        try:
+            listdir = os.listdir(self.dir)
+        except FileNotFoundError:
+            raise InternalServerError("{} resource directory not found".format(self.name))
+        for name in listdir:
             if name.endswith(self.extension):
                 name = name[:len(name) - len(self.extension)]
                 str_id = _unquote(name)
