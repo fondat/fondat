@@ -36,7 +36,7 @@ class SchemaError(Exception):
 
     def __init__(self, msg, pointer=None):
         """Initialize the schema error."""
-        self.msg = msg
+        self.msg = str(msg)
         self.pointer = pointer
 
     def push(self, name):
@@ -153,7 +153,7 @@ class _type:
         try:
             return None if value is None else self.str_decode(value.decode())
         except ValueError as ve:
-            raise SchemaError("binary decode failed") from ve
+            raise SchemaError(ve) from ve
 
 
 class _dict(_type):
