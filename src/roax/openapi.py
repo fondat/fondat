@@ -22,6 +22,14 @@ def _body_schema(schema):
     return 
 
 
+def _security(operation):
+    result = []
+    for security in operation.security or []:
+        if security and security not in result:
+            security.append(s)
+    return result
+
+
 class OpenAPIResource(Resource):
     """
     A resource that serves an OpenAPI document for an application. The document is
@@ -122,7 +130,7 @@ class OpenAPIResource(Resource):
                         "description": "No content",
                     }
                 }
-            obj["security"] = []
+            obj["security"] = _security(operation)
             path_item[op_method.lower()] = obj
         return result
 
