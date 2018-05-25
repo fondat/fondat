@@ -7,7 +7,7 @@ from roax.resource import Resource, operation
 from roax.wsgi import App
 
 
-schema = s.dict({
+params = {
     "a": s.list(s.str()),
     "b": s.set(s.str()),
     "c": s.int(),
@@ -16,13 +16,13 @@ schema = s.dict({
     "f": s.bytes(),
     "g": s.datetime(),
     "h": s.uuid(),
-})
+}
 
 
 class TestResource(Resource):
 
-    @operation(type="action", params={"_body": schema}, security=[])
-    def test(self, _body):
+    @operation(type="action", params=params, security=[])
+    def test(self, a, b, c, d, e, f, g, h):
         pass
 
 app = App("/", "Title", "1.0")
