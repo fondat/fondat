@@ -150,8 +150,6 @@ class TestWSGI(unittest.TestCase):
                 f.write(index)
             a = App("/", "Title", "1.0")
             a.register_static("/static", td, [])
-            from pprint import pprint
-            pprint(a.operations)
             for path in ["/static/", "/static/index.html"]:
                 request = Request.blank(path)
                 response = request.get_response(a)
