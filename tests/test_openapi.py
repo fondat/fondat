@@ -22,7 +22,7 @@ schema = s.dict({
 class TestResource(Resource):
 
     @operation(type="action", params={"_body": schema}, security=[])
-    def test(self):
+    def test(self, _body):
         pass
 
 app = App("/", "Title", "1.0")
