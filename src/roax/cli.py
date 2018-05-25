@@ -34,29 +34,6 @@ def _a2p(name):
 def _is_binary(schema):
     return schema and isinstance(schema, s.bytes) and schema.format == "binary"
 
-def _parse_arguments(params, args):
-    """Parse arguments for supported operation parameters."""
-    result = {}
-    args = list(args)
-    name = None
-    while args:
-        arg = args.pop(0)
-        if name is None:
-            if not arg.startswith("--"):
-                raise ValueError
-            arg = arg[2:]
-            name, value = arg.split("=", 1) if "=" in arg else (arg, None)
-            name = _a2p(name)
-            if name == "_body" or name not in params:
-                raise ValueError
-            if value:
-                result[name] = value
-                name = None
-        else:
-            result[name] = arg
-            name = None
-    return result
-
 def _parse_redirects(args, body, returns):
     result = {}
     n = 0
@@ -86,24 +63,12 @@ def _parse_redirects(args, body, returns):
 def _read(inp, schema):
     if isinstance(inp, TextIOWrapper):
         inp = inp.buffer
-    value = inp.read()
-    if _is_binary(schema):
-        return schema.bin_decode(value)
-    elif isinstance(schema, s.dict) or isinstance(schema, s.list):
-        return schema.json_decode(value.decode())
-    else:
-        return schema.str_decode(value.decode())
+    return schema.bin_decode(inp.read())
 
 def _write(out, schema, value):
     if isinstance(out, TextIOWrapper):
         out = out.buffer
-    if _is_binary(schema):
-        value = schema.bin_encode(value)
-    elif isinstance(schema, s.dict) or isinstance(schema, s.list):
-        value = json.dumps(schema.json_encode(value)).encode()
-    else:
-        value = schema.str_encode(value).encode()
-    out.write(value)
+    out.write(schema.bin_encode(value))
     out.flush()
 
 
@@ -134,7 +99,7 @@ class _open_redirects:
 class CLI:
     """Command line interface that exposes registered resources."""
 
-    def __init__(self, *, name=None, prompt=None, debug=False, err=sys.stderr):
+    def __init__(self, *, name=None, prompt=None, debug=False, err=sys.stderr, prefix="--"):
         """
         Initialize a command line interface.
 
@@ -145,12 +110,14 @@ class CLI:
         :param inp: Input stream for reading bodies. (default: stdin)
         :param out: Output stream for writing responses. (default: stdout)
         :param err: Output stream for writing prompts. (default: stderr)
+        :param prefix: Prefix for parameters. (default: "--")
         """
         super().__init__()
         self.name = name
         self.prompt = prompt or "{}> ".format(name) if name else "> "
         self.debug = debug
         self.err = err
+        self.prefix = prefix
         self.resources = {}
         self.private = set()
         self.commands = {}
@@ -256,6 +223,31 @@ class CLI:
         self._print(dedent(self.commands[name][0].__doc__))
         return False
 
+    def _parse_arguments(self, params, args):
+        """Parse arguments for supported operation parameters."""
+        result = {}
+        args = list(args)
+        name = None
+        while args:
+            arg = args.pop(0)
+            if name is None:
+                if not arg.startswith(self.prefix):
+                    raise ValueError
+                arg = arg[len(self.prefix):]
+                name, value = arg.split("=", 1) if "=" in arg else (arg, None)
+                name = _a2p(name)
+                if name == "_body" or name not in params:
+                    raise ValueError
+                if value:
+                    result[name] = value
+                    name = None
+            else:
+                result[name] = arg
+                name = None
+        if name:  # parameter name supplied without value
+            raise ValueError
+        return result
+
     def _process_resource(self, resource_name, args, inp, out):
         resource = self.resources[resource_name]
         operation_name = _a2p(args.pop(0)) if args else None
@@ -267,7 +259,7 @@ class CLI:
         body = params.get("_body")
         with _open_redirects(inp, out, args, body, returns) as (inp, out):
             try:
-                parsed = _parse_arguments(params, args)
+                parsed = self._parse_arguments(params, args)
             except ValueError:
                 return self._help_operation(resource_name, operation)
             try:
@@ -339,13 +331,13 @@ class CLI:
         for name in (n for n in params if n != "_body"):
             param = params[name]
             munged = _p2a(name)
-            arg = "--{}={}".format(munged, param.python_type.__name__.upper())
+            arg = "{}{}={}".format(self.prefix, munged, param.python_type.__name__.upper())
             item = param.description or ""
             if param.enum:
                 item += "  {" + ",".join((param.str_encode(e) for e in sorted(param.enum))) + "}"
             if param.default is not None:
                 item += "  (default: {})".format(param.str_encode(param.default))
-            listing["--{}".format(munged)] = item
+            listing["{}{}".format(self.prefix, munged)] = item
             if not param.required:
                 arg = "[{}]".format(arg)
             usage.append(arg)
