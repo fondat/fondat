@@ -150,7 +150,7 @@ class OpenAPIResource(Resource):
         for operation in self.app.operations.values():
             for requirement in (req for req in operation.security or [] if req):
                 try:
-                    result[security.scheme.name] = security.scheme.json
+                    result[requirement.scheme.name] = requirement.scheme.json
                 except AttributeError:  # no scheme, no problem
                     pass
         return result
