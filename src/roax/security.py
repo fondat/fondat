@@ -14,17 +14,24 @@ from roax.resource import Forbidden, Unauthorized
 
 
 class SecurityRequirement:
-    """Performs authorization of resource operations."""
+    """
+    Performs authorization of resource operations.
+    """
 
-    def __init__(self, scheme=None):
+    def __init__(self, scheme=None, scopes=[]):
         """
         Initialize security requirement.
 
-        :param scheme: Associated security scheme, if applicable.
+        If the requirement is associated with a security scheme, both the security
+        requirement and the security scheme will be included in any generated
+        OpenAPI document.
+
+        :param scheme: Security scheme to associate with the security requirement.
+        :param scope: Scheme-specific scope names required for authorization.
         """
         super().__init__()
         self.scheme = scheme
-        self.json = {}
+        self.scopes = scopes
 
     def authorize(self):
         """
@@ -34,12 +41,29 @@ class SecurityRequirement:
         """
         raise NotImplementedError
 
+    @property
+    def json(self):
+        if self.scheme:
+            return {scheme.name: self.scopes}
+
 
 class SecurityScheme:
-    """Base class for security schemes."""
+    """
+    Base class for security schemes.
+    
+    A security scheme is only required if security requirements and security
+    schemes should be published in OpenAPI documents.
+    """
 
-    def __init__(self, type, *, description=None, **kwargs):
+    def __init__(self, name, type, *, description=None, **kwargs):
+        """
+        Initialize the HTTP authentication security scheme.
+        
+        :param name: The name of the security scheme.
+        :param type: The type of security scheme.
+        """
         super().__init__()
+        self.name = name
         self.type = type
         self.description = description
 
@@ -48,6 +72,7 @@ class SecurityScheme:
         """Context that the scheme pushes onto the context stack."""
         result = {}
         result["context_type"] = "security"
+        result["security_name"] = self.name
         result["security_type"] = self.type
         return result
 
@@ -64,8 +89,14 @@ class SecurityScheme:
 class HTTPSecurityScheme(SecurityScheme):
     """Base class for HTTP authentication security scheme."""
 
-    def __init__(self, scheme, **kwargs):
-        super().__init__("http", **kwargs)
+    def __init__(self, name, scheme, **kwargs):
+        """
+        Initialize the HTTP authentication security scheme.
+        
+        :param name: The name of the security scheme.
+        :param scheme: The name of the HTTP authorization scheme.
+        """
+        super().__init__(name, "http", **kwargs)
         self.scheme = scheme
 
     @property
@@ -79,17 +110,22 @@ class HTTPSecurityScheme(SecurityScheme):
     def json(self):
         """JSON representation of the security scheme."""
         result = super().json
-        result["http_scheme"] = scheme
+        result["scheme"] = scheme
         return result
 
 
 class HTTPBasicSecurityScheme(HTTPSecurityScheme):
     """Base class for HTTP basic authentication security scheme."""
 
-    def __init__(self, realm, **kwargs):
-        """TODO: Description."""
-        super().__init__("basic", **kwargs)
-        self.realm = realm
+    def __init__(self, name, realm=None, **kwargs):
+        """
+        Initialize the HTTP basic authentication security scheme.
+        
+        :param name: The name of the security scheme.
+        :param realm: The realm to include in the challenge. (default: name)
+        """
+        super().__init__(name, "basic", **kwargs)
+        self.realm = realm or name
 
     def Unauthorized(self, detail=None):
         """Return an Unauthorized exception populated with scheme and realm."""

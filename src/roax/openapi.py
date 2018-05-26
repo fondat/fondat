@@ -1,4 +1,4 @@
-"""Module to expose OpenAPI document describing Roax application."""
+"""Module to expose OpenAPI document describing a Roax application."""
 
 # Copyright © 2018 Paul Bryan.
 #
@@ -22,13 +22,16 @@ def _body_schema(schema):
     return 
 
 
-def _security(operation):
+def _security_requirements(operation):
     result = []
     for security in operation.security or []:
         if security:
-            json = security.json
-            if json not in result:
-                result.append(json)
+            try:
+                json = security.json
+                if json:
+                    result.append(json)
+            except AttributeError:
+                pass
     return result
 
 
@@ -63,6 +66,7 @@ class OpenAPIResource(Resource):
         result["info"] = self._info()
         result["servers"] = self._servers()
         result["paths"] = self._paths()
+        result["components"] = self._components()
         result["security"] = []
         result["tags"] = self._tags()
         return result
@@ -132,8 +136,23 @@ class OpenAPIResource(Resource):
                         "description": "No content",
                     }
                 }
-            obj["security"] = _security(operation)
+            obj["security"] = _security_requirements(operation)
             path_item[op_method.lower()] = obj
+        return result
+
+    def _components(self):
+        result = {}
+        result["securitySchemes"] = self._security_schemes()
+        return result
+
+    def _security_schemes(self):
+        result = {}
+        for operation in self.app.operations.values():
+            for requirement in (req for req in operation.security or [] if req):
+                try:
+                    result[security.scheme.name] = security.scheme.json
+                except AttributeError:  # no scheme, no problem
+                    pass
         return result
 
     def _tags(self):
