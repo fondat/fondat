@@ -150,6 +150,7 @@ class ContextSecurityRequirement(SecurityRequirement):
         - ContextSecurityRequirement(**kwargs): Name-value pairs in keyword arguments. 
 
         """
+        super().__init__()
         self.context = dict(*args, **varargs)
 
     def authorize(self):
