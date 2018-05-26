@@ -25,8 +25,10 @@ def _body_schema(schema):
 def _security(operation):
     result = []
     for security in operation.security or []:
-        if security and security not in result:
-            result.append(s)
+        if security:
+            json = security.json
+            if json not in result:
+                result.append(json)
     return result
 
 
