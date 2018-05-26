@@ -26,7 +26,7 @@ def _security(operation):
     result = []
     for security in operation.security or []:
         if security and security not in result:
-            security.append(s)
+            result.append(s)
     return result
 
 
