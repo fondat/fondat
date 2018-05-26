@@ -44,7 +44,7 @@ class SecurityRequirement:
     @property
     def json(self):
         if self.scheme:
-            return {scheme.name: self.scopes}
+            return {self.scheme.name: self.scopes}
 
 
 class SecurityScheme:
