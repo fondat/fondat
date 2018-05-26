@@ -110,7 +110,7 @@ class HTTPSecurityScheme(SecurityScheme):
     def json(self):
         """JSON representation of the security scheme."""
         result = super().json
-        result["scheme"] = scheme
+        result["scheme"] = self.scheme
         return result
 
 
