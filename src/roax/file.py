@@ -12,7 +12,6 @@ import roax.schema as s
 
 from copy import copy
 from os.path import expanduser
-from roax.patch import merge_patch
 from roax.resource import Resource, Conflict, InternalServerError, NotFound
 
 try:
