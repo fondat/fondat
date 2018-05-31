@@ -31,9 +31,6 @@ def _a2p(name):
     m = _re.match(name)
     return m.group(1) + m.group(2).replace("-", "_") + m.group(3)
 
-def _is_binary(schema):
-    return schema and isinstance(schema, s.bytes) and schema.format == "binary"
-
 def _parse_redirects(args, body, returns):
     result = {}
     n = 0
