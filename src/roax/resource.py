@@ -82,11 +82,10 @@ def authorize(security):
     for requirement in security or []:
         try:
             requirement.authorize()
+            return  # security requirement authorized the operation
         except Exception as e:
             if not exception:
-                exception = e
-        else:  # one security requirement authorizes the operation
-            return
+                exception = e  # first exception encountered
     if exception:
         raise exception
 
@@ -120,7 +119,7 @@ def operation(
         if _type not in valid_types:
             raise ValueError("operation type must be one of: {}".format(valid_types))
         def wrapper(wrapped, instance, args, kwargs):
-            with context.push(context_type="operation", operation_resource=wrapped.__self__, operation_name=_name):
+            with context.push(context_type="operation", operation_resource=wrapped.__self__.name, operation_name=_name):
                 authorize(security)
                 return wrapped(*args, **kwargs)
         _params = s.function_params(function, params)
