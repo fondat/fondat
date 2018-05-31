@@ -7,8 +7,8 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import json
-import readline
 import re
+import readline
 import roax.context as context
 import roax.schema as s
 import shlex
@@ -68,6 +68,9 @@ def _write(out, schema, value):
     out.write(schema.bin_encode(value))
     out.flush()
 
+def _summary(function):
+    """Return a summary line of text from usage docstring."""
+    return function.__doc__.splitlines()[1].lstrip().rstrip()
 
 class _open_redirects:
 
@@ -117,19 +120,47 @@ class CLI:
         self.prefix = prefix
         self.log = log
         self.resources = {}
+        self.commands = {}
         self.hidden = set()
-        self.commands = self._commands()
+        self._register_commands()
 
-    def register_resource(self, name, resource, publish=True):
+    def register_resource(self, name, resource, hidden=False):
         """
         Register a resource with the command line interface.
 
         :param name: The name to expose for the resource via command line.
         :param resource: The resource to be registered.
-        :param publish: List the resource in help listings.
+        :param hidden: Hide the resource in help listings.
         """
+        if name in self.resources:
+            raise ValueError("{} is already a registered resource".format(name))
+        if name in self.commands:
+            raise ValueError("{} is already a registered command".format(name))
         self.resources[name] = resource
-        if not publish:
+        if hidden:
+            self.hidden.add(name)
+
+    def register_command(self, name, function, hidden=False):
+        """
+        Register a command with the command line interface.
+
+        :param name: The name to e xpose for the command via command line.
+        :param function: The function to pass command line to.
+        :param hidden: Hide the command in help listings.
+        
+        The command's docstring (__doc__) is required to have its usage on the first
+        line, the summary description on the second line, and any further help on
+        subsequent lines.
+        
+        The command function requires an args parameter to accept arguments passed to
+        it from the command line.
+        """
+        if name in self.resources:
+            raise ValueError("{} is already a registered resource".format(name))
+        if name in self.commands:
+            raise ValueError("{} is already a registered command".format(name))
+        self.commands[name] = function
+        if hidden:
             self.hidden.add(name)
 
     def loop(self, prompt=None):
@@ -137,12 +168,14 @@ class CLI:
         Repeatedly issue a command prompt and process input.
 
         :param prompt: The prompt to display for each command.
+        
+        The prompt can be a string or a callable to return a string containing the
+        prompt to display.
         """
         prompt = prompt or "{}> ".format(self.name or "")
         while True:
             try:
-                self._print(prompt, end="")
-                self.process(input())
+                self.process(input(prompt() if callable(prompt) else prompt))
             except (EOFError, KeyboardInterrupt):
                 self._print()
                 break
@@ -167,7 +200,7 @@ class CLI:
                 if name in self.resources:
                     return self._process_resource(name, args, inp, out)
                 elif name in self.commands:
-                    return self.commands[name][0](args)
+                    return self.commands[name](args)
                 else:
                     self._print("Invalid command or resource: {}.".format(name))
                     return False
@@ -181,13 +214,12 @@ class CLI:
                 traceback.print_exc()
             return False
 
-    def _commands(self):
-        return {
-            "help": (self._help, "Request help with commands and resources."),
-            "exit": (self._exit, "Exit the {} command line.".format(self.name)),
-            "quit": (self._exit, None),  # alias
-            "q": (self._exit, None),  # alias
-        }
+    def _register_commands(self):
+        self.register_command("help", self._help)
+        self.register_command("exit", self._exit)
+        self.register_command("quit", self._exit, hidden=True)
+        self.register_command("q", self._exit, hidden=True)
+        self.register_command("debug", self._debug, hidden=True)
 
     def _help(self, args):
         """\
@@ -211,6 +243,21 @@ class CLI:
         """
         raise _Exit
 
+    def _debug(self, args):
+        """\
+        Usage: debug [on|off]
+          Enable, disable or print debugging status.\
+        """
+        if args and args[0] == "on":
+            self.debug = True
+        elif args and args[0] == "off":
+            self.debug = False
+        elif args:
+            self._help_command("debug")
+            return False
+        print("Debugging status: {}.".format("on" if self.debug else "off"))
+        return True
+
     def _print(self, *args, **varargs):
         if self.err:
             print(*args, file=self.err, **varargs)
@@ -227,7 +274,7 @@ class CLI:
 
     def _help_command(self, name):
         """Print the function docstring of a command as help text."""
-        self._print(dedent(self.commands[name][0].__doc__))
+        self._print(dedent(self.commands[name].__doc__))
         return False
 
     def _parse_arguments(self, params, args):
@@ -315,7 +362,7 @@ class CLI:
         resources = {k: self.resources[k].description for k in self.resources if k not in self.hidden} 
         self._print_listing(resources, indent="  ")
         self._print("Available commands:")
-        commands = {k: self.commands[k][1] for k in self.commands if self.commands[k][1]}
+        commands = {k: _summary(self.commands[k]) for k in self.commands if k not in self.hidden}
         self._print_listing(commands, indent="  ")
         return False
 
