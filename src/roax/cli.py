@@ -93,6 +93,10 @@ class _open_redirects:
                 pass
 
 
+class _Exit(Exception):
+    pass
+
+
 class CLI:
     """Command line interface that exposes registered resources."""
 
@@ -140,6 +144,9 @@ class CLI:
                 self._print(prompt, end="")
                 self.process(input())
             except (EOFError, KeyboardInterrupt):
+                self._print()
+                break
+            except _Exit:
                 break
 
     def process(self, line, inp=sys.stdin, out=sys.stdout):
@@ -164,8 +171,7 @@ class CLI:
                 else:
                     self._print("Invalid command or resource: {}.".format(name))
                     return False
-        except (EOFError, KeyboardInterrupt):
-            self._print()
+        except _Exit:
             raise
         except Exception as e:
             if self.log:
@@ -203,7 +209,7 @@ class CLI:
         Usage: exit
           Exit the command line interface.\
         """
-        raise EOFError
+        raise _Exit
 
     def _print(self, *args, **varargs):
         if self.err:
