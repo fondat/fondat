@@ -82,7 +82,7 @@ class _Resource1(Resource):
         return BytesIO(_body.read())
 
 app = App("/", "Title", "1.0")
-app.register("/r1", _Resource1())
+app.register_resource("/r1", _Resource1())
 
 
 class TestWSGI(unittest.TestCase):

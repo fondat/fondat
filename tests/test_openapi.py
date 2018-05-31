@@ -26,7 +26,7 @@ class TestResource(Resource):
         pass
 
 app = App("/", "Title", "1.0")
-app.register("/test", TestResource())
+app.register_resource("/test", TestResource())
 
 
 class TestOpenAPI(unittest.TestCase):

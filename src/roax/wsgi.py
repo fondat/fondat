@@ -118,7 +118,7 @@ class App:
         self.version = version
         self.operations = {}
 
-    def register(self, path, resource, publish=True):
+    def register_resource(self, path, resource, publish=True):
         """
         Register a resource to the application.
 
@@ -188,14 +188,14 @@ class App:
         path = path.rstrip("/")
         fs_path = Path(file_dir).expanduser()
         if fs_path.is_file():
-            self.register(path, _static(fs_path))
+            self.register_resource(path, _static(fs_path))
         elif fs_path.is_dir():
             for child in fs_path.iterdir():
                 if child.is_file():
                     resource = _static(child)
-                    self.register("{}/{}".format(path, child.name), resource, publish)
+                    self.register_resource("{}/{}".format(path, child.name), resource, publish)
                     if child.name == index:
-                        self.register("{}/".format(path), resource, publish)
+                        self.register_resource("{}/".format(path), resource, publish)
         else:
             raise ValueError("invalid file or directory: {}".format(file_dir))
 
