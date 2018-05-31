@@ -96,7 +96,7 @@ class _open_redirects:
 class CLI:
     """Command line interface that exposes registered resources."""
 
-    def __init__(self, *, name=None, debug=False, err=sys.stderr, prefix="--", log=None):
+    def __init__(self, name=None, *, debug=False, err=sys.stderr, prefix="--", log=None):
         """
         Initialize a command line interface.
 
@@ -135,16 +135,12 @@ class CLI:
         :param prompt: The prompt to display for each command.
         """
         prompt = prompt or "{}> ".format(self.name or "")
-        if self._looping:
-            raise ValueError("already looping")
-        self._looping = True
-        while self._looping:
+        while True:
             try:
                 self._print(prompt, end="")
                 self.process(input())
             except (EOFError, KeyboardInterrupt):
                 break
-        self._looping = False
 
     def process(self, line, inp=sys.stdin, out=sys.stdout):
         """
