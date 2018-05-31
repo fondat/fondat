@@ -99,32 +99,27 @@ class _open_redirects:
 class CLI:
     """Command line interface that exposes registered resources."""
 
-    def __init__(self, *, name=None, prompt=None, debug=False, err=sys.stderr, prefix="--"):
+    def __init__(self, *, name=None, debug=False, err=sys.stderr, prefix="--", log=None):
         """
         Initialize a command line interface.
 
         :param name: The name of the application.
-        :param prompt: The prompt to display for each command.
-        :param silent: Do not display prompts and status messages.
-        :param debug: Display details for raised exceptions.
-        :param inp: Input stream for reading bodies. (default: stdin)
-        :param out: Output stream for writing responses. (default: stdout)
-        :param err: Output stream for writing prompts. (default: stderr)
-        :param prefix: Prefix for parameters. (default: "--")
+        :param debug: Print details for any raised exceptions.
+        :param err: Output stream for writing prompts and errors.
+        :param prefix: Prefix for parameters.
+        :param log: Log function to write log information.
         """
         super().__init__()
         self.name = name
-        self.prompt = prompt or "{}> ".format(name) if name else "> "
         self.debug = debug
         self.err = err
         self.prefix = prefix
+        self.log = log
         self.resources = {}
-        self.private = set()
-        self.commands = {}
-        self._looping = False
-        self._init_commands()
+        self.hidden = set()
+        self.commands = self._commands()
 
-    def register(self, name, resource, publish=True):
+    def register_resource(self, name, resource, publish=True):
         """
         Register a resource with the command line interface.
 
@@ -134,16 +129,22 @@ class CLI:
         """
         self.resources[name] = resource
         if not publish:
-            self.private.add(name)
+            self.hidden.add(name)
 
-    def loop(self):
-        """Repeatedly issue a command prompt and process input."""
+    def loop(self, prompt=None):
+        """
+        Repeatedly issue a command prompt and process input.
+
+        :param prompt: The prompt to display for each command.
+        """
+        prompt = prompt or "{}> ".format(self.name or "")
         if self._looping:
             raise ValueError("already looping")
         self._looping = True
         while self._looping:
             try:
-                self.process(input(self.prompt))
+                self._print(prompt, end="")
+                self.process(input())
             except (EOFError, KeyboardInterrupt):
                 break
         self._looping = False
@@ -156,6 +157,8 @@ class CLI:
         :return: True if command line was processed successfully.
         """
         try:
+            if self.log:
+                self.log("%s", (line,))
             args = shlex.split(line)
             if not args:
                 return True
@@ -169,18 +172,23 @@ class CLI:
                     self._print("Invalid command or resource: {}.".format(name))
                     return False
         except (EOFError, KeyboardInterrupt):
+            self._print()
             raise
         except Exception as e:
+            if self.log:
+                self.log("%s", (e,), exc_info=self.debug)
             self._print("ERROR: {}".format(e))
             if self.debug:
                 traceback.print_exc()
             return False
 
-    def _init_commands(self):
-        self.commands["help"] = (self._help, "Request help with commands and resources.")
-        self.commands["exit"] = (self._exit, "Exit the {} command line.".format(self.name))
-        self.commands["quit"] = (self._exit, None)  # alias
-        self.commands["q"] = (self._exit, None)  # alias
+    def _commands(self):
+        return {
+            "help": (self._help, "Request help with commands and resources."),
+            "exit": (self._exit, "Exit the {} command line.".format(self.name)),
+            "quit": (self._exit, None),  # alias
+            "q": (self._exit, None),  # alias
+        }
 
     def _help(self, args):
         """\
@@ -204,9 +212,9 @@ class CLI:
         """
         raise EOFError
 
-    def _print(self, *args):
+    def _print(self, *args, **varargs):
         if self.err:
-            print(*args, file=self.err)
+            print(*args, file=self.err, **varargs)
 
     def _print_listing(self, listing, indent="", space=4, max_column=24):
         """Sort a dictionary by key and print as a listing."""
@@ -249,6 +257,7 @@ class CLI:
         return result
 
     def _process_resource(self, resource_name, args, inp, out):
+        """Process a command for a resource."""
         resource = self.resources[resource_name]
         operation_name = _a2p(args.pop(0)) if args else None
         operation = resource.operations.get(operation_name)
@@ -304,7 +313,7 @@ class CLI:
     def _help_list(self):
         """List all available resources and commands."""
         self._print("Available resources:")
-        resources = {k: self.resources[k].description for k in self.resources if k not in self.private} 
+        resources = {k: self.resources[k].description for k in self.resources if k not in self.hidden} 
         self._print_listing(resources, indent="  ")
         self._print("Available commands:")
         commands = {k: self.commands[k][1] for k in self.commands if self.commands[k][1]}
@@ -312,6 +321,7 @@ class CLI:
         return False
 
     def _help_resource(self, resource_name, args=None):
+        """Provide operations that are available for a specific resource."""
         operation_name = _a2p(args.pop(0)) if args else None
         operation = self.resources[resource_name].operations.get(operation_name)
         if operation:
@@ -325,6 +335,7 @@ class CLI:
         return False
 
     def _help_operation(self, resource_name, operation):
+        """Provide detailed help message for specific operation."""
         params = operation.params or {}
         usage=[]
         listing={}

@@ -26,7 +26,7 @@ class TestResource(Resource):
         return BytesIO(_body.read())
 
 cli = CLI(debug=False, err=None)
-cli.register("test", TestResource())
+cli.register_resource("test", TestResource())
 
 class TestCLI(unittest.TestCase):
 
