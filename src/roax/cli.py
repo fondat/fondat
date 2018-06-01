@@ -124,6 +124,12 @@ class CLI:
         self.hidden = set()
         self._register_commands()
 
+    def _check_not_registered(self, name):
+        if name in self.resources:
+            raise ValueError("{} is already a registered resource".format(name))
+        if name in self.commands:
+            raise ValueError("{} is already a registered command".format(name))
+
     def register_resource(self, name, resource, hidden=False):
         """
         Register a resource with the command line interface.
@@ -132,10 +138,7 @@ class CLI:
         :param resource: The resource to be registered.
         :param hidden: Hide the resource in help listings.
         """
-        if name in self.resources:
-            raise ValueError("{} is already a registered resource".format(name))
-        if name in self.commands:
-            raise ValueError("{} is already a registered command".format(name))
+        self._check_not_registered(name)
         self.resources[name] = resource
         if hidden:
             self.hidden.add(name)
@@ -144,21 +147,18 @@ class CLI:
         """
         Register a command with the command line interface.
 
-        :param name: The name to e xpose for the command via command line.
-        :param function: The function to pass command line to.
+        :param name: The name to expose for the command via command line.
+        :param function: The function to call when command is invoked.
         :param hidden: Hide the command in help listings.
-        
+
         The command's docstring (__doc__) is required to have its usage on the first
-        line, the summary description on the second line, and any further help on
-        subsequent lines.
+        line, the summary description on the second line, and any further help
+        documentation on subsequent lines.
         
         The command function requires an args parameter to accept arguments passed to
         it from the command line.
         """
-        if name in self.resources:
-            raise ValueError("{} is already a registered resource".format(name))
-        if name in self.commands:
-            raise ValueError("{} is already a registered command".format(name))
+        self._check_not_registered(name)
         self.commands[name] = function
         if hidden:
             self.hidden.add(name)
