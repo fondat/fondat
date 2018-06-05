@@ -1075,13 +1075,13 @@ class reader(_type):
 
         :param content_type: Content type used when value is expressed in a body. (default: application/octet-stream)
         """
-        super().__init__(python_type=IOBase, json_type="string", format="binary", content_type=content_type, **kwargs)
+        super().__init__(json_type="string", format="binary", content_type=content_type, **kwargs)
 
     def validate(self, value):
+        """Validate value against the schema."""
         super().validate(value)
-        if not value.readable():
+        if not callable(getattr(value, "read", None)):
             raise SchemaError("expecting readable file-like object")
-
 
 def call(function, args, kwargs, params=None, returns=None):
     """
