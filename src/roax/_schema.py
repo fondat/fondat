@@ -16,7 +16,7 @@ import wrapt
 
 from base64 import b64decode, b64encode
 from collections.abc import Mapping, Sequence
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from copy import copy
 from io import IOBase, StringIO
 from uuid import UUID
@@ -776,19 +776,17 @@ class _bytes(_type):
         return value if self.format == "binary" else super().bin_decode(value)
 
 
-class _datetime(_type):
+class _date(_type):
     """
-    Schema type for datetime values.
+    Schema type for date values.
 
-    Datetime values are represented in string and JSON values as an ISO 8601 date
-    and time in a string. Example: "2017-07-11T05:42:34Z".
+    Date values are represented in string and JSON values as an RFC 3339 date
+    in a string. Example: "2018-06-16".
     """
-
-    _UTC = isodate.tzinfo.Utc()
 
     def __init__(self, **kwargs):
         """
-        Initialize byte sequence schema.
+        Initialize date schema.
 
         :param content_type: Content type used when value is expressed in a body. (default: text/plain)
         :param nullable: Allow None as a valid value.
@@ -798,7 +796,60 @@ class _datetime(_type):
         :param description: A description of the schema.
         :param example: An example of an instance for this schema.
         """
+        super().__init__(python_type=date, json_type="string", format="date", **kwargs)
+
+    def json_encode(self, value):
+        """Encode the value into JSON object model representation."""
+        return self.str_encode(value)
+
+    def json_decode(self, value):
+        """Decode the value from JSON object model representation."""
+        return self.str_decode(value)
+
+    def str_encode(self, value):
+        """Encode the value into string representation."""
+        self.validate(value)
+        if value is not None:
+            value = isodate.date_isoformat(value)
+        return value
+
+    def str_decode(self, value):
+        """Decode the value from string representation."""
+        if value is not None:
+            try:
+                value = isodate.parse_date(value)
+            except ValueError as ve:
+                raise SchemaError("expecting an RFC 3339 date value") from ve
+        self.validate(value)
+        return value
+
+
+class _datetime(_type):
+    """
+    Schema type for datetime values.
+
+    Datetime values are represented in string and JSON values as an RFC 3339 date
+    and time in a string. Example: "2018-06-16T12:34:56.789Z".
+    """
+
+    _UTC = isodate.tzinfo.Utc()
+
+    def __init__(self, fractional=False, **kwargs):
+        """
+        Initialize datetime schema.
+
+        :param fractional: Include fractions of seconds.
+        :param content_type: Content type used when value is expressed in a body.
+        :param nullable: Allow None as a valid value.
+        :param required: Value is mandatory.
+        :param default: Default value if the item value is not supplied.
+        :param enum: A list of values that are valid.
+        :param description: A description of the schema.
+        :param example: An example of an instance for this schema.
+        """
         super().__init__(python_type=datetime, json_type="string", format="date-time", **kwargs)
+        self.fractional = fractional
+        self.isoformat = "%Y-%m-%dT%H:%M:%S.%fZ" if fractional else "%Y-%m-%dT%H:%M:%SZ"
 
     def _to_utc(self, value):
         if value.tzinfo is None: # naive value interpreted as UTC
@@ -817,7 +868,7 @@ class _datetime(_type):
         """Encode the value into string representation."""
         self.validate(value)
         if value is not None:
-            value = isodate.datetime_isoformat(self._to_utc(value))
+            value = isodate.datetime_isoformat(self._to_utc(value), self.isoformat)
         return value 
 
     def str_decode(self, value):
@@ -826,7 +877,9 @@ class _datetime(_type):
             try:
                 value = self._to_utc(isodate.parse_datetime(value))
             except ValueError as ve:
-                raise SchemaError("expecting an ISO 8601 date-time value") from ve
+                raise SchemaError("expecting an RFC 3339 date-time value") from ve
+            if value.microsecond and not self.fractional:  # truncate fractional value
+                value -= timedelta(microseconds=value.microsecond)
         self.validate(value)
         return value
 

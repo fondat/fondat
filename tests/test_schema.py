@@ -7,7 +7,7 @@ import unittest
 
 from base64 import b64encode
 from io import BytesIO
-from datetime import datetime
+from datetime import date, datetime
 from uuid import UUID
 
 _UTC = isodate.tzinfo.Utc()
@@ -426,6 +426,44 @@ class TestSchema(unittest.TestCase):
 
     def test_bool_allow_none(self):
         self.assertEqual(s.bool(nullable=True).json_encode(None), None)
+
+    # -- date -----
+
+    def test_date_validate_type_success(self):
+        s.date().validate(date(2015, 6, 7))
+
+    def test_date_validate_type_error(self):
+        self._error(s.date().validate, "this_is_not_a_date")
+
+    def test_date_json_encode_success_naive(self):
+        self.assertEqual(s.date().json_encode(date(2016, 7, 8)), "2016-07-08")
+
+    def test_date_json_encode_success_aware(self):
+        self.assertEqual(s.date().json_encode(date(2017, 6, 7)), "2017-06-07")
+
+    def test_date_json_encode_error(self):
+        self._error(s.date().json_encode, "definitely_not_a_date")
+
+    def test_date_json_decode_z(self):
+        self.assertEqual(s.date().json_decode("2018-08-09"), date(2018, 8, 9))
+
+    def test_date_json_decode_offset(self):
+        self.assertEqual(s.date().json_decode("2019-09-10"), date(2019, 9, 10))
+
+    def test_date_json_decode_missing_tz(self):
+        self.assertEqual(s.date().json_decode("2020-10-11"), date(2020, 10, 11))
+
+    def test_date_json_decode_error(self):
+        self._error(s.date().json_decode, "14256910")
+
+    def test_date_str_decode_error(self):
+        self._error(s.date().str_decode, "14256910")
+
+    def test_date_disallow_none(self):
+        self._error(s.date().json_encode, None)
+
+    def test_date_allow_none(self):
+        self.assertEqual(s.date(nullable=True).json_encode(None), None)
 
     # -- datetime -----
 

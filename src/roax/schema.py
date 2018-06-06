@@ -19,7 +19,7 @@ __all__ = []
 _export("SchemaError")
 
 _export("type", "dict", "list", "set", "str", "int", "float", "bool", "bytes")
-_export("datetime", "uuid")
+_export("date", "datetime", "uuid")
 _export("all_of", "any_of", "one_of")
 _export("reader")
 
