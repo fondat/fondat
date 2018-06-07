@@ -512,6 +512,18 @@ class TestSchema(unittest.TestCase):
     def test_datetime_allow_none(self):
         self.assertEqual(s.datetime(nullable=True).json_encode(None), None)
 
+    def test_datetime_str_decode_retain_microsecond(self):
+        self.assertEqual(s.datetime(fractional=True).str_decode("2018-01-02T03:04:05.123456Z"), datetime(2018, 1, 2, 3, 4, 5, 123456, _UTC))
+
+    def test_datetime_str_encode_retain_microsecond(self):
+        self.assertEqual(s.datetime(fractional=True).str_encode(datetime(2018, 1, 2, 3, 4, 5, 123456, _UTC)), "2018-01-02T03:04:05.123456Z")
+
+    def test_datetime_str_decode_truncate_microsecond(self):
+        self.assertEqual(s.datetime().str_decode("2018-01-02T03:04:05.123456Z"), datetime(2018, 1, 2, 3, 4, 5, 0, _UTC))
+
+    def test_datetime_str_encode_truncate_microsecond(self):
+        self.assertEqual(s.datetime().str_encode(datetime(2018, 1, 2, 3, 4, 5, 123456, _UTC)), "2018-01-02T03:04:05Z")
+
     # -- uuid -----
 
     def test_uuid_validate_type_success(self):
