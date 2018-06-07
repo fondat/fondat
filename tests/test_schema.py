@@ -513,7 +513,7 @@ class TestSchema(unittest.TestCase):
         self.assertEqual(s.datetime(nullable=True).json_encode(None), None)
 
     def test_datetime_str_decode_retain_microsecond(self):
-        self.assertEqual(s.datetime(fractional=True).str_decode("2018-01-02T03:04:05.123456Z"), datetime(2018, 1, 2, 3, 4, 5, 123456, _UTC))
+        self.assertEqual(s.datetime(fractional=True).str_decode("2018-01-02T03:04:05.123Z"), datetime(2018, 1, 2, 3, 4, 5, 123000, _UTC))
 
     def test_datetime_str_encode_retain_microsecond(self):
         self.assertEqual(s.datetime(fractional=True).str_encode(datetime(2018, 1, 2, 3, 4, 5, 123456, _UTC)), "2018-01-02T03:04:05.123456Z")
