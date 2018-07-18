@@ -10,12 +10,14 @@ import roax.context as context
 import roax.schema as s
 import wrapt
 
-
 class _Operation:
     """A resource operation.""" 
     def __init__(self, **kwargs):
         for k in kwargs:
             self.__setattr__(k, kwargs[k])
+    def call(self, **kwargs):
+        """Call the resource operation with keyword arguments."""
+        return getattr(self.resource, self.function)(**kwargs)
 
 
 class Resource:
@@ -25,7 +27,7 @@ class Resource:
         """Register a resource operation."""
         name = operation["name"]
         if name in self.operations:
-            raise ValueError("operation already registered: {}".format(name))
+            raise ValueError("operation name already registered: {}".format(name))
         self.operations[name] = _Operation(**operation)
 
     def __init__(self, name=None, description=None):
@@ -45,14 +47,7 @@ class Resource:
                 operation = function._roax_operation
             except:
                 continue  # ignore undecorated functions
-            self._register_operation(**{**operation, "resource": self, "function": function})
-
-    def call(self, name, params={}):
-        """Call a resource operation."""
-        try:
-            return self.operations[name].function(**params)
-        except KeyError as e:
-            raise BadRequest("no such operation: {}".format(name))
+            self._register_operation(**{**operation, "resource": self, "function": function.__name__})
 
 
 def _summary(function):
@@ -73,7 +68,7 @@ def _summary(function):
 
 def authorize(security):
     """
-    Peforms authorization of the operation. If one security requirement does not
+    Peform authorization of the operation. If one security requirement does not
     raise an exception, then authorization is granted. If all security requirements
     raise exceptions, then authorization is denied, and the exception raised by the
     first security requirement is raised.
@@ -124,7 +119,7 @@ def operation(
                 return wrapped(*args, **kwargs)
         _params = s.function_params(function, params)
         decorated = s.validate(_params, returns)(wrapt.decorator(wrapper)(function))
-        operation = dict(function=decorated, name=_name, type=_type,
+        operation = dict(function=function.__name__, name=_name, type=_type,
             summary=__summary, description=_description, params=_params,
             returns=returns, security=security, publish=publish, deprecated=deprecated)
         try:

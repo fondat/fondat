@@ -336,7 +336,7 @@ class CLI:
                     else:
                         parsed["_body"] = _read(inp, body)
                 name = None
-                result = operation.function(**parsed)
+                result = operation.call(**parsed)
             except s.SchemaError as se:
                 if name:
                     se.push(_p2a(name))

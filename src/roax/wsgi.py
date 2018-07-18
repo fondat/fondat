@@ -211,7 +211,7 @@ class App:
                     except Exception:  # authorization trumps input validation
                         resource.authorize(operation.security)
                         raise
-                    return _response(operation, operation.function(**params))
+                    return _response(operation, operation.call(**params))
                 response = Chain(_filters(operation.security), handle).next(request)
         except exc.HTTPException as he:
             response = _ErrorResponse(he.code, he.detail)

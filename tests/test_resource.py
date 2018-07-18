@@ -44,10 +44,10 @@ class InvalidOperationTypeResource(Resource):
 class TestResource(unittest.TestCase):
 
     def test_call(self):
-        result = R1().call("create", params={"body": {"foo": "bar"}})
+        result = R1().operations["create"].call(body={"foo":"bar"})
 
     def test_init_wrap(self):
-        result = R2().call("create", params={"body": {"foo": "bar"}})
+        result = R2().operations["create"].call(body={"foo":"bar"})
 
     def test_invalid_operation_type(self):
         with self.assertRaises(ValueError):
