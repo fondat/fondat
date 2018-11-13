@@ -73,7 +73,7 @@ def _params(request, operation):
             pass
     return result
 
-def _filters(requirements):
+def _security_filters(requirements):
     """Produce set of filters associated with the security requirements."""
     result = set()
     for requirement in requirements or []:
@@ -102,7 +102,7 @@ def _environ(environ):
 class App:
     """Roax WSGI application."""
 
-    def __init__(self, url, title, version, description=None):
+    def __init__(self, url, title, version, description=None, filters=None):
         """
         Initialize WSGI application.
         
@@ -110,12 +110,14 @@ class App:
         :param title: The title of the application.
         :param version: The API implementation version.
         :param description: A short description of the application.
+        :param filters: Filters to apply during HTTP request processing.
         """
         self.url = url
-        self.base = urlparse(self.url).path.rstrip("/")
         self.title = title
-        self.description = description
         self.version = version
+        self.description = description
+        self.filters = filters or []
+        self.base = urlparse(self.url).path.rstrip("/")
         self.operations = {}
 
     def register_resource(self, path, resource, publish=True):
@@ -212,7 +214,9 @@ class App:
                         resource.authorize(operation.security)
                         raise
                     return _response(operation, operation.call(**params))
-                response = Chain(_filters(operation.security), handle).next(request)
+                filters = self.filters.copy()
+                filters.extend(_security_filters(operation.security))
+                response = _Chain(filters, handle).next(request)
         except exc.HTTPException as he:
             response = _ErrorResponse(he.code, he.detail)
         except resource.ResourceError as re:
@@ -234,14 +238,14 @@ class App:
         raise exc.HTTPNotFound("resource or operation not found")
 
 
-class Chain:
+class _Chain:
     """A chain of filters, terminated by a handler."""
 
-    def __init__(self, filters=[], terminus=None):
+    def __init__(self, filters=[], handler=None):
         """Initialize a filter chain."""
         self.filters = list(filters)
-        self.terminus = terminus
+        self.handler = handler
 
     def next(self, request):
         """Calls the next filter in the chain, or the terminus."""
-        return self.filters.pop(0)(request, self) if self.filters else self.terminus(request)
+        return self.filters.pop(0)(request, self) if self.filters else self.handler(request)
