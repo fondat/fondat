@@ -17,7 +17,7 @@ def read(fname):
         return f.read()
 
 def version():
-    match = re.search(r"^__version__ = ['\"]([^'\"]*)['\"]", read("src/roax/__init__.py"), re.M)
+    match = re.search(r"^__version__ = ['\"]([^'\"]*)['\"]", read("src/roax/_version.py"), re.M)
     if not match:
         raise RuntimeError("failed to parse version")
     return match.group(1)
