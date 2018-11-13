@@ -1136,6 +1136,7 @@ class reader(_type):
         if not callable(getattr(value, "read", None)):
             raise SchemaError("expecting readable file-like object")
 
+
 def call(function, args, kwargs, params=None, returns=None):
     """
     Call a function, validating its input parameters and return value.

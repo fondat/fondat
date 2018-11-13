@@ -10,6 +10,8 @@ import threading
 
 from collections import Mapping
 from contextlib import contextmanager
+from datetime import datetime
+from uuid import uuid4
 
 
 _local = threading.local()
@@ -39,6 +41,8 @@ class push():
         - push(**kwargs): Context is initialized with name-value pairs in keyword arguments. 
         """
         stack = get_stack()
+        if len(stack) == 0:
+            stack.append(dict(context_type="root", id=uuid4(), time=datetime.utcnow()))
         self.value = dict(*args, **varargs)
         stack.append(self.value)
         self.pos = len(stack) - 1
@@ -62,6 +66,8 @@ def pop(pushed):
     if stack[pos] != value:
         raise RuntimeError("context value on stack was modified")
     del stack[pos:]
+    if len(stack) == 1:
+        del stack[0]
 
 
 def last(*args, **varargs):
