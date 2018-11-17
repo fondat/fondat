@@ -59,10 +59,18 @@ class Resource:
 
 class Resources:
     """
-    Provides a single object to hold shared application resources. Resources are
-    exposed as object attributes, and are lazily imported and instantiated at the
-    time of first use; this solves potential circular dependencies between
-    resources.
+    Provides a single object to hold shared application resources. are lazily
+    imported and instantiated at the time of first use; this solves potential
+    circular dependencies between resources.
+
+    Resources are exposed as object attributes. If initialized as follows::
+
+        resources = Resources({
+            "foo": "myapp.resources.v1.FooResource",
+            "bar": "myapp.resources.v1.BarResource",
+        })
+
+    then resources are accessed like: `resources.foo` and `resources.bar`.
     """
 
     def __init__(self, resources):
