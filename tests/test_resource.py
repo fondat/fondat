@@ -2,7 +2,7 @@ import roax.schema as s
 import unittest
 import uuid
 
-from roax.resource import Resource, operation
+from roax.resource import Resource, Resources, operation
 
 
 body_schema = s.dict({
@@ -19,6 +19,9 @@ class R1(Resource):
     def create(self, body):
         return uuid.UUID("705d9048-97d6-4071-8359-3dbf0531fee9")
 
+    @operation(type="query", returns=s.str())
+    def foo(self):
+        return "bar"
 
 class R2(Resource):
     
@@ -58,6 +61,18 @@ class TestResource(unittest.TestCase):
             @operation(type="create")
             def not_a_valid_operation_type(self):
                 pass
+
+
+class TestResources(unittest.TestCase):
+
+    def test_resources(self):
+        mod = R1.__module__
+        resources = Resources({
+            "r1": "{}.R1".format(mod),
+            "r2": "{}.R2".format(mod),
+        })
+        r1 = resources.r1
+        self.assertEqual(r1.foo(), "bar")
 
 
 if __name__ == "__main__":

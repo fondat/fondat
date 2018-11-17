@@ -8,7 +8,14 @@
 
 import roax.context as context
 import roax.schema as s
+import threading
 import wrapt
+
+from importlib import import_module
+from keyword import iskeyword
+
+_lock = threading.Lock()
+
 
 class _Operation:
     """A resource operation.""" 
@@ -48,6 +55,42 @@ class Resource:
             except:
                 continue  # ignore undecorated functions
             self._register_operation(**{**operation, "resource": self, "function": function.__name__})
+
+
+class Resources:
+    """
+    Provides a single object to hold shared application resources. Resources are
+    exposed as object attributes, and are lazily imported and instantiated at the
+    time of first use; this solves potential circular dependencies between
+    resources.
+    """
+
+    def __init__(self, resources):
+        """
+        Initialize resources with a mapping of resource names to module.class names to
+        import. The module.class are specified in a string; for example:
+        `myapp.resources.v1.FooResource`. Resources must have `__init__` methods that
+        take no arguments other than `self`.
+        """
+        super().__init__()
+        self._resources = dict(resources)  # copy
+        for k, v in self._resources.items():
+            if iskeyword(k) or not k.isidentifier() or not isinstance(v, str) or "." not in v:
+                raise ValueError("invalid resource mapping")
+
+    def __dir__(self):
+        return list(super().__dir__() + self.map.keys())
+
+    def __getattribute__(self, name):
+        _resources = super().__getattribute__("_resources")
+        if name not in _resources:
+            return super().__getattribute__(name)
+        if isinstance(_resources[name], str):
+            with _lock:
+                if isinstance(_resources[name], str):
+                    mod, cls = _resources[name].rsplit(".", 1)
+                    _resources[name] = getattr(import_module(mod), cls)()
+        return _resources[name]
 
 
 def _summary(function):
