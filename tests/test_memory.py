@@ -4,7 +4,7 @@ import roax.schema as s
 import unittest
 
 from roax.memory import MemoryResource
-from roax.resource import operation
+from roax.resource import Conflict, NotFound, operation
 from uuid import uuid4
 
 
@@ -40,7 +40,7 @@ class TestMemoryResource(unittest.TestCase):
             def list(self):
                 return super().list()
 
-        rs = FooResource(dir)
+        rs = FooResource()
         r1 = { "foo": "hello", "bar": 1 }
         id = rs.create(r1)["id"]
         r1["id"] = id
@@ -94,7 +94,7 @@ class TestMemoryResource(unittest.TestCase):
 
     def test_crud_bytes(self):
 
-        mr = MemoryResource(dir)
+        mr = MemoryResource()
         body = b"\x00\x0e\0x01\0x01\0x00"
         id = "binary"
         self.assertEqual(id, mr.create(id, body)["id"])
@@ -106,6 +106,21 @@ class TestMemoryResource(unittest.TestCase):
         mr.delete(id)
         self.assertEqual(mr.list(), [])
 
+    def test_create_conflict(self):
+        mr = MemoryResource()
+        mr.create("1", "foo")
+        with self.assertRaises(Conflict):
+            mr.create("1", "foo")
+
+    def test_read_notfound(self):
+        mr = MemoryResource()
+        with self.assertRaises(NotFound):
+            mr.read("1")
+
+    def test_delete_notfound(self):
+        mr = MemoryResource()
+        with self.assertRaises(NotFound):
+            mr.delete("1")
 
 if __name__ == "__main__":
     unittest.main()

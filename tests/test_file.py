@@ -4,7 +4,7 @@ import roax.schema as s
 import unittest
 
 from roax.file import FileResource
-from roax.resource import InternalServerError, NotFound, operation
+from roax.resource import Conflict, InternalServerError, NotFound, operation
 from tempfile import TemporaryDirectory
 from uuid import uuid4
 
@@ -138,6 +138,22 @@ class TestFileResource(unittest.TestCase):
             fr.delete(id)
         with self.assertRaises(InternalServerError):
             fr.list()
+
+    def test_create_conflict(self):
+        with TemporaryDirectory() as dir:
+            fr = FileResource(dir, schema=s.str(), extension=".bin")
+            fr.create("1", "foo")
+            with self.assertRaises(Conflict):
+                fr.create("1", "foo")
+
+    def test_read_schemaerror(self):
+        with TemporaryDirectory() as dir:
+            fr = FileResource(dir, schema=s.int(), extension=".int")
+            fr.create("1", 1)
+            with open("{}/1.int".format(dir), "w") as f:
+                f.write("a")
+            with self.assertRaises(InternalServerError):
+                fr.read("1")
 
 
 if __name__ == "__main__":
