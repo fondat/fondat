@@ -24,7 +24,7 @@ def version():
 
 install_requires = [
     "isodate >= 0.6.0",
-    "WebOb >= 1.8.1",
+    "WebOb >= 1.8.4",
     "wrapt >= 1.10.11"
 ]
 
