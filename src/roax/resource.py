@@ -51,7 +51,7 @@ class Resource:
         self.operations = {}
         for function in (attr for attr in (getattr(self, nom) for nom in dir(self)) if callable(attr)):
             try:
-                operation = function._roax_operation
+                operation = function._roax_operation_
             except:
                 continue  # ignore undecorated functions
             self._register_operation(**{**operation, "resource": self, "function": function.__name__})
@@ -177,7 +177,7 @@ def operation(
             resource = getattr(function, "__self__")
             resource._register_operation(**{**operation, "resource": resource})
         except AttributeError:  # not yet bound to an instance
-            function._roax_operation = operation  # __init__ will register it
+            function._roax_operation_ = operation  # __init__ will register it
         return decorated
     return decorator
 
