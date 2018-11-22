@@ -59,4 +59,4 @@ class MemoryResource(Resource):
 
     def list(self):
         """Return a list of all resource item identifiers."""
-        return [k for k in self.mapping.keys()]
+        return list(self.mapping)
