@@ -64,12 +64,6 @@ class MemoryResource(Resource):
         self._entries[id] = (datetime.utcnow(), deepcopy(_body))
         return {"id": id}
 
-    def __get(self, id):
-        result = self._entries.get(id)
-        if not result or (self._ttl and datetime.utcnow() <= result[0] + self._ttl):
-            raise NotFound("{} item not found".format(self.name))
-        return result
-
     def read(self, id):
         """Read a resource item."""
         return deepcopy(self.__get(id)[1])
@@ -88,5 +82,16 @@ class MemoryResource(Resource):
 
     @_with_lock  # iterates over entries
     def list(self):
-        """Return a list of all resource item identifiers."""
+        """Query that returns a list of all resource item identifiers."""
         return [k for k, v in self._entries.items() if not self._ttl or v[0] + self._ttl <= now]
+
+    @_with_lock  # modifies entries
+    def clear(self):
+        """Action that removes all resource items."""
+        self._entries.clear()
+
+    def __get(self, id):
+        result = self._entries.get(id)
+        if not result or (self._ttl and datetime.utcnow() <= result[0] + self._ttl):
+            raise NotFound("{} item not found".format(self.name))
+        return result

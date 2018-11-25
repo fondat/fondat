@@ -122,5 +122,14 @@ class TestMemoryResource(unittest.TestCase):
         with self.assertRaises(NotFound):
             mr.delete("1")
 
+    def test_clear(self):
+        mr = MemoryResource()
+        mr.create("1", "foo")
+        mr.create("2", "bar")
+        self.assertEqual(len(mr.list()), 2)
+        mr.clear()
+        self.assertEqual(len(mr.list()), 0)
+
+
 if __name__ == "__main__":
     unittest.main()
