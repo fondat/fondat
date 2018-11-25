@@ -4,7 +4,8 @@ import roax.schema as s
 import unittest
 
 from roax.memory import MemoryResource
-from roax.resource import Conflict, NotFound, operation
+from roax.resource import BadRequest, Conflict, NotFound, operation
+from time import sleep
 from uuid import uuid4
 
 
@@ -130,6 +131,26 @@ class TestMemoryResource(unittest.TestCase):
         mr.clear()
         self.assertEqual(len(mr.list()), 0)
 
+    def test_size_limit(self):
+        mr = MemoryResource(size=1)
+        mr.create("1", "foo")
+        with self.assertRaises(BadRequest):
+            mr.create("2", "bar")
+
+    def test_size_evict(self):
+        mr = MemoryResource(size=2, evict=True)
+        mr.create("1", "foo")
+        mr.create("2", "bar")
+        mr.create("3", "qux")
+        self.assertEqual(set(mr.list()), {"2", "3"})
+
+    def test_ttl(self):
+        mr = MemoryResource(ttl=0.001)
+        mr.create("1", "foo")
+        mr.read("1")
+        sleep(0.001)
+        with self.assertRaises(NotFound):
+            read = mr.read("1")
 
 if __name__ == "__main__":
     unittest.main()

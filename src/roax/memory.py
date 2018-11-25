@@ -9,8 +9,8 @@
 import wrapt
 
 from copy import deepcopy
-from datetime import datetime
-from roax.resource import Resource, Conflict, InternalServerError, NotFound
+from datetime import datetime, timedelta
+from roax.resource import BadRequest, Resource, Conflict, NotFound
 from threading import Lock
 
 
@@ -54,13 +54,13 @@ class MemoryResource(Resource):
         if self.size and len(self._entries) >= self.size:
             if self.evict:  # evict oldest entry
                 oldest = None
-                for id, entry in self._entries.items():
+                for key, entry in self._entries.items():
                     if not oldest or entry[0] < oldest[0]:
-                        oldest = (entry[0], id)
+                        oldest = (entry[0], key)
                 if oldest:
                     del self._entries[oldest[1]]
         if self.size and len(self._entries) >= self.size:
-            raise InternalServerError("{} item size limit reached".format(self.name))
+            raise BadRequest("{} item size limit reached".format(self.name))
         self._entries[id] = (datetime.utcnow(), deepcopy(_body))
         return {"id": id}
 
@@ -92,6 +92,6 @@ class MemoryResource(Resource):
 
     def __get(self, id):
         result = self._entries.get(id)
-        if not result or (self._ttl and datetime.utcnow() <= result[0] + self._ttl):
+        if not result or (self._ttl and datetime.utcnow() > result[0] + self._ttl):
             raise NotFound("{} item not found".format(self.name))
         return result
