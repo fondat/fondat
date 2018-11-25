@@ -32,23 +32,23 @@ class MemoryResource(Resource):
 
         :param size: Maximum number of items to store. [unlimited]
         :param evict: Should oldest item be evicted to make room for a new item. [False]
-        :param ttl: Maximum item time to live, as `datetime.timedelta`. [unlimited]
+        :param ttl: Maximum item time to live, in seconds. [unlimited]
         :param name: Short name of the resource. [class name in lower case]
         :param description: Short description of the resource. [resource docstring]
         """
         super().__init__(name, description)
         self.size = size
         self.evict = evict
-        self.ttl = ttl
+        self._ttl = timedelta(seconds=ttl) if ttl else None
         self._lock = Lock()
         self._entries = {}
 
     @_with_lock  # iterates over and modifies entries
     def create(self, id, _body):
         """Create a resource item."""
-        if self.ttl:  # purge expired entries
+        if self._ttl:  # purge expired entries
             now = datetime.utcnow()
-            self._entries = {k: v for k, v in self._entries if v[0] + self.ttl <= now }
+            self._entries = {k: v for k, v in self._entries if v[0] + self._ttl <= now }
         if id in self._entries:
             raise Conflict("{} item already exists".format(self.name))
         if self.size and len(self._entries) >= self.size:
@@ -66,7 +66,7 @@ class MemoryResource(Resource):
 
     def __get(self, id):
         result = self._entries.get(id)
-        if not result or (self.ttl and datetime.utcnow() <= result[0] + self.ttl):
+        if not result or (self._ttl and datetime.utcnow() <= result[0] + self._ttl):
             raise NotFound("{} item not found".format(self.name))
         return result
 
@@ -89,4 +89,4 @@ class MemoryResource(Resource):
     @_with_lock  # iterates over entries
     def list(self):
         """Return a list of all resource item identifiers."""
-        return [k for k, v in self._entries.items() if not self.ttl or v[0] + self.ttl <= now]
+        return [k for k, v in self._entries.items() if not self._ttl or v[0] + self._ttl <= now]
