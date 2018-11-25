@@ -6,57 +6,87 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-from copy import copy
+import wrapt
+
+from copy import deepcopy
+from datetime import datetime
 from roax.resource import Resource, Conflict, InternalServerError, NotFound
 from threading import Lock
 
 
+@wrapt.decorator
+def _with_lock(wrapped, instance, args, kwargs):
+    with instance._lock:
+        return wrapped(*args, **kwargs)
+
+
 class MemoryResource(Resource):
     """
-    Base class for an in-memory resource; all items are stored in a mapping.
+    Base class for an in-memory resource; all items are stored in a dictionary.
     Resource item identifiers must be hashable values.
     """
 
-    def __init__(self, name=None, description=None, mapping=None):
+    def __init__(self, size=None, evict=False, ttl=None, name=None, description=None):
         """
         Initialize in-memory resource.
 
-        :param name: Short name of the resource. (default: class name in lower case)
-        :param description: Short description of the resource. (default: resource docstring)
-        :param mapping: Mapping to store items in. (default: new dictionary)
+        :param size: Maximum number of items to store. [unlimited]
+        :param evict: Should oldest item be evicted to make room for a new item. [False]
+        :param ttl: Maximum item time to live, as `datetime.timedelta`. [unlimited]
+        :param name: Short name of the resource. [class name in lower case]
+        :param description: Short description of the resource. [resource docstring]
         """
         super().__init__(name, description)
+        self.size = size
+        self.evict = evict
+        self.ttl = ttl
         self._lock = Lock()
-        self.mapping = mapping or getattr(self, "mapping", {})
+        self._entries = {}
 
+    @_with_lock  # iterates over and modifies entries
     def create(self, id, _body):
         """Create a resource item."""
-        with self._lock:
-            if id in self.mapping:
-                raise Conflict("{} item already exists".format(self.name))
-            self.mapping[id] = copy(_body)
+        if self.ttl:  # purge expired entries
+            now = datetime.utcnow()
+            self._entries = {k: v for k, v in self._entries if v[0] + self.ttl <= now }
+        if id in self._entries:
+            raise Conflict("{} item already exists".format(self.name))
+        if self.size and len(self._entries) >= self.size:
+            if self.evict:  # evict oldest entry
+                oldest = None
+                for id, entry in self._entries.items():
+                    if not oldest or entry[0] < oldest[0]:
+                        oldest = (entry[0], id)
+                if oldest:
+                    del self._entries[oldest[1]]
+        if self.size and len(self._entries) >= self.size:
+            raise InternalServerError("{} item size limit reached".format(self.name))
+        self._entries[id] = (datetime.utcnow(), deepcopy(_body))
         return {"id": id}
+
+    def __get(self, id):
+        result = self._entries.get(id)
+        if not result or (self.ttl and datetime.utcnow() <= result[0] + self.ttl):
+            raise NotFound("{} item not found".format(self.name))
+        return result
 
     def read(self, id):
         """Read a resource item."""
-        try:
-            return copy(self.mapping[id])
-        except KeyError:
-            raise NotFound("{} item not found".format(self.name))
+        return deepcopy(self.__get(id)[1])
 
+    @_with_lock  # modifies entries
     def update(self, id, _body):
         """Update a resource item."""
-        if id not in self.mapping:
-            raise NotFound("{} item not found".format(self.name))
-        self.mapping[id] = copy(_body)
+        old = self.__get(id)
+        self._entries[id] = (old[0], deepcopy(_body))
 
+    @_with_lock  # modifies entries
     def delete(self, id):
         """Delete a resource item."""
-        try:
-            del self.mapping[id]
-        except KeyError:
-            raise NotFound("{} item not found".format(self.name))
+        self.__get(id)  # ensure item exists and not expired
+        self._entries.pop(id, None)
 
+    @_with_lock  # iterates over entries
     def list(self):
         """Return a list of all resource item identifiers."""
-        return list(self.mapping)
+        return [k for k, v in self._entries.items() if not self.ttl or v[0] + self.ttl <= now]
