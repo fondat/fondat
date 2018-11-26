@@ -42,8 +42,8 @@ class Resource:
         Initialize resource. Arguments can be alternatively declared as class
         or instance variables.
 
-        :param name: Short name of the resource.  (Default: the class name in lower case.)
-        :param description: Short description of the resource.  (Default: the resource docstring.)
+        :param name: Short name of the resource.  [class name in lower case]
+        :param description: Short description of the resource.  [resource docstring]
         """
         super().__init__()
         self.name = name or getattr(self, "name", type(self).__name__.lower())
@@ -145,7 +145,7 @@ def operation(
     :param name: Operation name. Required if the operation type is "query" or "action".
     :param type: Type of operation being registered {create,read,update,delete,action,query,patch}.
     :param summary: Short summary of what the operation does.
-    :param description: Verbose description of the operation (default: function docstring).
+    :param description: Verbose description of the operation.  [function docstring]
     :param params: Mapping of operation's parameter names to their schemas.
     :param returns: Schema of operation's return value.
     :param security: Security schemes, one of which must be satisfied to perform the operation.
