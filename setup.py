@@ -28,6 +28,10 @@ install_requires = [
     "wrapt >= 1.10.11"
 ]
 
+tests_require = [
+    "redis >= 3.0.1",
+]
+
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -53,6 +57,7 @@ setup(
     package_dir = {"": "src"},
     python_requires = ">= 3.5",
     install_requires = install_requires,
+    tests_require = tests_require,
     keywords = "wsgi http framework resource roa",
     test_suite = "tests",
     cmdclass = {"test": test}
