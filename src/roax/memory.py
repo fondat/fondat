@@ -1,4 +1,4 @@
-"""Module to store resource items in files."""
+"""Module to store resource items in memory."""
 
 # Copyright © 2018 Paul Bryan.
 #
@@ -8,9 +8,9 @@
 
 import wrapt
 
+from .resource import BadRequest, Resource, Conflict, NotFound
 from copy import deepcopy
 from datetime import datetime, timedelta
-from roax.resource import BadRequest, Resource, Conflict, NotFound
 from threading import Lock
 
 

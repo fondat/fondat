@@ -148,7 +148,7 @@ class TestMemoryResource(unittest.TestCase):
         mr = MemoryResource(ttl=0.001)
         mr.create("1", "foo")
         mr.read("1")
-        sleep(0.001)
+        sleep(0.002)
         with self.assertRaises(NotFound):
             read = mr.read("1")
 
