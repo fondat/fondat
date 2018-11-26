@@ -16,6 +16,7 @@ import wrapt
 
 from base64 import b64decode, b64encode
 from collections.abc import Mapping, Sequence
+from copy import deepcopy
 from datetime import date, datetime, timedelta
 from copy import copy
 from io import IOBase, StringIO
@@ -58,7 +59,7 @@ class _type:
 
     def __init__(
             self, *, python_type=object, json_type=None, format=None,
-            content_type="text/plain", enum=None, required=False,
+            content_type="text/plain", enum=None, required=True,
             default=None, description=None, example=None, nullable=False,
             deprecated=False):
         """
@@ -67,14 +68,14 @@ class _type:
         :param python_type: Python data type.
         :param json_type: JSON schema data type.
         :param format: More finely defines the data type.
-        :param content_type: Content type used when value is expressed in a body. (default: text/plain)
+        :param content_type: Content type used when value is expressed in a body.
         :param enum: A list of values that are valid.
         :param nullable: Allow None as a valid value.
-        :param required: Value is mandatory.
+        :param required: Value is required.
         :param default: Default value if the item value is not supplied.
         :param description: A description of the schema.
         :param example: An example of an instance for this schema.
-        :param deprecated: schema should be transitioned out of usage.
+        :param deprecated: Schema should be transitioned out of usage.
         """
         super().__init__()
         self.python_type = python_type
@@ -155,6 +156,10 @@ class _type:
         except ValueError as ve:
             raise SchemaError(ve) from ve
 
+    def copy(self):
+        """Return a copy of the schema type."""
+        return deepcopy(self)
+
 
 class _dict(_type):
     """
@@ -166,7 +171,7 @@ class _dict(_type):
         Initialize dictionary schema.
 
         :param properties: A mapping of name to schema.
-        :param content_type: Content type used when value is expressed in a body. (default: application/json)
+        :param content_type: Content type used when value is expressed in a body.
         :param additional_properties: Additional unvalidated properties are allowed.
         :param nullable: Allow None as a valid value.
         :param required: Value is mandatory.
@@ -246,6 +251,13 @@ class _dict(_type):
         """Decode the value from string representation."""
         return self.json_decode(json.loads(value))
 
+    def copy(self, subset=None):
+        """..."""
+        result = super().copy()
+        if subset:
+            result.properties = {k: v for k, v in result.properties if k in subset}
+        return result
+
 
 class _list(_type):
     """
@@ -260,7 +272,7 @@ class _list(_type):
         Initialize list schema.
 
         :params items: Schema which all items must adhere to.
-        :param content_type: Content type used when value is expressed in a body. (default: application/json)
+        :param content_type: Content type used when value is expressed in a body.
         :params min_items: The minimum number of items required.
         :params max_items: The maximum number of items required.
         :params unique_items: All items must have unique values.
@@ -379,7 +391,7 @@ class _set(_type):
         Initialize set schema.
 
         :params items: Schema which set items must adhere to.
-        :param content_type: Content type used when value is expressed in a body. (default: application/json)
+        :param content_type: Content type used when value is expressed in a body.
         :param nullable: Allow None as a valid value.
         :param required: Value is mandatory.
         :param default: Default value if the item value is not supplied.
@@ -475,7 +487,7 @@ class _str(_type):
         """
         Initialize string schema.
 
-        :param content_type: Content type used when value is expressed in a body. (default: text/plain)
+        :param content_type: Content type used when value is expressed in a body.  ["text/plain"]
         :param min_length: Minimum character length of the string.
         :param max_length: Maximum character length of the string.
         :param pattern: Regular expression that the string must match.
@@ -586,7 +598,7 @@ class _int(_number):
         """
         Initialize integer schema.
         
-        :param content_type: Content type used when value is expressed in a body. (default: text/plain)
+        :param content_type: Content type used when value is expressed in a body.  ["text/plain"]
         :param minimum: Inclusive lower limit of the value.
         :param maximum: Inclusive upper limit of the value.
         :param nullable: Allow None as a valid value.
@@ -634,7 +646,7 @@ class _float(_number):
         """
         Initialize floating point schema.
 
-        :param content_type: Content type used when value is expressed in a body. (default: text/plain)
+        :param content_type: Content type used when value is expressed in a body.  [text/plain]
         :param minimum: Inclusive lower limit of the value.
         :param maximum: Inclusive upper limit of the value.
         :param nullable: Allow None as a valid value.
@@ -672,7 +684,7 @@ class _bool(_type):
         """
         Initialize boolean schema.
 
-        :param content_type: Content type used when value is expressed in a body. (default: text/plain)
+        :param content_type: Content type used when value is expressed in a body.  ["text/plain"]
         :param nullable: Allow None as a valid value.
         :param required: Value is mandatory.
         :param default: Default value if the item value is not supplied.
@@ -725,7 +737,7 @@ class _bytes(_type):
         """
         Initialize byte sequence schema.
 
-        :param content_type: Content type used when value is expressed in a body. (default: application/octet-stream)
+        :param content_type: Content type used when value is expressed in a body.
         :param format: More finely defines the data type {byte,binary}.
         :param nullable: Allow None as a valid value.
         :param required: Value is mandatory.
@@ -788,7 +800,7 @@ class _date(_type):
         """
         Initialize date schema.
 
-        :param content_type: Content type used when value is expressed in a body. (default: text/plain)
+        :param content_type: Content type used when value is expressed in a body.  [text/plain]
         :param nullable: Allow None as a valid value.
         :param required: Value is mandatory.
         :param default: Default value if the item value is not supplied.
@@ -838,14 +850,14 @@ class _datetime(_type):
         """
         Initialize datetime schema.
 
-        :param fractional: Include fractions of seconds.
-        :param content_type: Content type used when value is expressed in a body.
+        :param content_type: Content type used when value is expressed in a body.  ["text/plain"]
         :param nullable: Allow None as a valid value.
         :param required: Value is mandatory.
         :param default: Default value if the item value is not supplied.
         :param enum: A list of values that are valid.
         :param description: A description of the schema.
         :param example: An example of an instance for this schema.
+        :param fractional: Include fractions of seconds.
         """
         super().__init__(python_type=datetime, json_type="string", format="date-time", **kwargs)
         self.fractional = fractional
@@ -896,7 +908,7 @@ class uuid(_type):
         """
         Initialize UUID schema.
 
-        :param content_type: Content type used when value is expressed in a body. (default: text/plain)
+        :param content_type: Content type used when value is expressed in a body.  [text/plain]
         :param nullable: Allow None as a valid value.
         :param required: Value is mandatory.
         :param default: Default value if the item value is not supplied.
@@ -1126,7 +1138,7 @@ class reader(_type):
         """
         Initialize reader schema.
 
-        :param content_type: Content type used when value is expressed in a body. (default: application/octet-stream)
+        :param content_type: Content type used when value is expressed in a body.
         """
         super().__init__(json_type="string", format="binary", content_type=content_type, **kwargs)
 
