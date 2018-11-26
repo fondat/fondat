@@ -30,11 +30,11 @@ class MemoryResource(Resource):
         """
         Initialize in-memory resource.
 
-        :param size: Maximum number of items to store. [unlimited]
-        :param evict: Should oldest item be evicted to make room for a new item. [False]
-        :param ttl: Maximum item time to live, in seconds. [unlimited]
-        :param name: Short name of the resource. [class name in lower case]
-        :param description: Short description of the resource. [resource docstring]
+        :param size: Maximum number of items to store.  [unlimited]
+        :param evict: Should oldest item be evicted to make room for a new item.  [False]
+        :param ttl: Maximum item time to live, in seconds.  [unlimited]
+        :param name: Short name of the resource.  [class name in lower case]
+        :param description: Short description of the resource.  [resource docstring]
         """
         super().__init__(name, description)
         self.size = size
