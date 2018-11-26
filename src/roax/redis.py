@@ -14,13 +14,21 @@ from .resource import Conflict, NotFound, Resource
 
 class RedisResource(Resource):
 
-    def __init__(self, connection_pool, schema=None, id_schema=None,
-                 evict=False, ttl=None, name=None, description=None):
+    def __init__(self, connection_pool, schema=None, id_schema=None, ttl=None, name=None, description=None):
+        """
+        Initialize Redis resource.
+
+        :param connection_pool: Redis connection pool to access database.
+        :param id_schema: Schema of resource item identifiers.
+        :param schema: Schema of resource items.
+        :param ttl: Maximum item time to live, in seconds.  [unlimited]
+        :param name: Short name of the resource.  [class name in lower case]
+        :param description: Short description of the resource.  [resource docstring]
+        """
         super().__init__(name, description)
         self.redis = redis.Redis(connection_pool=connection_pool)
         self.schema = schema or self.schema
         self.id_schema = id_schema or getattr(self, "id_schema", None) or self.schema.properties["id"]
-        self.evict = evict
         self.ttl = ttl
 
     def _encode_id(self, id):
