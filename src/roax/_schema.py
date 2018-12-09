@@ -1034,7 +1034,7 @@ class _xof(_type):
                 pass
         return self._evaluate(results)
 
-    def _evaluate(self, method, value):
+    def _evaluate(self, method, values):
         raise NotImplementedError
 
     def validate(self, value):
@@ -1156,12 +1156,10 @@ def call(function, args, kwargs, params=None, returns=None):
     function, not its schema specification. If a parameter is omitted from the
     params schema, its value is not validated. 
     """
-    build = {}
     sig = inspect.signature(function)
     if len(args) > len([p for p in sig.parameters.values() if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)]):
         raise TypeError("too many positional arguments")
-    for v, p in zip(args, sig.parameters.values()):
-        build[p.name] = v
+    build = {p.name: v for p, v in zip(sig.parameters.values(), args)}
     for k, v in kwargs.items():
         if k in build:
             raise TypeError("multiple values for argument: {}".format(k))
