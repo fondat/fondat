@@ -14,9 +14,6 @@ import wrapt
 from importlib import import_module
 from keyword import iskeyword
 
-_lock = threading.Lock()
-
-
 class _Operation:
     """A resource operation.""" 
     def __init__(self, **kwargs):
@@ -59,46 +56,78 @@ class Resource:
 
 class Resources:
     """
-    Provides a single object to hold shared application resources. are lazily
-    imported and instantiated at the time of first use; this solves potential
-    circular dependencies between resources.
+    Provides a single object to hold shared application resources. Resource
+    classes expressed as string values are lazily imported and instantiated at the
+    time of first access; this solves potential circular dependencies between
+    resources.
 
-    Resources are exposed as object attributes. If initialized as follows::
+    Resources are exposed as object attributes. Example initialization::
 
         resources = Resources({
             "foo": "myapp.resources.v1.FooResource",
             "bar": "myapp.resources.v1.BarResource",
+            "qux": qux_instance,
         })
 
-    then resources are accessed like: `resources.foo` and `resources.bar`.
+    Resources are accessed as attributes or subscript, like: `resources.foo` and
+    `resources["bar"]`.
     """
 
-    def __init__(self, resources):
+    def __init__(self, resources={}):
         """
-        Initialize resources with a mapping of resource names to module.class names to
-        import. The module.class are specified in a string; for example:
-        `myapp.resources.v1.FooResource`. Resources must have `__init__` methods that
-        take no arguments other than `self`.
+        Initialize resources with a mapping of resource names to resources. Resources
+        are expressed as either string or reference to resource instance. If string,
+        class name is expressed as module.class; for example:
+        `myapp.resources.v1.FooResource`. Resources classes expressed as strings must
+        have `__init__` methods that take no arguments other than `self`.
         """
         super().__init__()
-        self._resources = dict(resources)  # copy
-        for k, v in self._resources.items():
-            if iskeyword(k) or not k.isidentifier() or not isinstance(v, str) or "." not in v:
-                raise ValueError("invalid resource mapping")
+        self._lock = threading.Lock()
+        self._resources = {}
+        for key, resource in resources.items():
+            self.register(key, resource)
+
+    def register(self, key, resource=None):
+        """
+        Register (or deregister) a resource.
+
+        The resource is expressed as either string or reference to resource instance.
+        If string, class name is expressed as module.class; for example:
+        `myapp.resources.v1.FooResource`. A resource class expressed as string must
+        have an `__init__` method that takes no arguments other than `self`.
+
+        :param key: The key to register or deregister.
+        :param resource: Resource class name, resource instance, or None to deregister.
+        """
+        if resource is not None and not isinstance(resource, str) and not isinstance(resource, Resource):
+            raise ValueError("resource must be str, Resource type or None")
+        if isinstance(resource, str) and "." not in resource:
+            raise ValueError("resource class name must be fully qualified")
+        if resource is None:
+            self._resources.pop(key, None)
+        else:
+            self._resources[key] = resource
+
+    def _resolve(self, key):
+        _resources = super().__getattribute__("_resources")
+        if isinstance(_resources[key], str):
+            with super().__getattribute__("_lock"):
+                if isinstance(_resources[key], str):
+                    mod, cls = _resources[key].rsplit(".", 1)
+                    _resources[key] = getattr(import_module(mod), cls)()
+        return _resources[key]
+
+    def __getattribute__(self, name):
+        try:
+            return super().__getattribute__("_resolve")(name)
+        except KeyError as ke:
+            return super().__getattribute__(name)
+
+    def __getitem__(self, key):
+        return self._resolve(key)
 
     def __dir__(self):
         return list(super().__dir__() + self.map.keys())
-
-    def __getattribute__(self, name):
-        _resources = super().__getattribute__("_resources")
-        if name not in _resources:
-            return super().__getattribute__(name)
-        if isinstance(_resources[name], str):
-            with _lock:
-                if isinstance(_resources[name], str):
-                    mod, cls = _resources[name].rsplit(".", 1)
-                    _resources[name] = getattr(import_module(mod), cls)()
-        return _resources[name]
 
 
 def _summary(function):
@@ -140,10 +169,10 @@ def operation(
         *, name=None, type=None, summary=None, description=None, params=None,
         returns=None, security=None, publish=True, deprecated=False):
     """
-    Decorate a resource function to register it as a resource operation.
+    Decorate a resource method to register it as a resource operation.
 
     :param name: Operation name. Required if the operation type is "query" or "action".
-    :param type: Type of operation being registered {create,read,update,delete,action,query,patch}.
+    :param type: Type of operation being registered.  {create,read,update,delete,action,query,patch}
     :param summary: Short summary of what the operation does.
     :param description: Verbose description of the operation.  [function docstring]
     :param params: Mapping of operation's parameter names to their schemas.
