@@ -34,6 +34,12 @@ class R2(Resource):
     def create(self, body):
         return uuid.UUID("f5808e7e-09c0-4f0c-ae6f-a9b30bd23290")
 
+class R3(Resource):
+
+    @operation(type="query", returns=s.str())
+    def qux(self):
+        return "baz"
+
 
 class InvalidOperationTypeResource(Resource):
 
@@ -70,9 +76,10 @@ class TestResources(unittest.TestCase):
         resources = Resources({
             "r1": "{}.R1".format(mod),
             "r2": "{}.R2".format(mod),
+            "r3": R3(),
         })
-        r1 = resources.r1
-        self.assertEqual(r1.foo(), "bar")
+        self.assertEqual(resources.r1.foo(), "bar")
+        self.assertEqual(resources["r3"].qux(), "baz")
 
 
 if __name__ == "__main__":

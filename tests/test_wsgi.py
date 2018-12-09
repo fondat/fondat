@@ -81,6 +81,16 @@ class _Resource1(Resource):
     def echo(self, _body):
         return BytesIO(_body.read())
 
+    @operation(
+        type = "query",
+        params = {"optional": s.str()},
+        returns = s.str(),
+        security = [],
+    )
+    def optional(self, optional="default"):
+        return optional
+
+
 app = App("/", "Title", "1.0")
 app.register_resource("/r1", _Resource1())
 
@@ -167,6 +177,21 @@ class TestWSGI(unittest.TestCase):
             request = Request.blank(filename)
             response = request.get_response(a)
             self.assertEqual(response.body, bar)
+
+    def test_optional_omit(self):
+        request = Request.blank("/r1/optional")
+        request.method = "GET"
+        response = request.get_response(app)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.body.decode(), "default")
+
+    def test_optional_submit(self):
+        request = Request.blank("/r1/optional?optional=foo")
+        request.method = "GET"
+        response = request.get_response(app)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.body.decode(), "foo")
+
 
 if __name__ == "__main__":
     unittest.main()
