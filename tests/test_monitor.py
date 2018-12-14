@@ -132,7 +132,16 @@ class TestMonitor(unittest.TestCase):
     def test_type_future_error(self):
         m.monitor.track("test", "absolute", _tags, 60, 60)
         with self.assertRaises(ValueError):
-            m.monitor.record(_tags, _now() + timedelta(seconds=1), "gauge", 1)
+            m.monitor.record(_tags, _now() + timedelta(seconds=1), "absolute", 1)
+
+    def test_duplicate_series_error(self):
+        m.monitor.track("test", "absolute", _tags, 60, 60)
+        with self.assertRaises(ValueError):
+            m.monitor.track("test", "absolute", _tags, 60, 60)
+
+    def test_invalid_data_series_type(self):
+        with self.assertRaises(ValueError):
+            m.monitor.track("test", "foobar", _tags, 60, 60)
 
 
 if __name__ == "__main__":
