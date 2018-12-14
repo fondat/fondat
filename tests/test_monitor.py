@@ -124,6 +124,14 @@ class TestMonitor(unittest.TestCase):
         self.assertEqual(len(data), 2)
         self.assertEqual(data[0].timestamp, _dt("2018-12-01T00:00:00Z"))
 
+    def test_pattern_match(self):
+        _type = "absolute"
+        m.monitor.track("test", _type, {"name": "foo\\..+"}, 60, 60)
+        m.monitor.record({"name": "foo.bar"}, _dt("2018-12-01T00:01:00Z"), _type, 1)
+        m.monitor.record({"name": "qux.bar"}, _dt("2018-12-01T00:02:00Z"), _type, 2)
+        data = m.monitor.series["test"].data
+        self.assertEqual(len(data), 1)
+
     def test_type_mismatch_error(self):
         m.monitor.track("test", "absolute", _tags, 60, 60)
         with self.assertRaises(ValueError):

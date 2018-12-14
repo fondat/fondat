@@ -144,10 +144,10 @@ class TestMemoryResource(unittest.TestCase):
         self.assertEqual(set(mr.list()), {"2", "3"})
 
     def test_ttl(self):
-        mr = MemoryResource(ttl=0.001)
+        mr = MemoryResource(ttl=0.1)
         mr.create("1", "foo")
         mr.read("1")
-        sleep(0.002)
+        sleep(0.2)
         with self.assertRaises(NotFound):
             read = mr.read("1")
 
