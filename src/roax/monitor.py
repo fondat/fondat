@@ -106,7 +106,7 @@ class Series:
     TODO: Description.
 
     The series contains the following instance variables:
-      • type: The class of the data point type being tracked.
+      • type: The type of the data point being tracked.
       • patterns: Dictionary of label names to regular expression patterns to match.
       • points: Number of data points to maintain in the time series.
       • interval: Interval between data points, in seconds.
@@ -167,24 +167,23 @@ class Series:
 class SimpleMonitor:
     """
     A simple memory round-robin monitor, capable of maintaining multiple time
-    series. This resource is appropriate for collecting hundreds or possibly
-    thousands of data points; beyond that it’s advisable to use a dedicated time
-    series database.
+    series. This resource is appropriate for collecting thousands of data points;
+    beyond that it’s advisable to use a time series database.
 
-    In this monitor, a time series is composed of a set of data points and time
-    intervals of fixed duration. A data point records data measured at that exact
-    point in time and the subsequent interval.
+    In this monitor, a time series is a set of data points and time intervals of
+    fixed duration. A data point records data measured at that exact point in time
+    and the subsequent interval.
     
     This monitor handles the following types of recorded measurements in data
-    points: Counter, Gauge and Absolute. For more information on these types, see
-    their class documentation. 
+    points: "counter", "gauge" and "absolute". For more information on these
+    types, see their class documentation. 
 
     If no measurement is recorded for a given data point, the data point will not
     be stored in the time series. Consumers of the time series should perform
     interpolation if required (e.g. for graphic representation).
 
     The simple monitor contains a `series` instance variable, which is a
-    dictionary mapping time series names to associated Series objects.
+    dictionary mapping time series names to associated `Series` objects.
     """
 
     def __init__(self):
@@ -216,7 +215,7 @@ class SimpleMonitor:
 
         :param tags: Tags associated with the measurement.
         :param timestamp: Date and time of the measurement to record.
-        :param type: Type of measurement to record. {Counter,Gauge,Absolute}
+        :param type: Type of measurement to record.  {"counter", "gauge", "absolute"}
         :param value: Value of measurement to record.
 
         The `tags` argument is a dictionary that maps string key to string value. At
@@ -245,6 +244,7 @@ class timer:
 
     def __enter__(self):
         self.begin = time.time()
+        return self
 
     def __exit__(self, *args):
         duration = time.time() - self.begin
