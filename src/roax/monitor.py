@@ -107,7 +107,7 @@ class Series:
 
     The series contains the following instance variables:
       • type: The type of the data point being tracked.
-      • patterns: Dictionary of label names to regular expression patterns to match.
+      • patterns: Dictionary of tag names to regular expression patterns to match.
       • points: Number of data points to maintain in the time series.
       • interval: Interval between data points, in seconds.
       • data: A deque of timestamp-ordered data points.
@@ -115,21 +115,21 @@ class Series:
 
     def __init__(self, type, patterns, points, interval):
         """
-        The `patterns` argument is a dictionary that maps label names to regular
+        The `patterns` argument is a dictionary that maps tag names to regular
         expressions (compiled or strings) to match against recorded measurement tags.
         For example, `{"name": "foo"}` would track data where a tag includes
-        `{"name": "foo"}`, while `{"name": "foo.\\.+"}` would track measurements with
+        `{"name": "foo"}`, while `{"name": "foo\\..+"}` would track measurements with
         tags that include `{"name": foo.bar"}` and `{"name": "foo.qux"}`.
         """
         self.type = type
-        self.patterns = [re.compile(pattern) for pattern in patterns]
+        self.patterns = {k: re.compile(v) for k, v in patterns.items()}
         self.points = points
         self.interval = interval
         self.data = deque()
 
     def _tags_match(self, tags):
-        for pattern in self.patterns:
-            if not sum([1 for tag in tags if pattern.fullmatch(tag)]):
+        for pk, pv in self.patterns.items():
+            if not sum([1 for tk, tv in tags.items() if tk == pk and pv.fullmatch(tv)]):
                 return False
         return True
 
