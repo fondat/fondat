@@ -35,7 +35,7 @@ tests_require = [
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: Mozilla Public License 2.0 (MPL 2.0)",
+    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3.5",
     "Programming Language :: Python :: 3.6",
     "Programming Language :: Python :: 3.7",
@@ -50,7 +50,6 @@ setup(
     long_description_content_type = "text/markdown",
     author = "Paul Bryan",
     author_email = "pbryan@anode.ca",
-    license = "Mozilla Public License 2.0",
     classifiers = classifiers,
     url = "https://github.com/pbryan/roax",
     packages = ["roax"],

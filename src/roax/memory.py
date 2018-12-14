@@ -1,16 +1,10 @@
 """Module to store resource items in memory."""
 
-# Copyright © 2018 Paul Bryan.
-#
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
-
 import wrapt
 
 from .resource import BadRequest, Resource, Conflict, NotFound
 from copy import deepcopy
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from threading import Lock
 
 
@@ -18,6 +12,9 @@ from threading import Lock
 def _with_lock(wrapped, instance, args, kwargs):
     with instance._lock:
         return wrapped(*args, **kwargs)
+
+
+_now = lambda: datetime.now(tz=timezone.utc)
 
 
 class MemoryResource(Resource):
@@ -47,7 +44,7 @@ class MemoryResource(Resource):
     def create(self, id, _body):
         """Create a resource item."""
         if self._ttl:  # purge expired entries
-            now = datetime.utcnow()
+            now = _now()
             self._entries = {k: v for k, v in self._entries if v[0] + self._ttl <= now }
         if id in self._entries:
             raise Conflict("{} item already exists".format(self.name))
@@ -61,7 +58,7 @@ class MemoryResource(Resource):
                     del self._entries[oldest[1]]
         if self.size and len(self._entries) >= self.size:
             raise BadRequest("{} item size limit reached".format(self.name))
-        self._entries[id] = (datetime.utcnow(), deepcopy(_body))
+        self._entries[id] = (_now(), deepcopy(_body))
         return {"id": id}
 
     def read(self, id):
@@ -92,6 +89,6 @@ class MemoryResource(Resource):
 
     def __get(self, id):
         result = self._entries.get(id)
-        if not result or (self._ttl and datetime.utcnow() > result[0] + self._ttl):
+        if not result or (self._ttl and _now() > result[0] + self._ttl):
             raise NotFound("{} item not found".format(self.name))
         return result

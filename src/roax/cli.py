@@ -1,11 +1,5 @@
 """Module to expose resources through a command-line interface."""
 
-# Copyright © 2018 Paul Bryan.
-#
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
-
 import json
 import re
 import readline
@@ -195,7 +189,7 @@ class CLI:
             args = shlex.split(line)
             if not args:
                 return True
-            with context.push(context_type="cli", cli_command=line):
+            with context.push(context_type="cli", command=line):
                 name = args.pop(0)
                 if name in self.resources:
                     return self._process_resource(name, args, inp, out)

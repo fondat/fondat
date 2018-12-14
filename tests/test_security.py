@@ -1,4 +1,3 @@
-
 import roax.context as context
 import roax.schema as s
 import unittest
@@ -16,38 +15,19 @@ never = Never()
 
 class R1(Resource):
     
-    @operation(
-        type = "action",
-        params = {},
-        returns = s.str(),
-        security = [req1],
-    )
+    @operation(type="action", params={}, returns=s.str(), security=[req1])
     def foo(self):
         return "foo_success"
 
-    @operation(
-        type = "action",
-        params = {},
-        returns = s.str(),
-        security = [req1, never],
-    )
+    @operation(type="action", params={}, returns=s.str(), security=[req1, never])
     def bar(self):
         return "bar_success"
 
-    @operation(
-        type = "action",
-        params = {},
-        returns = s.str(),
-        security = [nested],
-    )
+    @operation(type="action", params={}, returns=s.str(), security=[nested])
     def nestee(self):
         return "nest_success"
 
-    @operation(
-        type = "action",
-        params = {},
-        returns = s.str(),
-    )
+    @operation(type="action", params={}, returns=s.str())
     def nester(self):
         return self.nestee()
 

@@ -1,4 +1,4 @@
-
+import roax.context as context
 import roax.schema as s
 import unittest
 
@@ -6,8 +6,8 @@ from base64 import b64encode
 from datetime import datetime
 from io import BytesIO
 from roax.resource import Resource, Unauthorized, operation
-from roax.security import SecurityRequirement, HTTPBasicSecurityScheme
-from roax.wsgi import App
+from roax.security import SecurityRequirement
+from roax.wsgi import App, HTTPBasicSecurityScheme
 from tempfile import TemporaryDirectory
 from webob import Request
 
@@ -16,7 +16,7 @@ class TestSecurityRequirement(SecurityRequirement):
     def __init__(self, scheme):
         self.scheme = scheme
     def authorize(self):
-        ctx = self.scheme.get_context()
+        ctx = context.last(context="auth")
         if not ctx or ctx["role"] != "god":
             raise Unauthorized
 

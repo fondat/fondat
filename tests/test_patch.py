@@ -1,4 +1,3 @@
-
 import unittest
 
 from roax.patch import merge_patch

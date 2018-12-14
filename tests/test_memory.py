@@ -1,4 +1,3 @@
-
 import roax.resource as r
 import roax.schema as s
 import unittest

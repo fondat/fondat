@@ -1,4 +1,3 @@
-
 import roax.schema as s
 import unittest
 

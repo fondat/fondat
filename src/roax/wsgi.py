@@ -1,21 +1,18 @@
 """Module to expose resources through a WSGI interface."""
 
-# Copyright © 2015–2018 Paul Bryan.
-#
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-
+import binascii
 import logging
 import re
-import roax.resource as resource
 import roax.context as context
 import roax.schema as s
 
+from base64 import b64decode
 from copy import copy
 from mimetypes import guess_type
-from os.path import isdir, isfile
 from pathlib import Path
 from roax.schema import SchemaError
+from roax.resource import ResourceError, Unauthorized, authorize
+from roax.security import SecurityScheme
 from roax.static import StaticResource
 from urllib.parse import urlparse
 from webob import Request, Response, exc
@@ -110,7 +107,7 @@ class App:
         :param title: The title of the application.
         :param version: The API implementation version.
         :param description: A short description of the application.
-        :param filters: Filters to apply during HTTP request processing.
+        :param filters: List of filters to apply during HTTP request processing.
         """
         self.url = url
         self.title = title
@@ -128,24 +125,24 @@ class App:
         :param resource: Resource to be served when path is requested.
         :param publish: Publish resource in online documentation.
         """
-        resource_path = (self.base + "/" + path.lstrip("/"))
+        res_path = (self.base + "/" + path.lstrip("/"))
         for op in resource.operations.values():
             if op.security is None:
                 raise ValueError("operation {} must express security requirements".format(op.name))
             if op.type == "create":
-                op_method, op_path = "POST", resource_path
+                op_method, op_path = "POST", res_path
             elif op.type == "read":
-                op_method, op_path = "GET", resource_path
+                op_method, op_path = "GET", res_path
             elif op.type == "update":
-                op_method, op_path = "PUT", resource_path
+                op_method, op_path = "PUT", res_path
             elif op.type == "delete":
-                op_method, op_path = "DELETE", resource_path
+                op_method, op_path = "DELETE", res_path
             elif op.type == "action":
-                op_method, op_path = "POST", resource_path + "/" + op.name
+                op_method, op_path = "POST", res_path + "/" + op.name
             elif op.type == "query":
-                op_method, op_path = "GET", resource_path + "/" + op.name
+                op_method, op_path = "GET", res_path + "/" + op.name
             elif op.type == "patch":
-                op_method, op_path = "PATCH", resource_path
+                op_method, op_path = "PATCH", res_path
             else:
                 raise ValueError("operation {} has unknown operation type: {}".format(op.name, op.type))
             if not publish:
@@ -205,13 +202,13 @@ class App:
         """Handle WSGI request."""
         request = Request(environ)
         try:
-            with context.push(context_type="http", http_environ=_environ(environ)):
+            with context.push(context="wsgi", environ=_environ(environ)):
                 operation = self._get_operation(request)
                 def handle(request):
                     try:
                         params = _params(request, operation)
                     except Exception:  # authorization trumps input validation
-                        resource.authorize(operation.security)
+                        authorize(operation.security)
                         raise
                     return _response(operation, operation.call(**params))
                 filters = self.filters.copy()
@@ -219,7 +216,7 @@ class App:
                 response = _Chain(filters, handle).next(request)
         except exc.HTTPException as he:
             response = _ErrorResponse(he.code, he.detail)
-        except resource.ResourceError as re:
+        except ResourceError as re:
             response = _ErrorResponse(re.code, re.detail)
         except SchemaError as se:
             response = _ErrorResponse(exc.HTTPBadRequest.code, str(se))
@@ -249,3 +246,70 @@ class _Chain:
     def next(self, request):
         """Calls the next filter in the chain, or the terminus."""
         return self.filters.pop(0)(request, self) if self.filters else self.handler(request)
+
+
+class HTTPSecurityScheme(SecurityScheme):
+    """Base class for HTTP authentication security scheme."""
+
+    def __init__(self, name, scheme, **kwargs):
+        """
+        Initialize the HTTP authentication security scheme.
+        
+        :param name: The name of the security scheme.
+        :param scheme: The name of the HTTP authorization scheme.
+        """
+        super().__init__(name, "http", **kwargs)
+        self.scheme = scheme
+
+    @property
+    def json(self):
+        """JSON representation of the security scheme."""
+        result = super().json
+        result["scheme"] = self.scheme
+        return result
+
+
+class HTTPBasicSecurityScheme(HTTPSecurityScheme):
+    """Base class for HTTP basic authentication security scheme."""
+
+    def __init__(self, name, realm=None, **kwargs):
+        """
+        Initialize the HTTP basic authentication security scheme.
+        
+        :param name: The name of the security scheme.
+        :param realm: The realm to include in the challenge. (default: name)
+        """
+        super().__init__(name, "basic", **kwargs)
+        self.realm = realm or name
+
+    def Unauthorized(self, detail=None):
+        """Return an Unauthorized exception populated with scheme and realm."""
+        return Unauthorized(detail, "Basic realm={}".format(self.realm))
+
+    def filter(self, request, chain):
+        """
+        Filters the incoming HTTP request. If the request contains credentials in the
+        HTTP Basic authentication scheme, they are passed to the authenticate method.
+        If authentication is successful, a context is added to the context stack.  
+        """
+        auth = None
+        if request.authorization and request.authorization[0].lower() == "basic":
+            try:
+                user_id, password = b64decode(request.authorization[1]).decode().split(":", 1)
+            except (binascii.Error, UnicodeDecodeError):
+                pass
+            auth = self.authenticate(user_id, password)
+            if auth:
+                with context.push({**auth, "context": "auth", "type": "http", "scheme": self.scheme, "realm": self.realm}):
+                    return chain.next(request)
+        return chain.next(request)
+
+    def authenticate(user_id, password):
+        """
+        Perform authentication of credentials supplied in the HTTP request. If
+        authentication is successful, a dict is returned, which is added
+        to the context that is pushed on the context stack. If authentication
+        fails, None is returned. This method should not raise an exception
+        unless an unrecoverable error occurs.
+        """
+        raise NotImplementedError

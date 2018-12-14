@@ -1,16 +1,9 @@
 """Module to manage a stack of context values."""
 
-# Copyright © 2017–2018 Paul Bryan.
-#
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
-
 import threading
 
 from collections import Mapping
-from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import uuid4
 
 
@@ -26,7 +19,7 @@ def get_stack():
         return _local.stack
 
 
-class push():
+class push:
     """
     Push a value onto the context stack. Returns a value that is passed to the
     pop() function to pop it from the stack.
@@ -34,15 +27,16 @@ class push():
 
     def __init__(self, *args, **varargs):
         """
-        Initialize context manager.
+        Push a context value on the stack.
 
-        Accepts context values as follows:
+        Accepts values as follows:
+
         - push(mapping): Context is initialized from a mapping object's key-value pairs.
         - push(**kwargs): Context is initialized with name-value pairs in keyword arguments. 
         """
         stack = get_stack()
         if len(stack) == 0:
-            stack.append(dict(context_type="root", id=uuid4(), time=datetime.utcnow()))
+            stack.append(dict(context_type="root", id=uuid4(), time=datetime.now(tz=timezone.utc)))
         self.value = dict(*args, **varargs)
         stack.append(self.value)
         self.pos = len(stack) - 1

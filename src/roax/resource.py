@@ -1,18 +1,18 @@
 """Module to implement resources."""
 
-# Copyright © 2015–2018 Paul Bryan.
-#
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
-
 import roax.context as context
 import roax.schema as s
 import threading
 import wrapt
 
+from datetime import datetime, timezone
 from importlib import import_module
 from keyword import iskeyword
+from roax.monitor import Absolute, monitor, timer
+
+
+_now = lambda: datetime.now(tz=timezone.utc)
+
 
 class _Operation:
     """A resource operation.""" 
@@ -165,8 +165,7 @@ def authorize(security):
         raise exception
 
 
-def operation(
-        *, name=None, type=None, summary=None, description=None, params=None,
+def operation(*, name=None, type=None, summary=None, description=None, params=None,
         returns=None, security=None, publish=True, deprecated=False):
     """
     Decorate a resource method to register it as a resource operation.
@@ -194,9 +193,12 @@ def operation(
         if _type not in valid_types:
             raise ValueError("operation type must be one of: {}".format(valid_types))
         def wrapper(wrapped, instance, args, kwargs):
-            with context.push(context_type="operation", operation_resource=wrapped.__self__.name, operation_name=_name):
-                authorize(security)
-                return wrapped(*args, **kwargs)
+            tags = {"resource": wrapped.__self__.name, "operation": _name}
+            with context.push({**tags, "context": "operation"}):
+                monitor.record({**tags, "name": "operation_calls_total"}, _now(), "absolute", 1)
+                with timer({**tags, "name": "operation_duration_seconds"}):
+                    authorize(security)
+                    return wrapped(*args, **kwargs)
         _params = s.function_params(function, params)
         decorated = s.validate(_params, returns)(wrapt.decorator(wrapper)(function))
         operation = dict(function=function.__name__, name=_name, type=_type,
