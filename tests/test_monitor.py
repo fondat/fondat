@@ -17,7 +17,7 @@ class TestMonitor(unittest.TestCase):
     def setUp(self):
         m.monitor = m.SimpleMonitor()
 
-    def test_counter(self):
+    def test_counter_type(self):
         _type = "counter"
         m.monitor.track("test", _type, _tags, 60, 60)
         m.monitor.record(_tags, _dt("2018-12-01T00:00:00Z"), _type, 1)
@@ -41,7 +41,7 @@ class TestMonitor(unittest.TestCase):
         self.assertEqual(dp.timestamp, _dt("2018-12-01T00:01:00Z"))
         self.assertEqual(dp.value, 50)
 
-    def test_gauge(self):
+    def test_gauge_type(self):
         _type = "gauge"
         m.monitor.track("test", _type, _tags, 60, 60)
         m.monitor.record(_tags, _dt("2018-12-01T00:00:00Z"), _type, 1)
@@ -71,7 +71,7 @@ class TestMonitor(unittest.TestCase):
         self.assertEqual(dp.count, 5)
         self.assertEqual(dp.sum, 150)
 
-    def test_absolute(self):
+    def test_absolute_type(self):
         _type = "absolute"
         m.monitor.track("test", _type, _tags, 60, 60)
         m.monitor.record(_tags, _dt("2018-12-01T00:00:00Z"), _type, 1)
@@ -128,7 +128,9 @@ class TestMonitor(unittest.TestCase):
         _type = "absolute"
         m.monitor.track("test", _type, {"name": "foo\\..+"}, 60, 60)
         m.monitor.record({"name": "foo.bar"}, _dt("2018-12-01T00:01:00Z"), _type, 1)
-        m.monitor.record({"name": "qux.bar"}, _dt("2018-12-01T00:02:00Z"), _type, 2)
+        m.monitor.record({"name": "foo"}, _dt("2018-12-01T00:02:00Z"), _type, 1)
+        m.monitor.record({"name": "foo."}, _dt("2018-12-01T00:03:00Z"), _type, 1)
+        m.monitor.record({"name": "qux.bar"}, _dt("2018-12-01T00:04:00Z"), _type, 2)
         data = m.monitor.series["test"].data
         self.assertEqual(len(data), 1)
 
