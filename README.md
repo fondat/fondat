@@ -11,7 +11,7 @@ A lightweight Python resource-oriented framework.
 
 ## Introduction
 
-Roax is a resource-oriented framework for building applications in Python.
+Roax is a framework for building resource-oriented applications in Python.
 By composing your application of resources that expose operations in a uniform
 interface, they can be exposed through a REST and/or command line interface.
 
@@ -34,7 +34,7 @@ pip install roax
 ### Hello world
 
 Here is a minimal application that responds with `"Hello world!"` when the
-client accesses `http://localhost:8000/hello`.
+client accesses [http://localhost:8000/hello](http://localhost:8000/hello).
 
 ```python
 import roax.schema as schema
