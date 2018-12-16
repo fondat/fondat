@@ -16,9 +16,9 @@ _now = lambda: datetime.now(tz=timezone.utc)
 
 class _Operation:
     """A resource operation.""" 
-    def __init__(self, **kwargs):
-        for k in kwargs:
-            self.__setattr__(k, kwargs[k])
+    def __init__(self, attrs):
+        for k in attrs:
+            self.__setattr__(k, attrs[k])
     def call(self, **kwargs):
         """Call the resource operation with keyword arguments."""
         return getattr(self.resource, self.function)(**kwargs)
@@ -32,7 +32,7 @@ class Resource:
         name = operation["name"]
         if name in self.operations:
             raise ValueError("operation name already registered: {}".format(name))
-        self.operations[name] = _Operation(**operation)
+        self.operations[name] = _Operation({**operation, "resource": self})
 
     def __init__(self, name=None, description=None):
         """
@@ -51,7 +51,7 @@ class Resource:
                 operation = function._roax_operation_
             except:
                 continue  # ignore undecorated functions
-            self._register_operation(**{**operation, "resource": self, "function": function.__name__})
+            self._register_operation(**operation)
 
 
 class Resources:
@@ -174,8 +174,8 @@ def operation(*, name=None, type=None, summary=None, description=None, params=No
     :param type: Type of operation being registered.  {create,read,update,delete,action,query,patch}
     :param summary: Short summary of what the operation does.
     :param description: Verbose description of the operation.  [function docstring]
-    :param params: Mapping of operation's parameter names to their schemas.
-    :param returns: Schema of operation's return value.
+    :param params: Mapping of operation parameter names to their schemas.
+    :param returns: Schema of operation return value.
     :param security: Security schemes, one of which must be satisfied to perform the operation.
     :param publish: Publish the operation in documentation.
     :param deprecated: Declare the operation as deprecated.
@@ -199,14 +199,12 @@ def operation(*, name=None, type=None, summary=None, description=None, params=No
                 with timer({**tags, "name": "operation_duration_seconds"}):
                     authorize(security)
                     return wrapped(*args, **kwargs)
-        _params = s.function_params(function, params)
-        decorated = s.validate(_params, returns)(wrapt.decorator(wrapper)(function))
+        decorated = s.validate(params, returns)(wrapt.decorator(wrapper)(function))
         operation = dict(function=function.__name__, name=_name, type=_type,
-            summary=__summary, description=_description, params=_params,
+            summary=__summary, description=_description, params=s.function_params(function, params),
             returns=returns, security=security, publish=publish, deprecated=deprecated)
         try:
-            resource = getattr(function, "__self__")
-            resource._register_operation(**{**operation, "resource": resource})
+            getattr(function, "__self__")._register_operation(**operation)
         except AttributeError:  # not yet bound to an instance
             function._roax_operation_ = operation  # __init__ will register it
         return decorated

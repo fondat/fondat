@@ -56,7 +56,7 @@ class OpenAPIResource(Resource):
 
     def _openapi(self):
         result = {}
-        result["openapi"] = "3.0.1"
+        result["openapi"] = "3.0.2"
         result["info"] = self._info()
         result["servers"] = self._servers()
         result["paths"] = self._paths()
@@ -95,27 +95,26 @@ class OpenAPIResource(Resource):
                 obj["description"] = operation.description
             obj["operationId"] = operation.resource.name + "." + operation.name
             params = []
-            for name, param in operation.params.items():
-                if name == "_body":
-                    continue
-                p = {}
-                p["name"] = name
-                p["in"] = "query"
-                if param.description:
-                    p["description"] = param.description
-                p["required"] = param.required
-                p["deprecated"] = param.deprecated
-                p["allowEmptyValue"] = True
-                p["schema"] = param.json_schema
-                params.append(p)
+            for name, param in operation.params.properties.items():
+                if name != "_body":
+                    p = {}
+                    p["name"] = name
+                    p["in"] = "query"
+                    if param.description:
+                        p["description"] = param.description
+                    p["required"] = name in operation.params.required
+                    p["deprecated"] = param.deprecated
+                    p["allowEmptyValue"] = True
+                    p["schema"] = param.json_schema
+                    params.append(p)
             obj["parameters"] = params
-            _body = operation.params.get("_body")
+            _body = operation.params.properties.get("_body")
             if _body:
                 b = {}
                 if _body.description:
                     b["description"] = _body.description
                 b["content"] = {_body.content_type: {"schema": _body.json_schema}}
-                b["required"] = _body.required
+                p["required"] = "_body" in operation.params.required
                 obj["requestBody"] = b
             if operation.returns:
                 obj["responses"] = {

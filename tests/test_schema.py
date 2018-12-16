@@ -24,50 +24,57 @@ class TestSchema(unittest.TestCase):
     # -- dict -----
 
     def test_dict_validate_success(self):
-        s.dict({"a": s.str()}).validate({"a": "b"})
+        s.dict({"a": s.str()}, {"a"}).validate({"a": "b"})
 
     def test_dict_validate_error(self):
-        self._error(s.dict({"c": s.int()}).validate, '{"this": "is_not_a_dict"}')
+        self._error(s.dict({"c": s.int()}).validate, '{"this": "does not validate"}')
 
     def test_dict_validate_required_success(self):
-        s.dict({"e": s.float()}).validate({"e": 1.2})
+        s.dict({"e": s.float()}, {"e"}).validate({"e": 1.2})
 
     def test_dict_validate_required_error(self):
-        self._error(s.dict({"f": s.str(required=True)}).validate, {})
+        self._error(s.dict({"f": s.str()}, {"f"}).validate, {})
 
     def test_dict_validate_optional_success(self):
-        s.dict({"k": s.str(), "l": s.str(required=False)}).validate({"k": "m"})
+        s.dict({"k": s.str(), "l": s.str()}).validate({"k": "m"})
 
     def test_dict_validate_default(self):
-        s.dict({"n": s.str(required=False, default="o")}).validate({})
+        s.dict({"n": s.str(default="o")}).validate({})
 
     def test_dict_json_encode_success(self):
-        self._equal(s.dict({"eja": s.str(), "ejb": s.int()}).json_encode, {"eja": "foo", "ejb": 123})
+        self._equal(s.dict({"eja": s.str(), "ejb": s.int()}, {"eja", "ejb"}).json_encode,
+                {"eja": "foo", "ejb": 123})
 
     def test_dict_json_encode_optional_success(self):
-        self._equal(s.dict({"ejc": s.float(), "ejd": s.bool(required=False)}).json_encode, {"ejc": 123.45})
+        self._equal(s.dict({"ejc": s.float(), "ejd": s.bool()}, {"ejc"}).json_encode,
+                {"ejc": 123.45})
 
     def test_dict_json_encode_default_success(self):
-        self.assertEqual(s.dict({"eje": s.bool(required=False, default=False)}).json_encode({}), {"eje": False}) 
+        self.assertEqual(s.dict({"eje": s.bool(default=False)}).json_encode({}), {"eje": False}) 
+
+    def test_dict_json_encode_optional_absent(self):
+        self._equal(s.dict({"eje": s.bool()}).json_encode, {}) 
 
     def test_dict_json_encode_error(self):
-        self._error(s.dict({"ejh": s.int()}).json_encode, {"ejh": "not an int"})
+        self._error(s.dict({"ejh": s.int()}, {"ejh"}).json_encode, {"ejh": "not an int"})
 
     def test_dict_json_decode_success(self):
-        self._equal(s.dict({"dja": s.float(), "djb": s.bool()}).json_decode, {"dja": 802.11, "djb": True})
+        self._equal(s.dict({"dja": s.float(), "djb": s.bool()}, {"dja", "djb"}).json_decode,
+                {"dja": 802.11, "djb": True})
 
     def test_dict_json_decode_optional_success(self):
-        self._equal(s.dict({"djc": s.int(), "djd": s.str(required=False)}).json_decode, {"djc": 12345})
+        self._equal(s.dict({"djc": s.int(), "djd": s.str()}).json_decode, {"djc": 12345})
 
     def test_dict_json_decode_default_success(self):
-        self.assertEqual(s.dict({"dje": s.str(required=False, default="defaulty")}).json_decode({}), {"dje": "defaulty"}) 
+        self.assertEqual(s.dict({"dje": s.str(default="defaulty")}).json_decode({}), {"dje": "defaulty"}) 
 
     def test_dict_json_decode_additional_property_success(self):
         value = {"djf": "baz", "djg": "additional_property"}
-        self.assertEqual(s.dict({"djf": s.str()}, additional_properties=True).json_decode(value), value)
+        self.assertEqual(s.dict({"djf": s.str()}, {"djf"},
+                additional_properties=True).json_decode(value), value)
 
     def test_dict_json_decode_error(self):
-        self._error(s.dict({"djx": s.str()}).json_decode, {"djx": False})
+        self._error(s.dict({"djx": s.str()}, {"djx"}).json_decode, {"djx": False})
 
     def test_dict_unexpected_property_error(self):
         self._error(s.dict({}).validate, {"foo": "bar"})
@@ -77,6 +84,13 @@ class TestSchema(unittest.TestCase):
 
     def test_dict_allow_none(self):
         self.assertEqual(s.dict({"foo": s.str()}, nullable=True).json_encode(None), None)
+
+    def test_dict_required_str(self):
+        schema = s.dict(properties={"fjx": s.str(), "fjy": s.str()}, required="fjx,fjy")
+        self._error(schema.validate, {})
+        self._error(schema.validate, {"fjx": "foo"})
+        self._error(schema.validate, {"fjy": "foo"})
+        schema.validate({"fjx": "foo", "fjy": "foo"})
 
     # -- list -----
 
@@ -627,8 +641,8 @@ class TestSchema(unittest.TestCase):
     # -- all_of -----
 
     _all_of_schemas = s.all_of([
-        s.dict({"a": s.str(required=True)}, additional_properties=True),
-        s.dict({"b": s.int(required=True)}, additional_properties=True),
+        s.dict({"a": s.str()}, {"a"}, additional_properties=True),
+        s.dict({"b": s.int()}, {"b"}, additional_properties=True),
     ])
 
     def test_all_of_none_match(self):

@@ -29,12 +29,15 @@ _scheme = TestSecurityScheme("WallyWorld")
 
 http1 = TestSecurityRequirement(_scheme)
 
-_r1_schema = s.dict({
-    "id": s.str(),
-    "foo": s.int(),
-    "bar": s.bool(),
-    "dt": s.datetime(required=False),
-})
+_r1_schema = s.dict(
+    properties = {
+        "id": s.str(),
+        "foo": s.int(),
+        "bar": s.bool(),
+        "dt": s.datetime(),
+    },
+    required = {"id", "foo", "bar"},
+)
 
 class _Resource1(Resource):
     

@@ -5,10 +5,13 @@ import uuid
 from roax.resource import Resource, Resources, operation
 
 
-body_schema = s.dict({
-    "id": s.uuid(required=False),
-    "foo": s.str()
-})
+body_schema = s.dict(
+    properties = {
+        "id": s.uuid(),
+        "foo": s.str(),
+    },
+    required = {"foo"},
+)
 
 
 class R1(Resource):

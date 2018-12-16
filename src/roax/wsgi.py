@@ -58,7 +58,7 @@ def _params(request, operation):
     for name, param in params.items() if params else []:
         try:
             if name == "_body":
-                if param.required and not request.is_body_readable:
+                if "_body" in params.required and not request.is_body_readable:
                     raise SchemaError("missing request entity-body")
                 if isinstance(param, s.reader):
                     result["_body"] = request.body_file_raw

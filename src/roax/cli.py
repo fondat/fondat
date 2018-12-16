@@ -303,7 +303,7 @@ class CLI:
         operation = resource.operations.get(operation_name)
         if not operation:
             return self._help_resource(resource_name)
-        params = operation.params or {}
+        params = operation.params
         returns = operation.returns
         body = params.get("_body")
         with _open_redirects(inp, out, args, body, returns) as (inp, out):
@@ -314,8 +314,8 @@ class CLI:
             try:
                 for name in parsed:
                     parsed[name] = params[name].str_decode(parsed[name])
-                for name in (n for n in params if n != "_body"):
-                    if params[name].required and name not in parsed:
+                for name in params.properties:
+                    if name != "_body" and name in params.required and name not in parsed:
                         raise s.SchemaError("missing required parameter")
                 if body:
                     name = "{body}"
@@ -376,7 +376,7 @@ class CLI:
 
     def _help_operation(self, resource_name, operation):
         """Provide detailed help message for specific operation."""
-        params = operation.params or {}
+        params = operation.params
         usage=[]
         listing={}
         for name in (n for n in params if n != "_body"):
@@ -389,7 +389,7 @@ class CLI:
             if param.default is not None:
                 item += "  (default: {})".format(param.str_encode(param.default))
             listing["{}{}".format(self.prefix, munged)] = item
-            if not param.required:
+            if name not in params.required:
                 arg = "[{}]".format(arg)
             usage.append(arg)
         self._print("Usage: {} {} {}".format(resource_name, _p2a(operation.name), " ".join(usage)))

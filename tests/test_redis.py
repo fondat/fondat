@@ -9,11 +9,14 @@ from time import sleep
 from uuid import uuid4
 
 
-_schema = s.dict({
-    "id": s.uuid(required=False),
-    "foo": s.str(),
-    "bar": s.int(required=False),
-})
+_schema = s.dict(
+    properties = {
+        "id": s.uuid(),
+        "foo": s.str(),
+        "bar": s.int(),
+    },
+    required = {"foo"},
+)
 
 
 class TestRedisResource(unittest.TestCase):

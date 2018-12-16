@@ -53,9 +53,8 @@ class _type:
 
     def __init__(
             self, *, python_type=object, json_type=None, format=None,
-            content_type="text/plain", enum=None, required=True,
-            default=None, description=None, example=None, nullable=False,
-            deprecated=False):
+            content_type="text/plain", enum=None, default=None,
+            description=None, example=None, nullable=False, deprecated=False):
         """
         Initialize the schema type.
 
@@ -65,7 +64,6 @@ class _type:
         :param content_type: Content type used when value is expressed in a body.
         :param enum: A list of values that are valid.
         :param nullable: Allow None as a valid value.
-        :param required: Value is required.
         :param default: Default value if the item value is not supplied.
         :param description: A description of the schema.
         :param example: An example of an instance for this schema.
@@ -78,7 +76,6 @@ class _type:
         self.content_type = content_type
         self.nullable = nullable
         self.enum = enum
-        self.required = required
         self.default = default
         self.description = description
         self.example = example
@@ -155,12 +152,20 @@ class _type:
         return deepcopy(self)
 
 
+def _required(required):
+    if isinstance(required, str):
+        required = (item.lstrip().rstrip() for item in required.split(","))
+        required = (item for item in required if item)
+    return set(required)
+
+
 class _dict(_type):
     """
     Schema type for dictionaries.
     """
 
-    def __init__(self, properties, *, content_type="application/json", additional_properties=False, **kwargs):
+    def __init__(self, properties, required=set(), *,
+            content_type="application/json", additional_properties=False, **kwargs):
         """
         Initialize dictionary schema.
 
@@ -168,14 +173,36 @@ class _dict(_type):
         :param content_type: Content type used when value is expressed in a body.
         :param additional_properties: Additional unvalidated properties are allowed.
         :param nullable: Allow None as a valid value.
-        :param required: Value is mandatory.
+        :param required: Set of property names that are required.
         :param default: Default value if the item value is not supplied.
         :param description: A description of the schema.
         :param example: An example of an instance for this schema.
         """
         super().__init__(python_type=Mapping, json_type="object", content_type=content_type, **kwargs)
         self.properties = properties
+        self.required = _required(required)
         self.additional_properties = additional_properties
+
+    def __contains__(self, value):
+        return value in self.properties
+
+    def __getitem__(self, key):
+        return self.properties[key]
+
+    def __iter__(self):
+        return self.properties.__iter__()
+
+    def get(self, key, default=None):
+        return self.properties.get(key, default)
+
+    def keys(self):
+        return self.properties.keys()
+
+    def values(self):
+        return self.properties.values()
+
+    def items(self):
+        return self.properties.items()
 
     def _process(self, method, value):
         if value is None:
@@ -200,7 +227,7 @@ class _dict(_type):
             return None
         result = None
         for key, schema in self.properties.items():
-            if key not in value and not schema.required and schema.default is not None:
+            if key not in value and key not in self.required and schema.default is not None:
                 if result is None:
                     result = dict(value)
                 result[key] = schema.default
@@ -210,17 +237,17 @@ class _dict(_type):
         """Validate value against the schema."""
         super().validate(value)
         if value is not None:
+            for property in self.required:
+                if property not in value:
+                    raise SchemaError("value required", property)
             self._process("validate", value)
-            for key, schema in self.properties.items():
-                if schema.required and key not in value:
-                    raise SchemaError("value required", key)
 
     @property
     def json_schema(self):
         """JSON schema representation of the schema."""
         result = super().json_schema
         result["properties"] = {k: v.json_schema for k, v in self.properties.items()}
-        result["required"] = [k for k, v in self.properties.items() if v.required]
+        result["required"] = list(self.required)
         return result
 
     def json_encode(self, value):
@@ -245,11 +272,13 @@ class _dict(_type):
         """Decode the value from string representation."""
         return self.json_decode(json.loads(value))
 
-    def copy(self, subset=None):
+    def copy(self, properties=None, required=None):
         """..."""
         result = super().copy()
-        if subset:
-            result.properties = {k: v for k, v in result.properties if k in subset}
+        if properties is not None:
+            result.properties = {k: v for k, v in result.properties if k in properties}
+        if required is not None:
+            result.required = _required(required)
         return result
 
 
@@ -271,7 +300,6 @@ class _list(_type):
         :params max_items: The maximum number of items required.
         :params unique_items: All items must have unique values.
         :param nullable: Allow None as a valid value.
-        :param required: Value is mandatory.
         :param default: Default value if the item value is not supplied.
         :param description: A description of the schema.
         :param example: An example of an instance for this schema.
@@ -487,7 +515,6 @@ class _str(_type):
         :param pattern: Regular expression that the string must match.
         :param format: More finely defines the data type.
         :param nullable: Allow None as a valid value.
-        :param required: Value is mandatory.
         :param default: Default value if the item value is not supplied.
         :param enum: A list of values that are valid.
         :param description: A description of the schema.
@@ -596,7 +623,6 @@ class _int(_number):
         :param minimum: Inclusive lower limit of the value.
         :param maximum: Inclusive upper limit of the value.
         :param nullable: Allow None as a valid value.
-        :param required: Value is mandatory.
         :param default: Default value if the item value is not supplied.
         :param enum: A list of values that are valid.
         :param description: A description of the schema.
@@ -644,7 +670,6 @@ class _float(_number):
         :param minimum: Inclusive lower limit of the value.
         :param maximum: Inclusive upper limit of the value.
         :param nullable: Allow None as a valid value.
-        :param required: Value is mandatory.
         :param default: Default value if the item value is not supplied.
         :param enum: A list of values that are valid.
         :param description: A description of the schema.
@@ -680,7 +705,6 @@ class _bool(_type):
 
         :param content_type: Content type used when value is expressed in a body.  ["text/plain"]
         :param nullable: Allow None as a valid value.
-        :param required: Value is mandatory.
         :param default: Default value if the item value is not supplied.
         :param description: A description of the schema.
         :param example: An example of an instance for this schema.
@@ -734,7 +758,6 @@ class _bytes(_type):
         :param content_type: Content type used when value is expressed in a body.
         :param format: More finely defines the data type {byte,binary}.
         :param nullable: Allow None as a valid value.
-        :param required: Value is mandatory.
         :param default: Default value if the item value is not supplied.
         :param description: A description of the schema.
         :param example: An example of an instance for this schema.
@@ -796,7 +819,6 @@ class _date(_type):
 
         :param content_type: Content type used when value is expressed in a body.  [text/plain]
         :param nullable: Allow None as a valid value.
-        :param required: Value is mandatory.
         :param default: Default value if the item value is not supplied.
         :param enum: A list of values that are valid.
         :param description: A description of the schema.
@@ -846,7 +868,6 @@ class _datetime(_type):
 
         :param content_type: Content type used when value is expressed in a body.  ["text/plain"]
         :param nullable: Allow None as a valid value.
-        :param required: Value is mandatory.
         :param default: Default value if the item value is not supplied.
         :param enum: A list of values that are valid.
         :param description: A description of the schema.
@@ -904,7 +925,6 @@ class uuid(_type):
 
         :param content_type: Content type used when value is expressed in a body.  [text/plain]
         :param nullable: Allow None as a valid value.
-        :param required: Value is mandatory.
         :param default: Default value if the item value is not supplied.
         :param enum: A list of values that are valid.
         :param description: A description of the schema.
@@ -951,7 +971,6 @@ class all_of(_type):
         Initialize all-of schema.
 
         :params schemas: List of schemas to match against.
-        :param required: Value is mandatory.
         :param default: Default value if the item value is not supplied.
         :param enum: A list of values that are valid.
         :param description: A description of the schema.
@@ -1078,7 +1097,6 @@ class any_of(_xof):
         Initialize any-of schema.
 
         :param schemas: List of schemas to match against.
-        :param required: Value is mandatory.
         :param default: Default value if the item value is not supplied.
         :param enum: A list of values that are valid.
         :param description: A description of the schema.
@@ -1105,7 +1123,6 @@ class one_of(_xof):
         Initialize one-of schema.
 
         :param schemas: List of schemas to match against.
-        :param required: Value is mandatory.
         :param default: Default value if the item value is not supplied.
         :param enum: A list of values that are valid.
         :param description: A description of the schema.
@@ -1146,9 +1163,16 @@ class reader(_type):
 def call(function, args, kwargs, params=None, returns=None):
     """
     Call a function, validating its input parameters and return value.
+
+    :param function: Function to call.
+    :param args: Positional arguments to pass to function.
+    :param kwargs: Keyword arguments to pass to function.
+    :param params: Mapping of parameter names to associated schemas.
+    :param returns: Schema of expected function return value.
+
     Whether a parameter is required and any default value is defined by the
     function, not its schema specification. If a parameter is omitted from the
-    params schema, its value is not validated. 
+    params schema, its value is not validated.
     """
     sig = inspect.signature(function)
     if len(args) > len([p for p in sig.parameters.values() if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)]):
@@ -1195,11 +1219,12 @@ def call(function, args, kwargs, params=None, returns=None):
 def function_params(function, params):
     """
     Return a subset of the passed parameter schemas, based on the arguments of
-    a defined function. The required and default properties are overridden,
-    based function's arguments.
+    a defined function. The default properties are overridden, based function's
+    arguments.
     """
     params = params or {}
-    result = {}
+    properties = {}
+    required = set()
     sig = inspect.signature(function)
     for p in (p for p in sig.parameters.values() if p.name != "self"):
         if p.kind is inspect.Parameter.VAR_POSITIONAL:
@@ -1210,21 +1235,22 @@ def function_params(function, params):
         if schema:
             if isinstance(schema, reader) and p.name != "_body":
                 raise TypeError("parameter cannot use reader schema type: {}".format(p.name))
+            if p.default is p.empty:
+                required.add(p.name)
             schema = copy(schema)
-            schema.required = p.default is p.empty
             schema.default = p.default if p.default is not p.empty else None
-            result[p.name] = schema
+            properties[p.name] = schema
         elif p.default is p.empty:
             raise TypeError("required parameter in function but not in params: {}".format(p.name)) 
-    return result
+    return _dict(properties, required)
 
 
 def validate(params=None, returns=None):
     """
     Decorate a function to validate its input parameters and return value.
-    Whether a parameter is required and any default value is defined by the
-    function, not its schema specification. If a parameter is omitted from the
-    params schema, it must have a default value.     
+    Parameter default values are defined by the function, not parameter schemas.
+    If a parameter is omitted from the params schema, it must have a default
+    value.     
     """
     def decorator(function):
         _params = function_params(function, params)

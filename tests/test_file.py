@@ -12,11 +12,14 @@ class TestFileResource(unittest.TestCase):
 
     def test_crud_dict(self):
         
-        _schema = s.dict({
-            "id": s.uuid(required=False),
-            "foo": s.str(),
-            "bar": s.int(),
-        })
+        _schema = s.dict(
+            properties = {
+                "id": s.uuid(),
+                "foo": s.str(),
+                "bar": s.int(),
+            },
+            required = {"foo", "bar"},
+        )
 
         class FooResource(FileResource):
 
