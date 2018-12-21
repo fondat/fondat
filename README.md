@@ -1,10 +1,10 @@
 # Roax
 
-[![GitHub](https://img.shields.io/badge/github-repo-blue.svg)](https://github.com/pbryan/roax/)
+[![GitHub](https://img.shields.io/badge/github-repo-blue.svg)](https://github.com/roax/roax/)
 [![PyPI](https://img.shields.io/pypi/v/roax.svg)](https://pypi.org/project/roax/)
-[![Travis CI](https://travis-ci.org/pbryan/roax.svg?branch=master)](https://travis-ci.org/pbryan/roax)
-[![Codecov](https://codecov.io/gh/pbryan/roax/branch/master/graph/badge.svg)](https://codecov.io/gh/pbryan/roax)
-[![License](https://img.shields.io/github/license/pbryan/roax.svg)](https://github.com/pbryan/roax/blob/master/LICENSE)
+[![Travis CI](https://travis-ci.org/pbryan/roax.svg?branch=master)](https://travis-ci.org/roax/roax)
+[![Codecov](https://codecov.io/gh/pbryan/roax/branch/master/graph/badge.svg)](https://codecov.io/gh/roax/roax)
+[![License](https://img.shields.io/github/license/pbryan/roax.svg)](https://github.com/roax/roax/blob/master/LICENSE)
 
 Ro·ax /ˈɹoʊ.æks/  
 A lightweight Python resource-oriented framework. 
