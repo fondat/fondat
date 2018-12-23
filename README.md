@@ -1,19 +1,19 @@
 # Roax
 
-[![GitHub](https://img.shields.io/badge/github-master-blue.svg)](https://github.com/roax/roax/)
-[![PyPI](https://img.shields.io/pypi/v/roax.svg)](https://pypi.org/project/roax/)
-[![Travis CI](https://travis-ci.org/roax/roax.svg?branch=master)](https://travis-ci.org/roax/roax)
-[![Codecov](https://codecov.io/gh/pbryan/roax/branch/master/graph/badge.svg)](https://codecov.io/gh/roax/roax)
 [![License](https://img.shields.io/github/license/roax/roax.svg)](https://github.com/roax/roax/blob/master/LICENSE)
+[![Python](https://img.shields.io/pypi/pyversions/roax.svg)](https://pypi.org/project/roax/)
+[![GitHub](https://img.shields.io/badge/github-master-blue.svg)](https://github.com/roax/roax/)
+[![Travis CI](https://travis-ci.org/roax/roax.svg?branch=master)](https://travis-ci.org/roax/roax)
+[![Codecov](https://codecov.io/gh/roax/roax/branch/master/graph/badge.svg)](https://codecov.io/gh/roax/roax)
 
 Ro·ax /ˈɹoʊ.æks/  
 A lightweight Python resource-oriented framework. 
 
 ## Introduction
 
-Roax is a framework for building resource-oriented applications in Python.
-By composing your application of resources that expose operations in a uniform
-interface, they can be exposed through a REST and/or command line interface.
+Roax is a lightweight framework for building resource-oriented applications in Python.
+By composing your application as a set of resources that expose operations through a uniform
+interface, they can be automatically exposed through a REST and/or command line interface.
 
 ## Features
 
