@@ -10,7 +10,7 @@ class _Object(s.dict):
         super().__init__(
             properties = {
                 'type': s.str(),
-                'bbox': _BoundingBox(),
+                'bbox': s.list(items=s.float(), min_items=4),
                 **properties,
             },
             required = required.union({'type'}),
@@ -35,11 +35,6 @@ class _Geometry(_Object):
             required = required.union({'coordinates'}),
             **kwargs,
         )
-
-class _BoundingBox(s.list):
-
-    def __init__(self, **kwargs):
-        super().__init__(items=s.float(), min_items=4)
 
 
 class Point(_Geometry):
