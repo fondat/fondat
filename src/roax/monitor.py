@@ -158,7 +158,7 @@ class Series:
         if not self._tags_match(tags):
             return  # ignore submission
         if type != self.type:
-            raise ValueError("expecting data point type of: {}".format(self.type))
+            raise ValueError(f'expecting data point type of: {self.type}')
         if timestamp > _now():
             raise ValueError("cannot record measurement in the future")
         self._get_data_point(timestamp).record(value)
@@ -204,9 +204,9 @@ class SimpleMonitor:
         For `patterns` argument, see the `Series` class initializer documentation.
        """
         if name in self.series:
-            raise ValueError("time series already exists: {}".format(name))
+            raise ValueError(f'time series already exists: {name}')
         if type not in _types:
-            raise ValueError("unsupported data point type: {}".format(type))
+            raise ValueError(f'unsupported data point type: {type}')
         self.series[name] = Series(type, patterns, points, interval)
 
     def record(self, tags, timestamp, type, value):

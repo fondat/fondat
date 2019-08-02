@@ -64,7 +64,7 @@ class FileResource(Resource):
         try:
             self._write("xb", id, _body)
         except NotFound:
-            raise InternalServerError("{} resource directory not found".format(self.name))
+            raise InternalServerError(f'{self.name} resource directory not found')
         return {"id": id}
 
     def read(self, id):
@@ -80,7 +80,7 @@ class FileResource(Resource):
         try:
             os.remove(self._filename(id))
         except FileNotFoundError:
-            raise NotFound("{} item not found: {}".format(self.name, id))
+            raise NotFound(f'{self.name} item not found: {id}')
 
     def list(self):
         """Return a list of all resource item identifiers."""
@@ -88,7 +88,7 @@ class FileResource(Resource):
         try:
             listdir = os.listdir(self.dir)
         except FileNotFoundError:
-            raise InternalServerError("{} resource directory not found".format(self.name))
+            raise InternalServerError(f'{self.name} resource directory not found')
         for name in listdir:
             if name.endswith(self.extension):
                 name = name[:len(name) - len(self.extension)]
@@ -103,7 +103,7 @@ class FileResource(Resource):
 
     def _filename(self, id):
         """Return the full filename for the specified resource item identifier."""
-        return "{}/{}{}".format(self.dir, _quote(self.id_schema.str_encode(id)), self.extension)
+        return f'{self.dir}/{_quote(self.id_schema.str_encode(id))}{self.extension}'
 
     def _open(self, id, mode):
         try:
@@ -112,9 +112,9 @@ class FileResource(Resource):
                 fcntl.flock(file.fileno(), fcntl.LOCK_EX)
             return file
         except FileNotFoundError:
-            raise NotFound("{} item not found: {}".format(self.name, id))
+            raise NotFound(f'{self.name} item not found: {id}')
         except FileExistsError:
-            raise Conflict("{} item already exists: {}".format(self.name, id))
+            raise Conflict(f'{self.name} item already exists: {id}')
 
     def _read(self, mode, id):
         with self._open(id, mode) as file:

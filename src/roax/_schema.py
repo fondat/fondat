@@ -1136,7 +1136,7 @@ class one_of(_xof):
             raise SchemaError("value does not match any schema")
         elif len(values) > 1:
             raise SchemaError("value matches more than one schema")
-        return values[0] # return first matching value
+        return values[0] # return matching value
 
 
 class reader(_type):

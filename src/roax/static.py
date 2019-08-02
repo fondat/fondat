@@ -19,7 +19,7 @@ class StaticResource(Resource):
         super().__init__(name, description)
         self.content = content
         self.schema = schema
-        description = "Read the {} resource.".format(self.name)
+        description = f'Read the {self.name} resource.'
         self.read = operation(params={}, returns=self.schema, description=description, security=security)(self.read)
 
     def read(self):

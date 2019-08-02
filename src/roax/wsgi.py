@@ -128,7 +128,7 @@ class App:
         res_path = (self.base + "/" + path.lstrip("/"))
         for op in resource.operations.values():
             if op.security is None:
-                raise ValueError("operation {} must express security requirements".format(op.name))
+                raise ValueError(f'operation {op.name} must express security requirements')
             if op.type == "create":
                 op_method, op_path = "POST", res_path
             elif op.type == "read":
@@ -144,12 +144,12 @@ class App:
             elif op.type == "patch":
                 op_method, op_path = "PATCH", res_path
             else:
-                raise ValueError("operation {} has unknown operation type: {}".format(op.name, op.type))
+                raise ValueError(f'operation {op.name} has unknown operation type: {op.type}')
             if not publish:
                 op = copy(op)
                 op.publish = False
             if (op_method, op_path) in self.operations:
-                raise ValueError("operation already defined for {} {}".format(op_method, op_path))
+                raise ValueError(f'operation already defined for {op_method} {op_path}')
             self.operations[(op_method, op_path)] = op
 
     def register_static(self, path, file_dir, security, index="index.html", publish=False):
@@ -192,11 +192,11 @@ class App:
             for child in fs_path.iterdir():
                 if child.is_file():
                     resource = _static(child)
-                    self.register_resource("{}/{}".format(path, child.name), resource, publish)
+                    self.register_resource(f'{path}/{child.name}', resource, publish)
                     if child.name == index:
-                        self.register_resource("{}/".format(path), resource, publish)
+                        self.register_resource(f'{path}/', resource, publish)
         else:
-            raise ValueError("invalid file or directory: {}".format(file_dir))
+            raise ValueError(f'invalid file or directory: {file_dir}')
 
     def __call__(self, environ, start_response):
         """Handle WSGI request."""
@@ -284,7 +284,7 @@ class HTTPBasicSecurityScheme(HTTPSecurityScheme):
 
     def Unauthorized(self, detail=None):
         """Return an Unauthorized exception populated with scheme and realm."""
-        return Unauthorized(detail, "Basic realm={}".format(self.realm))
+        return Unauthorized(detail, f'Basic realm={self.realm}')
 
     def filter(self, request, chain):
         """

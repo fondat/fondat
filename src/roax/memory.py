@@ -47,7 +47,7 @@ class MemoryResource(Resource):
             now = _now()
             self._entries = {k: v for k, v in self._entries if v[0] + self._ttl <= now }
         if id in self._entries:
-            raise Conflict("{} item already exists".format(self.name))
+            raise Conflict(f'{self.name} item already exists')
         if self.size and len(self._entries) >= self.size:
             if self.evict:  # evict oldest entry
                 oldest = None
@@ -57,7 +57,7 @@ class MemoryResource(Resource):
                 if oldest:
                     del self._entries[oldest[1]]
         if self.size and len(self._entries) >= self.size:
-            raise BadRequest("{} item size limit reached".format(self.name))
+            raise BadRequest(f'{self.name} item size limit reached')
         self._entries[id] = (_now(), deepcopy(_body))
         return {"id": id}
 
@@ -90,5 +90,5 @@ class MemoryResource(Resource):
     def __get(self, id):
         result = self._entries.get(id)
         if not result or (self._ttl and _now() > result[0] + self._ttl):
-            raise NotFound("{} item not found".format(self.name))
+            raise NotFound(f'{self.name} item not found')
         return result

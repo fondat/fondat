@@ -37,13 +37,13 @@ class RedisResource(Resource):
     def create(self, id, _body):
         px = int(self.ttl * 1000) if self.ttl else None
         if not self.redis.set(self._encode_id(id), self._encode_body(_body), nx=True, px=px):
-            raise Conflict("{} item already exists".format(self.name))
+            raise Conflict(f'{self.name} item already exists')
         return {"id": id}
 
     def read(self, id):
         item = self.redis.get(self._encode_id(id))
         if item is None:
-            raise NotFound("{} item not found".format(self.name))
+            raise NotFound(f'{self.name} item not found')
         return self._decode_body(item)
 
     def update(self, id, _body):
@@ -52,8 +52,8 @@ class RedisResource(Resource):
         if ttl == -1:
             ttl = None
         if (ttl and ttl <= 0) or not self.redis.set(str_id, self._encode_body(_body), ex=ttl, xx=True):
-            raise NotFound("{} item not found".format(self.name))
+            raise NotFound(f'{self.name} item not found')
 
     def delete(self, id):
         if not self.redis.delete(self._encode_id(id)):
-            raise NotFound("{} item not found".format(self.name))
+            raise NotFound(f'{self.name} item not found')

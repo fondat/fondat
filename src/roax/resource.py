@@ -31,7 +31,7 @@ class Resource:
         """Register a resource operation."""
         name = operation["name"]
         if name in self.operations:
-            raise ValueError("operation name already registered: {}".format(name))
+            raise ValueError(f'operation name already registered: {name}')
         self.operations[name] = _Operation({**operation, "resource": self})
 
     def __init__(self, name=None, description=None):
@@ -137,7 +137,7 @@ def _summary(function):
     present, the function's name capitalized.
     """
     if not function.__doc__:
-        return "{}.".format(function.__name__.capitalize())
+        return f'{function.__name__.capitalize()}.'
     result = []
     for word in function.__doc__.split():
         result.append(word)
