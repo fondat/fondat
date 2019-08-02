@@ -8,8 +8,13 @@ services:
 python:
     - 3.6
     - 3.7
-    - 3.8
-    - pypy3.6
+#    - pypy3.6
+
+matrix:
+  include:
+    - name: "Python 3.8"
+      python: 3.8
+      dist: disco
 
 install:
     - pip install codecov
