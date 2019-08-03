@@ -8,14 +8,9 @@ class _Object(s.dict):
 
     def __init__(self, **kwargs):
         super().__init__(properties={}, **kwargs)
-        self.properties['type'] = s.str()
+        self.properties['type'] = s.str(enum={self.__class__.__name__})
         self.properties['bbox'] = s.list(items=s.float(), min_items=4)
         self.required.add('type')
-
-    def validate(self, value):
-        if value['type'] != self.__class__.__name__:
-            raise s.SchemaError(f"type must be '{self.__class__.__name__}''")
-        super().validate(value)
 
 
 class _Geometry(_Object):
@@ -28,7 +23,7 @@ class _Geometry(_Object):
 
 
 class Point(_Geometry):
-    """TBD"""
+    """A geographical point."""
 
     def __init__(self, **kwargs):
         super().__init__(_PointCoordinates(), **kwargs)
@@ -48,7 +43,7 @@ class _PointCoordinates(s.list):
 
 
 class LineString(_Geometry):
-    """TBD"""
+    """A connected sequence of points."""
 
     def __init__(self, **kwargs):
         super().__init__(_LineStringCoordinates(), **kwargs)
@@ -61,7 +56,7 @@ class _LineStringCoordinates(s.list):
 
 
 class Polygon(_Geometry):
-    """TBD"""
+    """A linear ring and zero or more interior linear rings."""
 
     def __init__(self, min_rings=1, max_rings=None, **kwargs):
         """
@@ -93,28 +88,28 @@ class _LinearRingCoordinates(s.list):
 
 
 class MultiPoint(_Geometry):
-    """TBD"""
+    """A collection of points."""
 
     def __init__(self, **kwargs):
         super().__init__(s.list(_PointCoordinates()), **kwargs)
 
 
 class MultiLineString(_Geometry):
-    """TBD"""
+    """A collection of line strings."""
 
     def __init__(self, **kwargs):
         super().__init__(s.list(items=_LineStringCoordinates()), **kwargs)
 
 
 class MultiPolygon(_Geometry):
-    """TBD"""
+    """A collection of polygons."""
 
     def __init__(self, **kwargs):
         super().__init__(s.list(items=_PolygonCoordinates()), **kwargs)
 
 
 class GeometryCollection(_Object):
-    """TBD"""
+    """A collection of geometries."""
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -123,24 +118,24 @@ class GeometryCollection(_Object):
 
 
 class Geometry(s.one_of):
-    """TBD"""
+    """One of: `Point`, `MultiPoint`, `LineString`, `MultiLineString`, `Polygon`, `MultiPolygon`."""
 
     def __init__(self, **kwargs):
         super().__init__({Point(), MultiPoint(), LineString(), MultiLineString(), Polygon(), MultiPolygon()}, **kwargs)
 
 
 class Feature(_Object):
-    """TBD"""
+    """A spatially bounded thing."""
 
-    def __init__(self, properties_schema=s.dict(properties={}, additional_properties=True, nullable=True), **kwargs):
+    def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.properties['geometry'] = Geometry(nullable=True)
-        self.properties['properties'] = properties_schema
+        self.properties['properties'] = s.dict(properties={}, additional_properties=True, nullable=True)
         self.required.update({'geometry', 'properties'})
 
 
 class FeatureCollection(_Object):
-    """TBD"""
+    """A collection of features."""
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

@@ -84,11 +84,14 @@ class _type:
     def validate(self, value):
         """Validate value against the schema."""
         if value is None and not self.nullable:
-            raise SchemaError('value cannot be None')
+            raise SchemaError('value is not nullable')
         if value is not None and not isinstance(value, self.python_type):
             raise SchemaError(f"value '{value}' does not match expected type {self.python_type.__name__}")
         if value is not None and self.enum is not None and value not in self.enum:
-            raise SchemaError(f"value '{value}' is not one of: {', '.join([self.str_encode(v) for v in self.enum])}")
+            if len(self.enum) == 1:
+                raise SchemaError(f'value must be {list(self.enum)[0]}')
+            else:
+                raise SchemaError(f"value '{value}' must be one of: {', '.join([self.str_encode(v) for v in self.enum])}")
 
     @property
     def json_schema(self):
