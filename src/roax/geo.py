@@ -4,18 +4,13 @@ import roax.schema as s
 
 
 class _Object(s.dict):
-    """GeoJSON object."""
+    """Base class for all GeoJSON objects."""
 
-    def __init__(self, properties={}, required=set(), **kwargs):
-        super().__init__(
-            properties = {
-                'type': s.str(),
-                'bbox': s.list(items=s.float(), min_items=4),
-                **properties,
-            },
-            required = required.union({'type'}),
-            **kwargs,
-        )
+    def __init__(self, **kwargs):
+        super().__init__(properties={}, **kwargs)
+        self.properties['type'] = s.str()
+        self.properties['bbox'] = s.list(items=s.float(), min_items=4)
+        self.required.add('type')
 
     def validate(self, value):
         if value['type'] != self.__class__.__name__:
@@ -24,17 +19,12 @@ class _Object(s.dict):
 
 
 class _Geometry(_Object):
-    """TBD"""
+    """Base class for all geometry objects."""
 
-    def __init__(self, coordinates, properties={}, required=set(), **kwargs):
-        super().__init__(
-            properties = {
-                'coordinates': coordinates,
-                **properties,
-            },
-            required = required.union({'coordinates'}),
-            **kwargs,
-        )
+    def __init__(self, coordinates_schema, **kwargs):
+        super().__init__(**kwargs)
+        self.properties['coordinates'] = coordinates_schema
+        self.required.add('coordinates')
 
 
 class Point(_Geometry):
@@ -67,7 +57,7 @@ class LineString(_Geometry):
 class _LineStringCoordinates(s.list):
 
     def __init__(self, **kwargs):
-        super().__init__(items = _PointCoordinates(), **kwargs)
+        super().__init__(items=_PointCoordinates(), **kwargs)
 
 
 class Polygon(_Geometry):
@@ -126,15 +116,10 @@ class MultiPolygon(_Geometry):
 class GeometryCollection(_Object):
     """TBD"""
 
-    def __init__(self, properties={}, required=set(), **kwargs):
-        super().__init__(
-            properties = {
-                'geometries': s.list(Geometry()),
-                **properties,
-            },
-            required = required.union({'geometries'}),
-            **kwargs,
-        )
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.properties['geometries'] = s.list(Geometry())
+        self.required.add('geometries')
 
 
 class Geometry(s.one_of):
@@ -147,26 +132,17 @@ class Geometry(s.one_of):
 class Feature(_Object):
     """TBD"""
 
-    def __init__(self, required=set(), properties={}, **kwargs):
-        super().__init__(
-            properties = {
-                'geometry': Geometry(nullable=True),
-                **properties,
-            },
-            required = required.union({'geometry'}),
-            **kwargs,
-        )
+    def __init__(self, properties_schema=s.dict(properties={}, additional_properties=True, nullable=True), **kwargs):
+        super().__init__(**kwargs)
+        self.properties['geometry'] = Geometry(nullable=True)
+        self.properties['properties'] = properties_schema
+        self.required.update({'geometry', 'properties'})
 
 
 class FeatureCollection(_Object):
     """TBD"""
 
-    def __init__(self, properties={}, required=set(), **kwargs):
-        super().__init__(
-            properties = {
-                'features': s.list(Feature()),
-                **properties,
-            },
-            required = required.union({'features'}),
-            **kwargs,
-        )
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.properties['features'] = s.list(Feature())
+        self.required.add('features')
