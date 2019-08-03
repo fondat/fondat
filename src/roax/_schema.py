@@ -20,7 +20,7 @@ from uuid import UUID
 def _csv_encode(value):
     sio = StringIO()
     csv.writer(sio).writerow(value) 
-    return sio.getvalue().rstrip("\r\n")
+    return sio.getvalue().rstrip('\r\n')
 
 def _csv_decode(value):
     return csv.reader([value]).__next__()
@@ -37,7 +37,7 @@ class SchemaError(Exception):
     def push(self, name):
         """Push a name in front of the pointer."""
         name = str(name)
-        self.pointer = name if not self.pointer else "{}/{}".format(name, self.pointer)
+        self.pointer = name if not self.pointer else f'{name}/{self.pointer}'
 
     def __str__(self):
         result = []
@@ -45,7 +45,7 @@ class SchemaError(Exception):
             result.append(self.pointer)
         if self.msg is not None:
             result.append(self.msg)
-        return ": ".join(result)
+        return ': '.join(result)
 
 
 class _type:
@@ -61,7 +61,7 @@ class _type:
         :param python_type: Python data type.
         :param json_type: JSON schema data type.
         :param format: More finely defines the data type.
-        :param content_type: Content type used when value is expressed in a body.
+        :param content_type: Content type used when value is expressed in a body.  ['text/plain']
         :param enum: A list of values that are valid.
         :param nullable: Allow None as a valid value.
         :param default: Default value if the item value is not supplied.
@@ -84,32 +84,32 @@ class _type:
     def validate(self, value):
         """Validate value against the schema."""
         if value is None and not self.nullable:
-            raise SchemaError("value cannot be None")
+            raise SchemaError('value cannot be None')
         if value is not None and not isinstance(value, self.python_type):
-            raise SchemaError('value "{}" does not match expected type {}'.format(value, self.python_type.__name__))
+            raise SchemaError(f"value '{value}' does not match expected type {self.python_type.__name__}")
         if value is not None and self.enum is not None and value not in self.enum:
-            raise SchemaError('value "{}" is not one of: {}'.format(value, ", ".join([self.str_encode(v) for v in self.enum])))
+            raise SchemaError(f"value '{value}' is not one of: {', '.join([self.str_encode(v) for v in self.enum])}")
 
     @property
     def json_schema(self):
         """JSON schema representation of the schema."""
         result = {}
         if self.json_type:
-            result["type"] = self.json_type
+            result['type'] = self.json_type
         if self.format is not None:
-            result["format"] = self.format
+            result['format'] = self.format
         if self.nullable is not None:
-            result["nullable"] = self.nullable
+            result['nullable'] = self.nullable
         if self.default is not None:
-            result["default"] = self.json_encode(self.default)
+            result['default'] = self.json_encode(self.default)
         if self.enum:
-            result["enum"] = [self.json_encode(v) for v in self.enum]
+            result['enum'] = [self.json_encode(v) for v in self.enum]
         if self.description:
-            result["description"] = self.description
+            result['description'] = self.description
         if self.example:
-            result["example"] = self.json_encode(self.example)
+            result['example'] = self.json_encode(self.example)
         if self.deprecated is not None:
-            result["deprecated"] = self.deprecated
+            result['deprecated'] = self.deprecated
         return result
 
     def json_encode(self, value):
@@ -154,7 +154,7 @@ class _type:
 
 def _required(required):
     if isinstance(required, str):
-        required = (item.lstrip().rstrip() for item in required.split(","))
+        required = (item.lstrip().rstrip() for item in required.split(','))
         required = (item for item in required if item)
     return set(required)
 
@@ -165,12 +165,12 @@ class _dict(_type):
     """
 
     def __init__(self, properties, required=set(), *,
-            content_type="application/json", additional_properties=False, **kwargs):
+            content_type='application/json', additional_properties=False, **kwargs):
         """
         Initialize dictionary schema.
 
         :param properties: A mapping of name to schema.
-        :param content_type: Content type used when value is expressed in a body.
+        :param content_type: Content type used when value is expressed in a body.  ['application/json']
         :param additional_properties: Additional unvalidated properties are allowed.
         :param nullable: Allow None as a valid value.
         :param required: Set of property names that are required.
@@ -178,7 +178,7 @@ class _dict(_type):
         :param description: A description of the schema.
         :param example: An example of an instance for this schema.
         """
-        super().__init__(python_type=Mapping, json_type="object", content_type=content_type, **kwargs)
+        super().__init__(python_type=Mapping, json_type='object', content_type=content_type, **kwargs)
         self.properties = properties
         self.required = _required(required)
         self.additional_properties = additional_properties
@@ -214,7 +214,7 @@ class _dict(_type):
                     result[k] = getattr(self.properties[k], method)(v)
                 else:
                     if not self.additional_properties:
-                        raise SchemaError("unexpected property")
+                        raise SchemaError('unexpected property')
                     result[k] = v  # pass through                    
             except SchemaError as se:
                 se.push(k)
@@ -239,15 +239,15 @@ class _dict(_type):
         if value is not None:
             for property in self.required:
                 if property not in value:
-                    raise SchemaError("value required", property)
-            self._process("validate", value)
+                    raise SchemaError('value required', property)
+            self._process('validate', value)
 
     @property
     def json_schema(self):
         """JSON schema representation of the schema."""
         result = super().json_schema
-        result["properties"] = {k: v.json_schema for k, v in self.properties.items()}
-        result["required"] = list(self.required)
+        result['properties'] = {k: v.json_schema for k, v in self.properties.items()}
+        result['required'] = list(self.required)
         return result
 
     def json_encode(self, value):
@@ -256,11 +256,11 @@ class _dict(_type):
         self.validate(value)
         if value is not None and not isinstance(value, dict):
             value = dict(value)  # make JSON encoder happy
-        return self._process("json_encode", value)
+        return self._process('json_encode', value)
 
     def json_decode(self, value):
         """Decode the value from JSON object model representation."""
-        value = self.defaults(self._process("json_decode", value))
+        value = self.defaults(self._process('json_decode', value))
         self.validate(value)
         return value
 
@@ -273,7 +273,7 @@ class _dict(_type):
         return self.json_decode(json.loads(value))
 
     def copy(self, properties=None, required=None):
-        """..."""
+        """Make a copy of the schema, specifying a subset of properties."""
         result = super().copy()
         if properties is not None:
             result.properties = {k: v for k, v in result.properties if k in properties}
@@ -290,12 +290,12 @@ class _list(_type):
     values.
     """
 
-    def __init__(self, items, *, content_type="application/json", min_items=0, max_items=None, unique_items=False, **kwargs):
+    def __init__(self, items, *, content_type='application/json', min_items=0, max_items=None, unique_items=False, **kwargs):
         """
         Initialize list schema.
 
         :params items: Schema which all items must adhere to.
-        :param content_type: Content type used when value is expressed in a body.
+        :param content_type: Content type used when value is expressed in a body.  ['application/json']
         :params min_items: The minimum number of items required.
         :params max_items: The maximum number of items required.
         :params unique_items: All items must have unique values.
@@ -304,7 +304,7 @@ class _list(_type):
         :param description: A description of the schema.
         :param example: An example of an instance for this schema.
         """
-        super().__init__(python_type=Sequence, json_type="array", content_type=content_type, **kwargs)
+        super().__init__(python_type=Sequence, json_type='array', content_type=content_type, **kwargs)
         self.items = items
         self.min_items = min_items
         self.max_items = max_items
@@ -326,32 +326,32 @@ class _list(_type):
     @staticmethod
     def _check_not_str(value):
         if isinstance(value, str):  # strings are iterable, but not what we want
-            raise SchemaError("expecting a Sequence type")
+            raise SchemaError('expecting a Sequence type')
 
     def validate(self, value):
         """Validate value against the schema."""
         self._check_not_str(value)
         super().validate(value)
         if value is not None:
-            self._process("validate", value)
+            self._process('validate', value)
             if len(value) < self.min_items:
-                raise SchemaError("expecting minimum number of {} items".format(self.min_items))
+                raise SchemaError(f'expecting minimum number of {self.min_items} items')
             if self.max_items is not None and len(value) > self.max_items:
-                raise SchemaError("expecting maximum number of {} items".format(self.max_items))
+                raise SchemaError(f'expecting maximum number of {self.max_items} items')
             if self.unique_items and len(value) != len(set(value)):
-                raise SchemaError("expecting items to be unique")
+                raise SchemaError('expecting items to be unique')
 
     @property
     def json_schema(self):
         """JSON schema representation of the schema."""
         result = super().json_schema
-        result["items"] = self.items.json_schema
+        result['items'] = self.items.json_schema
         if self.min_items != 0:
-            result["minItems"] = self.min_items
+            result['minItems'] = self.min_items
         if self.max_items is not None:
-            result["maxItems"] = self.max_items
+            result['maxItems'] = self.max_items
         if self.unique_items:
-            result["uniqueItems"] = True
+            result['uniqueItems'] = True
         return result
 
     def json_encode(self, value):
@@ -360,12 +360,12 @@ class _list(_type):
         self.validate(value)
         if value is not None and not isinstance(value, list):
             value = list(value)  # make JSON encoder happy
-        return self._process("json_encode", value)
+        return self._process('json_encode', value)
 
     def json_decode(self, value):
         """Decode the value from JSON object model representation."""
         self._check_not_str(value)
-        result = self._process("json_decode", value)
+        result = self._process('json_decode', value)
         self.validate(result)
         return result
 
@@ -374,12 +374,12 @@ class _list(_type):
         self.validate(value)
         if value is None:
             return None
-        return _csv_encode(self._process("str_encode", value))
+        return _csv_encode(self._process('str_encode', value))
 
     def str_decode(self, value):
         """Decode the value from string representation."""
         if value is not None:
-            value = self._process("str_decode", _csv_decode(value))
+            value = self._process('str_decode', _csv_decode(value))
         self.validate(value)
         return value
 
@@ -408,7 +408,7 @@ class _set(_type):
     values.
     """
 
-    def __init__(self, items, *, content_type="application/json", **kwargs):
+    def __init__(self, items, *, content_type='application/json', **kwargs):
         """
         Initialize set schema.
 
@@ -420,7 +420,7 @@ class _set(_type):
         :param description: A description of the schema.
         :param example: An example of an instance for this schema.
         """
-        super().__init__(python_type=set, json_type="array", content_type=content_type, **kwargs)
+        super().__init__(python_type=set, json_type='array', content_type=content_type, **kwargs)
         self.items = items
 
     def _process(self, method, value):
@@ -436,30 +436,30 @@ class _set(_type):
         """Validate value against the schema."""
         super().validate(value)
         if value is not None:
-            self._process("validate", value)
+            self._process('validate', value)
 
     @property
     def json_schema(self):
         """JSON schema representation of the schema."""
         result = super().json_schema
-        result["items"] = self.items.json_schema
-        result["uniqueItems"] = True
+        result['items'] = self.items.json_schema
+        result['uniqueItems'] = True
         return result
 
     def json_encode(self, value):
         """Encode the value into JSON object model representation."""
         self.validate(value)
         if value is not None:
-            value = list(self._process("json_encode", value))
+            value = list(self._process('json_encode', value))
             value.sort()
         return value
 
     def json_decode(self, value):
         """Decode the value from JSON object model representation."""
         if value is not None:
-            result = self._process("json_decode", value)
+            result = self._process('json_decode', value)
             if len(result) != len(value):
-                raise SchemaError("expecting items to be unique")
+                raise SchemaError('expecting items to be unique')
             value = result
         self.validate(value)
         return value
@@ -469,7 +469,7 @@ class _set(_type):
         self.validate(value)
         if value is None:
             return None
-        result = list(self._process("str_encode", value))
+        result = list(self._process('str_encode', value))
         result.sort()
         return _csv_encode()
 
@@ -477,9 +477,9 @@ class _set(_type):
         """Decode the value from string representation."""
         if value is not None:
             csv = _csv_decode(value)
-            value = self._process("str_decode", csv)
+            value = self._process('str_decode', csv)
             if len(value) != len(csv):
-                raise SchemaError("expecting items to be unique")
+                raise SchemaError('expecting items to be unique')
         self.validate(value)
         return value
 
@@ -509,7 +509,7 @@ class _str(_type):
         """
         Initialize string schema.
 
-        :param content_type: Content type used when value is expressed in a body.  ["text/plain"]
+        :param content_type: Content type used when value is expressed in a body.  ['text/plain']
         :param min_length: Minimum character length of the string.
         :param max_length: Maximum character length of the string.
         :param pattern: Regular expression that the string must match.
@@ -520,7 +520,7 @@ class _str(_type):
         :param description: A description of the schema.
         :param example: An example of an instance for this schema.
         """
-        super().__init__(python_type=str, json_type="string", **kwargs)
+        super().__init__(python_type=str, json_type='string', **kwargs)
         self.min_length = min_length
         self.max_length = max_length
         self.pattern = re.compile(pattern) if pattern is not None else None
@@ -530,22 +530,22 @@ class _str(_type):
         super().validate(value)
         if value is not None:
             if len(value) < self.min_length:
-                raise SchemaError("expecting minimum length of {}".format(self.min_length))
+                raise SchemaError(f'expecting minimum length of {self.min_length}')
             if self.max_length is not None and len(value) > self.max_length:
-                raise SchemaError("expecting maximum length of {}".format(self.max_length))
+                raise SchemaError(f'expecting maximum length of {self.max_length}')
             if self.pattern is not None and not self.pattern.match(value):
-                raise SchemaError("expecting pattern: {}".format(self.pattern.pattern))
+                raise SchemaError(f'expecting pattern: {self.pattern.pattern}')
 
     @property
     def json_schema(self):
         """JSON schema representation of the schema."""
         result = super().json_schema
         if self.min_length != 0:
-             result["minLength"] = self.min_length
+             result['minLength'] = self.min_length
         if self.max_length is not None:
-            result["maxLength"] = self.max_length
+            result['maxLength'] = self.max_length
         if self.pattern:
-            result["pattern"] = self.pattern.pattern
+            result['pattern'] = self.pattern.pattern
         return result
  
     def json_encode(self, value):
@@ -585,18 +585,18 @@ class _number(_type):
         super().validate(value)
         if value is not None:
             if self.minimum is not None and value < self.minimum:
-                raise SchemaError("expecting minimum value of {}".format(self.minimum))
+                raise SchemaError(f'expecting minimum value of {self.minimum}')
             if self.maximum is not None and value > self.maximum:
-                raise SchemaError("expecting maximum value of {}".format(self.maximum))
+                raise SchemaError(f'expecting maximum value of {self.maximum}')
 
     @property
     def json_schema(self):
         """JSON schema representation of the schema."""
         result = super().json_schema
         if self.minimum is not None:
-            result["minimum"] = self.minimum
+            result['minimum'] = self.minimum
         if self.maximum is not None:
-            result["maximum"] = self.maximum
+            result['maximum'] = self.maximum
         return result
 
     def json_encode(self, value):
@@ -619,7 +619,7 @@ class _int(_number):
         """
         Initialize integer schema.
         
-        :param content_type: Content type used when value is expressed in a body.  ["text/plain"]
+        :param content_type: Content type used when value is expressed in a body.  ['text/plain']
         :param minimum: Inclusive lower limit of the value.
         :param maximum: Inclusive upper limit of the value.
         :param nullable: Allow None as a valid value.
@@ -628,13 +628,13 @@ class _int(_number):
         :param description: A description of the schema.
         :param example: An example of an instance for this schema.
         """
-        super().__init__(python_type=int, json_type="integer", format="int64", **kwargs)
+        super().__init__(python_type=int, json_type='integer', format='int64', **kwargs)
 
     def validate(self, value):
         """Validate value against the schema."""
         super().validate(value)
         if isinstance(value, bool):  # bool is a subclass of int
-            raise SchemaError("expecting int type")
+            raise SchemaError('expecting int type')
 
     def json_decode(self, value):
         """Decode the value from JSON object model representation."""
@@ -642,7 +642,7 @@ class _int(_number):
         if isinstance(result, float):
             result = result.__int__()
             if result != value:  # 1.0 == 1
-                raise SchemaError("expecting integer value")
+                raise SchemaError('expecting integer value')
         self.validate(result)
         return result
 
@@ -652,7 +652,7 @@ class _int(_number):
             try:
                 value = int(value)
             except ValueError as ve:
-                raise SchemaError("expecting an integer value") from ve
+                raise SchemaError('expecting an integer value') from ve
         self.validate(value)
         return value
 
@@ -666,7 +666,7 @@ class _float(_number):
         """
         Initialize floating point schema.
 
-        :param content_type: Content type used when value is expressed in a body.  [text/plain]
+        :param content_type: Content type used when value is expressed in a body.  ['text/plain']
         :param minimum: Inclusive lower limit of the value.
         :param maximum: Inclusive upper limit of the value.
         :param nullable: Allow None as a valid value.
@@ -675,7 +675,7 @@ class _float(_number):
         :param description: A description of the schema.
         :param example: An example of an instance for this schema.
         """
-        super().__init__(python_type=float, json_type="number", format="double", **kwargs)
+        super().__init__(python_type=float, json_type='number', format='double', **kwargs)
 
     def json_decode(self, value):
         """Decode the value from JSON object model representation."""
@@ -689,7 +689,7 @@ class _float(_number):
             try:
                 value = float(value)
             except ValueError as ve:
-                raise SchemaError("expecting a number") from ve
+                raise SchemaError('expecting a number') from ve
         self.validate(value)
         return value
 
@@ -703,13 +703,13 @@ class _bool(_type):
         """
         Initialize boolean schema.
 
-        :param content_type: Content type used when value is expressed in a body.  ["text/plain"]
+        :param content_type: Content type used when value is expressed in a body.  ['text/plain']
         :param nullable: Allow None as a valid value.
         :param default: Default value if the item value is not supplied.
         :param description: A description of the schema.
         :param example: An example of an instance for this schema.
         """
-        super().__init__(python_type=bool, json_type="boolean", **kwargs)
+        super().__init__(python_type=bool, json_type='boolean', **kwargs)
 
     def json_encode(self, value):
         """Encode the value into JSON object model representation."""
@@ -726,14 +726,14 @@ class _bool(_type):
         self.validate(value)
         if value is None:
             return None
-        return "true" if value else "false"
+        return 'true' if value else 'false'
 
     def str_decode(self, value):
         """Decode the value from string representation."""
         try:
-            value = {None: None, "true": True, "false": False}[value]
+            value = {None: None, 'true': True, 'false': False}[value]
         except KeyError:
-            raise SchemaError("expecting true or false")
+            raise SchemaError('expecting true or false')
         self.validate(value)
         return value
 
@@ -742,67 +742,67 @@ class _bytes(_type):
     """
     Schema type for byte sequences.
     
-    Two formats are supported: "byte" and "binary".
+    Two formats are supported: 'byte' and 'binary'.
 
-    In "byte" format, a byte sequence is represented as a base64-encoded string.
-    Example: "Um9heCBpcyBhIHBhcnQgb2YgYSBjb21wbGV0ZSBicmVha2Zhc3QuCg==".
+    In 'byte' format, a byte sequence is represented as a base64-encoded string.
+    Example: 'Um9heCBpcyBhIHBhcnQgb2YgYSBjb21wbGV0ZSBicmVha2Zhc3QuCg=='.
     
-    In "binary" format, a byte sequence is represented as a raw sequence of bytes.
+    In 'binary' format, a byte sequence is represented as a raw sequence of bytes.
     For this reason, it cannot be expressed in string or JSON representation. 
     """
 
-    def __init__(self, *, format="byte", content_type="application/octet-stream", **kwargs):
+    def __init__(self, *, format='byte', content_type='application/octet-stream', **kwargs):
         """
         Initialize byte sequence schema.
 
-        :param content_type: Content type used when value is expressed in a body.
-        :param format: More finely defines the data type {byte,binary}.
+        :param content_type: Content type used when value is expressed in a body.  ['application/octet-stream']
+        :param format: More finely defines the data type.  {'byte', 'binary'}.
         :param nullable: Allow None as a valid value.
         :param default: Default value if the item value is not supplied.
         :param description: A description of the schema.
         :param example: An example of an instance for this schema.
         """
-        if format not in {"byte", "binary"}:
-            raise SchemaError("format must be one of {}".format(valid_formats))
-        super().__init__(python_type=bytes, json_type="string", format=format, content_type=content_type, **kwargs)
+        if format not in {'byte', 'binary'}:
+            raise SchemaError(f'format must be one of {valid_formats}')
+        super().__init__(python_type=bytes, json_type='string', format=format, content_type=content_type, **kwargs)
 
     def json_encode(self, value):
         """Encode the value into JSON object model representation."""
-        if self.format == "binary":
-            raise SchemaError("binary format cannot be encoded into JSON representation")
+        if self.format == 'binary':
+            raise SchemaError('binary format cannot be encoded into JSON representation')
         return self.str_encode(value)
 
     def json_decode(self, value):
         """Decode the value from JSON object model representation."""
-        if self.format == "binary":
-            raise SchemaError("binary format cannot be decoded from JSON representation")
+        if self.format == 'binary':
+            raise SchemaError('binary format cannot be decoded from JSON representation')
         return self.str_decode(value)
 
     def str_encode(self, value):
         """Encode the value into string representation."""
-        if self.format == "binary":
-            raise SchemaError("binary format cannot be encoded into string representation")
+        if self.format == 'binary':
+            raise SchemaError('binary format cannot be encoded into string representation')
         self.validate(value)
         return None if value is None else b64encode(value).decode()
 
     def str_decode(self, value):
         """Decode the value from string representation."""
-        if self.format == "binary":
-            raise SchemaError("binary format cannot be decoded from string representation")
+        if self.format == 'binary':
+            raise SchemaError('binary format cannot be decoded from string representation')
         try:
             value = None if value is None else b64decode(value)
         except binascii.Error as be:
-            raise SchemaError("expecting a base64-encoded value") from be
+            raise SchemaError('expecting a base64-encoded value') from be
         self.validate(value)
         return value
 
     def bin_encode(self, value):
         """Encode the value into binary representation."""
-        return value if self.format == "binary" else super().bin_encode(value)
+        return value if self.format == 'binary' else super().bin_encode(value)
 
     def bin_decode(self, value):
         """Decode the value from binary representation."""
-        return value if self.format == "binary" else super().bin_decode(value)
+        return value if self.format == 'binary' else super().bin_decode(value)
 
 
 class _date(_type):
@@ -810,7 +810,7 @@ class _date(_type):
     Schema type for date values.
 
     Date values are represented in string and JSON values as an RFC 3339 date
-    in a string. Example: "2018-06-16".
+    in a string. Example: '2018-06-16'.
     """
 
     def __init__(self, **kwargs):
@@ -824,7 +824,7 @@ class _date(_type):
         :param description: A description of the schema.
         :param example: An example of an instance for this schema.
         """
-        super().__init__(python_type=date, json_type="string", format="date", **kwargs)
+        super().__init__(python_type=date, json_type='string', format="date", **kwargs)
 
     def json_encode(self, value):
         """Encode the value into JSON object model representation."""
@@ -857,7 +857,7 @@ class _datetime(_type):
     Schema type for datetime values.
 
     Datetime values are represented in string and JSON values as an RFC 3339 date
-    and time in a string. Example: "2018-06-16T12:34:56.789Z".
+    and time in a string. Example: '2018-06-16T12:34:56.789Z'.
     """
 
     _UTC = isodate.tzinfo.Utc()
@@ -866,7 +866,7 @@ class _datetime(_type):
         """
         Initialize datetime schema.
 
-        :param content_type: Content type used when value is expressed in a body.  ["text/plain"]
+        :param content_type: Content type used when value is expressed in a body.  ['text/plain']
         :param nullable: Allow None as a valid value.
         :param default: Default value if the item value is not supplied.
         :param enum: A list of values that are valid.
@@ -874,9 +874,9 @@ class _datetime(_type):
         :param example: An example of an instance for this schema.
         :param fractional: Include fractions of seconds.
         """
-        super().__init__(python_type=datetime, json_type="string", format="date-time", **kwargs)
+        super().__init__(python_type=datetime, json_type='string', format='date-time', **kwargs)
         self.fractional = fractional
-        self.isoformat = "%Y-%m-%dT%H:%M:%S.%fZ" if fractional else "%Y-%m-%dT%H:%M:%SZ"
+        self.isoformat = '%Y-%m-%dT%H:%M:%S.%fZ' if fractional else '%Y-%m-%dT%H:%M:%SZ'
 
     def _to_utc(self, value):
         if value.tzinfo is None: # naive value interpreted as UTC
@@ -904,7 +904,7 @@ class _datetime(_type):
             try:
                 value = self._to_utc(isodate.parse_datetime(value))
             except ValueError as ve:
-                raise SchemaError("expecting an RFC 3339 date-time value") from ve
+                raise SchemaError('expecting an RFC 3339 date-time value') from ve
             if value.microsecond and not self.fractional:  # truncate fractional value
                 value -= timedelta(microseconds=value.microsecond)
         self.validate(value)
@@ -916,21 +916,21 @@ class uuid(_type):
     Schema type for universally unique identifiers.
 
     UUID values are represented in string and JSON values as a UUID string.
-    Example: "035af02b-7ad7-4016-a101-96f8fc5ae6ec".
+    Example: '035af02b-7ad7-4016-a101-96f8fc5ae6ec'.
     """
 
     def __init__(self, **kwargs):
         """
         Initialize UUID schema.
 
-        :param content_type: Content type used when value is expressed in a body.  [text/plain]
+        :param content_type: Content type used when value is expressed in a body.  ['text/plain']
         :param nullable: Allow None as a valid value.
         :param default: Default value if the item value is not supplied.
         :param enum: A list of values that are valid.
         :param description: A description of the schema.
         :param example: An example of an instance for this schema.
         """
-        super().__init__(python_type=UUID, json_type="string", format="uuid", **kwargs)
+        super().__init__(python_type=UUID, json_type='string', format='uuid', **kwargs)
 
     def json_encode(self, value):
         """Encode the value into JSON object model representation."""
@@ -949,11 +949,11 @@ class uuid(_type):
         """Decode the value from string representation."""
         if value is not None:
             if not isinstance(value, str):
-                raise SchemaError("expecting a string")
+                raise SchemaError('expecting a string')
             try:
                 value = UUID(value)
             except ValueError as ve:
-                raise SchemaError("expecting string to contain UUID value") from ve
+                raise SchemaError('expecting string to contain UUID value') from ve
         self.validate(value)
         return value
 
@@ -978,15 +978,15 @@ class all_of(_type):
         """
         super().__init__(**kwargs)
         if not schemas:
-            raise ValueException("schemas argument must be a list of schemas")
+            raise ValueException('schemas argument must be a list of schemas')
         for s1 in schemas:
             if not isinstance(s1, _dict):
-                raise ValueException("all_of only supports dict schemas")
+                raise ValueException('all_of only supports dict schemas')
             if not s1.additional_properties:
-                raise ValueException("all_of schemas must enable additional_properties")
+                raise ValueException('all_of schemas must enable additional_properties')
             for s2 in schemas:
                 if s1 is not s2 and set.intersection(set(s1.properties), set(s2.properties)):
-                    raise ValueException("all_of schemas cannot share property names")
+                    raise ValueException('all_of schemas cannot share property names')
         self.schemas = schemas
 
     def validate(self, value):
@@ -1000,7 +1000,7 @@ class all_of(_type):
     def json_schema(self):
         """JSON schema representation of the schema."""
         result = super().json_schema
-        result["schemas"] = self.schemas
+        result['schemas'] = self.schemas
         return result
 
     def json_encode(self, value):
@@ -1053,34 +1053,34 @@ class _xof(_type):
     def validate(self, value):
         """Validate value against the schema."""
         super().validate(value)
-        self._process("validate", value)
+        self._process('validate', value)
 
     @property
     def json_schema(self):
         """JSON schema representation of the schema."""
         result = super().json_schema
-        result["schemas"] = self.schemas
+        result['schemas'] = self.schemas
         return result
 
     def json_encode(self, value):
         """Encode the value into JSON object model representation."""
         self.validate(value)
-        return self._process("json_encode", value)
+        return self._process('json_encode', value)
 
     def json_decode(self, value):
         """Decode the value from JSON object model representation."""
-        value = self._process("json_decode", value)
+        value = self._process('json_decode', value)
         self.validate(value)
         return value
 
     def str_encode(self, value):
         """Encode the value into string representation."""
         self.validate(value)
-        return self._process("str_encode", value)
+        return self._process('str_encode', value)
 
     def str_decode(self, value):
         """Decode the value from string representation."""
-        value = self._process("str_decode", value)
+        value = self._process('str_decode', value)
         self.validate(value)
         return value
 
@@ -1102,12 +1102,12 @@ class any_of(_xof):
         :param description: A description of the schema.
         :param example: An example of an instance for this schema.
         """
-        super().__init__("anyOf", schemas, **kwargs)
+        super().__init__('anyOf', schemas, **kwargs)
         self.schemas = schemas
 
     def _evaluate(self, values):
         if len(values) == 0:
-            raise SchemaError("value does not match any schema")
+            raise SchemaError('value does not match any schema')
         return values[0] # return first schema-processed value
 
 
@@ -1128,14 +1128,14 @@ class one_of(_xof):
         :param description: A description of the schema.
         :param example: An example of an instance for this schema.
         """
-        super().__init__("oneOf", schemas, **kwargs)
+        super().__init__('oneOf', schemas, **kwargs)
         self.schemas = schemas
 
     def _evaluate(self, values):
         if len(values) == 0:
-            raise SchemaError("value does not match any schema")
+            raise SchemaError('value does not match any schema')
         elif len(values) > 1:
-            raise SchemaError("value matches more than one schema")
+            raise SchemaError('value matches more than one schema')
         return values[0] # return matching value
 
 
@@ -1145,19 +1145,19 @@ class reader(_type):
     values to be transmitted without allocating all in memory. In operations, this
     schema type can only used in _body parameter and return values.
     """    
-    def __init__(self, *, content_type="application/octet-stream", **kwargs):
+    def __init__(self, *, content_type='application/octet-stream', **kwargs):
         """
         Initialize reader schema.
 
         :param content_type: Content type used when value is expressed in a body.
         """
-        super().__init__(json_type="string", format="binary", content_type=content_type, **kwargs)
+        super().__init__(json_type='string', format='binary', content_type=content_type, **kwargs)
 
     def validate(self, value):
         """Validate value against the schema."""
         super().validate(value)
-        if not callable(getattr(value, "read", None)):
-            raise SchemaError("expecting readable file-like object")
+        if not callable(getattr(value, 'read', None)):
+            raise SchemaError('expecting readable file-like object')
 
 
 def call(function, args, kwargs, params=None, returns=None):
@@ -1176,19 +1176,19 @@ def call(function, args, kwargs, params=None, returns=None):
     """
     sig = inspect.signature(function)
     if len(args) > len([p for p in sig.parameters.values() if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)]):
-        raise TypeError("too many positional arguments")
+        raise TypeError('too many positional arguments')
     build = {p.name: v for p, v in zip(sig.parameters.values(), args)}
     for k, v in kwargs.items():
         if k in build:
-            raise TypeError("multiple values for argument: {}".format(k))
+            raise TypeError(f'multiple values for argument: {k}')
         build[k] = v
     args = []
     kwargs = {}
     for p in sig.parameters.values():
         if p.kind is inspect.Parameter.VAR_POSITIONAL:
-            raise TypeError("parameter validation does not support functions with *args")
+            raise TypeError('parameter validation does not support functions with *args')
         elif p.kind is inspect.Parameter.VAR_KEYWORD:
-            raise TypeError("parameter validation does not support functions with **kwargs")
+            raise TypeError('parameter validation does not support functions with **kwargs')
         if p.name in build:
             value = build[p.name]
             if params is not None and p.name in params:
@@ -1200,19 +1200,19 @@ def call(function, args, kwargs, params=None, returns=None):
         elif p.default is not p.empty:
             value = p.default
         else:
-            raise SchemaError("missing required parameter", p.name)
+            raise SchemaError('missing required parameter', p.name)
         if p.kind in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD):
             args.append(value)
         elif p.kind is inspect.Parameter.KEYWORD_ONLY:
             kwargs[p.name] = value
         else:
-            raise TypeError("unrecognized type for parameter {}".format(p.name))
+            raise TypeError(f'unrecognized type for parameter {p.name}')
     result = function(*args, **kwargs)
     if returns is not None:
         try:
             returns.validate(result)
         except SchemaError as se:
-            raise ValueError("return value: {}".format(se.msg)) from se
+            raise ValueError(f'return value: {se.msg}') from se
     return result
 
 
@@ -1226,22 +1226,22 @@ def function_params(function, params):
     properties = {}
     required = set()
     sig = inspect.signature(function)
-    for p in (p for p in sig.parameters.values() if p.name != "self"):
+    for p in (p for p in sig.parameters.values() if p.name != 'self'):
         if p.kind is inspect.Parameter.VAR_POSITIONAL:
-            raise TypeError("function with *args not supported")
+            raise TypeError('function with *args not supported')
         elif p.kind is inspect.Parameter.VAR_KEYWORD:
-            raise TypeError("function with **kwargs not supported")
+            raise TypeError('function with **kwargs not supported')
         schema = params.get(p.name)
         if schema:
-            if isinstance(schema, reader) and p.name != "_body":
-                raise TypeError("parameter cannot use reader schema type: {}".format(p.name))
+            if isinstance(schema, reader) and p.name != '_body':
+                raise TypeError(f'parameter cannot use reader schema type: {p.name}')
             if p.default is p.empty:
                 required.add(p.name)
             schema = copy(schema)
             schema.default = p.default if p.default is not p.empty else None
             properties[p.name] = schema
         elif p.default is p.empty:
-            raise TypeError("required parameter in function but not in params: {}".format(p.name)) 
+            raise TypeError(f'required parameter in function but not in params: {p.name}') 
     return _dict(properties, required)
 
 

@@ -15,27 +15,27 @@ from shutil import copyfileobj
 from textwrap import dedent
 
 
-_re = re.compile("(_*)(.*)(_*)")
+_re = re.compile('(_*)(.*)(_*)')
 
 def _p2a(name):
     m = _re.match(name)
-    return m.group(1) + m.group(2).replace("_", "-") + m.group(3)
+    return m.group(1) + m.group(2).replace('_', '-') + m.group(3)
 
 def _a2p(name):
     m = _re.match(name)
-    return m.group(1) + m.group(2).replace("-", "_") + m.group(3)
+    return m.group(1) + m.group(2).replace('-', '_') + m.group(3)
 
 def _parse_redirects(args, body, returns):
     result = {}
     n = 0
     while n < len(args):
         redir = None
-        if args[n] in ("<", ">", ">>"):  # redirection as its own argument
+        if args[n] in ('<', '>', '>>'):  # redirection as its own argument
             redir = args.pop(n)
-        elif args[n].startswith(">>"):
-            redir = ">>"
+        elif args[n].startswith('>>'):
+            redir = '>>'
             args[n] = args[n][2:]
-        elif args[n].startswith("<") or args[n].startswith(">"):
+        elif args[n].startswith('<') or args[n].startswith('>'):
             redir = args[n][0]
             args[n] = args[n][1:]
         if not redir:
@@ -44,9 +44,9 @@ def _parse_redirects(args, body, returns):
         try:
             filename = args.pop(n)
         except IndexError:
-            raise ValueError("no redirection file name specified")
-        if "<" in filename or ">" in filename:
-            raise ValueError("invalid redirection file name")
+            raise ValueError('no redirection file name specified')
+        if '<' in filename or '>' in filename:
+            raise ValueError('invalid redirection file name')
         if redir:
             result[redir] = filename
     return result
@@ -74,8 +74,8 @@ class _open_redirects:
         self.body_returns = [body, returns]
 
     def __enter__(self):
-        modes = {"<": "rb", ">": "wb", ">>": "ab"}
-        offset = {"<": 0, ">": 1, ">>": 1}
+        modes = {'<': 'rb', '>': 'wb', '>>': 'ab'}
+        offset = {'<': 0, '>': 1, '>>': 1}
         for r in list(self.redirs):
             file = open(self.redirs[r], modes[r])
             self.in_out[offset[r]] = file
@@ -97,7 +97,7 @@ class _Exit(Exception):
 class CLI:
     """Command line interface that exposes registered resources."""
 
-    def __init__(self, name=None, *, debug=False, err=sys.stderr, prefix="--", log=None):
+    def __init__(self, name=None, *, debug=False, err=sys.stderr, prefix='--', log=None):
         """
         Initialize a command line interface.
 
@@ -120,9 +120,9 @@ class CLI:
 
     def _check_not_registered(self, name):
         if name in self.resources:
-            raise ValueError("{} is already a registered resource".format(name))
+            raise ValueError(f'{name} is already a registered resource')
         if name in self.commands:
-            raise ValueError("{} is already a registered command".format(name))
+            raise ValueError(f'{name} is already a registered command')
 
     def register_resource(self, name, resource, hidden=False):
         """
@@ -166,7 +166,7 @@ class CLI:
         The prompt can be a string or a callable to return a string containing the
         prompt to display.
         """
-        prompt = prompt or "{}> ".format(self.name or "")
+        prompt = prompt or f'{self.name or ""}> '
         while True:
             try:
                 self.process(input(prompt() if callable(prompt) else prompt))
@@ -185,35 +185,35 @@ class CLI:
         """
         try:
             if self.log:
-                self.log("%s", (line,))
+                self.log('%s', (line,))
             args = shlex.split(line)
             if not args:
                 return True
-            with context.push(context_type="cli", command=line):
+            with context.push(context_type='cli', command=line):
                 name = args.pop(0)
                 if name in self.resources:
                     return self._process_resource(name, args, inp, out)
                 elif name in self.commands:
                     return self.commands[name](args)
                 else:
-                    self._print("Invalid command or resource: {}.".format(name))
+                    self._print(f'Invalid command or resource: {name}.')
                     return False
         except _Exit:
             raise
         except Exception as e:
             if self.log:
-                self.log("%s", (e,), exc_info=self.debug)
-            self._print("ERROR: {}".format(e))
+                self.log('%s', (e,), exc_info=self.debug)
+            self._print(f'ERROR: {e}')
             if self.debug:
                 traceback.print_exc()
             return False
 
     def _register_commands(self):
-        self.register_command("help", self._help)
-        self.register_command("exit", self._exit)
-        self.register_command("quit", self._exit, hidden=True)
-        self.register_command("q", self._exit, hidden=True)
-        self.register_command("debug", self._debug, hidden=True)
+        self.register_command('help', self._help)
+        self.register_command('exit', self._exit)
+        self.register_command('quit', self._exit, hidden=True)
+        self.register_command('q', self._exit, hidden=True)
+        self.register_command('debug', self._debug, hidden=True)
 
     def _help(self, args):
         """\
@@ -227,7 +227,7 @@ class CLI:
             return self._help_resource(name, args)
         elif name in self.commands:
             return self._help_command(name)
-        self._print("Unrecognized resource or command: {}.".format(name))
+        self._print(f'Unrecognized resource or command: {name}.')
         return False
 
     def _exit(self, args):
@@ -242,14 +242,14 @@ class CLI:
         Usage: debug [on|off]
           Enable, disable or print debugging status.\
         """
-        if args and args[0] == "on":
+        if args and args[0] == 'on':
             self.debug = True
-        elif args and args[0] == "off":
+        elif args and args[0] == 'off':
             self.debug = False
         elif args:
-            self._help_command("debug")
+            self._help_command('debug')
             return False
-        print("Debugging status: {}.".format("on" if self.debug else "off"))
+        print(f'Debugging status: {"on" if self.debug else "off"}.')
         return True
 
     def _print(self, *args, **varargs):
@@ -264,7 +264,7 @@ class CLI:
             if len(name) <= max_column and len(name) > ljust:
                 ljust = len(name)
         for name in names:
-            self._print("{}{}{}{}".format(indent, name.ljust(ljust), " " * space, listing[name]))    
+            self._print(f'{indent}{name.ljust(ljust)}{" " * space}{listing[name]}')    
 
     def _help_command(self, name):
         """Print the function docstring of a command as help text."""
@@ -282,9 +282,9 @@ class CLI:
                 if not arg.startswith(self.prefix):
                     raise ValueError
                 arg = arg[len(self.prefix):]
-                name, value = arg.split("=", 1) if "=" in arg else (arg, None)
+                name, value = arg.split('=', 1) if '=' in arg else (arg, None)
                 name = _a2p(name)
-                if name == "_body" or name not in params:
+                if name == '_body' or name not in params:
                     raise ValueError
                 if value:
                     result[name] = value
@@ -305,7 +305,7 @@ class CLI:
             return self._help_resource(resource_name)
         params = operation.params
         returns = operation.returns
-        body = params.get("_body")
+        body = params.get('_body')
         with _open_redirects(inp, out, args, body, returns) as (inp, out):
             try:
                 parsed = self._parse_arguments(params, args)
@@ -315,20 +315,20 @@ class CLI:
                 for name in parsed:
                     parsed[name] = params[name].str_decode(parsed[name])
                 for name in params.properties:
-                    if name != "_body" and name in params.required and name not in parsed:
-                        raise s.SchemaError("missing required parameter")
+                    if name != '_body' and name in params.required and name not in parsed:
+                        raise s.SchemaError('missing required parameter')
                 if body:
-                    name = "{body}"
-                    description = (body.description or "{}.".format(name)).lower()
+                    name = '{body}'
+                    description = (body.description or f'{name}.').lower()
                     if inp == sys.stdin:
-                        self._print("Enter {}".format(description))
-                        self._print("When complete, input EOF (*nix: Ctrl-D, Windows: Ctrl-Z+Return):")
+                        self._print(f'Enter {description}')
+                        self._print('When complete, input EOF (*nix: Ctrl-D, Windows: Ctrl-Z+Return):')
                     else:
-                        self._print("Reading body from {}...".format(getattr(inp, "name", "stream")))
+                        self._print(f'Reading body from {getattr(inp, "name", "stream")}...')
                     if isinstance(body, s.reader):
-                        parsed["_body"] = inp
+                        parsed['_body'] = inp
                     else:
-                        parsed["_body"] = _read(inp, body)
+                        parsed['_body'] = _read(inp, body)
                 name = None
                 result = operation.call(**parsed)
             except s.SchemaError as se:
@@ -336,11 +336,11 @@ class CLI:
                     se.push(_p2a(name))
                 self._help_operation(resource_name, operation)
                 raise
-            self._print("SUCCESS.")
+            self._print('SUCCESS.')
             if returns:
-                description = (returns.description or "response.").lower()
+                description = (returns.description or 'response.').lower()
                 if out is not sys.stdout:
-                    self._print("Writing response to {}...".format(getattr(out, "name", "stream")))
+                    self._print(f'Writing response to {getattr(out, "name", "stream")}...')
                 if isinstance(returns, s.reader):
                     copyfileobj(result, out)
                     result.close()
@@ -352,12 +352,12 @@ class CLI:
 
     def _help_list(self):
         """List all available resources and commands."""
-        self._print("Available resources:")
+        self._print('Available resources:')
         resources = {k: self.resources[k].description for k in self.resources if k not in self.hidden} 
-        self._print_listing(resources, indent="  ")
-        self._print("Available commands:")
+        self._print_listing(resources, indent='  ')
+        self._print('Available commands:')
         commands = {k: _summary(self.commands[k]) for k in self.commands if k not in self.hidden}
-        self._print_listing(commands, indent="  ")
+        self._print_listing(commands, indent='  ')
         return False
 
     def _help_resource(self, resource_name, args=None):
@@ -366,12 +366,12 @@ class CLI:
         operation = self.resources[resource_name].operations.get(operation_name)
         if operation:
             return self._help_operation(resource_name, operation)
-        self._print("Usage: {} operation [ARGS] [<INFILE] [>OUTFILE]".format(resource_name))
-        self._print("  {}".format(self.resources[resource_name].description))
-        self._print("Operations:")
+        self._print(f'Usage: {resource_name} operation [ARGS] [<INFILE] [>OUTFILE]')
+        self._print(f'  {self.resources[resource_name].description}')
+        self._print('Operations:')
         ops = self.resources[resource_name].operations.values()
         operations = {_p2a(o.name): o.summary for o in ops}
-        self._print_listing(operations, indent="  ")
+        self._print_listing(operations, indent='  ')
         return False
 
     def _help_operation(self, resource_name, operation):
@@ -379,30 +379,30 @@ class CLI:
         params = operation.params
         usage=[]
         listing={}
-        for name in (n for n in params if n != "_body"):
+        for name in (n for n in params if n != '_body'):
             param = params[name]
             munged = _p2a(name)
-            arg = "{}{}={}".format(self.prefix, munged, param.python_type.__name__.upper())
-            item = param.description or ""
+            arg = f'{self.prefix}{munged}={param.python_type.__name__.upper()}'
+            item = param.description or ''
             if param.enum:
-                item += "  {" + ",".join((param.str_encode(e) for e in sorted(param.enum))) + "}"
+                item += '  {' + ','.join((param.str_encode(e) for e in sorted(param.enum))) + '}'
             if param.default is not None:
-                item += "  (default: {})".format(param.str_encode(param.default))
-            listing["{}{}".format(self.prefix, munged)] = item
+                item += f'  (default: {param.str_encode(param.default)})'
+            listing[f'{self.prefix}{munged}'] = item
             if name not in params.required:
-                arg = "[{}]".format(arg)
+                arg = f'[{arg}]'
             usage.append(arg)
-        self._print("Usage: {} {} {}".format(resource_name, _p2a(operation.name), " ".join(usage)))
-        self._print("  {}".format(operation.summary))
+        self._print(f'Usage: {resource_name} {_p2a(operation.name)} {" ".join(usage)}')
+        self._print(f'  {operation.summary}')
         if listing:
-            self._print("Arguments:")
-            self._print_listing(listing, indent="  ")
-        if "_body" in params:
-            description = params["_body"].description
+            self._print('Arguments:')
+            self._print_listing(listing, indent='  ')
+        if '_body' in params:
+            description = params['_body'].description
             if description:
-                self._print("Body: {}".format(description))
+                self._print(f'Body: {description}')
         if operation.returns:
             description = operation.returns.description
             if description:
-                self._print("Response: {}".format(description))
+                self._print(f'Response: {description}')
         return False

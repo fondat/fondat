@@ -59,7 +59,7 @@ class MemoryResource(Resource):
         if self.size and len(self._entries) >= self.size:
             raise BadRequest(f'{self.name} item size limit reached')
         self._entries[id] = (_now(), deepcopy(_body))
-        return {"id": id}
+        return {'id': id}
 
     def read(self, id):
         """Read a resource item."""

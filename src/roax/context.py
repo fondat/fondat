@@ -36,7 +36,7 @@ class push:
         """
         stack = get_stack()
         if len(stack) == 0:
-            stack.append(dict(context_type="root", id=uuid4(), time=datetime.now(tz=timezone.utc)))
+            stack.append(dict(context_type='root', id=uuid4(), time=datetime.now(tz=timezone.utc)))
         self.value = dict(*args, **varargs)
         stack.append(self.value)
         self.pos = len(stack) - 1
@@ -58,7 +58,7 @@ def pop(pushed):
     value = pushed.value
     stack = get_stack()
     if stack[pos] != value:
-        raise RuntimeError("context value on stack was modified")
+        raise RuntimeError('context value on stack was modified')
     del stack[pos:]
     if len(stack) == 1:
         del stack[0]

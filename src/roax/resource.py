@@ -29,10 +29,10 @@ class Resource:
 
     def _register_operation(self, **operation):
         """Register a resource operation."""
-        name = operation["name"]
+        name = operation['name']
         if name in self.operations:
             raise ValueError(f'operation name already registered: {name}')
-        self.operations[name] = _Operation({**operation, "resource": self})
+        self.operations[name] = _Operation({**operation, 'resource': self})
 
     def __init__(self, name=None, description=None):
         """
@@ -43,8 +43,8 @@ class Resource:
         :param description: Short description of the resource.  [resource docstring]
         """
         super().__init__()
-        self.name = name or getattr(self, "name", type(self).__name__.lower())
-        self.description = description or getattr(self, "description", None) or self.__doc__ or self.__class__.__name__
+        self.name = name or getattr(self, 'name', type(self).__name__.lower())
+        self.description = description or getattr(self, 'description', None) or self.__doc__ or self.__class__.__name__
         self.operations = {}
         for function in (attr for attr in (getattr(self, nom) for nom in dir(self)) if callable(attr)):
             try:
@@ -64,13 +64,13 @@ class Resources:
     Resources are exposed as object attributes. Example initialization::
 
         resources = Resources({
-            "foo": "myapp.resources.v1.FooResource",
-            "bar": "myapp.resources.v1.BarResource",
-            "qux": qux_instance,
+            'foo': 'myapp.resources.v1.FooResource',
+            'bar': 'myapp.resources.v1.BarResource',
+            'qux': qux_instance,
         })
 
     Resources are accessed as attributes or subscript, like: `resources.foo` and
-    `resources["bar"]`.
+    `resources['bar']`.
     """
 
     def __init__(self, resources={}):
@@ -100,26 +100,26 @@ class Resources:
         :param resource: Resource class name, resource instance, or None to deregister.
         """
         if resource is not None and not isinstance(resource, str) and not isinstance(resource, Resource):
-            raise ValueError("resource must be str, Resource type or None")
-        if isinstance(resource, str) and "." not in resource:
-            raise ValueError("resource class name must be fully qualified")
+            raise ValueError('resource must be str, Resource type or None')
+        if isinstance(resource, str) and '.' not in resource:
+            raise ValueError('resource class name must be fully qualified')
         if resource is None:
             self._resources.pop(key, None)
         else:
             self._resources[key] = resource
 
     def _resolve(self, key):
-        _resources = super().__getattribute__("_resources")
+        _resources = super().__getattribute__('_resources')
         if isinstance(_resources[key], str):
-            with super().__getattribute__("_lock"):
+            with super().__getattribute__('_lock'):
                 if isinstance(_resources[key], str):
-                    mod, cls = _resources[key].rsplit(".", 1)
+                    mod, cls = _resources[key].rsplit('.', 1)
                     _resources[key] = getattr(import_module(mod), cls)()
         return _resources[key]
 
     def __getattribute__(self, name):
         try:
-            return super().__getattribute__("_resolve")(name)
+            return super().__getattribute__('_resolve')(name)
         except KeyError as ke:
             return super().__getattribute__(name)
 
@@ -170,8 +170,8 @@ def operation(*, name=None, type=None, summary=None, description=None, params=No
     """
     Decorate a resource method to register it as a resource operation.
 
-    :param name: Operation name. Required if the operation type is "query" or "action".
-    :param type: Type of operation being registered.  {create,read,update,delete,action,query,patch}
+    :param name: Operation name. Required if the operation type is 'query' or 'action'.
+    :param type: Type of operation being registered.  {'create', 'read', 'update', 'delete', 'action', 'query', 'patch'}
     :param summary: Short summary of what the operation does.
     :param description: Verbose description of the operation.  [function docstring]
     :param params: Mapping of operation parameter names to their schemas.
@@ -187,16 +187,16 @@ def operation(*, name=None, type=None, summary=None, description=None, params=No
         __summary = summary or _summary(function)
         if _name is None:
             _name = function.__name__
-        if _type is None and _name in {"create", "read", "update", "delete", "patch"}:
+        if _type is None and _name in {'create', 'read', 'update', 'delete', 'patch'}:
             _type = _name
-        valid_types = {"create", "read", "update", "delete", "query", "action", "patch"}
+        valid_types = {'create', 'read', 'update', 'delete', 'query', 'action', 'patch'}
         if _type not in valid_types:
-            raise ValueError("operation type must be one of: {}".format(valid_types))
+            raise ValueError(f'operation type must be one of: {valid_types}')
         def wrapper(wrapped, instance, args, kwargs):
-            tags = {"resource": wrapped.__self__.name, "operation": _name}
-            with context.push({**tags, "context": "operation"}):
-                monitor.record({**tags, "name": "operation_calls_total"}, _now(), "absolute", 1)
-                with timer({**tags, "name": "operation_duration_seconds"}):
+            tags = {"resource": wrapped.__self__.name, 'operation': _name}
+            with context.push({**tags, 'context': 'operation'}):
+                monitor.record({**tags, 'name': 'operation_calls_total'}, _now(), 'absolute', 1)
+                with timer({**tags, 'name': 'operation_duration_seconds'}):
                     authorize(security)
                     return wrapped(*args, **kwargs)
         decorated = s.validate(params, returns)(wrapt.decorator(wrapper)(function))
@@ -204,7 +204,7 @@ def operation(*, name=None, type=None, summary=None, description=None, params=No
             summary=__summary, description=_description, params=s.function_params(function, params),
             returns=returns, security=security, publish=publish, deprecated=deprecated)
         try:
-            getattr(function, "__self__")._register_operation(**operation)
+            getattr(function, '__self__')._register_operation(**operation)
         except AttributeError:  # not yet bound to an instance
             function._roax_operation_ = operation  # __init__ will register it
         return decorated
@@ -222,8 +222,8 @@ class ResourceError(Exception):
         :param code: the HTTP status most closely associated with the error.
         """
         super().__init__(self, detail)
-        self.detail = detail or getattr(self, "detail", "Internal Server Error")
-        self.code = code or getattr(self, "code", 500)
+        self.detail = detail or getattr(self, 'detail', 'Internal Server Error')
+        self.code = code or getattr(self, 'code', 500)
 
     def __str__(self):
         return self.detail
@@ -231,12 +231,12 @@ class ResourceError(Exception):
 
 class BadRequest(ResourceError):
     """Raised if the request is malformed."""
-    code, detail = 400, "Bad Request"
+    code, detail = 400, 'Bad Request'
 
 
 class Unauthorized(ResourceError):
     """Raised if the request lacks valid authentication credentials."""
-    code, detail = 401, "Unauthorized"
+    code, detail = 401, 'Unauthorized'
 
     def __init__(self, detail=None, challenge=None):
         """
@@ -251,29 +251,29 @@ class Unauthorized(ResourceError):
 
 class Forbidden(ResourceError):
     """Raised if authorization to the resource is refused."""
-    code, detail = 403, "Forbidden"
+    code, detail = 403, 'Forbidden'
 
         
 class NotFound(ResourceError):
     """Raised if the resource could not be found."""
-    code, detail = 404, "Not Found"
+    code, detail = 404, 'Not Found'
 
 
 class OperationNotAllowed(ResourceError):
     """Raised if the resource does not allow the requested operation."""
-    code, detail = 405, "Operation Not Allowed"
+    code, detail = 405, 'Operation Not Allowed'
 
 
 class Conflict(ResourceError):
     """Raised if there is a conflict with the current state of the resource."""
-    code, detail = 409, "Conflict"
+    code, detail = 409, 'Conflict'
 
 
 class PreconditionFailed(ResourceError):
     """Raised if the revision provided does not match the current resource."""
-    code, detail = 412, "Precondition Failed"
+    code, detail = 412, 'Precondition Failed'
 
 
 class InternalServerError(ResourceError):
     """Raised if the server encountered an unexpected condition."""
-    code, detail = 500, "Internal Server Error"
+    code, detail = 500, 'Internal Server Error'

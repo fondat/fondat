@@ -22,8 +22,8 @@ class _ErrorResponse(Response):
     def __init__(self, code, message):
         super().__init__()
         self.status_code = code
-        self.content_type = "application/json"
-        self.json = {"error": code, "message": message}
+        self.content_type = 'application/json'
+        self.json = {'error': code, 'message': message}
 
 class _App_Iter:
     def __init__(self, reader, chunk_size=4096):
@@ -57,13 +57,13 @@ def _params(request, operation):
     params = operation.params
     for name, param in params.items() if params else []:
         try:
-            if name == "_body":
-                if "_body" in params.required and not request.is_body_readable:
-                    raise SchemaError("missing request entity-body")
+            if name == '_body':
+                if '_body' in params.required and not request.is_body_readable:
+                    raise SchemaError('missing request entity-body')
                 if isinstance(param, s.reader):
-                    result["_body"] = request.body_file_raw
+                    result['_body'] = request.body_file_raw
                 else:
-                    result["_body"] = param.bin_decode(request.body)
+                    result['_body'] = param.bin_decode(request.body)
             else:
                 result[name] = param.str_decode(request.params[name])
         except KeyError:
@@ -74,18 +74,18 @@ def _security_filters(requirements):
     """Produce set of filters associated with the security requirements."""
     result = set()
     for requirement in requirements or []:
-        scheme = getattr(requirement, "scheme", None)
+        scheme = getattr(requirement, 'scheme', None)
         if scheme:
-            filter = getattr(scheme, "filter", None)
+            filter = getattr(scheme, 'filter', None)
             if filter:
                 result.add(filter)
     return result
 
 _context_patterns = [re.compile(p) for p in (
-    "^REQUEST_METHOD$", "^SCRIPT_NAME$", "^PATH_INFO$", "^QUERY_STRING$",
-    "^CONTENT_TYPE$", "^CONTENT_LENGTH$", "^SERVER_NAME$", "^SERVER_PORT$",
-    "^SERVER_PROTOCOL$", "^HTTP_.*", "^wsgi.version$", "^wsgi.multithread$",
-    "^wsgi.multiprocess$", "^wsgi.run_once$")]
+    '^REQUEST_METHOD$', '^SCRIPT_NAME$', '^PATH_INFO$', '^QUERY_STRING$',
+    '^CONTENT_TYPE$', '^CONTENT_LENGTH$', '^SERVER_NAME$', '^SERVER_PORT$',
+    '^SERVER_PROTOCOL$', '^HTTP_.*', '^wsgi.version$', '^wsgi.multithread$',
+    '^wsgi.multiprocess$', '^wsgi.run_once$')]
 
 def _environ(environ):
     result = {}
@@ -114,7 +114,7 @@ class App:
         self.version = version
         self.description = description
         self.filters = filters or []
-        self.base = urlparse(self.url).path.rstrip("/")
+        self.base = urlparse(self.url).path.rstrip('/')
         self.operations = {}
 
     def register_resource(self, path, resource, publish=True):
@@ -125,24 +125,24 @@ class App:
         :param resource: Resource to be served when path is requested.
         :param publish: Publish resource in online documentation.
         """
-        res_path = (self.base + "/" + path.lstrip("/"))
+        res_path = (self.base + '/' + path.lstrip('/'))
         for op in resource.operations.values():
             if op.security is None:
                 raise ValueError(f'operation {op.name} must express security requirements')
-            if op.type == "create":
-                op_method, op_path = "POST", res_path
-            elif op.type == "read":
-                op_method, op_path = "GET", res_path
-            elif op.type == "update":
-                op_method, op_path = "PUT", res_path
-            elif op.type == "delete":
-                op_method, op_path = "DELETE", res_path
-            elif op.type == "action":
-                op_method, op_path = "POST", res_path + "/" + op.name
-            elif op.type == "query":
-                op_method, op_path = "GET", res_path + "/" + op.name
-            elif op.type == "patch":
-                op_method, op_path = "PATCH", res_path
+            if op.type == 'create':
+                op_method, op_path = 'POST', res_path
+            elif op.type == 'read':
+                op_method, op_path = 'GET', res_path
+            elif op.type == 'update':
+                op_method, op_path = 'PUT', res_path
+            elif op.type == 'delete':
+                op_method, op_path = 'DELETE', res_path
+            elif op.type == 'action':
+                op_method, op_path = 'POST', res_path + '/' + op.name
+            elif op.type == 'query':
+                op_method, op_path = 'GET', res_path + '/' + op.name
+            elif op.type == 'patch':
+                op_method, op_path = 'PATCH', res_path
             else:
                 raise ValueError(f'operation {op.name} has unknown operation type: {op.type}')
             if not publish:
@@ -152,14 +152,14 @@ class App:
                 raise ValueError(f'operation already defined for {op_method} {op_path}')
             self.operations[(op_method, op_path)] = op
 
-    def register_static(self, path, file_dir, security, index="index.html", publish=False):
+    def register_static(self, path, file_dir, security, index='index.html', publish=False):
         """
         Register a file or directory as static resource(s). Each file will be
         registered as an individual resource in the application. If registering a
         directory, this method will not traverse or register any subdirectories.
 
         If registering a single file, the path parameter is the path that the file will
-        be registered under. For example, "/" would resolve to the root of the
+        be registered under. For example, '/' would resolve to the root of the
         application's path.
 
         If registering a directory, the path parameter is the path that will "contain"
@@ -174,17 +174,17 @@ class App:
         :param path: Path of resource relative to application URL.
         :param file_dir: Filesystem path of file or directory to register.
         :security: List of security requirements to apply to resource(s).
-        :index: Name of file in directory to make path root resource. (default: index.html)
+        :index: Name of file in directory to make path root resource.  ['index.html']
         :param publish: Publish resource(s) in online documentation.
         """
         def _static(fs_path):
             content = fs_path.read_bytes()
             content_type, encoding = guess_type(fs_path.name)
             if content_type is None or encoding is not None:
-                content_type = "application/octet-stream"
-            schema = s.bytes(format="binary", content_type=content_type)
-            return StaticResource(content, schema, fs_path.name, "Static resource.", security)
-        path = path.rstrip("/")
+                content_type = 'application/octet-stream'
+            schema = s.bytes(format='binary', content_type=content_type)
+            return StaticResource(content, schema, fs_path.name, 'Static resource.', security)
+        path = path.rstrip('/')
         fs_path = Path(file_dir).expanduser()
         if fs_path.is_file():
             self.register_resource(path, _static(fs_path))
@@ -202,7 +202,7 @@ class App:
         """Handle WSGI request."""
         request = Request(environ)
         try:
-            with context.push(context="wsgi", environ=_environ(environ)):
+            with context.push(context='wsgi', environ=_environ(environ)):
                 operation = self._get_operation(request)
                 def handle(request):
                     try:
@@ -232,7 +232,7 @@ class App:
         for _, op_path in self.operations:
             if op_path == request.path_info:  # path is defined, but not method
                 raise exc.MethodNotAllowed
-        raise exc.HTTPNotFound("resource or operation not found")
+        raise exc.HTTPNotFound('resource or operation not found')
 
 
 class _Chain:
@@ -258,14 +258,14 @@ class HTTPSecurityScheme(SecurityScheme):
         :param name: The name of the security scheme.
         :param scheme: The name of the HTTP authorization scheme.
         """
-        super().__init__(name, "http", **kwargs)
+        super().__init__(name, 'http', **kwargs)
         self.scheme = scheme
 
     @property
     def json(self):
         """JSON representation of the security scheme."""
         result = super().json
-        result["scheme"] = self.scheme
+        result['scheme'] = self.scheme
         return result
 
 
@@ -277,9 +277,9 @@ class HTTPBasicSecurityScheme(HTTPSecurityScheme):
         Initialize the HTTP basic authentication security scheme.
         
         :param name: The name of the security scheme.
-        :param realm: The realm to include in the challenge. (default: name)
+        :param realm: The realm to include in the challenge.  [name]
         """
-        super().__init__(name, "basic", **kwargs)
+        super().__init__(name, 'basic', **kwargs)
         self.realm = realm or name
 
     def Unauthorized(self, detail=None):
@@ -293,14 +293,14 @@ class HTTPBasicSecurityScheme(HTTPSecurityScheme):
         If authentication is successful, a context is added to the context stack.  
         """
         auth = None
-        if request.authorization and request.authorization[0].lower() == "basic":
+        if request.authorization and request.authorization[0].lower() == 'basic':
             try:
-                user_id, password = b64decode(request.authorization[1]).decode().split(":", 1)
+                user_id, password = b64decode(request.authorization[1]).decode().split(':', 1)
             except (binascii.Error, UnicodeDecodeError):
                 pass
             auth = self.authenticate(user_id, password)
             if auth:
-                with context.push({**auth, "context": "auth", "type": "http", "scheme": self.scheme, "realm": self.realm}):
+                with context.push({**auth, 'context': 'auth', 'type': 'http', 'scheme': self.scheme, 'realm': self.realm}):
                     return chain.next(request)
         return chain.next(request)
 

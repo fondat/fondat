@@ -22,11 +22,11 @@ class RedisResource(Resource):
         super().__init__(name, description)
         self.redis = redis.Redis(connection_pool=connection_pool)
         self.schema = schema or self.schema
-        self.id_schema = id_schema or getattr(self, "id_schema", None) or self.schema.properties["id"]
+        self.id_schema = id_schema or getattr(self, 'id_schema', None) or self.schema.properties['id']
         self.ttl = ttl
 
     def _encode_id(self, id):
-        return self.name + "." + self.id_schema.json_encode(id)
+        return self.name + '.' + self.id_schema.json_encode(id)
 
     def _encode_body(self, body):
         return json.dumps(self.schema.json_encode(body)).encode()
@@ -38,7 +38,7 @@ class RedisResource(Resource):
         px = int(self.ttl * 1000) if self.ttl else None
         if not self.redis.set(self._encode_id(id), self._encode_body(_body), nx=True, px=px):
             raise Conflict(f'{self.name} item already exists')
-        return {"id": id}
+        return {'id': id}
 
     def read(self, id):
         item = self.redis.get(self._encode_id(id))

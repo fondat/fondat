@@ -33,7 +33,7 @@ class Counter:
       • value: The highest counter value measured.
     """
 
-    name = "counter"
+    name = 'counter'
 
     def __init__(self, timestamp):
         super().__init__()
@@ -58,7 +58,7 @@ class Gauge:
       • count: The count of measured values.
     """
 
-    name = "gauge"
+    name = 'gauge'
 
     def __init__(self, timestamp):
         super().__init__()
@@ -87,7 +87,7 @@ class Absolute:
       • value: The sum of measured values.    
     """
 
-    name = "absolute"
+    name = 'absolute'
 
     def __init__(self, timestamp):
         super().__init__()
@@ -117,9 +117,9 @@ class Series:
         """
         The `patterns` argument is a dictionary that maps tag names to regular
         expressions (compiled or strings) to match against recorded measurement tags.
-        For example, `{"name": "foo"}` would track data where a tag includes
-        `{"name": "foo"}`, while `{"name": "foo\\..+"}` would track measurements with
-        tags that include `{"name": foo.bar"}` and `{"name": "foo.qux"}`.
+        For example, `{'name': 'foo'}` would track data where a tag includes
+        `{'name': 'foo'}`, while `{'name': 'foo\\..+'}` would track measurements with
+        tags that include `{'name': foo.bar'}` and `{'name': 'foo.qux'}`.
         """
         self.type = type
         self.patterns = {k: re.compile(v) for k, v in patterns.items()}
@@ -160,7 +160,7 @@ class Series:
         if type != self.type:
             raise ValueError(f'expecting data point type of: {self.type}')
         if timestamp > _now():
-            raise ValueError("cannot record measurement in the future")
+            raise ValueError('cannot record measurement in the future')
         self._get_data_point(timestamp).record(value)
 
 
@@ -175,7 +175,7 @@ class SimpleMonitor:
     and the subsequent interval.
     
     This monitor handles the following types of recorded measurements in data
-    points: "counter", "gauge" and "absolute". For more information on these
+    points: 'counter', 'gauge' and 'absolute'. For more information on these
     types, see their class documentation. 
 
     If no measurement is recorded for a given data point, the data point will not
@@ -196,7 +196,7 @@ class SimpleMonitor:
         Track data points for a specfied set of tags in a new time series.
 
         :param name: Name of the new time series.
-        :param type: Type of data point to track.  {"counter", "gauge", "absolute"}
+        :param type: Type of data point to track.  {'counter', 'gauge', 'absolute'}
         :param patterns: Measurements with tags matching regular expressions are tracked.
         :param points: Number of data points to maintain in the time series.
         :param interval: Interval between data points, in seconds.
@@ -215,7 +215,7 @@ class SimpleMonitor:
 
         :param tags: Tags associated with the measurement.
         :param timestamp: Date and time of the measurement to record.
-        :param type: Type of measurement to record.  {"counter", "gauge", "absolute"}
+        :param type: Type of measurement to record.  {'counter', 'gauge', 'absolute'}
         :param value: Value of measurement to record.
 
         The `tags` argument is a dictionary that maps string key to string value. At
@@ -250,6 +250,6 @@ class timer:
         duration = time.time() - self.begin
         if monitor:
             try:
-                monitor.record(self.tags, time.time(), "gauge", duration)
+                monitor.record(self.tags, time.time(), 'gauge', duration)
             except:
                 pass  # TODO: log a warning

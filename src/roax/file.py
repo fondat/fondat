@@ -14,7 +14,7 @@ except ImportError:
     fcntl = None
 
 
-_map = [(c, "%{:02X}".format(ord(c))) for c in "%/\\:*?\"<>|"]
+_map = [(c, '%{:02X}'.format(ord(c))) for c in '%/\\:*?"<>|']
 
 def _quote(s):
     """_quote('abc/def') -> 'abc%2Fdef'"""
@@ -24,7 +24,7 @@ def _quote(s):
 
 def _unquote(s):
     """_unquote('abc%2Fdef') -> 'abc/def'"""
-    if "%" in s:
+    if '%' in s:
         for m in _map:
             s = s.replace(m[1], m[0])
     return s
@@ -52,28 +52,28 @@ class FileResource(Resource):
         :param extenson: Filename extension to use for each file (including dot).
         """
         super().__init__(name, description)
-        self.dir = expanduser((dir or self.dir).rstrip("/"))
+        self.dir = expanduser((dir or self.dir).rstrip('/'))
         self.schema = schema or self.schema
-        self.id_schema = id_schema or getattr(self, "id_schema", s.str())
-        self.extension = extension or getattr(self, "extension", "")
+        self.id_schema = id_schema or getattr(self, 'id_schema', s.str())
+        self.extension = extension or getattr(self, 'extension', '')
         os.makedirs(self.dir, exist_ok=True)
         self.__doc__ = self.schema.description
 
     def create(self, id, _body):
         """Create a resource item."""
         try:
-            self._write("xb", id, _body)
+            self._write('xb', id, _body)
         except NotFound:
             raise InternalServerError(f'{self.name} resource directory not found')
-        return {"id": id}
+        return {'id': id}
 
     def read(self, id):
         """Read a resource item."""
-        return self._read("rb", id)
+        return self._read('rb', id)
 
     def update(self, id, _body):
         """Update a resource item."""
-        return self._write("wb", id, _body)
+        return self._write('wb', id, _body)
 
     def delete(self, id):
         """Delete a resource item."""
@@ -122,7 +122,7 @@ class FileResource(Resource):
                 result = self.schema.bin_decode(file.read())
                 self.schema.validate(result)
             except s.SchemaError as se:
-                raise InternalServerError("content read from file failed schema validation") from se
+                raise InternalServerError('content read from file failed schema validation') from se
         return result
 
     def _write(self, mode, id, body):

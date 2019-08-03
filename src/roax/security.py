@@ -63,9 +63,9 @@ class SecurityScheme:
     def json(self):
         """JSON representation of the security scheme."""
         result = {}
-        result["type"] = self.type
+        result['type'] = self.type
         if self.description is not None:
-            result["description"] = self.description
+            result['description'] = self.description
         return result
 
 
@@ -98,7 +98,7 @@ class CLISecurityRequirement(ContextSecurityRequirement):
     or indirectly) from the command line interface.
     """
     def __init__(self):
-        super().__init__(context="cli")
+        super().__init__(context='cli')
 
 
 class NestedOperationSecurityRequirement(SecurityRequirement):
@@ -107,7 +107,7 @@ class NestedOperationSecurityRequirement(SecurityRequirement):
     operation.
     """
     def authorize(self):
-        if len(context.find(context="operation")) < 2:
+        if len(context.find(context='operation')) < 2:
             raise Forbidden
 
 
