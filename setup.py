@@ -16,16 +16,10 @@ def read(fname):
     with open(os.path.join(os.path.dirname(__file__), fname)) as f:
         return f.read()
 
-def version():
-    match = re.search(r"^__version__ = ['\"]([^'\"]*)['\"]", read("src/roax/_version.py"), re.M)
-    if not match:
-        raise RuntimeError("failed to parse version")
-    return match.group(1)
-
 install_requires = [
-    "isodate >= 0.6.0",
-    "WebOb >= 1.8.4",
-    "wrapt >= 1.10.11"
+    "isodate >=0.6.0",
+    "WebOb >=1.8.4",
+    "wrapt >=1.10.11"
 ]
 
 tests_require = [
@@ -38,20 +32,19 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3.6",
     "Programming Language :: Python :: 3.7",
-    "Programming Language :: Python :: 3.8",
-    "Topic :: Internet :: WWW/HTTP :: WSGI :: Application"
+    "Topic :: Internet :: WWW/HTTP :: WSGI :: Application",
 ]
 
 setup(
     name = "roax",
-    version = version(),
+    version = "1.1.0",
     description = "Lightweight framework for building resource-oriented applications.",
     long_description = read("README.md"),
     long_description_content_type = "text/markdown",
     author = "Paul Bryan",
     author_email = "pbryan@anode.ca",
     classifiers = classifiers,
-    url = "https://github.com/pbryan/roax",
+    url = "https://github.com/roax/roax",
     packages = ["roax"],
     package_dir = {"": "src"},
     python_requires = ">= 3.6",
@@ -59,5 +52,5 @@ setup(
     tests_require = tests_require,
     keywords = "wsgi framework resource openapi",
     test_suite = "tests",
-    cmdclass = {"test": test}
+    cmdclass = {"test": test},
 )
