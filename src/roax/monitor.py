@@ -11,7 +11,6 @@ the `record` method is used by Roax modules.
 
 import math
 import re
-import roax.schema as s
 import time
 
 from collections import deque
