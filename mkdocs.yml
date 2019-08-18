@@ -1,8 +1,0 @@
-site_name: Roax
-theme: cinder
-repo_url: https://github.com/pbryan/roax/
-pages:
-    - "Home": "index.md"
-    - "Introduction":
-        - "What Is Roax?": what_is_roax.md
-        - "Quick Start": "quick_start.md"
