@@ -37,7 +37,7 @@ classifiers = [
 
 setup(
     name = "roax",
-    version = "1.1.0",
+    version = "1.2.0",
     description = "Lightweight framework for building resource-oriented applications.",
     long_description = read("README.md"),
     long_description_content_type = "text/markdown",
