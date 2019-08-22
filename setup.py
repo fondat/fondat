@@ -46,7 +46,6 @@ setup(
     classifiers = classifiers,
     url = "https://github.com/roax/roax",
     packages = ["roax"],
-    package_dir = {"": "src"},
     python_requires = ">= 3.6",
     install_requires = install_requires,
     tests_require = tests_require,
