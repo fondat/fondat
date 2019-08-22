@@ -8,11 +8,15 @@ python:
     - 3.6
     - 3.7
 
+before_install:
+    - pip install poetry
+
 install:
+    - poetry install -v
     - pip install codecov
 
 script:
-    - coverage run setup.py test
+    - pytest --cov=roax --cov-report=xml tests/
 
 after_success:
     - codecov

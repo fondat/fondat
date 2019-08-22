@@ -1,0 +1,31 @@
+[tool.black]
+line-length = 88
+target-version = ['py36', 'py37', 'py38']
+
+[tool.poetry]
+name = "roax"
+version = "1.2.0"
+description = "Lightweight framework for building resource-oriented applications."
+readme = "README.md"
+authors = ["Paul Bryan <pbryan@anode.ca>"]
+homepage = "https://github.com/roax/roax/"
+documentation = "https://github.com/roax/roax/wiki"
+license = "MIT"
+keywords = ["wsgi", "framework", "resource", "openapi"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Topic :: Internet :: WWW/HTTP :: WSGI :: Application",
+]
+
+[tool.poetry.dependencies]
+python = "^3.6"
+isodate = "^0.6"
+WebOb = "^1.8"
+wrapt = "^1.11"
+
+[tool.poetry.dev-dependencies]
+black = "^19.3b0"
+pre-commit = "^1.18"
+pytest = "^5.1"
+pytest-cov = "^2.7"
