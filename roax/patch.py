@@ -1,6 +1,6 @@
 """Roax document patch module."""
 
-from collections import Mapping
+from collections.abc import Mapping
 from copy import deepcopy
 
 

@@ -2,7 +2,7 @@
 
 import threading
 
-from collections import Mapping
+from collections.abc import Mapping
 from datetime import datetime, timezone
 from uuid import uuid4
 
