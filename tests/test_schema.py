@@ -287,6 +287,10 @@ def test_set_str_decode_str_success():
     assert s.set(items=s.str()).str_decode("a,b,c") == {"a", "b", "c"}
 
 
+def test_set_str_decode_str_encode():
+    assert s.set(items=s.int()).str_encode({2, 3, 1}) == "1,2,3"  # sorts result
+
+
 def test_set_str_decode_int_success():
     assert s.set(items=s.int()).str_decode("12,34,56") == {12, 34, 56}
 
@@ -580,6 +584,14 @@ def test_bool_json_decode_false():
 
 def test_bool_json_decode_error():
     _error(s.bool().json_decode, "baz")
+
+
+def test_bool_str_encode_true():
+    assert s.bool().str_encode(True) == "true"
+
+
+def test_bool_str_encode_false():
+    assert s.bool().str_encode(False) == "false"
 
 
 def test_bool_str_decode_true():
