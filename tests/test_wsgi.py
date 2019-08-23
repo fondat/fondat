@@ -1,6 +1,6 @@
+import pytest
 import roax.context as context
 import roax.schema as s
-import unittest
 
 from base64 import b64encode
 from datetime import datetime
@@ -79,109 +79,111 @@ app = App("/", "Title", "1.0")
 app.register_resource("/r1", _Resource1())
 
 
-class TestWSGI(unittest.TestCase):
-    def test_create(self):
-        request = Request.blank("/r1?id=id1")
-        request.method = "POST"
-        request.json = {
-            "id": "id1",
-            "foo": 1,
-            "bar": True,
-            "dt": _r1_schema.properties["dt"].json_encode(datetime.now()),
-        }
-        response = request.get_response(app)
-        result = response.json
-        self.assertEqual(result, {"id": "id1"})
-        self.assertEqual(response.status_code, 200)  # OK
+def test_create():
+    request = Request.blank("/r1?id=id1")
+    request.method = "POST"
+    request.json = {
+        "id": "id1",
+        "foo": 1,
+        "bar": True,
+        "dt": _r1_schema.properties["dt"].json_encode(datetime.now()),
+    }
+    response = request.get_response(app)
+    result = response.json
+    assert result == {"id": "id1"}
+    assert response.status_code == 200  # OK
 
-    def test_update(self):
-        request = Request.blank("/r1?id=id2")
-        request.method = "PUT"
-        request.json = {"id": "id2", "foo": 123, "bar": False}
-        response = request.get_response(app)
-        self.assertEqual(response.status_code, 204)  # No Content
 
-    def test_http_req(self):
-        request = Request.blank("/r1/foo")
-        request.method = "POST"
-        request.authorization = ("Basic", b64encode(b"sparky:punkydoodle").decode())
-        response = request.get_response(app)
-        self.assertEqual(response.status_code, 200)  # OK
-        self.assertEqual(response.text, "foo_success")
+def test_update():
+    request = Request.blank("/r1?id=id2")
+    request.method = "PUT"
+    request.json = {"id": "id2", "foo": 123, "bar": False}
+    response = request.get_response(app)
+    assert response.status_code == 204  # No Content
 
-    def test_http_validation_vs_auth_failure(self):
-        request = Request.blank("/r1/validate_uuid?uuid=not-a-uuid")
-        request.method = "POST"
-        response = request.get_response(app)
-        self.assertEqual(
-            response.status_code, 401
-        )  # authorization should trump validation
 
-    def test_echo(self):
-        value = b"This is an echo test."
-        request = Request.blank("/r1/echo")
-        request.method = "POST"
-        request.body = value
-        response = request.get_response(app)
-        self.assertEqual(response.body, value)
+def test_http_req():
+    request = Request.blank("/r1/foo")
+    request.method = "POST"
+    request.authorization = ("Basic", b64encode(b"sparky:punkydoodle").decode())
+    response = request.get_response(app)
+    assert response.status_code == 200  # OK
+    assert response.text == "foo_success"
 
-    def test_static_dir(self):
-        foo = "<html><body>Foo</body></html>"
-        bar = b"binary"
-        with TemporaryDirectory() as td:
-            with open("{}/foo.html".format(td), "w") as f:
-                f.write(foo)
-            with open("{}/bar.bin".format(td), "wb") as f:
-                f.write(bar)
-            a = App("/", "Title", "1.0")
-            a.register_static("/static", td, [])
-            request = Request.blank("/static/foo.html")
+
+def test_http_validation_vs_auth_failure():
+    request = Request.blank("/r1/validate_uuid?uuid=not-a-uuid")
+    request.method = "POST"
+    response = request.get_response(app)
+    assert response.status_code == 401  # authorization should trump validation
+
+
+def test_echo():
+    value = b"This is an echo test."
+    request = Request.blank("/r1/echo")
+    request.method = "POST"
+    request.body = value
+    response = request.get_response(app)
+    assert response.body == value
+
+
+def test_static_dir():
+    foo = "<html><body>Foo</body></html>"
+    bar = b"binary"
+    with TemporaryDirectory() as td:
+        with open("{}/foo.html".format(td), "w") as f:
+            f.write(foo)
+        with open("{}/bar.bin".format(td), "wb") as f:
+            f.write(bar)
+        a = App("/", "Title", "1.0")
+        a.register_static("/static", td, [])
+        request = Request.blank("/static/foo.html")
+        response = request.get_response(a)
+        assert response.body == foo.encode()
+        request = Request.blank("/static/bar.bin")
+        response = request.get_response(a)
+        assert response.body == bar
+        assert response.content_type == "application/octet-stream"
+
+
+def test_static_dir_index():
+    index = "<html><body>Index</body></html>"
+    with TemporaryDirectory() as td:
+        with open("{}/index.html".format(td), "w") as f:
+            f.write(index)
+        a = App("/", "Title", "1.0")
+        a.register_static("/static", td, [])
+        for path in ["/static/", "/static/index.html"]:
+            request = Request.blank(path)
             response = request.get_response(a)
-            self.assertEqual(response.body, foo.encode())
-            request = Request.blank("/static/bar.bin")
-            response = request.get_response(a)
-            self.assertEqual(response.body, bar)
-            self.assertEqual(response.content_type, "application/octet-stream")
-
-    def test_static_dir_index(self):
-        index = "<html><body>Index</body></html>"
-        with TemporaryDirectory() as td:
-            with open("{}/index.html".format(td), "w") as f:
-                f.write(index)
-            a = App("/", "Title", "1.0")
-            a.register_static("/static", td, [])
-            for path in ["/static/", "/static/index.html"]:
-                request = Request.blank(path)
-                response = request.get_response(a)
-                self.assertEqual(response.body, index.encode())
-                self.assertEqual(response.content_type, "text/html")
-
-    def test_static_file(self):
-        bar = b"binary"
-        with TemporaryDirectory() as td:
-            filename = "{}/bar.bin".format(td)
-            with open("{}/bar.bin".format(td), "wb") as f:
-                f.write(bar)
-            a = App("/", "Title", "1.0")
-            a.register_static(filename, filename, [])
-            request = Request.blank(filename)
-            response = request.get_response(a)
-            self.assertEqual(response.body, bar)
-
-    def test_optional_omit(self):
-        request = Request.blank("/r1/optional")
-        request.method = "GET"
-        response = request.get_response(app)
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.body.decode(), "default")
-
-    def test_optional_submit(self):
-        request = Request.blank("/r1/optional?optional=foo")
-        request.method = "GET"
-        response = request.get_response(app)
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.body.decode(), "foo")
+            assert response.body == index.encode()
+            assert response.content_type == "text/html"
 
 
-if __name__ == "__main__":
-    unittest.main()
+def test_static_file():
+    bar = b"binary"
+    with TemporaryDirectory() as td:
+        filename = "{}/bar.bin".format(td)
+        with open("{}/bar.bin".format(td), "wb") as f:
+            f.write(bar)
+        a = App("/", "Title", "1.0")
+        a.register_static(filename, filename, [])
+        request = Request.blank(filename)
+        response = request.get_response(a)
+        assert response.body == bar
+
+
+def test_optional_omit():
+    request = Request.blank("/r1/optional")
+    request.method = "GET"
+    response = request.get_response(app)
+    assert response.status_code == 200
+    assert response.body.decode() == "default"
+
+
+def test_optional_submit():
+    request = Request.blank("/r1/optional?optional=foo")
+    request.method = "GET"
+    response = request.get_response(app)
+    assert response.status_code == 200
+    assert response.body.decode() == "foo"

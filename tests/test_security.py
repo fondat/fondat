@@ -1,6 +1,6 @@
+import pytest
 import roax.context as context
 import roax.schema as s
-import unittest
 
 from roax.resource import Forbidden, Resource, operation
 from roax.security import ContextSecurityRequirement, SecurityRequirement, nested
@@ -34,27 +34,25 @@ class R1(Resource):
         return self.nestee()
 
 
-class TestSecurity(unittest.TestCase):
-    def test_security_req_success(self):
-        r1 = R1()
-        with context.push(req1=True):
-            self.assertEqual(r1.foo(), "foo_success")
-
-    def test_security_req_unauth(self):
-        r1 = R1()
-        with self.assertRaises(Forbidden):
-            r1.foo()
-
-    def test_security_req_multiple_unnested(self):
-        r1 = R1()
-        for n in range(0, 3):
-            with self.assertRaises(Forbidden):
-                r1.nestee()
-
-    def test_security_req_nested(self):
-        r1 = R1()
-        self.assertEqual(r1.nester(), "nest_success")
+def test_security_req_success():
+    r1 = R1()
+    with context.push(req1=True):
+        assert r1.foo() == "foo_success"
 
 
-if __name__ == "__main__":
-    unittest.main()
+def test_security_req_unauth():
+    r1 = R1()
+    with pytest.raises(Forbidden):
+        r1.foo()
+
+
+def test_security_req_multiple_unnested():
+    r1 = R1()
+    for n in range(0, 3):
+        with pytest.raises(Forbidden):
+            r1.nestee()
+
+
+def test_security_req_nested():
+    r1 = R1()
+    assert r1.nester() == "nest_success"

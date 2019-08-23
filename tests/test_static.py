@@ -1,6 +1,6 @@
+import pytest
 import roax.resource as r
 import roax.schema as s
-import unittest
 
 from roax.static import StaticResource
 from roax.resource import operation
@@ -16,11 +16,6 @@ class _TestResource(StaticResource):
         super().__init__(_content, _schema)
 
 
-class TestStaticResource(unittest.TestCase):
-    def test_read(self):
-        tr = _TestResource()
-        self.assertEqual(tr.read(), _content)
-
-
-if __name__ == "__main__":
-    unittest.main()
+def test_read():
+    tr = _TestResource()
+    assert tr.read() == _content

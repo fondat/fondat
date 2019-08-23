@@ -1,5 +1,5 @@
+import pytest
 import roax.schema as s
-import unittest
 import uuid
 
 from roax.resource import Resource, Resources, operation
@@ -50,33 +50,30 @@ class InvalidOperationTypeResource(Resource):
         pass
 
 
-class TestResource(unittest.TestCase):
-    def test_call(self):
-        result = R1().operations["create"].call(body={"foo": "bar"})
-
-    def test_init_wrap(self):
-        result = R2().operations["create"].call(body={"foo": "bar"})
-
-    def test_invalid_operation_type(self):
-        with self.assertRaises(ValueError):
-            InvalidOperationTypeResource()
-
-    def test_override_operation_type(self):
-        class OverrideOperationTypeResource(Resource):
-            @operation(type="create")
-            def not_a_valid_operation_type(self):
-                pass
+def test_call():
+    result = R1().operations["create"].call(body={"foo": "bar"})
 
 
-class TestResources(unittest.TestCase):
-    def test_resources(self):
-        mod = R1.__module__
-        resources = Resources(
-            {"r1": "{}.R1".format(mod), "r2": "{}.R2".format(mod), "r3": R3()}
-        )
-        self.assertEqual(resources.r1.foo(), "bar")
-        self.assertEqual(resources["r3"].qux(), "baz")
+def test_init_wrap():
+    result = R2().operations["create"].call(body={"foo": "bar"})
 
 
-if __name__ == "__main__":
-    unittest.main()
+def test_invalid_operation_type():
+    with pytest.raises(ValueError):
+        InvalidOperationTypeResource()
+
+
+def test_override_operation_type():
+    class OverrideOperationTypeResource(Resource):
+        @operation(type="create")
+        def not_a_valid_operation_type(self):
+            pass
+
+
+def test_resources():
+    mod = R1.__module__
+    resources = Resources(
+        {"r1": "{}.R1".format(mod), "r2": "{}.R2".format(mod), "r3": R3()}
+    )
+    assert resources.r1.foo() == "bar"
+    assert resources["r3"].qux() == "baz"

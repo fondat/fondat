@@ -1,5 +1,5 @@
+import pytest
 import roax.schema as s
-import unittest
 
 from roax.openapi import OpenAPIResource
 from roax.resource import Resource, operation
@@ -28,11 +28,6 @@ app = App("/", "Title", "1.0")
 app.register_resource("/test", _TestResource())
 
 
-class TestOpenAPI(unittest.TestCase):
-    def test_openapi_no_errors(self):
-        resource = OpenAPIResource(app)
-        resource.read()
-
-
-if __name__ == "__main__":
-    unittest.main()
+def test_openapi_no_errors():
+    resource = OpenAPIResource(app)
+    resource.read()
