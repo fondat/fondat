@@ -5,16 +5,18 @@ import unittest
 from roax.resource import Forbidden, Resource, operation
 from roax.security import ContextSecurityRequirement, SecurityRequirement, nested
 
+
 class Never(SecurityRequirement):
     def authorized(self):
         raise Forbidden
+
 
 req1 = ContextSecurityRequirement(req1=True)
 
 never = Never()
 
+
 class R1(Resource):
-    
     @operation(type="action", params={}, returns=s.str(), security=[req1])
     def foo(self):
         return "foo_success"
@@ -33,7 +35,6 @@ class R1(Resource):
 
 
 class TestSecurity(unittest.TestCase):
-
     def test_security_req_success(self):
         r1 = R1()
         with context.push(req1=True):

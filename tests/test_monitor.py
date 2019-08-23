@@ -13,7 +13,6 @@ _now = lambda: datetime.now(tz=timezone.utc)
 
 
 class TestMonitor(unittest.TestCase):
-
     def setUp(self):
         m.monitor = m.SimpleMonitor()
 
@@ -138,7 +137,7 @@ class TestMonitor(unittest.TestCase):
         m.monitor.track("test", "absolute", _tags, 60, 60)
         with self.assertRaises(ValueError):
             m.monitor.record(_tags, _dt("2018-12-01T00:01:00Z"), "gauge", 1)
-        
+
     def test_type_future_error(self):
         m.monitor.track("test", "absolute", _tags, 60, 60)
         with self.assertRaises(ValueError):

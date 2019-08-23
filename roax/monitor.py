@@ -32,7 +32,7 @@ class Counter:
       • value: The highest counter value measured.
     """
 
-    name = 'counter'
+    name = "counter"
 
     def __init__(self, timestamp):
         super().__init__()
@@ -57,7 +57,7 @@ class Gauge:
       • count: The count of measured values.
     """
 
-    name = 'gauge'
+    name = "gauge"
 
     def __init__(self, timestamp):
         super().__init__()
@@ -86,7 +86,7 @@ class Absolute:
       • value: The sum of measured values.    
     """
 
-    name = 'absolute'
+    name = "absolute"
 
     def __init__(self, timestamp):
         super().__init__()
@@ -157,9 +157,9 @@ class Series:
         if not self._tags_match(tags):
             return  # ignore submission
         if type != self.type:
-            raise ValueError(f'expecting data point type of: {self.type}')
+            raise ValueError(f"expecting data point type of: {self.type}")
         if timestamp > _now():
-            raise ValueError('cannot record measurement in the future')
+            raise ValueError("cannot record measurement in the future")
         self._get_data_point(timestamp).record(value)
 
 
@@ -203,9 +203,9 @@ class SimpleMonitor:
         For `patterns` argument, see the `Series` class initializer documentation.
        """
         if name in self.series:
-            raise ValueError(f'time series already exists: {name}')
+            raise ValueError(f"time series already exists: {name}")
         if type not in _types:
-            raise ValueError(f'unsupported data point type: {type}')
+            raise ValueError(f"unsupported data point type: {type}")
         self.series[name] = Series(type, patterns, points, interval)
 
     def record(self, tags, timestamp, type, value):
@@ -221,7 +221,7 @@ class SimpleMonitor:
         least one tag should have a key of `name`.
         """
         for series in self.series.values():
-            series.record(tags, timestamp, type, value) 
+            series.record(tags, timestamp, type, value)
 
 
 monitor = SimpleMonitor()
@@ -249,6 +249,6 @@ class timer:
         duration = time.time() - self.begin
         if monitor:
             try:
-                monitor.record(self.tags, time.time(), 'gauge', duration)
+                monitor.record(self.tags, time.time(), "gauge", duration)
             except:
                 pass  # TODO: log a warning

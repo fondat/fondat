@@ -8,9 +8,11 @@ from io import BytesIO
 from roax.cli import CLI
 from roax.resource import BadRequest, Resource, operation
 
-class TestResource(Resource):
 
-    @operation(params={"_body": s.bytes(format="binary")}, returns=s.dict({"id": s.str()}))
+class TestResource(Resource):
+    @operation(
+        params={"_body": s.bytes(format="binary")}, returns=s.dict({"id": s.str()})
+    )
     def create(self, _body):
         if _body != b"hello_body":
             raise BadRequest("_body not hello_body")
@@ -24,11 +26,12 @@ class TestResource(Resource):
     def echo(self, _body):
         return BytesIO(_body.read())
 
+
 cli = CLI(debug=False, err=None)
 cli.register_resource("test", TestResource())
 
-class TestCLI(unittest.TestCase):
 
+class TestCLI(unittest.TestCase):
     def test_cli_params(self):
         line = "test foo --a-a=1 --b=abc"
         out = BytesIO()
@@ -77,6 +80,7 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(cli.process("help test"), False)
         self.assertEqual(cli.process("help test foo"), False)
         self.assertEqual(cli.process("help help"), False)
- 
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -13,7 +13,6 @@ _UTC = isodate.tzinfo.Utc()
 
 
 class TestSchema(unittest.TestCase):
-
     def _equal(self, fn, val):
         self.assertEqual(val, fn(val))
 
@@ -42,36 +41,55 @@ class TestSchema(unittest.TestCase):
         s.dict({"n": s.str(default="o")}).validate({})
 
     def test_dict_json_encode_success(self):
-        self._equal(s.dict({"eja": s.str(), "ejb": s.int()}, {"eja", "ejb"}).json_encode,
-                {"eja": "foo", "ejb": 123})
+        self._equal(
+            s.dict({"eja": s.str(), "ejb": s.int()}, {"eja", "ejb"}).json_encode,
+            {"eja": "foo", "ejb": 123},
+        )
 
     def test_dict_json_encode_optional_success(self):
-        self._equal(s.dict({"ejc": s.float(), "ejd": s.bool()}, {"ejc"}).json_encode,
-                {"ejc": 123.45})
+        self._equal(
+            s.dict({"ejc": s.float(), "ejd": s.bool()}, {"ejc"}).json_encode,
+            {"ejc": 123.45},
+        )
 
     def test_dict_json_encode_default_success(self):
-        self.assertEqual(s.dict({"eje": s.bool(default=False)}).json_encode({}), {"eje": False}) 
+        self.assertEqual(
+            s.dict({"eje": s.bool(default=False)}).json_encode({}), {"eje": False}
+        )
 
     def test_dict_json_encode_optional_absent(self):
-        self._equal(s.dict({"eje": s.bool()}).json_encode, {}) 
+        self._equal(s.dict({"eje": s.bool()}).json_encode, {})
 
     def test_dict_json_encode_error(self):
-        self._error(s.dict({"ejh": s.int()}, {"ejh"}).json_encode, {"ejh": "not an int"})
+        self._error(
+            s.dict({"ejh": s.int()}, {"ejh"}).json_encode, {"ejh": "not an int"}
+        )
 
     def test_dict_json_decode_success(self):
-        self._equal(s.dict({"dja": s.float(), "djb": s.bool()}, {"dja", "djb"}).json_decode,
-                {"dja": 802.11, "djb": True})
+        self._equal(
+            s.dict({"dja": s.float(), "djb": s.bool()}, {"dja", "djb"}).json_decode,
+            {"dja": 802.11, "djb": True},
+        )
 
     def test_dict_json_decode_optional_success(self):
-        self._equal(s.dict({"djc": s.int(), "djd": s.str()}).json_decode, {"djc": 12345})
+        self._equal(
+            s.dict({"djc": s.int(), "djd": s.str()}).json_decode, {"djc": 12345}
+        )
 
     def test_dict_json_decode_default_success(self):
-        self.assertEqual(s.dict({"dje": s.str(default="defaulty")}).json_decode({}), {"dje": "defaulty"}) 
+        self.assertEqual(
+            s.dict({"dje": s.str(default="defaulty")}).json_decode({}),
+            {"dje": "defaulty"},
+        )
 
     def test_dict_json_decode_additional_property_success(self):
         value = {"djf": "baz", "djg": "additional_property"}
-        self.assertEqual(s.dict({"djf": s.str()}, {"djf"},
-                additional_properties=True).json_decode(value), value)
+        self.assertEqual(
+            s.dict({"djf": s.str()}, {"djf"}, additional_properties=True).json_decode(
+                value
+            ),
+            value,
+        )
 
     def test_dict_json_decode_error(self):
         self._error(s.dict({"djx": s.str()}, {"djx"}).json_decode, {"djx": False})
@@ -83,7 +101,9 @@ class TestSchema(unittest.TestCase):
         self._error(s.dict({"foo": s.str()}).json_encode, None)
 
     def test_dict_allow_none(self):
-        self.assertEqual(s.dict({"foo": s.str()}, nullable=True).json_encode(None), None)
+        self.assertEqual(
+            s.dict({"foo": s.str()}, nullable=True).json_encode(None), None
+        )
 
     def test_dict_required_str(self):
         schema = s.dict(properties={"fjx": s.str(), "fjy": s.str()}, required="fjx,fjy")
@@ -129,7 +149,7 @@ class TestSchema(unittest.TestCase):
 
     def test_list_json_encode_success(self):
         self._equal(s.list(items=s.str()).json_encode, ["a", "b", "c"])
-    
+
     def test_list_json_encode_type_error(self):
         self._error(s.list(items=s.str()).json_encode, "i_am_not_a_list")
 
@@ -149,19 +169,29 @@ class TestSchema(unittest.TestCase):
         self.assertEqual(s.list(items=s.str()).str_decode("a,b,c"), ["a", "b", "c"])
 
     def test_list_bin_encode_success(self):
-        self.assertEqual(json.loads(s.list(items=s.str()).bin_encode(["a", "b", "c"]).decode()), json.loads('["a","b","c"]'))
+        self.assertEqual(
+            json.loads(s.list(items=s.str()).bin_encode(["a", "b", "c"]).decode()),
+            json.loads('["a","b","c"]'),
+        )
 
     def test_list_bin_decode_success(self):
-        self.assertEqual(s.list(items=s.str()).bin_decode(b'["a","b","c"]'), ["a", "b", "c"])
+        self.assertEqual(
+            s.list(items=s.str()).bin_decode(b'["a","b","c"]'), ["a", "b", "c"]
+        )
 
     def test_list_str_decode_int_success(self):
         self.assertEqual(s.list(items=s.int()).str_decode("12,34,56"), [12, 34, 56])
 
     def test_list_str_decode_float_success(self):
-        self.assertEqual(s.list(items=s.float()).str_decode("12.34,56.78"), [12.34, 56.78])
+        self.assertEqual(
+            s.list(items=s.float()).str_decode("12.34,56.78"), [12.34, 56.78]
+        )
 
     def test_list_str_decode_crazy_csv_scenario(self):
-        self.assertEqual(s.list(items=s.str()).str_decode('a,"b,c",d,"""e"""'), ["a","b,c","d",'"e"'])
+        self.assertEqual(
+            s.list(items=s.str()).str_decode('a,"b,c",d,"""e"""'),
+            ["a", "b,c", "d", '"e"'],
+        )
 
     def test_list_str_decode_int_error(self):
         self._error(s.list(items=s.int()).str_decode, "12,a,34,56")
@@ -193,8 +223,8 @@ class TestSchema(unittest.TestCase):
         schema = s.set(s.str())
         value = {"a", "b", "c"}
         encdec = schema.json_decode(schema.json_encode(value))
-        self.assertEqual(encdec, value) 
-    
+        self.assertEqual(encdec, value)
+
     def test_set_json_encode_type_error(self):
         self._error(s.set(items=s.str()).json_encode, "i_am_not_a_list")
 
@@ -214,19 +244,29 @@ class TestSchema(unittest.TestCase):
         self.assertEqual(s.set(items=s.int()).str_decode("12,34,56"), {12, 34, 56})
 
     def test_set_str_decode_float_success(self):
-        self.assertEqual(s.set(items=s.float()).str_decode("12.34,56.78"), {12.34, 56.78})
+        self.assertEqual(
+            s.set(items=s.float()).str_decode("12.34,56.78"), {12.34, 56.78}
+        )
 
     def test_set_str_decode_crazy_csv_scenario(self):
-        self.assertEqual(s.set(items=s.str()).str_decode('a,"b,c",d,"""e"""'), {"a","b,c","d",'"e"'})
+        self.assertEqual(
+            s.set(items=s.str()).str_decode('a,"b,c",d,"""e"""'),
+            {"a", "b,c", "d", '"e"'},
+        )
 
     def test_set_str_decode_int_error(self):
         self._error(s.set(items=s.int()).str_decode, "12,a,34,56")
 
     def test_set_bin_encode_success(self):
-        self.assertEqual(json.loads(s.set(items=s.str()).bin_encode({"a", "b", "c"}).decode()), json.loads('["a","b","c"]'))
+        self.assertEqual(
+            json.loads(s.set(items=s.str()).bin_encode({"a", "b", "c"}).decode()),
+            json.loads('["a","b","c"]'),
+        )
 
     def test_set_bin_decode_success(self):
-        self.assertEqual(s.set(items=s.str()).bin_decode(b'["a","b","c"]'), {"a", "b", "c"})
+        self.assertEqual(
+            s.set(items=s.str()).bin_decode(b'["a","b","c"]'), {"a", "b", "c"}
+        )
 
     def test_set_disallow_none(self):
         self._error(s.set(items=s.str()).json_encode, None)
@@ -487,34 +527,58 @@ class TestSchema(unittest.TestCase):
         self._error(s.datetime().validate, "this_is_not_a_datetime")
 
     def test_datetime_json_encode_success_naive(self):
-        self.assertEqual(s.datetime().json_encode(datetime(2016, 7, 8, 9, 10, 11)), "2016-07-08T09:10:11Z")
+        self.assertEqual(
+            s.datetime().json_encode(datetime(2016, 7, 8, 9, 10, 11)),
+            "2016-07-08T09:10:11Z",
+        )
 
     def test_datetime_json_encode_success_aware(self):
-        self.assertEqual(s.datetime().json_encode(datetime(2017, 6, 7, 8, 9, 10, 0, _UTC)), "2017-06-07T08:09:10Z")
+        self.assertEqual(
+            s.datetime().json_encode(datetime(2017, 6, 7, 8, 9, 10, 0, _UTC)),
+            "2017-06-07T08:09:10Z",
+        )
 
     def test_datetime_json_encode_error(self):
         self._error(s.datetime().json_encode, "definitely_not_a_datetime")
 
     def test_datetime_json_decode_z(self):
-        self.assertEqual(s.datetime().json_decode("2018-08-09T10:11:12Z"), datetime(2018, 8, 9, 10, 11, 12, 0, _UTC))
+        self.assertEqual(
+            s.datetime().json_decode("2018-08-09T10:11:12Z"),
+            datetime(2018, 8, 9, 10, 11, 12, 0, _UTC),
+        )
 
     def test_datetime_json_decode_offset(self):
-        self.assertEqual(s.datetime().json_decode("2019-09-10T11:12:13+01:00"), datetime(2019, 9, 10, 10, 12, 13, 0, _UTC))
+        self.assertEqual(
+            s.datetime().json_decode("2019-09-10T11:12:13+01:00"),
+            datetime(2019, 9, 10, 10, 12, 13, 0, _UTC),
+        )
 
     def test_datetime_json_decode_missing_tz(self):
-        self.assertEqual(s.datetime().json_decode("2020-10-11T12:13:14"), datetime(2020, 10, 11, 12, 13, 14, 0, _UTC))
+        self.assertEqual(
+            s.datetime().json_decode("2020-10-11T12:13:14"),
+            datetime(2020, 10, 11, 12, 13, 14, 0, _UTC),
+        )
 
     def test_datetime_json_decode_error(self):
         self._error(s.datetime().json_decode, "1425691090159")
 
     def test_datetime_str_decode_z(self):
-        self.assertEqual(s.datetime().str_decode("2021-11-12T13:14:15Z"), datetime(2021, 11, 12, 13, 14, 15, 0, _UTC))
+        self.assertEqual(
+            s.datetime().str_decode("2021-11-12T13:14:15Z"),
+            datetime(2021, 11, 12, 13, 14, 15, 0, _UTC),
+        )
 
     def test_datetime_str_decode_offset(self):
-        self.assertEqual(s.datetime().str_decode("2022-12-13T14:15:16+01:00"), datetime(2022, 12, 13, 13, 15, 16, 0, _UTC))
+        self.assertEqual(
+            s.datetime().str_decode("2022-12-13T14:15:16+01:00"),
+            datetime(2022, 12, 13, 13, 15, 16, 0, _UTC),
+        )
 
     def test_datetime_json_decode_missing_tz(self):
-        self.assertEqual(s.datetime().str_decode("2020-10-11T12:13:14"), datetime(2020, 10, 11, 12, 13, 14, 0, _UTC))
+        self.assertEqual(
+            s.datetime().str_decode("2020-10-11T12:13:14"),
+            datetime(2020, 10, 11, 12, 13, 14, 0, _UTC),
+        )
 
     def test_datetime_str_decode_error(self):
         self._error(s.datetime().str_decode, "1425691090160")
@@ -526,16 +590,30 @@ class TestSchema(unittest.TestCase):
         self.assertEqual(s.datetime(nullable=True).json_encode(None), None)
 
     def test_datetime_str_decode_retain_microsecond(self):
-        self.assertEqual(s.datetime(fractional=True).str_decode("2018-01-02T03:04:05.123Z"), datetime(2018, 1, 2, 3, 4, 5, 123000, _UTC))
+        self.assertEqual(
+            s.datetime(fractional=True).str_decode("2018-01-02T03:04:05.123Z"),
+            datetime(2018, 1, 2, 3, 4, 5, 123000, _UTC),
+        )
 
     def test_datetime_str_encode_retain_microsecond(self):
-        self.assertEqual(s.datetime(fractional=True).str_encode(datetime(2018, 1, 2, 3, 4, 5, 123456, _UTC)), "2018-01-02T03:04:05.123456Z")
+        self.assertEqual(
+            s.datetime(fractional=True).str_encode(
+                datetime(2018, 1, 2, 3, 4, 5, 123456, _UTC)
+            ),
+            "2018-01-02T03:04:05.123456Z",
+        )
 
     def test_datetime_str_decode_truncate_microsecond(self):
-        self.assertEqual(s.datetime().str_decode("2018-01-02T03:04:05.123456Z"), datetime(2018, 1, 2, 3, 4, 5, 0, _UTC))
+        self.assertEqual(
+            s.datetime().str_decode("2018-01-02T03:04:05.123456Z"),
+            datetime(2018, 1, 2, 3, 4, 5, 0, _UTC),
+        )
 
     def test_datetime_str_encode_truncate_microsecond(self):
-        self.assertEqual(s.datetime().str_encode(datetime(2018, 1, 2, 3, 4, 5, 123456, _UTC)), "2018-01-02T03:04:05Z")
+        self.assertEqual(
+            s.datetime().str_encode(datetime(2018, 1, 2, 3, 4, 5, 123456, _UTC)),
+            "2018-01-02T03:04:05Z",
+        )
 
     # -- uuid -----
 
@@ -575,31 +653,31 @@ class TestSchema(unittest.TestCase):
     # -- bytes -----
 
     def test_bytes_validate_type_success(self):
-        s.bytes().validate(bytes([1,2,3]))
+        s.bytes().validate(bytes([1, 2, 3]))
 
     def test_bytes_validate_type_error(self):
         self._error(s.bytes().validate, "this_is_not_a_bytes_object")
 
     def test_bytes_json_encode_success(self):
-        val = bytes([4,5,6])
+        val = bytes([4, 5, 6])
         self.assertEqual(s.bytes().json_encode(val), b64encode(val).decode())
 
     def test_bytes_json_encode_error(self):
         self._error(s.bytes().json_encode, "definitely_not_a_bytes_object")
 
     def test_bytes_json_decode_success(self):
-        val = bytes([7,8,9])
+        val = bytes([7, 8, 9])
         self.assertEqual(s.bytes().json_decode(b64encode(val).decode()), val)
 
     def test_bytes_json_decode_error(self):
         self._error(s.bytes().json_decode, "this_is_not_a_bytes_object_either")
 
     def test_bytes_str_encode_success(self):
-        val = bytes([0,2,4,6,8])
+        val = bytes([0, 2, 4, 6, 8])
         self.assertEqual(s.bytes().str_encode(val), b64encode(val).decode())
 
     def test_bytes_str_decode_success(self):
-        val = bytes([1,3,5,7,9])
+        val = bytes([1, 3, 5, 7, 9])
         self.assertEqual(s.bytes().str_decode(b64encode(val).decode()), val)
 
     def test_bytes_str_decode_error(self):
@@ -615,12 +693,14 @@ class TestSchema(unittest.TestCase):
 
     def test_params_decorator_mismatch_a(self):
         with self.assertRaises(TypeError):
+
             @s.validate(params={"a": s.str()})
             def fn(b):
                 pass
 
     def test_params_decorator_mismatch_b(self):
         with self.assertRaises(TypeError):
+
             @s.validate(params={})
             def fn(b):
                 pass
@@ -629,6 +709,7 @@ class TestSchema(unittest.TestCase):
         @s.validate(returns=s.str())
         def fn():
             return 1
+
         with self.assertRaises(ValueError):
             fn()
 
@@ -636,14 +717,17 @@ class TestSchema(unittest.TestCase):
         @s.validate(returns=s.str())
         def fn():
             return "str_ftw"
+
         fn()
 
     # -- all_of -----
 
-    _all_of_schemas = s.all_of([
-        s.dict({"a": s.str()}, {"a"}, additional_properties=True),
-        s.dict({"b": s.int()}, {"b"}, additional_properties=True),
-    ])
+    _all_of_schemas = s.all_of(
+        [
+            s.dict({"a": s.str()}, {"a"}, additional_properties=True),
+            s.dict({"b": s.int()}, {"b"}, additional_properties=True),
+        ]
+    )
 
     def test_all_of_none_match(self):
         self._error(self._all_of_schemas.validate, {"c": "nope"})
@@ -655,10 +739,9 @@ class TestSchema(unittest.TestCase):
         self._all_of_schemas.validate({"a": "foo", "b": 1})
 
     def test_all_of_json_code(self):
-        value = {"a": "foo", "b": 1, "c": [1,2,3]}
+        value = {"a": "foo", "b": 1, "c": [1, 2, 3]}
         schema = self._all_of_schemas
         self.assertEqual(schema.json_decode(schema.json_encode(value)), value)
-
 
     # -- any_of -----
 
@@ -670,7 +753,7 @@ class TestSchema(unittest.TestCase):
         s.any_of([s.str(), s.int()]).validate(1)
 
     def test_any_of_json_codec(self):
-        for value in [ 123.45, False ]:
+        for value in [123.45, False]:
             schema = s.any_of([s.float(), s.bool()])
             self.assertEqual(schema.json_decode(schema.json_encode(value)), value)
 
@@ -687,7 +770,7 @@ class TestSchema(unittest.TestCase):
         self._error(s.one_of([s.str(), s.str()]).validate, "string")
 
     def test_one_of_json_codec(self):
-        for value in [ 123, UUID("06b959d0-65e0-11e7-866d-6be08781d5cb"), False ]:
+        for value in [123, UUID("06b959d0-65e0-11e7-866d-6be08781d5cb"), False]:
             schema = s.one_of([s.int(), s.uuid(), s.bool()])
             self.assertEqual(schema.json_decode(schema.json_encode(value)), value)
 

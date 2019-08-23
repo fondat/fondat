@@ -6,14 +6,11 @@ from copy import copy
 from roax.resource import Resource, operation
 
 
-_schema = s.dict(
-    properties = {},
-    additional_properties = True,
-)
+_schema = s.dict(properties={}, additional_properties=True)
 
 
 def _body_schema(schema):
-    return 
+    return
 
 
 def _security_requirements(operation):
@@ -56,25 +53,25 @@ class OpenAPIResource(Resource):
 
     def _openapi(self):
         result = {}
-        result['openapi'] = '3.0.2'
-        result['info'] = self._info()
-        result['servers'] = self._servers()
-        result['paths'] = self._paths()
-        result['components'] = self._components()
-        result['security'] = []
-        result['tags'] = self._tags()
+        result["openapi"] = "3.0.2"
+        result["info"] = self._info()
+        result["servers"] = self._servers()
+        result["paths"] = self._paths()
+        result["components"] = self._components()
+        result["security"] = []
+        result["tags"] = self._tags()
         return result
 
     def _info(self):
         result = {}
-        result['title'] = self.app.title or self.app.__class__.name
+        result["title"] = self.app.title or self.app.__class__.name
         if self.app.description is not None:
-            result['description'] = self.app.description
-        result['version'] = str(self.app.version)
+            result["description"] = self.app.description
+        result["version"] = str(self.app.version)
         return result
 
     def _servers(self):
-        return [{'url': self.app.url}]
+        return [{"url": self.app.url}]
 
     def _paths(self):
         result = {}
@@ -88,54 +85,54 @@ class OpenAPIResource(Resource):
                 path_item = {}
                 result[op_path] = path_item
             obj = {}
-            obj['tags'] = [operation.resource.name]
+            obj["tags"] = [operation.resource.name]
             if operation.summary:
-                obj['summary'] = operation.summary
+                obj["summary"] = operation.summary
             if operation.description:
-                obj['description'] = operation.description
-            obj['operationId'] = operation.resource.name + '.' + operation.name
+                obj["description"] = operation.description
+            obj["operationId"] = operation.resource.name + "." + operation.name
             params = []
             for name, param in operation.params.properties.items():
-                if name != '_body':
+                if name != "_body":
                     p = {}
-                    p['name'] = name
-                    p['in'] = 'query'
+                    p["name"] = name
+                    p["in"] = "query"
                     if param.description:
-                        p['description'] = param.description
-                    p['required'] = name in operation.params.required
-                    p['deprecated'] = param.deprecated
-                    p['allowEmptyValue'] = True
-                    p['schema'] = param.json_schema
+                        p["description"] = param.description
+                    p["required"] = name in operation.params.required
+                    p["deprecated"] = param.deprecated
+                    p["allowEmptyValue"] = True
+                    p["schema"] = param.json_schema
                     params.append(p)
-            obj['parameters'] = params
-            _body = operation.params.properties.get('_body')
+            obj["parameters"] = params
+            _body = operation.params.properties.get("_body")
             if _body:
                 b = {}
                 if _body.description:
-                    b['description'] = _body.description
-                b['content'] = {_body.content_type: {'schema': _body.json_schema}}
-                p['required'] = '_body' in operation.params.required
-                obj['requestBody'] = b
+                    b["description"] = _body.description
+                b["content"] = {_body.content_type: {"schema": _body.json_schema}}
+                p["required"] = "_body" in operation.params.required
+                obj["requestBody"] = b
             if operation.returns:
-                obj['responses'] = {
-                    '200': {
-                        'description': 'OK',
-                        'content': {operation.returns.content_type: {'schema': operation.returns.json_schema}
-                    },
-                }}
-            else:
-                obj['responses'] = {
-                    '204': {
-                        'description': 'No content',
+                obj["responses"] = {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            operation.returns.content_type: {
+                                "schema": operation.returns.json_schema
+                            }
+                        },
                     }
                 }
-            obj['security'] = _security_requirements(operation)
+            else:
+                obj["responses"] = {"204": {"description": "No content"}}
+            obj["security"] = _security_requirements(operation)
             path_item[op_method.lower()] = obj
         return result
 
     def _components(self):
         result = {}
-        result['securitySchemes'] = self._security_schemes()
+        result["securitySchemes"] = self._security_schemes()
         return result
 
     def _security_schemes(self):
@@ -154,5 +151,5 @@ class OpenAPIResource(Resource):
             resources[operation.resource.name] = operation.resource
         result = []
         for name, resource in resources.items():
-            result.append({'name': name, 'description': resource.description})
+            result.append({"name": name, "description": resource.description})
         return result

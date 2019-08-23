@@ -12,13 +12,11 @@ _content = b"This is the content that will be returned."
 
 
 class TestResource(StaticResource):
-    
     def __init__(self):
         super().__init__(_content, _schema)
 
 
 class TestStaticResource(unittest.TestCase):
-
     def test_read(self):
         tr = TestResource()
         self.assertEqual(tr.read(), _content)

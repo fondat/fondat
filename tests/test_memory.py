@@ -9,21 +9,18 @@ from uuid import uuid4
 
 
 class TestMemoryResource(unittest.TestCase):
-
     def test_crud_dict(self):
-        
+
         _schema = s.dict(
-            properties = {
-                "id": s.uuid(),
-                "foo": s.str(),
-                "bar": s.int(),
-            },
-            required = {"foo", "bar"},
+            properties={"id": s.uuid(), "foo": s.str(), "bar": s.int()},
+            required={"foo", "bar"},
         )
 
         class FooResource(MemoryResource):
-
-            @operation(params={"_body": _schema}, returns=s.dict({"id": _schema.properties["id"]}))
+            @operation(
+                params={"_body": _schema},
+                returns=s.dict({"id": _schema.properties["id"]}),
+            )
             def create(self, _body):
                 return super().create(uuid4(), _body)
 
@@ -44,26 +41,27 @@ class TestMemoryResource(unittest.TestCase):
                 return super().list()
 
         rs = FooResource()
-        r1 = { "foo": "hello", "bar": 1 }
+        r1 = {"foo": "hello", "bar": 1}
         id = rs.create(r1)["id"]
         r1["id"] = id
         r2 = rs.read(id)
-        self.assertEqual(r1, r2) 
+        self.assertEqual(r1, r2)
         r1["bar"] = 2
         rs.update(id, r1)
         r2 = rs.read(id)
-        self.assertEqual(r1, r2) 
+        self.assertEqual(r1, r2)
         rs.delete(id)
         self.assertEqual(rs.list(), [])
-
 
     def test_crud_str(self):
 
         _schema = s.str()
 
         class StrResource(MemoryResource):
-
-            @operation(params={"id": s.str(), "_body": _schema}, returns=s.dict({"id": s.str()}))
+            @operation(
+                params={"id": s.str(), "_body": _schema},
+                returns=s.dict({"id": s.str()}),
+            )
             def create(self, id, _body):
                 return super().create(id, _body)
 
@@ -103,7 +101,7 @@ class TestMemoryResource(unittest.TestCase):
         self.assertEqual(id, mr.create(id, body)["id"])
         self.assertEqual(mr.list(), [id])
         self.assertEqual(body, mr.read(id))
-        body = bytes((1,2,3,4,5))
+        body = bytes((1, 2, 3, 4, 5))
         mr.update(id, body)
         self.assertEqual(body, mr.read(id))
         mr.delete(id)
@@ -153,6 +151,7 @@ class TestMemoryResource(unittest.TestCase):
         sleep(0.2)
         with self.assertRaises(NotFound):
             read = mr.read("1")
+
 
 if __name__ == "__main__":
     unittest.main()

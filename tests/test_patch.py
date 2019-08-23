@@ -4,7 +4,6 @@ from roax.patch import merge_patch
 
 
 class TestPatch(unittest.TestCase):
-
     def _test_patch(self, original, patch, result):
         self.assertEqual(merge_patch(original, patch), result)
 
@@ -51,7 +50,7 @@ class TestPatch(unittest.TestCase):
         self._test_patch(original, patch, result)
 
     def test_merge_patch_08(self):
-        original = {"a": [{"b": "c"}]} 
+        original = {"a": [{"b": "c"}]}
         patch = {"a": [1]}
         result = {"a": [1]}
         self._test_patch(original, patch, result)
@@ -75,13 +74,13 @@ class TestPatch(unittest.TestCase):
         self._test_patch(original, patch, result)
 
     def test_merge_patch_12(self):
-        original = {"a":"foo"}
+        original = {"a": "foo"}
         patch = "bar"
         result = "bar"
         self._test_patch(original, patch, result)
 
     def test_merge_patch_13(self):
-        original = {"e": None} 
+        original = {"e": None}
         patch = {"a": 1}
         result = {"e": None, "a": 1}
         self._test_patch(original, patch, result)

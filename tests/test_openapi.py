@@ -1,7 +1,7 @@
 import roax.schema as s
 import unittest
 
-from roax.openapi import OpenAPIResource 
+from roax.openapi import OpenAPIResource
 from roax.resource import Resource, operation
 from roax.wsgi import App
 
@@ -19,17 +19,16 @@ params = {
 
 
 class TestResource(Resource):
-
     @operation(type="action", params=params, security=[])
     def test(self, a, b, c, d, e, f, g, h):
         pass
+
 
 app = App("/", "Title", "1.0")
 app.register_resource("/test", TestResource())
 
 
 class TestOpenAPI(unittest.TestCase):
-
     def test_openapi_no_errors(self):
         resource = OpenAPIResource(app)
         resource.read()

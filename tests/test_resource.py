@@ -5,19 +5,13 @@ import uuid
 from roax.resource import Resource, Resources, operation
 
 
-body_schema = s.dict(
-    properties = {
-        "id": s.uuid(),
-        "foo": s.str(),
-    },
-    required = {"foo"},
-)
+body_schema = s.dict(properties={"id": s.uuid(), "foo": s.str()}, required={"foo"})
 
 
 class R1(Resource):
 
     schema = body_schema
-    
+
     @operation(params={"body": body_schema}, returns=s.uuid())
     def create(self, body):
         return uuid.UUID("705d9048-97d6-4071-8359-3dbf0531fee9")
@@ -26,40 +20,42 @@ class R1(Resource):
     def foo(self):
         return "bar"
 
+
 class R2(Resource):
-    
+
     schema = body_schema
-    
+
     def __init__(self):
         super().__init__()
-        self.create = operation(params={"body": body_schema}, returns=s.uuid())(self.create)
+        self.create = operation(params={"body": body_schema}, returns=s.uuid())(
+            self.create
+        )
 
     def create(self, body):
         return uuid.UUID("f5808e7e-09c0-4f0c-ae6f-a9b30bd23290")
 
-class R3(Resource):
 
+class R3(Resource):
     @operation(type="query", returns=s.str())
     def qux(self):
         return "baz"
 
 
 class InvalidOperationTypeResource(Resource):
-
     def __init__(self):
         super().__init__()
-        self.not_a_valid_operation_type = operation()(self.not_a_valid_operation_type)    
+        self.not_a_valid_operation_type = operation()(self.not_a_valid_operation_type)
 
     def not_a_valid_operation_type(self):
         pass
 
-class TestResource(unittest.TestCase):
 
+class TestResource(unittest.TestCase):
     def test_call(self):
-        result = R1().operations["create"].call(body={"foo":"bar"})
+        result = R1().operations["create"].call(body={"foo": "bar"})
 
     def test_init_wrap(self):
-        result = R2().operations["create"].call(body={"foo":"bar"})
+        result = R2().operations["create"].call(body={"foo": "bar"})
 
     def test_invalid_operation_type(self):
         with self.assertRaises(ValueError):
@@ -73,14 +69,11 @@ class TestResource(unittest.TestCase):
 
 
 class TestResources(unittest.TestCase):
-
     def test_resources(self):
         mod = R1.__module__
-        resources = Resources({
-            "r1": "{}.R1".format(mod),
-            "r2": "{}.R2".format(mod),
-            "r3": R3(),
-        })
+        resources = Resources(
+            {"r1": "{}.R1".format(mod), "r2": "{}.R2".format(mod), "r3": R3()}
+        )
         self.assertEqual(resources.r1.foo(), "bar")
         self.assertEqual(resources["r3"].qux(), "baz")
 

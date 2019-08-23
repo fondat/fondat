@@ -45,9 +45,9 @@ class MemoryResource(Resource):
         """Create a resource item."""
         if self._ttl:  # purge expired entries
             now = _now()
-            self._entries = {k: v for k, v in self._entries if v[0] + self._ttl <= now }
+            self._entries = {k: v for k, v in self._entries if v[0] + self._ttl <= now}
         if id in self._entries:
-            raise Conflict(f'{self.name} item already exists')
+            raise Conflict(f"{self.name} item already exists")
         if self.size and len(self._entries) >= self.size:
             if self.evict:  # evict oldest entry
                 oldest = None
@@ -57,9 +57,9 @@ class MemoryResource(Resource):
                 if oldest:
                     del self._entries[oldest[1]]
         if self.size and len(self._entries) >= self.size:
-            raise BadRequest(f'{self.name} item size limit reached')
+            raise BadRequest(f"{self.name} item size limit reached")
         self._entries[id] = (_now(), deepcopy(_body))
-        return {'id': id}
+        return {"id": id}
 
     def read(self, id):
         """Read a resource item."""
@@ -80,7 +80,11 @@ class MemoryResource(Resource):
     @_with_lock  # iterates over entries
     def list(self):
         """Query that returns a list of all resource item identifiers."""
-        return [k for k, v in self._entries.items() if not self._ttl or v[0] + self._ttl <= now]
+        return [
+            k
+            for k, v in self._entries.items()
+            if not self._ttl or v[0] + self._ttl <= now
+        ]
 
     @_with_lock  # modifies entries
     def clear(self):
@@ -90,5 +94,5 @@ class MemoryResource(Resource):
     def __get(self, id):
         result = self._entries.get(id)
         if not result or (self._ttl and _now() > result[0] + self._ttl):
-            raise NotFound(f'{self.name} item not found')
+            raise NotFound(f"{self.name} item not found")
         return result
