@@ -515,7 +515,7 @@ class _set(_type):
             return None
         result = list(self._process("str_encode", value))
         result.sort()
-        return _csv_encode()
+        return _csv_encode(result)
 
     def str_decode(self, value):
         """Decode the value from string representation."""
