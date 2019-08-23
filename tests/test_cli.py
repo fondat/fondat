@@ -9,7 +9,7 @@ from roax.cli import CLI
 from roax.resource import BadRequest, Resource, operation
 
 
-class TestResource(Resource):
+class _TestResource(Resource):
     @operation(
         params={"_body": s.bytes(format="binary")}, returns=s.dict({"id": s.str()})
     )
@@ -28,7 +28,7 @@ class TestResource(Resource):
 
 
 cli = CLI(debug=False, err=None)
-cli.register_resource("test", TestResource())
+cli.register_resource("test", _TestResource())
 
 
 class TestCLI(unittest.TestCase):

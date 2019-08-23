@@ -12,7 +12,7 @@ from tempfile import TemporaryDirectory
 from webob import Request
 
 
-class TestSecurityRequirement(SecurityRequirement):
+class _TestSecurityRequirement(SecurityRequirement):
     def __init__(self, scheme):
         self.scheme = scheme
 
@@ -22,15 +22,15 @@ class TestSecurityRequirement(SecurityRequirement):
             raise Unauthorized
 
 
-class TestSecurityScheme(HTTPBasicSecurityScheme):
+class _TestSecurityScheme(HTTPBasicSecurityScheme):
     def authenticate(self, user_id, password):
         if user_id == "sparky" and password == "punkydoodle":
             return {"user_id": user_id, "role": "god"}
 
 
-_scheme = TestSecurityScheme("WallyWorld")
+_scheme = _TestSecurityScheme("WallyWorld")
 
-http1 = TestSecurityRequirement(_scheme)
+http1 = _TestSecurityRequirement(_scheme)
 
 _r1_schema = s.dict(
     properties={"id": s.str(), "foo": s.int(), "bar": s.bool(), "dt": s.datetime()},
