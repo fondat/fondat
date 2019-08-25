@@ -868,6 +868,27 @@ def test_bytes_allow_none():
     assert s.bytes(nullable=True).json_encode(None) == None
 
 
+def test_bytes_invalid_format():
+    with pytest.raises(ValueError):
+        s.bytes(format="foo")
+
+
+def test_bytes_binary_json_encode():
+    _error(s.bytes(format="binary").json_encode, b"12345")
+
+
+def test_bytes_binary_json_decode():
+    _error(s.bytes(format="binary").json_decode, "ain't gonna decode")
+
+
+def test_bytes_binary_str_encode():
+    _error(s.bytes(format="binary").str_encode, b"12345")
+
+
+def test_bytes_binary_str_decode():
+    _error(s.bytes(format="binary").str_decode, "ain't gonna decode")
+
+
 # -- decorators -----
 
 
@@ -1056,3 +1077,10 @@ def test_reader_validate_type_success():
 
 def test_reader_validate_type_error():
     _error(s.reader().validate, "this_is_not_a_reader_object")
+
+
+# -- SchemaError -----
+
+
+def test_SchemaError_str():
+    assert str(s.SchemaError("text", "/a/b")) == "/a/b: text"

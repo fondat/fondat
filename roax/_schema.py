@@ -226,15 +226,6 @@ class _dict(_type):
     def get(self, key, default=None):
         return self.properties.get(key, default)
 
-    def keys(self):
-        return self.properties.keys()
-
-    def values(self):
-        return self.properties.values()
-
-    def items(self):
-        return self.properties.items()
-
     def _process(self, method, value):
         if value is None:
             return None
@@ -814,8 +805,9 @@ class _bytes(_type):
         :param description: A description of the schema.
         :param example: An example of an instance for this schema.
         """
-        if format not in {"byte", "binary"}:
-            raise SchemaError(f"format must be one of {valid_formats}")
+        valid_formats = {"byte", "binary"}
+        if format not in valid_formats:
+            raise ValueError(f"format must be one of {valid_formats}")
         super().__init__(
             python_type=bytes,
             json_type="string",

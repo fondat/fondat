@@ -60,7 +60,7 @@ def _response(operation, result):
 def _params(request, operation):
     result = {}
     params = operation.params
-    for name, param in params.items() if params else []:
+    for name, param in params.properties.items() if params else []:
         try:
             if name == "_body":
                 if "_body" in params.required and not request.is_body_readable:
