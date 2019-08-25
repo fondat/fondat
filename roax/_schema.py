@@ -92,9 +92,13 @@ class _type:
         self.example = example
         self.deprecated = deprecated
 
+    def _nullable(self):
+        """Return if value can be `None`. Can be overridden by subclasses."""
+        return self.nullable
+
     def validate(self, value):
         """Validate value against the schema."""
-        if value is None and not self.nullable:
+        if value is None and not self._nullable():
             raise SchemaError("value is not nullable")
         if value is not None and not isinstance(value, self.python_type):
             raise SchemaError(
@@ -1042,18 +1046,21 @@ class all_of(_type):
         """
         super().__init__(**kwargs)
         if not schemas:
-            raise ValueException("schemas argument must be a list of schemas")
+            raise ValueError("schemas argument must be a list of schemas")
         for s1 in schemas:
             if not isinstance(s1, _dict):
-                raise ValueException("all_of only supports dict schemas")
+                raise ValueError("all_of only supports dict schemas")
             if not s1.additional_properties:
-                raise ValueException("all_of schemas must enable additional_properties")
+                raise ValueError("all_of schemas must enable additional_properties")
             for s2 in schemas:
                 if s1 is not s2 and set.intersection(
                     set(s1.properties), set(s2.properties)
                 ):
-                    raise ValueException("all_of schemas cannot share property names")
+                    raise ValueError("all_of schemas cannot share property names")
         self.schemas = schemas
+
+    def _nullable(self):
+        return super()._nullable() or [1 for n in self.schemas if n._nullable()]
 
     def validate(self, value):
         """Validate value against the schema."""
@@ -1102,8 +1109,11 @@ class _xof(_type):
         self.keyword = keyword
         self.schemas = schemas
 
+    def _nullable(self):
+        return super()._nullable() or [1 for n in self.schemas if n._nullable()]
+
     def _process(self, method, value):
-        if value is None:
+        if value is None and self.nullable:  # don't introspect inner schemas
             return None
         results = []
         for schema in self.schemas:
@@ -1120,6 +1130,20 @@ class _xof(_type):
         """Validate value against the schema."""
         super().validate(value)
         self._process("validate", value)
+
+    def match(self, value):
+        """Return the first schema that matches the value, or `None`."""
+        results = []
+        for schema in self.schemas:
+            try:
+                schema.validate(value)
+                results.append(schema)
+            except SchemaError:
+                pass
+        try:
+            return self._evaluate(results)
+        except SchemaError:
+            return None  # validation failure yields no match
 
     @property
     def json_schema(self):

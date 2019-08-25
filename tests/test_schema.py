@@ -932,6 +932,25 @@ def test_all_of_json_code():
     assert schema.json_decode(schema.json_encode(value)) == value
 
 
+def test_all_of_nullable_outer():
+    s.all_of(
+        (
+            s.dict({"a": s.str()}, additional_properties=True),
+            s.dict({"b": s.int()}, additional_properties=True),
+        ),
+        nullable=True,
+    ).validate(None)
+
+
+def test_all_of_nullable_inner():
+    s.all_of(
+        (
+            s.dict({"a": s.str()}, nullable=True, additional_properties=True),
+            s.dict({"b": s.int()}, nullable=True, additional_properties=True),
+        )
+    ).validate(None)
+
+
 # -- any_of -----
 
 
@@ -950,6 +969,26 @@ def test_any_of_json_codec():
         assert schema.json_decode(schema.json_encode(value)) == value
 
 
+def test_any_of_nullable_outer():
+    s.any_of((s.int(), s.str()), nullable=True).validate(None)
+
+
+def test_any_of_nullable_inner():
+    s.any_of((s.int(nullable=True), s.str())).validate(None)
+
+
+def test_any_of_match_int():
+    assert isinstance(s.any_of((s.int(), s.str())).match(1), s.int)
+
+
+def test_any_of_match_str():
+    assert isinstance(s.any_of((s.int(), s.str())).match("one"), s.str)
+
+
+def test_any_of_match_none():
+    assert s.one_of((s.int(), s.str())).match(False) == None
+
+
 # -- one_of -----
 
 
@@ -962,14 +1001,50 @@ def test_one_of_either_match():
     s.one_of([s.str(), s.int()]).validate(1)
 
 
-def test_one_of_validation_all_match():
+def test_one_of_validation_all_match_str():
     _error(s.one_of([s.str(), s.str()]).validate, "string")
+
+
+def test_one_of_validation_all_match_nullable():
+    _error(s.one_of([s.str(nullable=True), s.int(nullable=True)]).validate, None)
 
 
 def test_one_of_json_codec():
     for value in [123, UUID("06b959d0-65e0-11e7-866d-6be08781d5cb"), False]:
         schema = s.one_of([s.int(), s.uuid(), s.bool()])
         assert schema.json_decode(schema.json_encode(value)) == value
+
+
+def test_one_of_nullable_outer():
+    s.one_of((s.int(), s.str()), nullable=True).validate(None)
+
+
+def test_one_of_nullable_inner():
+    s.one_of((s.int(nullable=True), s.str())).validate(None)
+
+
+def test_one_of_match_int():
+    assert isinstance(s.one_of((s.int(), s.str())).match(1), s.int)
+
+
+def test_one_of_match_str():
+    assert isinstance(s.one_of((s.int(), s.str())).match("one"), s.str)
+
+
+def test_one_of_match_none():
+    assert s.one_of((s.int(), s.str())).match(False) == None
+
+
+def test_one_of_match_all():
+    assert s.one_of([s.str(), s.str()]).match("string") == None
+
+
+def test_one_of_match_inner_none_single():
+    assert isinstance(s.one_of((s.str(nullable=True), s.int())).match(None), s.str)
+
+
+def test_one_of_match_inner_none_ambiguous():
+    assert s.one_of((s.str(nullable=True), s.int(nullable=True))).match(None) == None
 
 
 # -- reader -----
