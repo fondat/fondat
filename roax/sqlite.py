@@ -1,8 +1,14 @@
 """Module to manage resource items in a SQLite database."""
 
+import contextlib
+import logging
 import roax.schema as s
 import roax.db as db
 import sqlite3
+import threading
+
+
+_logger = logging.getLogger(__name__)
 
 
 class _CastCodec:
@@ -65,14 +71,37 @@ class Database(db.Database):
     def __init__(self, file):
         super().__init__(sqlite3)
         self.file = file
+        self.local = threading.local()
 
+    @contextlib.contextmanager
     def connect(self):
         """
         Return a context manager that yields a database connection with transaction demarcation.
         If more than one request for a connection is made in the same thread, the same connection
-        may be returned; only the outermost yielded connection shall have transaction demarcation.
+        will be returned; only the outermost yielded connection shall have transaction demarcation.
         """
-        return sqlite3.connect(self.file)
+        try:
+            connection = self.local.connection
+            self.local.count += 1
+        except AttributeError:
+            connection = sqlite3.connect(self.file)
+            _logger.debug("%s", "sqlite connection begin")
+            self.local.connection = connection
+            self.local.count = 1
+        try:
+            yield connection
+            if self.local.count == 1:
+                _logger.debug("%s", "sqlite connection commit")
+                connection.commit()
+        except:
+            if self.local.count == 1:
+                _logger.debug("%s", "sqlite connection rollback")
+                connection.rollback()
+            raise
+        finally:
+            self.local.count -= 1
+            if not self.local.count:
+                del self.local.connection
 
 
 class Table(db.Table):
