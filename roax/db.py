@@ -1,12 +1,15 @@
 """Module to manage resource items in a SQL database through DB-API 2.0 interface."""
 
+import contextlib
+import logging
 import roax.schema as s
 
-from .resource import BadRequest, NotFound, InternalServerError, Resource
-from contextlib import contextmanager
+from roax.resource import BadRequest, NotFound, InternalServerError, Resource
+
+_logger = logging.getLogger(__name__)
 
 
-@contextmanager
+@contextlib.contextmanager
 def _nullcontext(value):
     yield value
 
@@ -39,11 +42,11 @@ class Database:
         """
         Return a context manager that yields a database connection with transaction demarcation.
         If more than one request for a connection is made in the same thread, the same connection
-        may be returned; only the outermost yielded connection shall have transaction demarcation.
+        will be returned; only the outermost yielded connection shall have transaction demarcation.
         """
         raise NotImplementedError
 
-    @contextmanager
+    @contextlib.contextmanager
     def cursor(self, connection=None):
         """Return a context manager that yields a cursor that automatically closes."""
         with _nullcontext(connection) if connection else self.connect() as connection:
@@ -78,7 +81,7 @@ class Table:
 
     @property
     def columns(self):
-        return self.schema.properties.keys()
+        return list(self.schema.properties.keys())
 
     def _call_codec(self, method, column, value):
         schema = self.schema.properties[column]
@@ -91,10 +94,10 @@ class Table:
         return codec.__getattribute__(method)(schema, value)
 
     def encode(self, column, value):
-        return self._call_codec("encode", column, value)
+        return self._call_codec("encode", column, value) if value is not None else None
 
     def decode(self, column, value):
-        return self._call_codec("decode", column, value)
+        return self._call_codec("decode", column, value) if value is not None else None
 
 
 class Query:
@@ -103,19 +106,19 @@ class Query:
     def __init__(self, database):
         """TODO: Description."""
         self.database = database
-        self._query = []
-        self._params = []
+        self._operation = []
+        self._parameters = []
 
     def text(self, value):
         """TODO: Description."""
-        self._query.append(value)
-        return self
+        self._operation.append(value)
 
     def param(self, value):
         """TODO: Description."""
-        self._query.append(_markers[self.database.paramstyle].format(len(self._params)))
-        self._params.append(value)
-        return self
+        self._operation.append(
+            _markers[self.database.paramstyle].format(len(self._parameters))
+        )
+        self._parameters.append(value)
 
     def params(self, values, sep=", "):
         """TODO: Description."""
@@ -123,16 +126,21 @@ class Query:
             self.param(values[n])
             if n < len(values) - 1:
                 self.text(sep)
-        return self
+
+    def query(self, query):
+        self._operation += query._operation
+        self._parameters += query._parameters
 
     def build(self):
         """TODO: Description."""
-        query = "".join(self._query)
+        operation = "".join(self._operation)
         if self.database.paramstyle in {"named", "pyformat"}:
-            params = {str(n): self._params[n] for n in range(0, len(self._params))}
+            parameters = {
+                str(n): self._parameters[n] for n in range(0, len(self._parameters))
+            }
         else:
-            params = self._params
-        return (query, params)
+            parameters = self._parameters
+        return (operation, parameters)
 
 
 class TableResource(Resource):
@@ -162,7 +170,7 @@ class TableResource(Resource):
         """
         return self.database.connect()
 
-    @contextmanager
+    @contextlib.contextmanager
     def cursor(self, connection=None):
         """Return a context manager that yields a cursor that automatically closes."""
         with _nullcontext(connection) if connection else self.connect() as connection:
@@ -176,6 +184,15 @@ class TableResource(Resource):
         """Return a new query builder for the resource database."""
         return self.database.query()
 
+    @contextlib.contextmanager
+    def execute(self, query, connection=None):
+        """TODO: Description."""
+        built = query.build()
+        with self.cursor(connection) as cursor:
+            _logger.debug("%s", built)
+            cursor.execute(*built)
+            yield cursor
+
     def create(self, id, _body):
         query = self.query()
         query.text(f"INSERT INTO {self.table.name} (")
@@ -188,30 +205,20 @@ class TableResource(Resource):
             ]
         )
         query.text(");")
-        with self.cursor() as cursor:
-            cursor.execute(*query.build())
+        with self.execute(query) as cursor:
+            pass
+        return {"id": id}
 
     def read(self, id):
-        query = self.query()
-        query.text("SELECT ")
-        query.text(", ".join(self.table.columns))
-        query.text(f" FROM {self.table.name}")
-        query.text(f" WHERE {self.table.pk} = ")
-        query.param(self.table.encode(self.table.pk, id))
-        query.text(";")
-        with self.cursor() as cursor:
-            cursor.execute(*query.build())
-            fetched = cursor.fetchone()
-            if fetched is None:
-                raise NotFound()
-            if cursor.fetchone():
-                raise InternalServerError("query matches more than one row")
-            result = dict(zip(self.table.columns, fetched))
-        for column in self.table.columns:
-            if result[column] is None and column not in self.table.schema.required:
-                del result[column]
-            else:
-                result[column] = self.table.decode(column, result[column])
+        where = self.query()
+        where.text(f"{self.table.pk} = ")
+        where.param(self.table.encode(self.table.pk, id))
+        results = self.select(where=where)
+        if len(results) == 0:
+            raise NotFound()
+        elif len(results) > 1:
+            raise InternalServerError("query matches more than one row")
+        result = results[0]
         self.table.schema.validate(result)
         return result
 
@@ -223,32 +230,78 @@ class TableResource(Resource):
         for n in range(0, len(columns)):
             column = columns[n]
             query.text(f"{column} = ")
-            value = (
-                self.table.encode(column, _body[column]) if column in _body else None
-            )
+            value = self.table.encode(column, _body.get(column))
             query.param(value)
             if n < len(columns) - 1:
                 query.text(", ")
         query.text(f" WHERE {self.table.pk} = ")
         query.param(self.table.encode(self.table.pk, id))
         query.text(";")
-        with self.cursor() as cursor:
-            cursor.execute(*query.build())
-            if cursor.rowcount == 0:
-                raise NotFound()
-            elif cursor.rowcount > 1:
-                raise InternalServerError("query matches more than one row")
-            elif cursor.rowcount == -1:
-                raise InternalServerError("could not determine update was successful")
+        with self.execute(query) as cursor:
+            count = cursor.rowcount
+        if count == 0:
+            raise NotFound()
+        elif count > 1:
+            raise InternalServerError("query matches more than one row")
+        elif count == -1:
+            raise InternalServerError("could not determine update was successful")
 
     def delete(self, id):
         query = self.query()
         query.text(f"DELETE FROM {self.table.name} WHERE {self.table.pk} = ")
         query.param(self.table.encode(self.table.pk, id))
         query.text(";")
-        with self.cursor() as cursor:
-            cursor.execute(*query.build())
-            if cursor.rowcount < 1:
-                raise NotFound()
-            elif cursor.rowcount > 1:
-                raise InternalServerError("query would delete more than one row")
+        with self.execute(query) as cursor:
+            count = cursor.rowcount
+        if count < 1:
+            raise NotFound()
+        elif count > 1:
+            raise InternalServerError("query would delete more than one row")
+
+    def list(self, where=None):
+        """
+        Return a list of primary keys that match the `where` expression.
+
+        :param where: `Query` object representing WHERE expression, or `None` to match all rows.
+        """
+        query = self.query()
+        query.text(f"SELECT {self.table.pk} FROM {self.table.name}")
+        if where:
+            query.text(" WHERE ")
+            query.query(where)
+        with self.execute(query) as cursor:
+            items = cursor.fetchall()
+        return [self.table.decode(self.table.pk, item[0]) for item in items]
+
+    def select(self, *, columns=None, where=None, order=None):
+        """
+        Return a list of rows that match the `where` expression. Each row is expressed in a dict.
+
+        :param columns: iterable of column names to return, or `None` for all columns.
+        :param where: `Query` object representing WHERE expression, or `None` to match all rows.
+        :param order: iterable of column names to order by, or `None` to not order results.
+        """
+        columns = list(columns or self.table.columns)
+        query = self.query()
+        query.text("SELECT ")
+        query.text(", ".join(columns))
+        query.text(f" FROM {self.table.name}")
+        if where:
+            query.text(" WHERE ")
+            query.query(where)
+        if order:
+            query.text(f" ORDER BY {', '.join(order)}")
+        query.text(";")
+        results = []
+        with self.execute(query) as cursor:
+            items = cursor.fetchall()
+        for item in items:
+            result = dict(zip(columns, item))
+            for column in columns:
+                if result[column] is None and column not in self.table.schema.required:
+                    del result[column]
+                else:
+                    result[column] = self.table.decode(column, result[column])
+                    self.table.schema.properties[column].validate(result[column])
+            results.append(result)
+        return results
