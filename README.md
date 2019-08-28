@@ -2,7 +2,6 @@
 
 [![PyPI](https://badge.fury.io/py/roax.svg)](https://badge.fury.io/py/roax)
 [![License](https://img.shields.io/github/license/roax/roax.svg)](https://github.com/roax/roax/blob/master/LICENSE)
-[![Python](https://img.shields.io/pypi/pyversions/roax.svg)](https://pypi.org/project/roax/)
 [![GitHub](https://img.shields.io/badge/github-master-blue.svg)](https://github.com/roax/roax/)
 [![Travis CI](https://travis-ci.org/roax/roax.svg?branch=master)](https://travis-ci.org/roax/roax)
 [![Codecov](https://codecov.io/gh/roax/roax/branch/master/graph/badge.svg)](https://codecov.io/gh/roax/roax)
