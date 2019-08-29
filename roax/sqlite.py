@@ -55,6 +55,7 @@ _codecs = {
     s.dict: TEXT,
     s.list: TEXT,
     s.set: TEXT,
+    s.str: TEXT,
     s.int: INTEGER,
     s.float: REAL,
     s.bool: BOOLEAN,
