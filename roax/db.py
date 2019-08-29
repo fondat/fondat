@@ -23,12 +23,15 @@ _markers = {
 }
 
 
-class _default_codec:
+class _DefaultCodec:
     def encode(self, schema, value):
         return schema.str_encode(value)
 
     def decode(self, schema, value):
         return schema.str_decode(value)
+
+
+_default_codec = _DefaultCodec()
 
 
 class Database:
