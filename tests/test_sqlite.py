@@ -12,6 +12,7 @@ from uuid import uuid4
 _schema = s.dict(
     {
         "_id": s.uuid(),
+        "_str": s.str(),
         "_dict": s.dict({"a": s.int()}),
         "_list": s.list(s.int()),
         "_set": s.set(s.str()),
@@ -34,6 +35,7 @@ def database():
                 """
                 CREATE TABLE FOO (
                     _id TEXT,
+                    _str TEXT,
                     _dict TEXT,
                     _list TEXT,
                     _set TEXT,
@@ -66,6 +68,7 @@ def resource(database, table):
 def test_crud(resource):
     body = {
         "_id": uuid4(),
+        "_str": "string",
         "_dict": {"a": 1},
         "_list": [1, 2, 3],
         "_set": {"foo", "bar"},
