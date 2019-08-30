@@ -115,7 +115,7 @@ def test_list_where(resource):
         assert resource.create(id, {"_id": id, "_int": n}) == {"id": id}
     where = resource.query()
     where.text("_int < ")
-    where.param(resource.table.encode("_int", 10))
+    where.value("_int", 10)
     ids = resource.list(where=where)
     print(f"ids = {ids}")
     assert len(ids) == 10

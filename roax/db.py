@@ -23,15 +23,17 @@ _markers = {
 }
 
 
-class _DefaultCodec:
+class Codec:
     def encode(self, schema, value):
+        """Encode a value as a query parameter."""
         return schema.str_encode(value)
 
     def decode(self, schema, value):
+        """Decode a value from a query result."""
         return schema.str_decode(value)
 
 
-_default_codec = _DefaultCodec()
+default_codec = Codec()
 
 
 class Database:
@@ -59,9 +61,9 @@ class Database:
             finally:
                 cursor.close()
 
-    def query(self):
-        """Return a new query builder for the resource database."""
-        return Query(self)
+    def query(self, table):
+        """Return a new query builder."""
+        return Query(self, table)
 
 
 class Table:
@@ -69,16 +71,18 @@ class Table:
 
     def __init__(self, name, schema, pk, codecs):
         """
-        :param module: Module that implements the DB-API interface.
         :param name: Name of table in the SQL database.
         :param schema: Schema of table columns.
-        :param primary_key: Column name of the primary key.
+        :param pk: Column name of the primary key.
+        :param codecs: Column transformation adapters.
         """
         if not isinstance(schema, s.dict):
-            raise ValueError("schema must be dict")
+            raise ValueError("schema for table must be roax.schema.dict")
         super().__init__()
         self.name = name
         self.schema = schema
+        if pk not in schema:
+            raise ValueError(f"pk '{pk}' not in schema")
         self.pk = pk
         self.codecs = codecs
 
@@ -86,64 +90,86 @@ class Table:
     def columns(self):
         return list(self.schema.properties.keys())
 
-    def _call_codec(self, method, column, value):
+    def query(self, table):
+        """Return a new query builder."""
+        return Query(self, table)
+
+    def codec(self, column):
+        """Return a codec for the specified column."""
         schema = self.schema.properties[column]
         if column in self.codecs:
-            codec = self.codecs[column]
+            return self.codecs[column]
         elif schema.__class__ in self.codecs:
-            codec = self.codecs[schema.__class__]
+            return self.codecs[schema.__class__]
         else:
-            codec = _default_codec
-        return codec.__getattribute__(method)(schema, value)
-
-    def encode(self, column, value):
-        return self._call_codec("encode", column, value) if value is not None else None
-
-    def decode(self, column, value):
-        return self._call_codec("decode", column, value) if value is not None else None
+            return default_codec
 
 
 class Query:
-    """Builds queries that manage text and parameters."""
+    """
+    Builds queries that manages its text and parameters.
+    """
 
-    def __init__(self, database):
-        """TODO: Description."""
+    def __init__(self, database, table):
+        """
+        :param database: database for which query is being built.
+        :param table: table for which query is being built.
+        """
         self.database = database
-        self._operation = []
-        self._parameters = []
+        self.table = table
+        self.operation = []
+        self.parameters = []
 
-    def text(self, value):
-        """TODO: Description."""
-        self._operation.append(value)
+    def text(self, text):
+        """Append text to the query operation."""
+        self.operation.append(text)
 
-    def param(self, value):
-        """TODO: Description."""
-        self._operation.append(
-            _markers[self.database.paramstyle].format(len(self._parameters))
+    def param(self, param):
+        """
+        Append a parameter value to the query. A parameter marker is added to
+        the query operation. No encoding of the parameter value is performed.
+        """
+        self.operation.append(
+            _markers[self.database.paramstyle].format(len(self.parameters))
         )
-        self._parameters.append(value)
+        self.parameters.append(param)
 
-    def params(self, values, sep=", "):
-        """TODO: Description."""
-        for n in range(0, len(values)):
-            self.param(values[n])
-            if n < len(values) - 1:
+    def params(self, params, sep=", "):
+        """
+        Append a set of parameter values to the query. Parameter markers are
+        added to the query operation, separated by `sep`. No encoding of
+        parameter values is performed.
+        """
+        for n in range(0, len(params)):
+            self.param(params[n])
+            if n < len(params) - 1:
                 self.text(sep)
 
+    def value(self, column, value):
+        """
+        Encode and add a column value to the query as a parameter.
+        """
+        schema = self.table.schema.properties[column]
+        codec = self.table.codec(column)
+        self.param(None if value is None else codec.encode(schema, value))
+
     def query(self, query):
-        self._operation += query._operation
-        self._parameters += query._parameters
+        """
+        Add another query's operation and parameters to the query.
+        """
+        self.operation += query.operation
+        self.parameters += query.parameters
 
     def build(self):
-        """TODO: Description."""
-        operation = "".join(self._operation)
-        if self.database.paramstyle in {"named", "pyformat"}:
-            parameters = {
-                str(n): self._parameters[n] for n in range(0, len(self._parameters))
-            }
-        else:
-            parameters = self._parameters
-        return (operation, parameters)
+        """
+        TODO: Description.
+        """
+        return (
+            "".join(self.operation),
+            {str(n): self.parameters[n] for n in range(0, len(self.parameters))}
+            if self.database.paramstyle in {"named", "pyformat"}
+            else self.parameters,
+        )
 
 
 class TableResource(Resource):
@@ -184,8 +210,8 @@ class TableResource(Resource):
                 cursor.close()
 
     def query(self):
-        """Return a new query builder for the resource database."""
-        return self.database.query()
+        """Return a new query builder for the resource."""
+        return Query(self.database, self.table)
 
     @contextlib.contextmanager
     def execute(self, query, connection=None):
@@ -203,7 +229,11 @@ class TableResource(Resource):
         query.text(") VALUES (")
         query.params(
             [
-                self.table.encode(column, _body.get(column))
+                None
+                if _body.get(column) is None
+                else self.table.codec(column).encode(
+                    self.table.schema[column], _body.get(column)
+                )
                 for column in self.table.columns
             ]
         )
@@ -215,7 +245,7 @@ class TableResource(Resource):
     def read(self, id):
         where = self.query()
         where.text(f"{self.table.pk} = ")
-        where.param(self.table.encode(self.table.pk, id))
+        where.value(self.table.pk, id)
         results = self.select(where=where)
         if len(results) == 0:
             raise NotFound()
@@ -233,12 +263,11 @@ class TableResource(Resource):
         for n in range(0, len(columns)):
             column = columns[n]
             query.text(f"{column} = ")
-            value = self.table.encode(column, _body.get(column))
-            query.param(value)
+            query.value(column, _body.get(column))
             if n < len(columns) - 1:
                 query.text(", ")
         query.text(f" WHERE {self.table.pk} = ")
-        query.param(self.table.encode(self.table.pk, id))
+        query.value(self.table.pk, id)
         query.text(";")
         with self.execute(query) as cursor:
             count = cursor.rowcount
@@ -252,7 +281,7 @@ class TableResource(Resource):
     def delete(self, id):
         query = self.query()
         query.text(f"DELETE FROM {self.table.name} WHERE {self.table.pk} = ")
-        query.param(self.table.encode(self.table.pk, id))
+        query.value(self.table.pk, id)
         query.text(";")
         with self.execute(query) as cursor:
             count = cursor.rowcount
@@ -274,7 +303,8 @@ class TableResource(Resource):
             query.query(where)
         with self.execute(query) as cursor:
             items = cursor.fetchall()
-        return [self.table.decode(self.table.pk, item[0]) for item in items]
+        pk = self.table.schema.properties[self.table.pk]
+        return [self.table.codec(self.table.pk).decode(pk, item[0]) for item in items]
 
     def select(self, *, columns=None, where=None, order=None):
         """
@@ -304,7 +334,9 @@ class TableResource(Resource):
                 if result[column] is None and column not in self.table.schema.required:
                     del result[column]
                 else:
-                    result[column] = self.table.decode(column, result[column])
-                    self.table.schema.properties[column].validate(result[column])
+                    schema = self.table.schema.properties[column]
+                    value = self.table.codec(column).decode(schema, result[column])
+                    schema.validate(value)
+                    result[column] = value
             results.append(result)
         return results

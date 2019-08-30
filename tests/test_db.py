@@ -36,5 +36,5 @@ class CustomTypeSchema(s.type):
 def test_custom_codec():
     schema = s.dict({"id": s.str(), "custom": CustomTypeSchema()})
     table = db.Table("custom", schema, "id", {})
-    assert table.encode("custom", CustomType(123)) == "123"
-    assert table.decode("custom", "456") == CustomType(456)
+    assert table.codec("custom").encode(schema["custom"], CustomType(123)) == "123"
+    assert table.codec("custom").decode(schema["custom"], "456") == CustomType(456)
