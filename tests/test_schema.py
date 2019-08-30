@@ -889,6 +889,14 @@ def test_bytes_binary_str_decode():
     _error(s.bytes(format="binary").str_decode, "ain't gonna decode")
 
 
+def test_bytes_hex_str_encode():
+    assert s.bytes(format="hex").str_encode(b"\xde\xad\xbe\xef") == "deadbeef"
+
+
+def test_bytes_hex_str_decode():
+    assert s.bytes(format="hex").str_decode("DEADBEEF") == b"\xde\xad\xbe\xef"
+
+
 # -- decorators -----
 
 

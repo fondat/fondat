@@ -1,24 +1,22 @@
 """Internal module to define, encode, decode and validate JSON data structures."""
 
+import base64
 import binascii
+import collections.abc
+import copy
 import csv
+import datetime
 import inspect
+import io
 import isodate
 import json
 import re
+import uuid
 import wrapt
-
-from base64 import b64decode, b64encode
-from collections.abc import Mapping, Sequence
-from copy import deepcopy
-from datetime import date, datetime, timedelta
-from copy import copy
-from io import IOBase, StringIO
-from uuid import UUID
 
 
 def _csv_encode(value):
-    sio = StringIO()
+    sio = io.StringIO()
     csv.writer(sio).writerow(value)
     return sio.getvalue().rstrip("\r\n")
 
@@ -72,7 +70,7 @@ class _type:
         :param python_type: Python data type.
         :param json_type: JSON schema data type.
         :param format: More finely defines the data type.
-        :param content_type: Content type used when value is expressed in a body.  ['text/plain']
+        :param content_type: Content type used when value is expressed in a body.  ["text/plain"]
         :param enum: A list of values that are valid.
         :param nullable: Allow None as a valid value.
         :param default: Default value if the item value is not supplied.
@@ -171,7 +169,7 @@ class _type:
 
     def copy(self):
         """Return a copy of the schema type."""
-        return deepcopy(self)
+        return copy.deepcopy(self)
 
 
 def _required(required):
@@ -199,7 +197,7 @@ class _dict(_type):
         Initialize dictionary schema.
 
         :param properties: A mapping of name to schema.
-        :param content_type: Content type used when value is expressed in a body.  ['application/json']
+        :param content_type: Content type used when value is expressed in a body.  ["application/json"]
         :param additional_properties: Additional unvalidated properties are allowed.
         :param nullable: Allow None as a valid value.
         :param required: Set of property names that are required.
@@ -208,7 +206,10 @@ class _dict(_type):
         :param example: An example of an instance for this schema.
         """
         super().__init__(
-            python_type=Mapping, json_type="object", content_type=content_type, **kwargs
+            python_type=collections.abc.Mapping,
+            json_type="object",
+            content_type=content_type,
+            **kwargs,
         )
         self.properties = properties
         self.required = _required(required)
@@ -330,7 +331,7 @@ class _list(_type):
         Initialize list schema.
 
         :params items: Schema which all items must adhere to.
-        :param content_type: Content type used when value is expressed in a body.  ['application/json']
+        :param content_type: Content type used when value is expressed in a body.  ["application/json"]
         :params min_items: The minimum number of items required.
         :params max_items: The maximum number of items required.
         :params unique_items: All items must have unique values.
@@ -340,7 +341,10 @@ class _list(_type):
         :param example: An example of an instance for this schema.
         """
         super().__init__(
-            python_type=Sequence, json_type="array", content_type=content_type, **kwargs
+            python_type=collections.abc.Sequence,
+            json_type="array",
+            content_type=content_type,
+            **kwargs,
         )
         self.items = items
         self.min_items = min_items
@@ -548,7 +552,7 @@ class _str(_type):
         """
         Initialize string schema.
 
-        :param content_type: Content type used when value is expressed in a body.  ['text/plain']
+        :param content_type: Content type used when value is expressed in a body.  ["text/plain"]
         :param min_length: Minimum character length of the string.
         :param max_length: Maximum character length of the string.
         :param pattern: Regular expression that the string must match.
@@ -658,7 +662,7 @@ class _int(_number):
         """
         Initialize integer schema.
         
-        :param content_type: Content type used when value is expressed in a body.  ['text/plain']
+        :param content_type: Content type used when value is expressed in a body.  ["text/plain"]
         :param minimum: Inclusive lower limit of the value.
         :param maximum: Inclusive upper limit of the value.
         :param nullable: Allow None as a valid value.
@@ -705,7 +709,7 @@ class _float(_number):
         """
         Initialize floating point schema.
 
-        :param content_type: Content type used when value is expressed in a body.  ['text/plain']
+        :param content_type: Content type used when value is expressed in a body.  ["text/plain"]
         :param minimum: Inclusive lower limit of the value.
         :param maximum: Inclusive upper limit of the value.
         :param nullable: Allow None as a valid value.
@@ -744,7 +748,7 @@ class _bool(_type):
         """
         Initialize boolean schema.
 
-        :param content_type: Content type used when value is expressed in a body.  ['text/plain']
+        :param content_type: Content type used when value is expressed in a body.  ["text/plain"]
         :param nullable: Allow None as a valid value.
         :param default: Default value if the item value is not supplied.
         :param description: A description of the schema.
@@ -783,13 +787,16 @@ class _bytes(_type):
     """
     Schema type for byte sequences.
     
-    Two formats are supported: 'byte' and 'binary'.
+    Two formats are supported: "byte" and "binary".
 
-    In 'byte' format, a byte sequence is represented as a base64-encoded string.
-    Example: 'Um9heCBpcyBhIHBhcnQgb2YgYSBjb21wbGV0ZSBicmVha2Zhc3QuCg=='.
-    
-    In 'binary' format, a byte sequence is represented as a raw sequence of bytes.
-    For this reason, it cannot be expressed in string or JSON representation. 
+    In "byte" format, a byte sequence is represented as a base64-encoded string.
+    Example: "Um9heCBpcyBhIHBhcnQgb2YgYSBjb21wbGV0ZSBicmVha2Zhc3QuCg==".
+
+    In "hex" format, a byte sequence is represented as string of hexadecimal
+    numbers. Example: "54776f2073636f6f7073206f662072616973696e732e".
+
+    In "binary" format, a byte sequence is represented as a raw sequence of bytes.
+    For this reason, it cannot be expressed in string or JSON representations. 
     """
 
     def __init__(
@@ -798,14 +805,14 @@ class _bytes(_type):
         """
         Initialize byte sequence schema.
 
-        :param content_type: Content type used when value is expressed in a body.  ['application/octet-stream']
-        :param format: More finely defines the data type.  {'byte', 'binary'}.
+        :param content_type: Content type used when value is expressed in a body.  ["application/octet-stream"]
+        :param format: More finely defines the data type.  {"byte", "hex", "binary"}.
         :param nullable: Allow None as a valid value.
         :param default: Default value if the item value is not supplied.
         :param description: A description of the schema.
         :param example: An example of an instance for this schema.
         """
-        valid_formats = {"byte", "binary"}
+        valid_formats = {"byte", "hex", "binary"}
         if format not in valid_formats:
             raise ValueError(f"format must be one of {valid_formats}")
         super().__init__(
@@ -834,12 +841,17 @@ class _bytes(_type):
 
     def str_encode(self, value):
         """Encode the value into string representation."""
+        self.validate(value)
         if self.format == "binary":
             raise SchemaError(
                 "binary format cannot be encoded into string representation"
             )
-        self.validate(value)
-        return None if value is None else b64encode(value).decode()
+        elif value is None:
+            return None
+        elif self.format == "hex":
+            return value.hex()
+        elif self.format == "byte":
+            return base64.b64encode(value).decode()
 
     def str_decode(self, value):
         """Decode the value from string representation."""
@@ -847,12 +859,20 @@ class _bytes(_type):
             raise SchemaError(
                 "binary format cannot be decoded from string representation"
             )
-        try:
-            value = None if value is None else b64decode(value)
-        except binascii.Error as be:
-            raise SchemaError("expecting a base64-encoded value") from be
-        self.validate(value)
-        return value
+        elif value is None:
+            return None
+        elif self.format == "hex":
+            try:
+                result = bytes.fromhex(value)
+            except ValueError as ve:
+                raise SchemaError("expecting a hexadecimal encoded value") from ve
+        elif self.format == "byte":
+            try:
+                result = None if value is None else base64.b64decode(value)
+            except binascii.Error as be:
+                raise SchemaError("expecting a base64-encoded value") from be
+        self.validate(result)
+        return result
 
     def bin_encode(self, value):
         """Encode the value into binary representation."""
@@ -868,7 +888,7 @@ class _date(_type):
     Schema type for date values.
 
     Date values are represented in string and JSON values as an RFC 3339 date
-    in a string. Example: '2018-06-16'.
+    in a string. Example: "2018-06-16".
     """
 
     def __init__(self, **kwargs):
@@ -882,7 +902,9 @@ class _date(_type):
         :param description: A description of the schema.
         :param example: An example of an instance for this schema.
         """
-        super().__init__(python_type=date, json_type="string", format="date", **kwargs)
+        super().__init__(
+            python_type=datetime.date, json_type="string", format="date", **kwargs
+        )
 
     def json_encode(self, value):
         """Encode the value into JSON object model representation."""
@@ -912,10 +934,11 @@ class _date(_type):
 
 class _datetime(_type):
     """
-    Schema type for datetime values.
+    Schema type for datetime values. It is highly recommended to always express
+    datetime values in the UTC time zone.
 
-    Datetime values are represented in string and JSON values as an RFC 3339 date
-    and time in a string. Example: '2018-06-16T12:34:56.789Z'.
+    Datetime values are represented in string and JSON values as an RFC 3339 UTC
+    date and time in a string. Example: "2018-06-16T12:34:56.789Z".
     """
 
     _UTC = isodate.tzinfo.Utc()
@@ -924,7 +947,7 @@ class _datetime(_type):
         """
         Initialize datetime schema.
 
-        :param content_type: Content type used when value is expressed in a body.  ['text/plain']
+        :param content_type: Content type used when value is expressed in a body.  ["text/plain"]
         :param nullable: Allow None as a valid value.
         :param default: Default value if the item value is not supplied.
         :param enum: A list of values that are valid.
@@ -933,7 +956,10 @@ class _datetime(_type):
         :param fractional: Include fractions of seconds.
         """
         super().__init__(
-            python_type=datetime, json_type="string", format="date-time", **kwargs
+            python_type=datetime.datetime,
+            json_type="string",
+            format="date-time",
+            **kwargs,
         )
         self.fractional = fractional
         self.isoformat = "%Y-%m-%dT%H:%M:%S.%fZ" if fractional else "%Y-%m-%dT%H:%M:%SZ"
@@ -966,31 +992,33 @@ class _datetime(_type):
             except ValueError as ve:
                 raise SchemaError("expecting an RFC 3339 date-time value") from ve
             if value.microsecond and not self.fractional:  # truncate fractional value
-                value -= timedelta(microseconds=value.microsecond)
+                value -= datetime.timedelta(microseconds=value.microsecond)
         self.validate(value)
         return value
 
 
-class uuid(_type):
+class _uuid(_type):
     """
     Schema type for universally unique identifiers.
 
     UUID values are represented in string and JSON values as a UUID string.
-    Example: '035af02b-7ad7-4016-a101-96f8fc5ae6ec'.
+    Example: "035af02b-7ad7-4016-a101-96f8fc5ae6ec".
     """
 
     def __init__(self, **kwargs):
         """
         Initialize UUID schema.
 
-        :param content_type: Content type used when value is expressed in a body.  ['text/plain']
+        :param content_type: Content type used when value is expressed in a body.  ["text/plain"]
         :param nullable: Allow None as a valid value.
         :param default: Default value if the item value is not supplied.
         :param enum: A list of values that are valid.
         :param description: A description of the schema.
         :param example: An example of an instance for this schema.
         """
-        super().__init__(python_type=UUID, json_type="string", format="uuid", **kwargs)
+        super().__init__(
+            python_type=uuid.UUID, json_type="string", format="uuid", **kwargs
+        )
 
     def json_encode(self, value):
         """Encode the value into JSON object model representation."""
@@ -1011,7 +1039,7 @@ class uuid(_type):
             if not isinstance(value, str):
                 raise SchemaError("expecting a string")
             try:
-                value = UUID(value)
+                value = uuid.UUID(value)
             except ValueError as ve:
                 raise SchemaError("expecting string to contain UUID value") from ve
         self.validate(value)
@@ -1094,7 +1122,7 @@ class all_of(_type):
 
 
 class _xof(_type):
-    """TODO: Description."""
+    """Base class for `one_of` and `any_of` schema types."""
 
     def __init__(self, keyword, schemas, **kwargs):
         super().__init__(**kwargs)
@@ -1335,7 +1363,7 @@ def function_params(function, params):
                 raise TypeError(f"parameter cannot use reader schema type: {p.name}")
             if p.default is p.empty:
                 required.add(p.name)
-            schema = copy(schema)
+            schema = copy.copy(schema)
             schema.default = p.default if p.default is not p.empty else None
             properties[p.name] = schema
         elif p.default is p.empty:
