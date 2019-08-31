@@ -4,9 +4,9 @@ Module to manage resource items in a SQL database through DB-API 2.0 interface.
 
 import contextlib
 import logging
+import roax.resource as resource
 import roax.schema as s
 
-from roax.resource import BadRequest, NotFound, InternalServerError, Resource
 
 _logger = logging.getLogger(__name__)
 
@@ -23,40 +23,6 @@ _markers = {
     "format": "%s",
     "pyformat": "%({})s",
 }
-
-
-class Adapter:
-    """
-    Encodes values for queries and decodes values from query results.
-
-    Each SQL database expects different Python representations for data types
-    it supports. The purpose of an adapter is to convert a value to and from a
-    representation that is expected by a SQL database. 
-
-    This default implementation encodes to and from string value using the
-    schema's `str_encode` and `str_decode` methods.
-    """
-
-    def encode(self, schema, value):
-        """
-        Encode a value as a query parameter.
-
-        :param schema: schema of the value to be encoded in the query.
-        :param value: value to be encoded.
-        """
-        return schema.str_encode(value)
-
-    def decode(self, schema, value):
-        """
-        Decode a value from a query result.
-
-        :param schema: schema of the value to be decoded from the query result.
-        :param value: value from the query result to be decoded.
-        """
-        return schema.str_decode(value)
-
-
-default_adapter = Adapter()
 
 
 class Database:
@@ -296,9 +262,44 @@ class Query:
         cursor.execute(*built)
 
 
-class TableResource(Resource):
+class Adapter:
     """
-    Base resource class for storage of resource items in a database table.
+    Encodes values for queries and decodes values from query results.
+
+    Each SQL database expects different Python representations for data types
+    it supports. The purpose of an adapter is to convert a value to and from a
+    representation that is expected by a SQL database. 
+
+    This default implementation encodes to and from string value using the
+    schema's `str_encode` and `str_decode` methods.
+    """
+
+    def encode(self, schema, value):
+        """
+        Encode a value as a query parameter.
+
+        :param schema: schema of the value to be encoded in the query.
+        :param value: value to be encoded.
+        """
+        return schema.str_encode(value)
+
+    def decode(self, schema, value):
+        """
+        Decode a value from a query result.
+
+        :param schema: schema of the value to be decoded from the query result.
+        :param value: value from the query result to be decoded.
+        """
+        return schema.str_decode(value)
+
+
+default_adapter = Adapter()
+
+
+class TableResource(resource.Resource):
+    """
+    Base resource class for storage of resource items in a database table,
+    providing basic CRUD operations.
 
     This class does not decorate operations or validate the schema of items;
     subclasses are expected to do this.
@@ -308,9 +309,9 @@ class TableResource(Resource):
         """
         Initialize table resource.
 
-        :param table TODO.
-        :param name: Short name of the resource.  [table.name]
-        :param description: Short description of the resource.  [resource docstring]
+        :param table table that resource is based on.
+        :param name: short name of the resource.  [table.name]
+        :param description: short description of the resource.  [resource docstring]
         """
         super().__init__(name or table.name, description)
         self.table = table
@@ -338,9 +339,9 @@ class TableResource(Resource):
         where.value(self.table.pk, id)
         results = self.table.select(where=where)
         if len(results) == 0:
-            raise NotFound()
+            raise resource.NotFound()
         elif len(results) > 1:
-            raise InternalServerError("query matches more than one row")
+            raise resource.InternalServerError("query matches more than one row")
         result = results[0]
         return result
 
@@ -361,11 +362,13 @@ class TableResource(Resource):
             query.execute(cursor)
             count = cursor.rowcount
         if count == 0:
-            raise NotFound()
+            raise resource.NotFound()
         elif count > 1:
-            raise InternalServerError("query matches more than one row")
+            raise resource.InternalServerError("query matches more than one row")
         elif count == -1:
-            raise InternalServerError("could not determine update was successful")
+            raise resource.InternalServerError(
+                "could not determine update was successful"
+            )
 
     def delete(self, id):
         query = self.table.query()
@@ -376,6 +379,6 @@ class TableResource(Resource):
             query.execute(cursor)
             count = cursor.rowcount
         if count < 1:
-            raise NotFound()
+            raise resource.NotFound()
         elif count > 1:
-            raise InternalServerError("query would delete more than one row")
+            raise resource.InternalServerError("query would delete more than one row")
