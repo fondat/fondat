@@ -76,7 +76,7 @@ class Database(db.Database):
         rolled back; otherwise, the transaction is committed. 
 
         If more than one request for a connection is made in the same thread,
-        the same connection will be returned; only the outermost yielded
+        the same connection will be yielded; only the outermost yielded
         connection shall exhibit transaction demarcation.
         """
         try:
