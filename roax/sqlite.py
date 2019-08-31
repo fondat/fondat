@@ -11,7 +11,7 @@ import threading
 _logger = logging.getLogger(__name__)
 
 
-class _CastCodec:
+class _CastAdapter:
     def __init__(self, type):
         self.type = type
 
@@ -28,15 +28,7 @@ class _CastCodec:
             raise s.SchemaError(str(ve)) from ve
 
 
-class _TextCodec:
-    def encode(self, schema, value):
-        return schema.str_encode(value)
-
-    def decode(self, schema, value):
-        return schema.str_decode(value)
-
-
-class _PassCodec:
+class _PassAdapter:
     def encode(self, schema, value):
         return value
 
@@ -44,14 +36,14 @@ class _PassCodec:
         return value
 
 
-INTEGER = _CastCodec(int)
-REAL = _CastCodec(float)
-TEXT = _TextCodec()
-BLOB = _PassCodec()
-BOOLEAN = _CastCodec(bool)
+INTEGER = _CastAdapter(int)
+REAL = _CastAdapter(float)
+TEXT = db.default_adapter
+BLOB = _PassAdapter()
+BOOLEAN = _CastAdapter(bool)
 
 
-_codecs = {
+_adapters = {
     s.dict: TEXT,
     s.list: TEXT,
     s.set: TEXT,
@@ -108,12 +100,14 @@ class Database(db.Database):
 class Table(db.Table):
     """TODO: Description."""
 
-    def __init__(self, name, schema, pk, codecs=None):
+    def __init__(self, database, name, schema, pk, adapters=None):
         """
-        :param module: Module that implements the DB-API interface.
-        :param name: Name of table in the SQL database.
+        :param database: Database where table resides.
+        :param name: Name of database table.
         :param schema: Schema of table columns.
-        :param primary_key: Column name of the primary key.
-        :param codecs: TODO.
+        :param pk: Column name of the primary key.
+        :param adapters: Column transformation adapters.
         """
-        super().__init__(name, schema, pk, {**_codecs, **(codecs if codecs else {})})
+        super().__init__(
+            database, name, schema, pk, {**_adapters, **(adapters if adapters else {})}
+        )
