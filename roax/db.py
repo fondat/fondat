@@ -258,17 +258,6 @@ class Query:
         )
         self.parameters.append(param)
 
-    def params(self, params, sep=", "):
-        """
-        Append a set of parameter values to the query. Parameter markers are
-        added to the query operation, separated by `sep`. No encoding of
-        parameter values is performed.
-        """
-        for n in range(0, len(params)):
-            self.param(params[n])
-            if n < len(params) - 1:
-                self.text(sep)
-
     def value(self, column, value):
         """
         Encode and add a column value to the query as a parameter.
@@ -276,14 +265,6 @@ class Query:
         schema = self.table.schema.properties[column]
         adapter = self.table.adapter(column)
         self.param(None if value is None else adapter.encode(schema, value))
-
-    def values(self, columns, values, sep=", "):
-        """
-        Encode and add column values to the query as parameters.
-
-        :param columns: ordered list of columns to add.
-        :param values: dict of name-value pairs.
-        """
 
     def query(self, query):
         """
