@@ -62,7 +62,7 @@ default_adapter = Adapter()
 class Database:
     """
     Base class to manage connections to a SQL database. Subclasses must
-    implement the `connect` method.
+    implement the `connect` method, and expose an `adapters` attribute.
     """
 
     def __init__(self, module):
@@ -110,11 +110,9 @@ class Database:
 
 
 class Table:
-    """
-    Represents a database table.
-    """
+    """Represents a table in a SQL database."""
 
-    def __init__(self, database, name, schema, pk, adapters):
+    def __init__(self, database, name, schema, pk, adapters=None):
         """
         Initialize a new table object.
 
@@ -139,7 +137,7 @@ class Table:
         if pk not in schema:
             raise ValueError(f"primary key '{pk}' not in schema")
         self.pk = pk
-        self.adapters = adapters
+        self.adapters = {**database.adapters, **(adapters if adapters else {})}
 
     @property
     def columns(self):

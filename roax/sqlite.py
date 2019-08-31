@@ -59,19 +59,25 @@ _adapters = {
 
 
 class Database(db.Database):
-    """TODO: Description."""
+    """Manages connections to a SQLite database."""
 
     def __init__(self, file):
         super().__init__(sqlite3)
         self.file = file
         self.local = threading.local()
+        self.adapters = _adapters
 
     @contextlib.contextmanager
     def connect(self):
         """
-        Return a context manager that yields a database connection with transaction demarcation.
-        If more than one request for a connection is made in the same thread, the same connection
-        will be returned; only the outermost yielded connection shall have transaction demarcation.
+        Return a context manager that yields a database connection, providing
+        transaction demarcation (commit/rollback on exit). Upon exit of the
+        context manager, in the event of an exception, the transaction is
+        rolled back; otherwise, the transaction is committed. 
+
+        If more than one request for a connection is made in the same thread,
+        the same connection will be returned; only the outermost yielded
+        connection shall exhibit transaction demarcation.
         """
         try:
             connection = self.local.connection
@@ -95,19 +101,3 @@ class Database(db.Database):
             self.local.count -= 1
             if not self.local.count:
                 del self.local.connection
-
-
-class Table(db.Table):
-    """TODO: Description."""
-
-    def __init__(self, database, name, schema, pk, adapters=None):
-        """
-        :param database: Database where table resides.
-        :param name: Name of database table.
-        :param schema: Schema of table columns.
-        :param pk: Column name of the primary key.
-        :param adapters: Column transformation adapters.
-        """
-        super().__init__(
-            database, name, schema, pk, {**_adapters, **(adapters if adapters else {})}
-        )
