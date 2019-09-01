@@ -305,7 +305,7 @@ class TableResource(resource.Resource):
     subclasses are expected to do this.
     """
 
-    def __init__(self, table, name=None, description=None):
+    def __init__(self, table=None, name=None, description=None):
         """
         Initialize table resource.
 
@@ -313,8 +313,8 @@ class TableResource(resource.Resource):
         :param name: short name of the resource.  [table.name]
         :param description: short description of the resource.  [resource docstring]
         """
-        super().__init__(name or table.name, description)
-        self.table = table
+        self.table = table or self.table
+        super().__init__(name or self.table.name, description)
         self.__doc__ = self.table.schema.description
 
     def create(self, id, _body):
