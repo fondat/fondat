@@ -72,8 +72,6 @@ def test_override_operation_type():
 
 def test_resources():
     mod = R1.__module__
-    resources = Resources(
-        {"r1": "{}.R1".format(mod), "r2": "{}.R2".format(mod), "r3": R3()}
-    )
+    resources = Resources({"r1": f"{mod}:R1", "r2": f"{mod}:R2", "r3": R3()})
     assert resources.r1.foo() == "bar"
     assert resources["r3"].qux() == "baz"

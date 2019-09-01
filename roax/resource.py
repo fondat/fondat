@@ -73,13 +73,13 @@ class Resources:
     Resources are exposed as object attributes. Example initialization::
 
         resources = Resources({
-            'foo': 'myapp.resources.v1.FooResource',
-            'bar': 'myapp.resources.v1.BarResource',
+            'foo': 'myapp.resources.v1:FooResource',
+            'bar': 'myapp.resources.v1:BarResource',
             'qux': qux_instance,
         })
 
-    Resources are accessed as attributes or subscript, like: `resources.foo` and
-    `resources['bar']`.
+    Resources can be accessed as attributes or subscript, like:
+    `resources.foo` and `resources['bar']`.
     """
 
     def __init__(self, resources={}):
@@ -100,10 +100,11 @@ class Resources:
         """
         Register (or deregister) a resource.
 
-        The resource is expressed as either string or reference to resource instance.
-        If string, class name is expressed as module.class; for example:
-        `myapp.resources.v1.FooResource`. A resource class expressed as string must
-        have an `__init__` method that takes no arguments other than `self`.
+        The resource is expressed as either string or reference to resource
+        instance. If string, class name is expressed as `module:class`; for
+        example: `myapp.resources.v1:FooResource`. A resource class expressed
+        in a string must have an `__init__` method that takes no arguments
+        (other than `self`).
 
         :param key: The key to register or deregister.
         :param resource: Resource class name, resource instance, or None to deregister.
@@ -126,7 +127,7 @@ class Resources:
         if isinstance(_resources[key], str):
             with super().__getattribute__("_lock"):
                 if isinstance(_resources[key], str):
-                    mod, cls = _resources[key].rsplit(".", 1)
+                    mod, cls = _resources[key].split(":")
                     _resources[key] = getattr(import_module(mod), cls)()
         return _resources[key]
 
