@@ -190,7 +190,7 @@ class _dict(_type):
         required=set(),
         *,
         content_type="application/json",
-        additional_properties=False,
+        additional=False,
         **kwargs,
     ):
         """
@@ -198,7 +198,7 @@ class _dict(_type):
 
         :param properties: A mapping of name to schema.
         :param content_type: Content type used when value is expressed in a body.  ["application/json"]
-        :param additional_properties: Additional unvalidated properties are allowed.
+        :param additional: Additional unvalidated properties are allowed.
         :param nullable: Allow None as a valid value.
         :param required: Set of property names that are required.
         :param default: Default value if the item value is not supplied.
@@ -213,7 +213,7 @@ class _dict(_type):
         )
         self.properties = properties
         self.required = _required(required)
-        self.additional_properties = additional_properties
+        self.additional = additional
 
     def __contains__(self, value):
         return value in self.properties
@@ -236,7 +236,7 @@ class _dict(_type):
                 if k in self.properties:
                     result[k] = getattr(self.properties[k], method)(v)
                 else:
-                    if not self.additional_properties:
+                    if not self.additional:
                         raise SchemaError("unexpected property")
                     result[k] = v  # pass through
             except SchemaError as se:
@@ -307,6 +307,10 @@ class _dict(_type):
         if required is not None:
             result.required = _required(required)
         return result
+
+    def strip(self, value):
+        """Return a copy of the value with only properties specified in the schema."""
+        return {k: v for k, v in value.items() if k in self.properties}
 
 
 class _list(_type):
@@ -1070,8 +1074,8 @@ class all_of(_type):
         for s1 in schemas:
             if not isinstance(s1, _dict):
                 raise ValueError("all_of only supports dict schemas")
-            if not s1.additional_properties:
-                raise ValueError("all_of schemas must enable additional_properties")
+            if not s1.additional:
+                raise ValueError("all_of schemas must enable additional properties")
             for s2 in schemas:
                 if s1 is not s2 and set.intersection(
                     set(s1.properties), set(s2.properties)

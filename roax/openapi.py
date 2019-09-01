@@ -6,7 +6,7 @@ from copy import copy
 from roax.resource import Resource, operation
 
 
-_schema = s.dict(properties={}, additional_properties=True)
+_schema = s.dict(properties={}, additional=True)
 
 
 def _body_schema(schema):

@@ -94,8 +94,7 @@ def test_dict_json_decode_default_success():
 def test_dict_json_decode_additional_property_success():
     value = {"djf": "baz", "djg": "additional_property"}
     assert (
-        s.dict({"djf": s.str()}, {"djf"}, additional_properties=True).json_decode(value)
-        == value
+        s.dict({"djf": s.str()}, {"djf"}, additional=True).json_decode(value) == value
     )
 
 
@@ -121,6 +120,18 @@ def test_dict_required_str():
     _error(schema.validate, {"fjx": "foo"})
     _error(schema.validate, {"fjy": "foo"})
     schema.validate({"fjx": "foo", "fjy": "foo"})
+
+
+def test_dict_strip_validate():
+    schema = s.dict(properties={"foo": s.str()})
+    value = {"foo": "bar", "baz": "qux"}
+    schema.validate(schema.strip(value))
+
+
+def test_dict_strip_validate_additional():
+    schema = s.dict(properties={"foo": s.str()}, additional=True)
+    value = {"foo": "bar", "baz": "qux"}
+    schema.validate(schema.strip(value))
 
 
 # -- list -----
@@ -937,8 +948,8 @@ def test_returns_success():
 
 _all_of_schemas = s.all_of(
     [
-        s.dict({"a": s.str()}, {"a"}, additional_properties=True),
-        s.dict({"b": s.int()}, {"b"}, additional_properties=True),
+        s.dict({"a": s.str()}, {"a"}, additional=True),
+        s.dict({"b": s.int()}, {"b"}, additional=True),
     ]
 )
 
@@ -964,8 +975,8 @@ def test_all_of_json_code():
 def test_all_of_nullable_outer():
     s.all_of(
         (
-            s.dict({"a": s.str()}, additional_properties=True),
-            s.dict({"b": s.int()}, additional_properties=True),
+            s.dict({"a": s.str()}, additional=True),
+            s.dict({"b": s.int()}, additional=True),
         ),
         nullable=True,
     ).validate(None)
@@ -974,8 +985,8 @@ def test_all_of_nullable_outer():
 def test_all_of_nullable_inner():
     s.all_of(
         (
-            s.dict({"a": s.str()}, nullable=True, additional_properties=True),
-            s.dict({"b": s.int()}, nullable=True, additional_properties=True),
+            s.dict({"a": s.str()}, nullable=True, additional=True),
+            s.dict({"b": s.int()}, nullable=True, additional=True),
         )
     ).validate(None)
 
