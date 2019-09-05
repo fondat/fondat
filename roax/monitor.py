@@ -322,6 +322,7 @@ class timer:
         :param monitor: Monitor to record measurement.  [monitor]
         """
         self.tags = tags
+        self.monitor = monitor
 
     def __enter__(self):
         self.begin = time.time()
@@ -329,8 +330,7 @@ class timer:
 
     def __exit__(self, *args):
         duration = time.time() - self.begin
-        if monitor:
-            try:
-                monitor.record(self.tags, time.time(), "gauge", duration)
-            except:
-                _logger.warning("Exception recording measurement", exc_info=True)
+        try:
+            self.monitor.record(self.tags, time.time(), "gauge", duration)
+        except:
+            _logger.warning("Exception recording measurement", exc_info=True)

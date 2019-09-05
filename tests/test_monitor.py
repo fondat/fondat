@@ -201,3 +201,14 @@ def test_queue_truncate():
             tags=_tags, timestamp=_dt("2018-12-01T00:00:02Z"), type="absolute", value=3
         ),
     ]
+
+
+def test_monitors():
+    monitors = roax.monitor.Monitors()
+    q1 = roax.monitor.QueueMonitor()
+    q2 = roax.monitor.QueueMonitor()
+    monitors.append(q1)
+    monitors.append(q2)
+    monitors.record(_tags, _dt("2018-12-01T00:00:01Z"), "absolute", 1)
+    assert len(q1.pop()) == 1
+    assert len(q2.pop()) == 1
