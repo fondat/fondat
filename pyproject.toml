@@ -8,12 +8,12 @@ target-version = ['py36', 'py37', 'py38']
 
 [tool.poetry]
 name = "roax"
-version = "1.5.2"
+version = "1.6.0"
 description = "Lightweight framework for building resource-oriented applications."
 readme = "README.md"
 authors = ["Paul Bryan <pbryan@anode.ca>"]
 homepage = "https://github.com/roax/roax/"
-documentation = "https://github.com/roax/roax/wiki"
+documentation = "https://github.com/roax/roax/tree/master/docs"
 license = "MIT"
 keywords = ["wsgi", "framework", "resource", "openapi"]
 classifiers = [
