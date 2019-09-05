@@ -1,24 +1,22 @@
 """
 Module for monitoring measurements.
 
-This module defines a `monitor` variable, which by default is an instance of
-the `SimpleMonitor` class.
-
-It is valid to assign a different monitor object to the `monitor` variable,
-for example, to push measurements to an external time-series database. Only
-the `record` method is used by Roax modules.
+This module defines a `monitor` variable, which is an instance of the `Monitors`
+class. Your application monitor(s) can be added to/removed from this list.
 """
 
+import collections
+import datetime
+import logging
 import math
 import re
 import time
 
-from collections import deque
-from contextlib import contextmanager
-from datetime import datetime, timezone
+
+_logger = logging.getLogger(__name__)
 
 
-_now = lambda: datetime.now(tz=timezone.utc)
+_now = lambda: datetime.datetime.now(tz=datetime.timezone.utc)
 
 
 class Counter:
@@ -116,15 +114,15 @@ class Series:
         """
         The `patterns` argument is a dictionary that maps tag names to regular
         expressions (compiled or strings) to match against recorded measurement tags.
-        For example, `{'name': 'foo'}` would track data where a tag includes
-        `{'name': 'foo'}`, while `{'name': 'foo\\..+'}` would track measurements with
-        tags that include `{'name': foo.bar'}` and `{'name': 'foo.qux'}`.
+        For example, `{"name": "foo"}` would track data where a tag includes
+        `{"name": "foo"}`, while `{"name": "foo\\..+"}` would track measurements with
+        tags that include `{"name": "foo.bar"}` and `{"name": "foo.qux"}`.
         """
         self.type = type
         self.patterns = {k: re.compile(v) for k, v in patterns.items()}
         self.points = points
         self.interval = interval
-        self.data = deque()
+        self.data = collections.deque()
 
     def _tags_match(self, tags):
         for pk, pv in self.patterns.items():
@@ -135,7 +133,7 @@ class Series:
     def _round_down(self, timestamp):
         ts = math.ceil(timestamp.timestamp())  # truncate milliseconds
         ts -= ts % self.interval  # round to beginning of interval
-        return datetime.fromtimestamp(ts, tz=timezone.utc)
+        return datetime.datetime.fromtimestamp(ts, tz=datetime.timezone.utc)
 
     def _get_data_point(self, timestamp):
         timestamp = self._round_down(timestamp)
@@ -214,7 +212,7 @@ class SimpleMonitor:
 
         :param tags: Tags associated with the measurement.
         :param timestamp: Date and time of the measurement to record.
-        :param type: Type of measurement to record.  {'counter', 'gauge', 'absolute'}
+        :param type: Type of measurement to record.  {"counter", "gauge", "absolute"}
         :param value: Value of measurement to record.
 
         The `tags` argument is a dictionary that maps string key to string value. At
@@ -224,7 +222,90 @@ class SimpleMonitor:
             series.record(tags, timestamp, type, value)
 
 
-monitor = SimpleMonitor()
+class QueueMonitor:
+    """
+    A monitor that queues all recorded measurements.
+
+    The queue size can be specified; if reached, oldest measurements will be
+    truncated.
+    """
+
+    def __init__(self, size=None):
+        """
+        Initialize the queue monitor.
+
+        :param size: maximum number of recorded measurements to queue.  [None]
+        """
+        super().__init__()
+        self.deque = collections.deque()
+        self.size = size
+
+    def record(self, tags, timestamp, type, value):
+        """
+        Record a measurement.
+
+        :param tags: Tags associated with the measurement.
+        :param timestamp: Date and time of the measurement to record.
+        :param type: Type of measurement to record.  {"counter", "gauge", "absolute"}
+        :param value: Value of measurement to record.
+
+        The `tags` argument is a dictionary that maps string key to string value. At
+        least one tag should have a key of `name`.
+        """
+        if self.size and len(self.deque) >= self.size:
+            _logger.warning(
+                f"QueueMonitor reached maximum size of {self.size}; truncating"
+            )
+            while len(self.deque) >= self.size:
+                self.deque.popleft()
+        self.deque.append(dict(tags=tags, timestamp=timestamp, type=type, value=value))
+
+    def pop(self):
+        """
+        Remove and return all recorded measurements from the deque as a list.
+
+        Each returned measurement is returned in this form:
+        `{"tags": dict, "timestamp": datetime, "type": str, "value": object}`.
+        """
+        result = []
+        while True:
+            try:
+                result.append(self.deque.popleft())
+            except IndexError:
+                break
+        return result
+
+
+class Monitors(list):
+    """
+    A monitor that is itself a list of monitors. A call to the `record` method
+    records the measurement in all monitors in the list.
+    """
+
+    def record(self, tags, timestamp, type, value):
+        """
+        Record a measurement.
+
+        :param tags: Tags associated with the measurement.
+        :param timestamp: Date and time of the measurement to record.
+        :param type: Type of measurement to record.  {"counter", "gauge", "absolute"}
+        :param value: Value of measurement to record.
+
+        The `tags` argument is a dictionary that maps string key to string value. At
+        least one tag should have a key of `name`.
+        """
+        exception = None
+        for monitor in self:
+            try:
+                monitor.record(tags, timestamp, type, value)
+            except Exception as e:
+                if not exception:
+                    exception = e
+        if exception:
+            raise e
+
+
+monitor = Monitors()
 
 
 class timer:
@@ -233,11 +314,12 @@ class timer:
     as a gauge in the monitor.
     """
 
-    def __init__(self, tags):
+    def __init__(self, tags, monitor=monitor):
         """
         Initialize the timer.
 
         :param tags: Tags to record upon completion of the timer.
+        :param monitor: Monitor to record measurement.  [monitor]
         """
         self.tags = tags
 
@@ -251,4 +333,4 @@ class timer:
             try:
                 monitor.record(self.tags, time.time(), "gauge", duration)
             except:
-                pass  # TODO: log a warning
+                _logger.warning("Exception recording measurement", exc_info=True)
