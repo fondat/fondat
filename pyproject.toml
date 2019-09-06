@@ -8,7 +8,7 @@ target-version = ['py36', 'py37', 'py38']
 
 [tool.poetry]
 name = "roax"
-version = "1.7.0"
+version = "1.8.0"
 description = "Lightweight framework for building resource-oriented applications."
 readme = "README.md"
 authors = ["Paul Bryan <pbryan@anode.ca>"]
