@@ -1,8 +1,8 @@
 """
 Module for monitoring measurements.
 
-This module defines a `monitor` variable, which is an instance of the `Monitors`
-class. Your application monitor(s) can be added to/removed from this list.
+This module defines a `monitors` variable, which is an instance of the `Monitors`
+class. Your application monitor(s) can be set in/deleted from this object.
 """
 
 import collections
@@ -172,7 +172,7 @@ class SimpleMonitor:
     and the subsequent interval.
     
     This monitor handles the following types of recorded measurements in data
-    points: 'counter', 'gauge' and 'absolute'. For more information on these
+    points: "counter", "gauge" and "absolute". For more information on these
     types, see their class documentation. 
 
     If no measurement is recorded for a given data point, the data point will not
@@ -193,7 +193,7 @@ class SimpleMonitor:
         Track data points for a specfied set of tags in a new time series.
 
         :param name: Name of the new time series.
-        :param type: Type of data point to track.  {'counter', 'gauge', 'absolute'}
+        :param type: Type of data point to track.  {"counter", "gauge", "absolute"}
         :param patterns: Measurements with tags matching regular expressions are tracked.
         :param points: Number of data points to maintain in the time series.
         :param interval: Interval between data points, in seconds.
@@ -224,20 +224,24 @@ class SimpleMonitor:
 
 class QueueMonitor:
     """
-    A monitor that queues all recorded measurements.
+    A monitor that queues all recorded measurements in a `deque` object.
 
     The queue size can be specified; if reached, oldest measurements will be
     truncated.
+
+    Each measurements is stored in this form.
+    `{"tags": dict, "timestamp": datetime, "type": str, "value": object}`.
     """
 
-    def __init__(self, size=None):
+    def __init__(self, size=None, deque=None):
         """
         Initialize the queue monitor.
 
-        :param size: maximum number of recorded measurements to queue.  [None]
+        :param size: Maximum number of recorded measurements to queue.  [None]
+        :param deque: Deque to store measurements in.  [new deque]
         """
         super().__init__()
-        self.deque = collections.deque()
+        self.deque = deque or collections.deque()
         self.size = size
 
     def record(self, tags, timestamp, type, value):
@@ -263,9 +267,6 @@ class QueueMonitor:
     def pop(self):
         """
         Remove and return all recorded measurements from the deque as a list.
-
-        Each returned measurement is returned in this form:
-        `{"tags": dict, "timestamp": datetime, "type": str, "value": object}`.
         """
         result = []
         while True:
@@ -276,10 +277,11 @@ class QueueMonitor:
         return result
 
 
-class Monitors(list):
+class Monitors(dict):
     """
-    A monitor that is itself a list of monitors. A call to the `record` method
-    records the measurement in all monitors in the list.
+    A monitor that is itself a dict of keys-to-monitors. A call to the `record`
+    method in this class records the measurement in all of its monitors. The
+    key to associate with a monitor is at the discretion of its creator.
     """
 
     def record(self, tags, timestamp, type, value):
@@ -295,7 +297,7 @@ class Monitors(list):
         least one tag should have a key of `name`.
         """
         exception = None
-        for monitor in self:
+        for monitor in self.values():
             try:
                 monitor.record(tags, timestamp, type, value)
             except Exception as e:
@@ -305,16 +307,13 @@ class Monitors(list):
             raise e
 
 
-monitor = Monitors()
-
-
 class timer:
     """
     A context manager that times statement(s) and records the duration measurement
     as a gauge in the monitor.
     """
 
-    def __init__(self, tags, monitor=monitor):
+    def __init__(self, tags, monitor=None):
         """
         Initialize the timer.
 
@@ -322,7 +321,7 @@ class timer:
         :param monitor: Monitor to record measurement.  [monitor]
         """
         self.tags = tags
-        self.monitor = monitor
+        self.monitor = monitor or monitor
 
     def __enter__(self):
         self.begin = time.time()
@@ -331,6 +330,9 @@ class timer:
     def __exit__(self, *args):
         duration = time.time() - self.begin
         try:
-            self.monitor.record(self.tags, time.time(), "gauge", duration)
+            self.monitor.record(self.tags, _now(), "gauge", duration)
         except:
             _logger.warning("Exception recording measurement", exc_info=True)
+
+
+monitor = Monitors()
