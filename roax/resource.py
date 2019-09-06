@@ -1,17 +1,15 @@
 """Module to implement resources."""
 
+import datetime
+import importlib
 import roax.context as context
+import roax.monitor
 import roax.schema as s
 import threading
 import wrapt
 
-from datetime import datetime, timezone
-from importlib import import_module
-from keyword import iskeyword
-from roax.monitor import Absolute, monitor, timer
 
-
-_now = lambda: datetime.now(tz=timezone.utc)
+_now = lambda: datetime.datetime.now(tz=datetime.timezone.utc)
 
 
 class _Operation:
@@ -128,7 +126,7 @@ class Resources:
             with super().__getattribute__("_lock"):
                 if isinstance(_resources[key], str):
                     mod, cls = _resources[key].split(":")
-                    _resources[key] = getattr(import_module(mod), cls)()
+                    _resources[key] = getattr(importlib.import_module(mod), cls)()
         return _resources[key]
 
     def __getattribute__(self, name):
@@ -221,10 +219,10 @@ def operation(
         def wrapper(wrapped, instance, args, kwargs):
             tags = {"resource": wrapped.__self__.name, "operation": _name}
             with context.push({**tags, "context": "operation"}):
-                monitor.record(
+                roax.monitor.monitors.record(
                     {**tags, "name": "operation_calls_total"}, _now(), "absolute", 1
                 )
-                with timer({**tags, "name": "operation_duration_seconds"}):
+                with roax.monitor.timer({**tags, "name": "operation_duration_seconds"}):
                     authorize(security)
                     return wrapped(*args, **kwargs)
 

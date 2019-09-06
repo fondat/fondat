@@ -318,10 +318,10 @@ class timer:
         Initialize the timer.
 
         :param tags: Tags to record upon completion of the timer.
-        :param monitor: Monitor to record measurement.  [monitor]
+        :param monitor: Monitor to record measurement in.  [monitor]
         """
         self.tags = tags
-        self.monitor = monitor or monitor
+        self.monitor = monitor or monitors
 
     def __enter__(self):
         self.begin = time.time()
@@ -335,4 +335,4 @@ class timer:
             _logger.warning("Exception recording measurement", exc_info=True)
 
 
-monitor = Monitors()
+monitors = Monitors()
