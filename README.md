@@ -55,3 +55,16 @@ app.register_resource("/hello", HelloResource())
 if __name__== "__main__":
     make_server("", 8000, app).serve_forever()
 ```
+
+## Develop
+
+```
+poetry install
+poetry run pre-commit install
+```
+
+## Test
+
+```
+poetry run pytest
+```
