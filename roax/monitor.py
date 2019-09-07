@@ -262,9 +262,6 @@ class DequeMonitor:
         least one tag should have a key of `name`.
         """
         if self.size and len(self.deque) >= self.size:
-            _logger.warning(
-                f"QueueMonitor reached maximum size of {self.size}; truncating"
-            )
             while len(self.deque) >= self.size:
                 self.deque.popleft()
         self.deque.append(dict(tags=tags, timestamp=timestamp, type=type, value=value))
