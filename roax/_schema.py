@@ -878,7 +878,7 @@ class _date(_type):
     Schema type for date values.
 
     Parameters and instance variables:
-    • content_type: Content type used when value is expressed in a body.  [text/plain]
+    • content_type: Content type used when value is expressed in a body.  ["text/plain"]
     • nullable: Allow None as a valid value.
     • default: Default value if the item value is not supplied.
     • enum: A list of values that are valid.
