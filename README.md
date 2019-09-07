@@ -7,8 +7,7 @@
 [![Codecov](https://codecov.io/gh/roax/roax/branch/master/graph/badge.svg)](https://codecov.io/gh/roax/roax)
 [![Black](https://img.shields.io/badge/code%20style-black-black.svg)](https://github.com/psf/black)
 
-Ro·ax /ˈɹoʊ.æks/  
-A lightweight Python resource-oriented framework. 
+Ro·ax /ˈɹoʊ.æks/: A lightweight Python resource-oriented framework. 
 
 ## Introduction
 
