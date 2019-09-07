@@ -159,3 +159,12 @@ def test_read_schemaerror():
             f.write("a")
         with pytest.raises(InternalServerError):
             fr.read("1")
+
+
+def test_quotable():
+    with TemporaryDirectory() as dir:
+        fr = FileResource(dir, schema=s.str())
+        id = "1%2F2"
+        value = "Value"
+        fr.create(id, value)
+        assert fr.read(id) == value
