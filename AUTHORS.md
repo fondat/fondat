@@ -1,5 +1,5 @@
 The following authors have contributed to Roax:
 
-- Paul Bryan <pbryan@anode.ca>
-- Ben Siggers <ben@siggers.ca>
+- [Paul Bryan](mailto:pbryan@anode.ca)
+- [Ben Siggers](mailto:ben@siggers.ca)
 
