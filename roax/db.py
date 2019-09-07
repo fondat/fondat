@@ -29,14 +29,12 @@ class Database:
     """
     Base class to manage connections to a SQL database. Subclasses must
     implement the `connect` method, and expose an `adapters` attribute.
+
+    Parameter:
+    • module: DB-API 2.0 module providing access to the database.
     """
 
     def __init__(self, module):
-        """
-        Initialize a new database object.
-
-        :param module: DB-API 2.0 module providing access to the database.
-        """
         self.module = module
 
     @property
@@ -62,7 +60,8 @@ class Database:
         Return a context manager that yields a database cursor that automatically
         closes on exit.
 
-        :param connection connection to open cursor on.  [None]
+        Parameter:
+        • connection connection to open cursor on.  [None]
 
         If no connection is supplied to allocate the cursor from, a connection
         is automatically fetched.
@@ -76,24 +75,25 @@ class Database:
 
 
 class Table:
-    """Represents a table in a SQL database."""
+    """
+    Represents a table in a SQL database.
+
+    Parameters and instance variables:
+    • database: Database where table resides.
+    • name: Name of database table.
+    • schema: Schema of table columns.
+    • pk: Column name of the primary key.
+    • adapters: Column transformation adapters.
+ 
+    The schema must be a `roax.schema.dict` type, whose property names are
+    table columns.
+
+    Adapters is a dict of keys-to-adapter instances. Key can be column name
+    or `roax.schema` type.
+
+    """
 
     def __init__(self, database, name, schema, pk, adapters=None):
-        """
-        Initialize a new table object.
-
-        :param database: Database where table resides.
-        :param name: Name of database table.
-        :param schema: Schema of table columns.
-        :param pk: Column name of the primary key.
-        :param adapters: Column transformation adapters.
-
-        The schema must be a `roax.schema.dict` type, whose property names are
-        table columns.
-
-        Adapters is a dict of keys-to-adapter instances. Key can be column
-        name or `roax.schema` type.
-        """
         super().__init__()
         self.database = database
         self.name = name
@@ -116,7 +116,8 @@ class Table:
         matching first based on column name, on the schema type of the
         column, then defaulting to a string encoding/decoding adapter.
 
-        :param column: name of column to return adapter for.
+        Parameter:
+        • column: name of column to return adapter for.
         """
         return (
             self.adapters.get(column)
@@ -136,7 +137,8 @@ class Table:
         Return a context manager that yields a database cursor that automatically
         closes on exit.
 
-        :param connection connection to open cursor on.  [None]
+        Parameter:
+        • connection connection to open cursor on.  [None]
         """
         return self.database.cursor(connection)
 
@@ -148,9 +150,10 @@ class Table:
         """
         Return a list of rows that match the `where` expression. Each row is expressed in a dict.
 
-        :param columns: iterable of column names to return, or `None` for all columns.
-        :param where: `Query` object representing WHERE expression, or `None` to match all rows.
-        :param order: iterable of column names to order by, or `None` to not order results.
+        Parameters:
+        • columns: iterable of column names to return, or `None` for all columns.
+        • where: `Query` object representing WHERE expression, or `None` to match all rows.
+        • order: iterable of column names to order by, or `None` to not order results.
         """
         columns = tuple(columns or self.columns)
         query = self.query()
@@ -183,7 +186,8 @@ class Table:
         """
         Return a list of primary keys that match the `where` expression.
 
-        :param where: `Query` object representing SQL WHERE expression, or `None` to match all rows.
+        Parameter:
+        • where: `Query` object representing SQL WHERE expression, or `None` to match all rows.
         """
         query = self.query()
         query.text(f"SELECT {self.pk} FROM {self.name}")
@@ -200,12 +204,12 @@ class Table:
 class Query:
     """
     Builds a database query for a table.
+
+    Parameter and instance variable:
+    • table: table for which query is to be built.
     """
 
     def __init__(self, table):
-        """
-        :param table: table for which query is to be built.
-        """
         self.table = table
         self.operation = []
         self.parameters = []
@@ -255,7 +259,8 @@ class Query:
         """
         Build and exeute the query.
 
-        :param cursor: cursor to execute query under.
+        Parameter:
+        • cursor: cursor to execute query under.
         """
         built = self.build()
         _logger.debug("%s", built)
@@ -278,8 +283,9 @@ class Adapter:
         """
         Encode a value as a query parameter.
 
-        :param schema: schema of the value to be encoded in the query.
-        :param value: value to be encoded.
+        Parameter:
+        • schema: schema of the value to be encoded in the query.
+        • value: value to be encoded.
         """
         return schema.str_encode(value)
 
@@ -287,8 +293,9 @@ class Adapter:
         """
         Decode a value from a query result.
 
-        :param schema: schema of the value to be decoded from the query result.
-        :param value: value from the query result to be decoded.
+        Parameters:
+        • schema: schema of the value to be decoded from the query result.
+        • value: value from the query result to be decoded.
         """
         return schema.str_decode(value)
 
@@ -301,18 +308,16 @@ class TableResource(resource.Resource):
     Base resource class for storage of resource items in a database table,
     providing basic CRUD operations.
 
+    Parameters:
+    • table table that resource is based on.
+    • name: short name of the resource.  [table.name]
+    • description: short description of the resource.  [resource docstring]
+
     This class does not decorate operations or validate the schema of items;
     subclasses are expected to do this.
     """
 
     def __init__(self, table=None, name=None, description=None):
-        """
-        Initialize table resource.
-
-        :param table table that resource is based on.
-        :param name: short name of the resource.  [table.name]
-        :param description: short description of the resource.  [resource docstring]
-        """
         self.table = table or self.table
         super().__init__(name or self.table.name, description)
         self.__doc__ = self.table.schema.description

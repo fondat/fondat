@@ -119,18 +119,18 @@ def _environ(environ):
 
 
 class App:
-    """Roax WSGI application."""
+    """
+    Roax WSGI application.
+
+    Parameters:
+    • url: The URL to access the application.
+    • title: The title of the application.
+    • version: The API implementation version.
+    • description: A short description of the application.
+    • filters: List of filters to apply during HTTP request processing.
+    """
 
     def __init__(self, url, title, version, description=None, filters=None):
-        """
-        Initialize WSGI application.
-        
-        :param url: The URL to access the application.
-        :param title: The title of the application.
-        :param version: The API implementation version.
-        :param description: A short description of the application.
-        :param filters: List of filters to apply during HTTP request processing.
-        """
         self.url = url
         self.title = title
         self.version = version
@@ -143,9 +143,10 @@ class App:
         """
         Register a resource to the application.
 
-        :param path: Path of resource relative to application URL.
-        :param resource: Resource to be served when path is requested.
-        :param publish: Publish resource in online documentation.
+        Parameters:
+        • path: Path of resource relative to application URL.
+        • resource: Resource to be served when path is requested.
+        • publish: Publish resource in online documentation.
         """
         res_path = self.base + "/" + path.lstrip("/")
         for op in resource.operations.values():
@@ -199,11 +200,12 @@ class App:
         large set of files, it would likely be more appropriate to serve them using a
         dedicated web server.
 
-        :param path: Path of resource relative to application URL.
-        :param file_dir: Filesystem path of file or directory to register.
-        :security: List of security requirements to apply to resource(s).
-        :index: Name of file in directory to make path root resource.  ['index.html']
-        :param publish: Publish resource(s) in online documentation.
+        Parameters:
+        • path: Path of resource relative to application URL.
+        • file_dir: Filesystem path of file or directory to register.
+        • security: List of security requirements to apply to resource(s).
+        • index: Name of file in directory to make path root resource.  ["index.html"]
+        • publish: Publish resource(s) in online documentation.  [False]
         """
 
         def _static(fs_path):
@@ -287,15 +289,15 @@ class _Chain:
 
 
 class HTTPSecurityScheme(SecurityScheme):
-    """Base class for HTTP authentication security scheme."""
+    """
+    Base class for HTTP authentication security scheme.
+
+    Parameters:
+    • name: The name of the security scheme.
+    • scheme: The name of the HTTP authorization scheme.
+    """
 
     def __init__(self, name, scheme, **kwargs):
-        """
-        Initialize the HTTP authentication security scheme.
-        
-        :param name: The name of the security scheme.
-        :param scheme: The name of the HTTP authorization scheme.
-        """
         super().__init__(name, "http", **kwargs)
         self.scheme = scheme
 
@@ -308,15 +310,15 @@ class HTTPSecurityScheme(SecurityScheme):
 
 
 class HTTPBasicSecurityScheme(HTTPSecurityScheme):
-    """Base class for HTTP basic authentication security scheme."""
+    """
+    Base class for HTTP basic authentication security scheme.
+
+    Parameters:
+    • name: The name of the security scheme.
+    • realm: The realm to include in the challenge.  [name]
+    """
 
     def __init__(self, name, realm=None, **kwargs):
-        """
-        Initialize the HTTP basic authentication security scheme.
-        
-        :param name: The name of the security scheme.
-        :param realm: The realm to include in the challenge.  [name]
-        """
         super().__init__(name, "basic", **kwargs)
         self.realm = realm or name
 

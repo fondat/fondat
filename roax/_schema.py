@@ -48,7 +48,21 @@ class SchemaError(Exception):
 
 
 class _type:
-    """Base class for all schema types."""
+    """
+    Base class for all schema types.
+
+    Parameters and instance variables:
+    • python_type: Python data type.
+    • json_type: JSON schema data type.
+    • format: More finely defines the data type.
+    • content_type: Content type used when value is expressed in a body.  ["text/plain"]
+    • enum: A list of values that are valid.
+    • nullable: Allow None as a valid value.
+    • default: Default value if the item value is not supplied.
+    • description: A description of the schema.
+    • example: An example of an instance for this schema.
+    • deprecated: Schema should be transitioned out of usage.
+    """
 
     def __init__(
         self,
@@ -64,20 +78,6 @@ class _type:
         nullable=False,
         deprecated=False,
     ):
-        """
-        Initialize the schema type.
-
-        :param python_type: Python data type.
-        :param json_type: JSON schema data type.
-        :param format: More finely defines the data type.
-        :param content_type: Content type used when value is expressed in a body.  ["text/plain"]
-        :param enum: A list of values that are valid.
-        :param nullable: Allow None as a valid value.
-        :param default: Default value if the item value is not supplied.
-        :param description: A description of the schema.
-        :param example: An example of an instance for this schema.
-        :param deprecated: Schema should be transitioned out of usage.
-        """
         super().__init__()
         self.python_type = python_type
         self.json_type = json_type
@@ -182,6 +182,16 @@ def _required(required):
 class _dict(_type):
     """
     Schema type for dictionaries.
+
+    Parameters and instance variables:
+    • properties: A mapping of name to schema.
+    • content_type: Content type used when value is expressed in a body.  ["application/json"]
+    • additional: Additional unvalidated properties are allowed.
+    • nullable: Allow None as a valid value.
+    • required: Set of property names that are required.
+    • default: Default value if the item value is not supplied.
+    • description: A description of the schema.
+    • example: An example of an instance for this schema.
     """
 
     def __init__(
@@ -193,18 +203,6 @@ class _dict(_type):
         additional=False,
         **kwargs,
     ):
-        """
-        Initialize dictionary schema.
-
-        :param properties: A mapping of name to schema.
-        :param content_type: Content type used when value is expressed in a body.  ["application/json"]
-        :param additional: Additional unvalidated properties are allowed.
-        :param nullable: Allow None as a valid value.
-        :param required: Set of property names that are required.
-        :param default: Default value if the item value is not supplied.
-        :param description: A description of the schema.
-        :param example: An example of an instance for this schema.
-        """
         super().__init__(
             python_type=collections.abc.Mapping,
             json_type="object",
@@ -317,6 +315,17 @@ class _list(_type):
     """
     Schema type for lists.
 
+    Parameters and instance variables:
+    • items: Schema which all items must adhere to.
+    • content_type: Content type used when value is expressed in a body.  ["application/json"]
+    • min_items: The minimum number of items required.
+    • max_items: The maximum number of items required.
+    • unique_items: All items must have unique values.
+    • nullable: Allow None as a valid value.
+    • default: Default value if the item value is not supplied.
+    • description: A description of the schema.
+    • example: An example of an instance for this schema.
+
     List values are represented in JSON as an array and string as comma-separated
     values.
     """
@@ -331,19 +340,6 @@ class _list(_type):
         unique_items=False,
         **kwargs,
     ):
-        """
-        Initialize list schema.
-
-        :params items: Schema which all items must adhere to.
-        :param content_type: Content type used when value is expressed in a body.  ["application/json"]
-        :params min_items: The minimum number of items required.
-        :params max_items: The maximum number of items required.
-        :params unique_items: All items must have unique values.
-        :param nullable: Allow None as a valid value.
-        :param default: Default value if the item value is not supplied.
-        :param description: A description of the schema.
-        :param example: An example of an instance for this schema.
-        """
         super().__init__(
             python_type=collections.abc.Sequence,
             json_type="array",
@@ -449,6 +445,15 @@ class _set(_type):
     """
     Schema type for sets.
 
+    Parameters and instance variables:
+    • items: Schema which set items must adhere to.
+    • content_type: Content type used when value is expressed in a body.
+    • nullable: Allow None as a valid value.
+    • required: Value is mandatory.
+    • default: Default value if the item value is not supplied.
+    • description: A description of the schema.
+    • example: An example of an instance for this schema.
+
     Set values are represented in JSON as an array and string as comma-separated
     values.
     """
@@ -457,13 +462,6 @@ class _set(_type):
         """
         Initialize set schema.
 
-        :params items: Schema which set items must adhere to.
-        :param content_type: Content type used when value is expressed in a body.
-        :param nullable: Allow None as a valid value.
-        :param required: Value is mandatory.
-        :param default: Default value if the item value is not supplied.
-        :param description: A description of the schema.
-        :param example: An example of an instance for this schema.
         """
         super().__init__(
             python_type=set, json_type="array", content_type=content_type, **kwargs
@@ -550,23 +548,21 @@ class _set(_type):
 class _str(_type):
     """
     Schema type for Unicode character strings.
+
+    Parameters and instance variables:
+    • content_type: Content type used when value is expressed in a body.  ["text/plain"]
+    • min_length: Minimum character length of the string.
+    • max_length: Maximum character length of the string.
+    • pattern: Regular expression that the string must match.
+    • format: More finely defines the data type.
+    • nullable: Allow None as a valid value.
+    • default: Default value if the item value is not supplied.
+    • enum: A list of values that are valid.
+    • description: A description of the schema.
+    • example: An example of an instance for this schema.
     """
 
     def __init__(self, *, min_length=0, max_length=None, pattern=None, **kwargs):
-        """
-        Initialize string schema.
-
-        :param content_type: Content type used when value is expressed in a body.  ["text/plain"]
-        :param min_length: Minimum character length of the string.
-        :param max_length: Maximum character length of the string.
-        :param pattern: Regular expression that the string must match.
-        :param format: More finely defines the data type.
-        :param nullable: Allow None as a valid value.
-        :param default: Default value if the item value is not supplied.
-        :param enum: A list of values that are valid.
-        :param description: A description of the schema.
-        :param example: An example of an instance for this schema.
-        """
         super().__init__(python_type=str, json_type="string", **kwargs)
         self.min_length = min_length
         self.max_length = max_length
@@ -660,21 +656,19 @@ class _number(_type):
 class _int(_number):
     """
     Schema type for integers.
+
+    Parameters and instance variables:
+    • content_type: Content type used when value is expressed in a body.  ["text/plain"]
+    • minimum: Inclusive lower limit of the value.
+    • maximum: Inclusive upper limit of the value.
+    • nullable: Allow None as a valid value.
+    • default: Default value if the item value is not supplied.
+    • enum: A list of values that are valid.
+    • description: A description of the schema.
+    • example: An example of an instance for this schema.
     """
 
     def __init__(self, **kwargs):
-        """
-        Initialize integer schema.
-        
-        :param content_type: Content type used when value is expressed in a body.  ["text/plain"]
-        :param minimum: Inclusive lower limit of the value.
-        :param maximum: Inclusive upper limit of the value.
-        :param nullable: Allow None as a valid value.
-        :param default: Default value if the item value is not supplied.
-        :param enum: A list of values that are valid.
-        :param description: A description of the schema.
-        :param example: An example of an instance for this schema.
-        """
         super().__init__(python_type=int, json_type="integer", format="int64", **kwargs)
 
     def validate(self, value):
@@ -707,21 +701,19 @@ class _int(_number):
 class _float(_number):
     """
     Schema type for floating point numbers.
+
+    Parameters and instance variables:
+    • content_type: Content type used when value is expressed in a body.  ["text/plain"]
+    • minimum: Inclusive lower limit of the value.
+    • maximum: Inclusive upper limit of the value.
+    • nullable: Allow None as a valid value.
+    • default: Default value if the item value is not supplied.
+    • enum: A list of values that are valid.
+    • description: A description of the schema.
+    • example: An example of an instance for this schema.
     """
 
     def __init__(self, **kwargs):
-        """
-        Initialize floating point schema.
-
-        :param content_type: Content type used when value is expressed in a body.  ["text/plain"]
-        :param minimum: Inclusive lower limit of the value.
-        :param maximum: Inclusive upper limit of the value.
-        :param nullable: Allow None as a valid value.
-        :param default: Default value if the item value is not supplied.
-        :param enum: A list of values that are valid.
-        :param description: A description of the schema.
-        :param example: An example of an instance for this schema.
-        """
         super().__init__(
             python_type=float, json_type="number", format="double", **kwargs
         )
@@ -746,18 +738,16 @@ class _float(_number):
 class _bool(_type):
     """
     Schema type for boolean values.
+
+    Parameters and instance variables:
+    • content_type: Content type used when value is expressed in a body.  ["text/plain"]
+    • nullable: Allow None as a valid value.
+    • default: Default value if the item value is not supplied.
+    • description: A description of the schema.
+    • example: An example of an instance for this schema.
     """
 
     def __init__(self, **kwargs):
-        """
-        Initialize boolean schema.
-
-        :param content_type: Content type used when value is expressed in a body.  ["text/plain"]
-        :param nullable: Allow None as a valid value.
-        :param default: Default value if the item value is not supplied.
-        :param description: A description of the schema.
-        :param example: An example of an instance for this schema.
-        """
         super().__init__(python_type=bool, json_type="boolean", **kwargs)
 
     def json_encode(self, value):
@@ -791,7 +781,13 @@ class _bytes(_type):
     """
     Schema type for byte sequences.
     
-    Two formats are supported: "byte" and "binary".
+    Parameters and instance variables:
+    • content_type: Content type used when value is expressed in a body.  ["application/octet-stream"]
+    • format: More finely defines the data type.  {"byte", "hex", "binary"}.
+    • nullable: Allow None as a valid value.
+    • default: Default value if the item value is not supplied.
+    • description: A description of the schema.
+    • example: An example of an instance for this schema.
 
     In "byte" format, a byte sequence is represented as a base64-encoded string.
     Example: "Um9heCBpcyBhIHBhcnQgb2YgYSBjb21wbGV0ZSBicmVha2Zhc3QuCg==".
@@ -806,16 +802,6 @@ class _bytes(_type):
     def __init__(
         self, *, format="byte", content_type="application/octet-stream", **kwargs
     ):
-        """
-        Initialize byte sequence schema.
-
-        :param content_type: Content type used when value is expressed in a body.  ["application/octet-stream"]
-        :param format: More finely defines the data type.  {"byte", "hex", "binary"}.
-        :param nullable: Allow None as a valid value.
-        :param default: Default value if the item value is not supplied.
-        :param description: A description of the schema.
-        :param example: An example of an instance for this schema.
-        """
         valid_formats = {"byte", "hex", "binary"}
         if format not in valid_formats:
             raise ValueError(f"format must be one of {valid_formats}")
@@ -891,21 +877,19 @@ class _date(_type):
     """
     Schema type for date values.
 
+    Parameters and instance variables:
+    • content_type: Content type used when value is expressed in a body.  [text/plain]
+    • nullable: Allow None as a valid value.
+    • default: Default value if the item value is not supplied.
+    • enum: A list of values that are valid.
+    • description: A description of the schema.
+    • example: An example of an instance for this schema.
+
     Date values are represented in string and JSON values as an RFC 3339 date
     in a string. Example: "2018-06-16".
     """
 
     def __init__(self, **kwargs):
-        """
-        Initialize date schema.
-
-        :param content_type: Content type used when value is expressed in a body.  [text/plain]
-        :param nullable: Allow None as a valid value.
-        :param default: Default value if the item value is not supplied.
-        :param enum: A list of values that are valid.
-        :param description: A description of the schema.
-        :param example: An example of an instance for this schema.
-        """
         super().__init__(
             python_type=datetime.date, json_type="string", format="date", **kwargs
         )
@@ -943,22 +927,20 @@ class _datetime(_type):
 
     Datetime values are represented in string and JSON values as an RFC 3339 UTC
     date and time in a string. Example: "2018-06-16T12:34:56.789Z".
+
+    Parameters and instance variables:
+    • content_type: Content type used when value is expressed in a body.  ["text/plain"]
+    • nullable: Allow None as a valid value.
+    • default: Default value if the item value is not supplied.
+    • enum: A list of values that are valid.
+    • description: A description of the schema.
+    • example: An example of an instance for this schema.
+    • fractional: Include fractions of seconds.
     """
 
     _UTC = isodate.tzinfo.Utc()
 
     def __init__(self, fractional=False, **kwargs):
-        """
-        Initialize datetime schema.
-
-        :param content_type: Content type used when value is expressed in a body.  ["text/plain"]
-        :param nullable: Allow None as a valid value.
-        :param default: Default value if the item value is not supplied.
-        :param enum: A list of values that are valid.
-        :param description: A description of the schema.
-        :param example: An example of an instance for this schema.
-        :param fractional: Include fractions of seconds.
-        """
         super().__init__(
             python_type=datetime.datetime,
             json_type="string",
@@ -1005,21 +987,19 @@ class _uuid(_type):
     """
     Schema type for universally unique identifiers.
 
+    Parameters and instance variables:
+    • content_type: Content type used when value is expressed in a body.  ["text/plain"]
+    • nullable: Allow None as a valid value.
+    • default: Default value if the item value is not supplied.
+    • enum: A list of values that are valid.
+    • description: A description of the schema.
+    • example: An example of an instance for this schema.
+
     UUID values are represented in string and JSON values as a UUID string.
     Example: "035af02b-7ad7-4016-a101-96f8fc5ae6ec".
     """
 
     def __init__(self, **kwargs):
-        """
-        Initialize UUID schema.
-
-        :param content_type: Content type used when value is expressed in a body.  ["text/plain"]
-        :param nullable: Allow None as a valid value.
-        :param default: Default value if the item value is not supplied.
-        :param enum: A list of values that are valid.
-        :param description: A description of the schema.
-        :param example: An example of an instance for this schema.
-        """
         super().__init__(
             python_type=uuid.UUID, json_type="string", format="uuid", **kwargs
         )
@@ -1056,18 +1036,16 @@ class all_of(_type):
     schemas. This only makes sense where all schemas are dictionaries and where:
     each dictionary allows additional properties and no dictionary defines the same
     property as another.
+
+    Parameters and instance variables:
+    • schemas: List of schemas to match against.
+    • default: Default value if the item value is not supplied.
+    • enum: A list of values that are valid.
+    • description: A description of the schema.
+    • example: An example of an instance for this schema.
     """
 
     def __init__(self, schemas, **kwargs):
-        """
-        Initialize all-of schema.
-
-        :params schemas: List of schemas to match against.
-        :param default: Default value if the item value is not supplied.
-        :param enum: A list of values that are valid.
-        :param description: A description of the schema.
-        :param example: An example of an instance for this schema.
-        """
         super().__init__(**kwargs)
         if not schemas:
             raise ValueError("schemas argument must be a list of schemas")
@@ -1204,18 +1182,16 @@ class any_of(_xof):
     Schema type that is valid if a value validates successfully against any
     of the schemas. Values are encoded/decoded using the first valid
     matching schema in the list.
+
+    Parameters and instance variables:
+    • schemas: List of schemas to match against.
+    • default: Default value if the item value is not supplied.
+    • enum: A list of values that are valid.
+    • description: A description of the schema.
+    • example: An example of an instance for this schema.
     """
 
     def __init__(self, schemas, **kwargs):
-        """
-        Initialize any-of schema.
-
-        :param schemas: List of schemas to match against.
-        :param default: Default value if the item value is not supplied.
-        :param enum: A list of values that are valid.
-        :param description: A description of the schema.
-        :param example: An example of an instance for this schema.
-        """
         super().__init__("anyOf", schemas, **kwargs)
         self.schemas = schemas
 
@@ -1230,18 +1206,16 @@ class one_of(_xof):
     Schema type that is valid if a value validates successfully against
     exactly one schema. Values are encoded/decoded using the sole matching
     schema.
+
+    Parameters and instance variables:
+    • schemas: List of schemas to match against.
+    • default: Default value if the item value is not supplied.
+    • enum: A list of values that are valid.
+    • description: A description of the schema.
+    • example: An example of an instance for this schema.
     """
 
     def __init__(self, schemas, **kwargs):
-        """
-        Initialize one-of schema.
-
-        :param schemas: List of schemas to match against.
-        :param default: Default value if the item value is not supplied.
-        :param enum: A list of values that are valid.
-        :param description: A description of the schema.
-        :param example: An example of an instance for this schema.
-        """
         super().__init__("oneOf", schemas, **kwargs)
         self.schemas = schemas
 
@@ -1258,14 +1232,12 @@ class reader(_type):
     Schema type for file-like object to read binary content. Allows large-payload
     values to be transmitted without allocating all in memory. In operations, this
     schema type can only used in _body parameter and return values.
+
+    Parameters and instance variables:
+    • content_type: Content type used when value is expressed in a body.  ["application/octet-stream"]
     """
 
     def __init__(self, *, content_type="application/octet-stream", **kwargs):
-        """
-        Initialize reader schema.
-
-        :param content_type: Content type used when value is expressed in a body.
-        """
         super().__init__(
             json_type="string", format="binary", content_type=content_type, **kwargs
         )
@@ -1281,11 +1253,12 @@ def call(function, args, kwargs, params=None, returns=None):
     """
     Call a function, validating its input parameters and return value.
 
-    :param function: Function to call.
-    :param args: Positional arguments to pass to function.
-    :param kwargs: Keyword arguments to pass to function.
-    :param params: Mapping of parameter names to associated schemas.
-    :param returns: Schema of expected function return value.
+    Parameters:
+    • function: Function to call.
+    • args: Positional arguments to pass to function.
+    • kwargs: Keyword arguments to pass to function.
+    • params: Mapping of parameter names to associated schemas.
+    • returns: Schema of expected function return value.
 
     Whether a parameter is required and any default value is defined by the
     function, not its schema specification. If a parameter is omitted from the

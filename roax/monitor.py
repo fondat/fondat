@@ -25,9 +25,11 @@ class Counter:
     monotonicaly increase (unless being reset). The counter data point stores the
     highest counter value measured.
 
-    The counter data point contains the following instance variables:
-      • timestamp: The time of the data point, in seconds since Epoch.
-      • value: The highest counter value measured.
+    Parameter and instance variable:
+    • timestamp: The time of the data point, in seconds since Epoch.
+
+    Instance variables:
+    • value: The highest counter value measured.
     """
 
     name = "counter"
@@ -47,12 +49,14 @@ class Gauge:
     value. The gauge data point stores the minimum, maximum, sum and count of
     measured values.
 
-    The gauge data point contains the following instance variables:
-      • timestamp: The date and time of the data point.
-      • min: The minimum measured value.
-      • max: The maximum measured value.
-      • sum: The sum of all measured values
-      • count: The count of measured values.
+    Parameter and instance variable:
+    • timestamp: The date and time of the data point.
+
+    Instance variables:
+    • min: The minimum measured value.
+    • max: The maximum measured value.
+    • sum: The sum of all measured values
+    • count: The count of measured values.
     """
 
     name = "gauge"
@@ -79,9 +83,11 @@ class Absolute:
     An absolute data point. An absolute measurement is an integer value. The
     absolute data point stores the sum of measured values.
 
-    The absolute data point contains the following instance variables:
-      • timestamp: The date and time of the data point.
-      • value: The sum of measured values.    
+    Parameter and instance variable:
+    • timestamp: The date and time of the data point.
+
+    Instance variables:
+    • value: The sum of measured values.    
     """
 
     name = "absolute"
@@ -100,24 +106,23 @@ _types = {Counter.name: Counter, Gauge.name: Gauge, Absolute.name: Absolute}
 
 class Series:
     """
-    TODO: Description.
+    Parameters and instance variables:
+    • type: The type of the data point being tracked.
+    • patterns: Dictionary of tag names to regular expression patterns to match.
+    • points: Number of data points to maintain in the time series.
+    • interval: Interval between data points, in seconds.
 
-    The series contains the following instance variables:
-      • type: The type of the data point being tracked.
-      • patterns: Dictionary of tag names to regular expression patterns to match.
-      • points: Number of data points to maintain in the time series.
-      • interval: Interval between data points, in seconds.
-      • data: A deque of timestamp-ordered data points.
+    Instance variables:
+    • data: A deque of timestamp-ordered data points.
+
+    The `patterns` parameter is a dictionary that maps tag names to regular
+    expressions (compiled or strings) to match against recorded measurement tags.
+    For example, `{"name": "foo"}` would track data where a tag includes
+    `{"name": "foo"}`, while `{"name": "foo\\..+"}` would track measurements with
+    tags that include `{"name": "foo.bar"}` and `{"name": "foo.qux"}`.
     """
 
     def __init__(self, type, patterns, points, interval):
-        """
-        The `patterns` argument is a dictionary that maps tag names to regular
-        expressions (compiled or strings) to match against recorded measurement tags.
-        For example, `{"name": "foo"}` would track data where a tag includes
-        `{"name": "foo"}`, while `{"name": "foo\\..+"}` would track measurements with
-        tags that include `{"name": "foo.bar"}` and `{"name": "foo.qux"}`.
-        """
         self.type = type
         self.patterns = {k: re.compile(v) for k, v in patterns.items()}
         self.points = points
@@ -184,7 +189,6 @@ class SimpleMonitor:
     """
 
     def __init__(self):
-        """Initialize the simple monitoring resource."""
         super().__init__()
         self.series = {}
 
@@ -192,13 +196,14 @@ class SimpleMonitor:
         """
         Track data points for a specfied set of tags in a new time series.
 
-        :param name: Name of the new time series.
-        :param type: Type of data point to track.  {"counter", "gauge", "absolute"}
-        :param patterns: Measurements with tags matching regular expressions are tracked.
-        :param points: Number of data points to maintain in the time series.
-        :param interval: Interval between data points, in seconds.
+        Parameters:
+        • name: Name of the new time series.
+        • type: Type of data point to track.  {"counter", "gauge", "absolute"}
+        • patterns: Measurements with tags matching regular expressions are tracked.
+        • points: Number of data points to maintain in the time series.
+        • interval: Interval between data points, in seconds.
 
-        For `patterns` argument, see the `Series` class initializer documentation.
+        For `patterns` parameter, see the `Series` class initializer documentation.
        """
         if name in self.series:
             raise ValueError(f"time series already exists: {name}")
@@ -210,50 +215,50 @@ class SimpleMonitor:
         """
         Record a measurement.
 
-        :param tags: Tags associated with the measurement.
-        :param timestamp: Date and time of the measurement to record.
-        :param type: Type of measurement to record.  {"counter", "gauge", "absolute"}
-        :param value: Value of measurement to record.
+        Parameters
+        • tags: Tags associated with the measurement.
+        • timestamp: Date and time of the measurement to record.
+        • type: Type of measurement to record.  {"counter", "gauge", "absolute"}
+        • value: Value of measurement to record.
 
-        The `tags` argument is a dictionary that maps string key to string value. At
+        The `tags` parameter is a dictionary that maps string key to string value. At
         least one tag should have a key of `name`.
         """
         for series in self.series.values():
             series.record(tags, timestamp, type, value)
 
 
-class QueueMonitor:
+class DequeMonitor:
     """
     A monitor that queues all recorded measurements in a `deque` object.
 
-    The queue size can be specified; if reached, oldest measurements will be
+    Parameters:
+    • size: Maximum number of recorded measurements to queue.  [unlimited]
+    • deque: Deque to store measurements in.  [new deque]
+
+    If the maximum queue size if reached, oldest measurements will be
     truncated.
 
-    Each measurements is stored in this form.
+    Each measurement is stored in this form.
     `{"tags": dict, "timestamp": datetime, "type": str, "value": object}`.
     """
 
     def __init__(self, size=None, deque=None):
-        """
-        Initialize the queue monitor.
-
-        :param size: Maximum number of recorded measurements to queue.  [None]
-        :param deque: Deque to store measurements in.  [new deque]
-        """
         super().__init__()
-        self.deque = deque or collections.deque()
+        self.deque = deque if deque is not None else collections.deque()
         self.size = size
 
     def record(self, tags, timestamp, type, value):
         """
         Record a measurement.
 
-        :param tags: Tags associated with the measurement.
-        :param timestamp: Date and time of the measurement to record.
-        :param type: Type of measurement to record.  {"counter", "gauge", "absolute"}
-        :param value: Value of measurement to record.
+        Parameters:
+        • tags: Tags associated with the measurement.
+        • timestamp: Date and time of the measurement to record.
+        • type: Type of measurement to record.  {"counter", "gauge", "absolute"}
+        • value: Value of measurement to record.
 
-        The `tags` argument is a dictionary that maps string key to string value. At
+        The `tags` parameter is a dictionary that maps string key to string value. At
         least one tag should have a key of `name`.
         """
         if self.size and len(self.deque) >= self.size:
@@ -264,37 +269,27 @@ class QueueMonitor:
                 self.deque.popleft()
         self.deque.append(dict(tags=tags, timestamp=timestamp, type=type, value=value))
 
-    def pop(self):
-        """
-        Remove and return all recorded measurements from the deque as a list.
-        """
-        result = []
-        while True:
-            try:
-                result.append(self.deque.popleft())
-            except IndexError:
-                break
-        return result
-
 
 class Monitors(dict):
     """
-    A monitor that is itself a dict of keys-to-monitors. A call to the `record`
-    method in this class records the measurement in all of its monitors. The
-    key to associate with a monitor is at the discretion of its creator.
+    A monitor that is itself a dict of key-monitor pairs. A call to the
+    `record` method in this class records the measurement in all of its
+    monitors. The key to associate with a monitor is at the discretion of its
+    creator.
     """
 
     def record(self, tags, timestamp, type, value):
         """
         Record a measurement.
 
-        :param tags: Tags associated with the measurement.
-        :param timestamp: Date and time of the measurement to record.
-        :param type: Type of measurement to record.  {"counter", "gauge", "absolute"}
-        :param value: Value of measurement to record.
+        Parameters:
+        • tags: Tags associated with the measurement.
+        • timestamp: Date and time of the measurement to record.
+        • type: Type of measurement to record.  {"counter", "gauge", "absolute"}
+        • value: Value of measurement to record.
 
-        The `tags` argument is a dictionary that maps string key to string value. At
-        least one tag should have a key of `name`.
+        The `tags` parameter is a dictionary that maps string key to string
+        value. At least one tag should have a key of `name`.
         """
         exception = None
         for monitor in self.values():
@@ -311,15 +306,13 @@ class timer:
     """
     A context manager that times statement(s) and records the duration measurement
     as a gauge in the monitor.
+
+    Parameters:
+    • tags: Tags to record upon completion of the timer.
+    • monitor: Monitor to record measurement in.  [monitor]
     """
 
     def __init__(self, tags, monitor=None):
-        """
-        Initialize the timer.
-
-        :param tags: Tags to record upon completion of the timer.
-        :param monitor: Monitor to record measurement in.  [monitor]
-        """
         self.tags = tags
         self.monitor = monitor or monitors
 

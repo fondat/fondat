@@ -4,17 +4,21 @@ from roax.resource import Resource, operation
 
 
 class StaticResource(Resource):
-    """A resource that serves static content."""
+    """
+    A resource that serves static content.
+
+    Parameters:
+    • content: Static content to return in a read operation.
+    • schema: Schema of the static content.
+    • name: Short name of the resource.
+    • description: Short description of the resource.
+    • security: Security requirements to read the resource.
+    """
 
     def __init__(self, content, schema, name=None, description=None, security=None):
         """
         Initialize the static resource.
 
-        :param content: Static content to return in a read operation.
-        :param schema: Schema of the static content.
-        :param name: Short name of the resource.
-        :param description: Short description of the resource.
-        :param security: Security requirements to read the resource.
         """
         super().__init__(name, description)
         self.content = content

@@ -24,24 +24,92 @@ class _Operation:
         return getattr(self.resource, self.function)(**kwargs)
 
 
-class Resource:
-    """Base class for a resource."""
+class ResourceError(Exception):
+    """
+    Base class for all resource errors.
 
-    def _register_operation(self, **operation):
-        """Register a resource operation."""
-        name = operation["name"]
-        if name in self.operations:
-            raise ValueError(f"operation name already registered: {name}")
-        self.operations[name] = _Operation({**operation, "resource": self})
+    Parameters:
+    • detail: textual description of the error.
+    • code: the HTTP status most closely associated with the error.
+    """
+
+    def __init__(self, detail=None, code=None):
+        super().__init__(self, detail)
+        self.detail = detail or getattr(self, "detail", "Internal Server Error")
+        self.code = code or getattr(self, "code", 500)
+
+    def __str__(self):
+        return self.detail
+
+
+class BadRequest(ResourceError):
+    """Raised if the request is malformed."""
+
+    code, detail = 400, "Bad Request"
+
+
+class Unauthorized(ResourceError):
+    """Raised if the request lacks valid authentication credentials."""
+
+    code, detail = 401, "Unauthorized"
+
+    def __init__(self, detail=None, challenge=None):
+        """
+        Initialize resource error.
+
+        • detail: Human-readable description of the error.
+        • challenge: Applicable authentication scheme and parameters.
+        """
+        super().__init__()
+        self.challenge = challenge
+
+
+class Forbidden(ResourceError):
+    """Raised if authorization to the resource is refused."""
+
+    code, detail = 403, "Forbidden"
+
+
+class NotFound(ResourceError):
+    """Raised if the resource could not be found."""
+
+    code, detail = 404, "Not Found"
+
+
+class OperationNotAllowed(ResourceError):
+    """Raised if the resource does not allow the requested operation."""
+
+    code, detail = 405, "Operation Not Allowed"
+
+
+class Conflict(ResourceError):
+    """Raised if there is a conflict with the current state of the resource."""
+
+    code, detail = 409, "Conflict"
+
+
+class PreconditionFailed(ResourceError):
+    """Raised if the revision provided does not match the current resource."""
+
+    code, detail = 412, "Precondition Failed"
+
+
+class InternalServerError(ResourceError):
+    """Raised if the server encountered an unexpected condition."""
+
+    code, detail = 500, "Internal Server Error"
+
+
+class Resource:
+    """
+    Base class for a resource.
+    
+    Parameters and instance variables:
+    • name: Short name of the resource.  [class name in lower case]
+    • description: Short description of the resource.  [resource docstring]
+    """
 
     def __init__(self, name=None, description=None):
-        """
-        Initialize resource. Arguments can be alternatively declared as class
-        or instance variables.
-
-        :param name: Short name of the resource.  [class name in lower case]
-        :param description: Short description of the resource.  [resource docstring]
-        """
         super().__init__()
         self.name = name or getattr(self, "name", type(self).__name__.lower())
         self.description = (
@@ -60,6 +128,13 @@ class Resource:
                 continue  # ignore undecorated functions
             self._register_operation(**operation)
 
+    def _register_operation(self, **operation):
+        """Register a resource operation."""
+        name = operation["name"]
+        if name in self.operations:
+            raise ValueError(f"operation name already registered: {name}")
+        self.operations[name] = _Operation({**operation, "resource": self})
+
 
 class Resources:
     """
@@ -68,26 +143,27 @@ class Resources:
     time of first access; this solves potential circular dependencies between
     resources.
 
-    Resources are exposed as object attributes. Example initialization::
+    Initialize resources with a mapping of resource names to resources. Resources
+    are expressed as either string or reference to resource instance. If string,
+    class name is expressed as module.class; for example:
+    `myapp.resources.v1.FooResource`. Resources classes expressed as strings must
+    have `__init__` methods that take no arguments other than `self`.
 
-        resources = Resources({
-            'foo': 'myapp.resources.v1:FooResource',
-            'bar': 'myapp.resources.v1:BarResource',
-            'qux': qux_instance,
-        })
+    Resources are exposed as object attributes. Example initialization:
+
+    ```
+    resources = Resources({
+        'foo': 'myapp.resources.v1:FooResource',
+        'bar': 'myapp.resources.v1:BarResource',
+        'qux': qux_instance,
+    })
+    ```
 
     Resources can be accessed as attributes or subscript, like:
     `resources.foo` and `resources['bar']`.
     """
 
     def __init__(self, resources={}):
-        """
-        Initialize resources with a mapping of resource names to resources. Resources
-        are expressed as either string or reference to resource instance. If string,
-        class name is expressed as module.class; for example:
-        `myapp.resources.v1.FooResource`. Resources classes expressed as strings must
-        have `__init__` methods that take no arguments other than `self`.
-        """
         super().__init__()
         self._lock = threading.Lock()
         self._resources = {}
@@ -104,8 +180,9 @@ class Resources:
         in a string must have an `__init__` method that takes no arguments
         (other than `self`).
 
-        :param key: The key to register or deregister.
-        :param resource: Resource class name, resource instance, or None to deregister.
+        Parameters:
+        • key: The key to register or deregister.
+        • resource: Resource class name, resource instance, or None to deregister.
         """
         if (
             resource is not None
@@ -192,15 +269,16 @@ def operation(
     """
     Decorate a resource method to register it as a resource operation.
 
-    :param name: Operation name. Required if the operation type is 'query' or 'action'.
-    :param type: Type of operation being registered.  {'create', 'read', 'update', 'delete', 'action', 'query', 'patch'}
-    :param summary: Short summary of what the operation does.
-    :param description: Verbose description of the operation.  [function docstring]
-    :param params: Mapping of operation parameter names to their schemas.
-    :param returns: Schema of operation return value.
-    :param security: Security schemes, one of which must be satisfied to perform the operation.
-    :param publish: Publish the operation in documentation.
-    :param deprecated: Declare the operation as deprecated.
+    Parameters:
+    • name: Operation name. Required if the operation type is 'query' or 'action'.
+    • type: Type of operation being registered.  {'create', 'read', 'update', 'delete', 'action', 'query', 'patch'}
+    • summary: Short summary of what the operation does.
+    • description: Verbose description of the operation.  [function docstring]
+    • params: Mapping of operation parameter names to their schemas.
+    • returns: Schema of operation return value.
+    • security: Security schemes, one of which must be satisfied to perform the operation.
+    • publish: Publish the operation in documentation.
+    • deprecated: Declare the operation as deprecated.
     """
 
     def decorator(function):
@@ -246,79 +324,3 @@ def operation(
         return decorated
 
     return decorator
-
-
-class ResourceError(Exception):
-    """Base class for all resource errors."""
-
-    def __init__(self, detail=None, code=None):
-        """
-        Initialize resource error.
-
-        :param detail: textual description of the error.
-        :param code: the HTTP status most closely associated with the error.
-        """
-        super().__init__(self, detail)
-        self.detail = detail or getattr(self, "detail", "Internal Server Error")
-        self.code = code or getattr(self, "code", 500)
-
-    def __str__(self):
-        return self.detail
-
-
-class BadRequest(ResourceError):
-    """Raised if the request is malformed."""
-
-    code, detail = 400, "Bad Request"
-
-
-class Unauthorized(ResourceError):
-    """Raised if the request lacks valid authentication credentials."""
-
-    code, detail = 401, "Unauthorized"
-
-    def __init__(self, detail=None, challenge=None):
-        """
-        Initialize resource error.
-
-        :param detail: Human-readable description of the error.
-        :param challenge: Applicable authentication scheme and parameters.
-        """
-        super().__init__()
-        self.challenge = challenge
-
-
-class Forbidden(ResourceError):
-    """Raised if authorization to the resource is refused."""
-
-    code, detail = 403, "Forbidden"
-
-
-class NotFound(ResourceError):
-    """Raised if the resource could not be found."""
-
-    code, detail = 404, "Not Found"
-
-
-class OperationNotAllowed(ResourceError):
-    """Raised if the resource does not allow the requested operation."""
-
-    code, detail = 405, "Operation Not Allowed"
-
-
-class Conflict(ResourceError):
-    """Raised if there is a conflict with the current state of the resource."""
-
-    code, detail = 409, "Conflict"
-
-
-class PreconditionFailed(ResourceError):
-    """Raised if the revision provided does not match the current resource."""
-
-    code, detail = 412, "Precondition Failed"
-
-
-class InternalServerError(ResourceError):
-    """Raised if the server encountered an unexpected condition."""
-
-    code, detail = 500, "Internal Server Error"

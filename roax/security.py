@@ -8,19 +8,17 @@ from roax.resource import Forbidden
 class SecurityRequirement:
     """
     Performs authorization of resource operations.
+
+    Parameters:
+    • scheme: Security scheme to associate with the security requirement.
+    • scope: Scheme-specific scope names required for authorization.
+
+    If the requirement is associated with a security scheme, both the security
+    requirement and the security scheme will be included in any generated
+    OpenAPI document.
     """
 
     def __init__(self, scheme=None, scopes=[]):
-        """
-        Initialize security requirement.
-
-        If the requirement is associated with a security scheme, both the security
-        requirement and the security scheme will be included in any generated
-        OpenAPI document.
-
-        :param scheme: Security scheme to associate with the security requirement.
-        :param scope: Scheme-specific scope names required for authorization.
-        """
         super().__init__()
         self.scheme = scheme
         self.scopes = scopes
@@ -42,18 +40,16 @@ class SecurityRequirement:
 class SecurityScheme:
     """
     Base class for security schemes.
-    
+
+    Parameters:    
+    • name: The name of the security scheme.
+    • type: The type of security scheme.
+
     A security scheme is required if security requirements and security schemes
     should be published in OpenAPI documents.
     """
 
     def __init__(self, name, type, *, description=None, **kwargs):
-        """
-        Initialize the security scheme.
-        
-        :param name: The name of the security scheme.
-        :param type: The type of security scheme.
-        """
         super().__init__()
         self.name = name
         self.type = type
@@ -80,8 +76,8 @@ class ContextSecurityRequirement(SecurityRequirement):
         Initialize context security requirement.
 
         The context value to search for can be expressed as follows:
-        - ContextSecurityRequirement(mapping): Mapping object's key-value pairs.
-        - ContextSecurityRequirement(**kwargs): Name-value pairs in keyword arguments. 
+        • ContextSecurityRequirement(mapping): Mapping object's key-value pairs.
+        • ContextSecurityRequirement(**kwargs): Name-value pairs in keyword arguments. 
 
         """
         super().__init__()

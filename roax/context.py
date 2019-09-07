@@ -1,10 +1,9 @@
 """Module to manage a stack of context values."""
 
+import collections.abc
+import datetime
 import threading
-
-from collections.abc import Mapping
-from datetime import datetime, timezone
-from uuid import uuid4
+import uuid
 
 
 _local = threading.local()
@@ -30,15 +29,16 @@ class push:
         Push a context value on the stack.
 
         Accepts values as follows:
-
-        - push(mapping): Context is initialized from a mapping object's key-value pairs.
-        - push(**kwargs): Context is initialized with name-value pairs in keyword arguments. 
+        • push(mapping): Context is initialized from a mapping object's key-value pairs.
+        • push(**kwargs): Context is initialized with name-value pairs in keyword arguments. 
         """
         stack = get_stack()
         if len(stack) == 0:
             stack.append(
                 dict(
-                    context_type="root", id=uuid4(), time=datetime.now(tz=timezone.utc)
+                    context_type="root",
+                    id=uuid.uuid4(),
+                    time=datetime.datetime.now(tz=datetime.timezone.utc),
                 )
             )
         self.value = dict(*args, **varargs)
@@ -56,7 +56,8 @@ def pop(pushed):
     """
     Pop a value that was pushed onto the context stack.
 
-    :param pushed: The value returned from push().
+    Parameter:
+    • pushed: The value returned from push().
     """
     pos = pushed.pos
     value = pushed.value
@@ -74,12 +75,12 @@ def last(*args, **varargs):
     and values, or None if not found.
 
     The value to search for can be expressed as follows:
-    - last(mapping): Value is expressed as a mapping object's key-value pairs.
-    - last(**kwargs): Value is expressed with name-value pairs in keyword arguments. 
+    • last(mapping): Value is expressed as a mapping object's key-value pairs.
+    • last(**kwargs): Value is expressed with name-value pairs in keyword arguments. 
     """
     values = dict(*args, **varargs)
     for value in reversed(get_stack()):
-        if isinstance(value, Mapping):
+        if isinstance(value, collections.abc.Mapping):
             if {k: value.get(k) for k in values} == values:
                 return value
 
@@ -91,13 +92,13 @@ def find(*args, **varargs):
     value is the last value in the return value.
 
     The value to search for can be expressed as follows:
-    - find(mapping): Value is expressed as a mapping object's key-value pairs.
-    - find(**kwargs): Value is expressed with name-value pairs in keyword arguments. 
+    • find(mapping): Value is expressed as a mapping object's key-value pairs.
+    • find(**kwargs): Value is expressed with name-value pairs in keyword arguments. 
     """
     result = []
     values = dict(*args, **varargs)
     for value in get_stack():
-        if isinstance(value, Mapping):
+        if isinstance(value, collections.abc.Mapping):
             if {k: value.get(k) for k in values} == values:
                 result.append(value)
     return result

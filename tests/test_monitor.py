@@ -171,29 +171,14 @@ def test_simple_invalid_data_series_type():
         simple.track("test", "foobar", _tags, 60, 60)
 
 
-def test_queue_pop():
-    queue = roax.monitor.QueueMonitor()
-    queue.record(_tags, _dt("2018-12-01T00:00:00Z"), "counter", 1)
-    queue.record(_tags, _dt("2018-12-01T00:01:01Z"), "counter", 10)
-    assert queue.pop() == [
-        dict(
-            tags=_tags, timestamp=_dt("2018-12-01T00:00:00Z"), type="counter", value=1
-        ),
-        dict(
-            tags=_tags, timestamp=_dt("2018-12-01T00:01:01Z"), type="counter", value=10
-        ),
-    ]
-    assert len(queue.pop()) == 0
-
-
 def test_queue_truncate():
-    queue = roax.monitor.QueueMonitor(size=2)
+    queue = roax.monitor.DequeMonitor(size=2)
     queue.record(
         _tags, _dt("2018-12-01T00:00:00Z"), "absolute", 1
     )  # should be truncated
     queue.record(_tags, _dt("2018-12-01T00:00:01Z"), "absolute", 2)
     queue.record(_tags, _dt("2018-12-01T00:00:02Z"), "absolute", 3)
-    assert queue.pop() == [
+    assert list(queue.deque) == [
         dict(
             tags=_tags, timestamp=_dt("2018-12-01T00:00:01Z"), type="absolute", value=2
         ),
@@ -205,10 +190,10 @@ def test_queue_truncate():
 
 def test_monitors():
     monitors = roax.monitor.Monitors()
-    q1 = roax.monitor.QueueMonitor()
-    q2 = roax.monitor.QueueMonitor()
+    q1 = roax.monitor.DequeMonitor()
+    q2 = roax.monitor.DequeMonitor()
     monitors["q1"] = q1
     monitors["q2"] = q2
     monitors.record(_tags, _dt("2018-12-01T00:00:01Z"), "absolute", 1)
-    assert len(q1.pop()) == 1
-    assert len(q2.pop()) == 1
+    assert len(q1.deque) == 1
+    assert len(q2.deque) == 1

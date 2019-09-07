@@ -1,18 +1,15 @@
 """Module to expose resources through a command-line interface."""
 
+import io
 import json
 import re
 import readline
-import roax.context as context
+import roax.context
 import roax.schema as s
 import shlex
+import shutil
 import sys
 import traceback
-
-from io import TextIOWrapper
-from roax.resource import ResourceError
-from shutil import copyfileobj
-from textwrap import dedent
 
 
 _re = re.compile("(_*)(.*)(_*)")
@@ -56,13 +53,13 @@ def _parse_redirects(args, body, returns):
 
 
 def _read(inp, schema):
-    if isinstance(inp, TextIOWrapper):
+    if isinstance(inp, io.TextIOWrapper):
         inp = inp.buffer
     return schema.bin_decode(inp.read())
 
 
 def _write(out, schema, value):
-    if isinstance(out, TextIOWrapper):
+    if isinstance(out, io.TextIOWrapper):
         out = out.buffer
     out.write(schema.bin_encode(value))
     out.flush()
@@ -101,20 +98,20 @@ class _Exit(Exception):
 
 
 class CLI:
-    """Command line interface that exposes registered resources."""
+    """
+    Command line interface that exposes registered resources.
+
+    Parameters and instance variables:
+    • name: The name of the application.
+    • debug: Print details for any raised exceptions.
+    • err: Output stream for writing prompts and errors.
+    • prefix: Prefix for parameters.
+    • log: Log function to write log information.
+    """
 
     def __init__(
         self, name=None, *, debug=False, err=sys.stderr, prefix="--", log=None
     ):
-        """
-        Initialize a command line interface.
-
-        :param name: The name of the application.
-        :param debug: Print details for any raised exceptions.
-        :param err: Output stream for writing prompts and errors.
-        :param prefix: Prefix for parameters.
-        :param log: Log function to write log information.
-        """
         super().__init__()
         self.name = name
         self.debug = debug
@@ -136,9 +133,10 @@ class CLI:
         """
         Register a resource with the command line interface.
 
-        :param name: The name to expose for the resource via command line.
-        :param resource: The resource to be registered.
-        :param hidden: Hide the resource in help listings.
+        Parameters:
+        • name: The name to expose for the resource via command line.
+        • resource: The resource to be registered.
+        • hidden: Hide the resource in help listings.
         """
         self._check_not_registered(name)
         self.resources[name] = resource
@@ -149,9 +147,10 @@ class CLI:
         """
         Register a command with the command line interface.
 
-        :param name: The name to expose for the command via command line.
-        :param function: The function to call when command is invoked.
-        :param hidden: Hide the command in help listings.
+        Parameters:
+        • name: The name to expose for the command via command line.
+        • function: The function to call when command is invoked.
+        • hidden: Hide the command in help listings.
 
         The command's docstring (__doc__) is required to have its usage on the first
         line, the summary description on the second line, and any further help
@@ -169,7 +168,8 @@ class CLI:
         """
         Repeatedly issue a command prompt and process input.
 
-        :param prompt: The prompt to display for each command.
+        Parameter:
+        • prompt: The prompt to display for each command.
         
         The prompt can be a string or a callable to return a string containing the
         prompt to display.
@@ -188,8 +188,11 @@ class CLI:
         """
         Process a single command line.
         
-        :param line: Command line string to process.
-        :return: True if command line was processed successfully.
+        Parameters:
+        • line: Command line string to process.
+
+        Returns:
+        `True` if command line was processed successfully.
         """
         try:
             if self.log:
@@ -197,7 +200,7 @@ class CLI:
             args = shlex.split(line)
             if not args:
                 return True
-            with context.push(context_type="cli", command=line):
+            with roax.context.push(context_type="cli", command=line):
                 name = args.pop(0)
                 if name in self.resources:
                     return self._process_resource(name, args, inp, out)
@@ -276,7 +279,7 @@ class CLI:
 
     def _help_command(self, name):
         """Print the function docstring of a command as help text."""
-        self._print(dedent(self.commands[name].__doc__))
+        self._print(textwrap.dedent(self.commands[name].__doc__))
         return False
 
     def _parse_arguments(self, params, args):
@@ -360,7 +363,7 @@ class CLI:
                         f'Writing response to {getattr(out, "name", "stream")}...'
                     )
                 if isinstance(returns, s.reader):
-                    copyfileobj(result, out)
+                    shutil.copyfileobj(result, out)
                     result.close()
                 else:
                     _write(out, returns, result)

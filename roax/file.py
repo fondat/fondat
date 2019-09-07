@@ -1,12 +1,9 @@
 """Module to store resource items in files."""
 
-import json
 import os
+import os.path
+import roax.resource
 import roax.schema as s
-
-from copy import copy
-from os.path import expanduser
-from roax.resource import Resource, Conflict, InternalServerError, NotFound
 
 try:
     import fcntl  # supported in *nix
@@ -32,10 +29,18 @@ def _unquote(s):
     return s
 
 
-class FileResource(Resource):
+class FileResource(roax.resource.Resource):
     """
     Base class for a file-based resource; each item is a stored as a separate file
     in a directory.
+
+    Parameters and instance variables:
+    • name: Short name of the resource. (default: the class name in lower case)
+    • description: Short description of the resource. (default: the resource docstring)
+    • dir: Directory to store resource items in.
+    • schema: Schema for resource items.
+    • id_schema: Schema for resource item identifiers. (default: str)
+    • extenson: Filename extension to use for each file (including dot).
 
     This class is appropriate for up to hundreds or thousands of items; it is
     probably not appropriate for tens of thousands or more.
@@ -50,19 +55,8 @@ class FileResource(Resource):
         id_schema=None,
         extension=None,
     ):
-        """
-        Initialize file resource. All arguments can be alternatively declared as class
-        or instance variables.
-
-        :param name: Short name of the resource. (default: the class name in lower case)
-        :param description: Short description of the resource. (default: the resource docstring)
-        :param dir: Directory to store resource items in.
-        :param schema: Schema for resource items.
-        ;param id_schema: Schema for resource item identifiers. (default: str)
-        :param extenson: Filename extension to use for each file (including dot).
-        """
         super().__init__(name, description)
-        self.dir = expanduser((dir or self.dir).rstrip("/"))
+        self.dir = os.path.expanduser((dir or self.dir).rstrip("/"))
         self.schema = schema or self.schema
         self.id_schema = id_schema or getattr(self, "id_schema", s.str())
         self.extension = extension or getattr(self, "extension", "")
@@ -73,8 +67,10 @@ class FileResource(Resource):
         """Create a resource item."""
         try:
             self._write("xb", id, _body)
-        except NotFound:
-            raise InternalServerError(f"{self.name} resource directory not found")
+        except roax.resource.NotFound:
+            raise roax.resource.InternalServerError(
+                f"{self.name} resource directory not found"
+            )
         return {"id": id}
 
     def read(self, id):
@@ -90,7 +86,7 @@ class FileResource(Resource):
         try:
             os.remove(self._filename(id))
         except FileNotFoundError:
-            raise NotFound(f"{self.name} item not found: {id}")
+            raise roax.resource.NotFound(f"{self.name} item not found: {id}")
 
     def list(self):
         """Return a list of all resource item identifiers."""
@@ -98,7 +94,9 @@ class FileResource(Resource):
         try:
             listdir = os.listdir(self.dir)
         except FileNotFoundError:
-            raise InternalServerError(f"{self.name} resource directory not found")
+            raise roax.resource.InternalServerError(
+                f"{self.name} resource directory not found"
+            )
         for name in listdir:
             if name.endswith(self.extension):
                 name = name[: len(name) - len(self.extension)]
@@ -122,9 +120,9 @@ class FileResource(Resource):
                 fcntl.flock(file.fileno(), fcntl.LOCK_EX)
             return file
         except FileNotFoundError:
-            raise NotFound(f"{self.name} item not found: {id}")
+            raise roax.resource.NotFound(f"{self.name} item not found: {id}")
         except FileExistsError:
-            raise Conflict(f"{self.name} item already exists: {id}")
+            raise roax.resource.Conflict(f"{self.name} item already exists: {id}")
 
     def _read(self, mode, id):
         with self._open(id, mode) as file:
@@ -132,7 +130,7 @@ class FileResource(Resource):
                 result = self.schema.bin_decode(file.read())
                 self.schema.validate(result)
             except s.SchemaError as se:
-                raise InternalServerError(
+                raise roax.resource.InternalServerError(
                     "content read from file failed schema validation"
                 ) from se
         return result

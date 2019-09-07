@@ -1,9 +1,7 @@
 """Module to expose OpenAPI document describing a Roax application."""
 
+import roax.resource
 import roax.schema as s
-
-from copy import copy
-from roax.resource import Resource, operation
 
 
 _schema = s.dict(properties={}, additional=True)
@@ -26,23 +24,23 @@ def _security_requirements(operation):
     return result
 
 
-class OpenAPIResource(Resource):
+class OpenAPIResource(roax.resource.Resource):
     """
     A resource that serves an OpenAPI document for an application. The document is
     generated on the first read request, and is cached for further read requests.
+
+    Parameters:
+    • name: The short name of the resource.
+    • description: A short description of the resource.
+    • security: The security requirements to read the resource.
     """
 
     def __init__(self, app, name=None, description=None, security=None):
-        """
-        Initialize the OpenAPI resource.
-
-        :param name: The short name of the resource.
-        :param description: A short description of the resource.
-        :param security: The security requirements to read the resource.
-        """
         super().__init__()
         self.app = app
-        self.read = operation(params={}, returns=_schema, security=security)(self.read)
+        self.read = roax.resource.operation(
+            params={}, returns=_schema, security=security
+        )(self.read)
         self.content = None
 
     def read(self):
