@@ -26,7 +26,7 @@ class Measurement(
     """
     An individual measurement.
 
-    Attributes:
+    Parameters and attributes:
     • tags: Tags associated with the measurement. Should contain a "name" key.
     • timestamp: Date and time of the measurement to record.
     • type: Type of measurement to record.  {"counter", "gauge", "absolute"}
