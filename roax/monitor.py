@@ -2,7 +2,7 @@
 Module for monitoring measurements.
 
 This module defines a `monitors` variable, which is an instance of the `Monitors`
-class. Your application monitor(s) can be set in/deleted from this object.
+class. Your application monitor(s) can be added to/deleted from this object.
 """
 
 import collections
@@ -11,12 +11,27 @@ import logging
 import math
 import re
 import time
+import typing
 
 
 _logger = logging.getLogger(__name__)
 
 
 _now = lambda: datetime.datetime.now(tz=datetime.timezone.utc)
+
+
+class Measurement(
+    collections.namedtuple("Measurement", "tags, timestamp, type, value")
+):
+    """
+    An individual measurement.
+
+    Attributes:
+    • tags: Tags associated with the measurement. Should contain a "name" key.
+    • timestamp: Date and time of the measurement to record.
+    • type: Type of measurement to record.  {"counter", "gauge", "absolute"}
+    • value: Value of measurement (int or float).
+    """
 
 
 class Counter:
@@ -156,14 +171,17 @@ class Series:
             self.data.popleft()
         return result
 
-    def record(self, tags, timestamp, type, value):
-        if not self._tags_match(tags):
+    def record(self, measurement):
+        """
+        Record a measurement.
+        """
+        if not self._tags_match(measurement.tags):
             return  # ignore submission
-        if type != self.type:
+        if measurement.type != self.type:
             raise ValueError(f"expecting data point type of: {self.type}")
-        if timestamp > _now():
+        if measurement.timestamp > _now():
             raise ValueError("cannot record measurement in the future")
-        self._get_data_point(timestamp).record(value)
+        self._get_data_point(measurement.timestamp).record(measurement.value)
 
 
 class SimpleMonitor:
@@ -211,21 +229,12 @@ class SimpleMonitor:
             raise ValueError(f"unsupported data point type: {type}")
         self.series[name] = Series(type, patterns, points, interval)
 
-    def record(self, tags, timestamp, type, value):
+    def record(self, measurement):
         """
         Record a measurement.
-
-        Parameters
-        • tags: Tags associated with the measurement.
-        • timestamp: Date and time of the measurement to record.
-        • type: Type of measurement to record.  {"counter", "gauge", "absolute"}
-        • value: Value of measurement to record.
-
-        The `tags` parameter is a dictionary that maps string key to string value. At
-        least one tag should have a key of `name`.
         """
         for series in self.series.values():
-            series.record(tags, timestamp, type, value)
+            series.record(measurement)
 
 
 class DequeMonitor:
@@ -238,9 +247,6 @@ class DequeMonitor:
 
     If the maximum queue size if reached, oldest measurements will be
     truncated.
-
-    Each measurement is stored in this form.
-    `{"tags": dict, "timestamp": datetime, "type": str, "value": object}`.
     """
 
     def __init__(self, size=None, deque=None):
@@ -248,50 +254,52 @@ class DequeMonitor:
         self.deque = deque if deque is not None else collections.deque()
         self.size = size
 
-    def record(self, tags, timestamp, type, value):
+    def record(self, measurement):
         """
         Record a measurement.
-
-        Parameters:
-        • tags: Tags associated with the measurement.
-        • timestamp: Date and time of the measurement to record.
-        • type: Type of measurement to record.  {"counter", "gauge", "absolute"}
-        • value: Value of measurement to record.
-
-        The `tags` parameter is a dictionary that maps string key to string value. At
-        least one tag should have a key of `name`.
         """
         if self.size and len(self.deque) >= self.size:
             while len(self.deque) >= self.size:
                 self.deque.popleft()
-        self.deque.append(dict(tags=tags, timestamp=timestamp, type=type, value=value))
+        self.deque.append(measurement)
+
+    def pop(self, monitor, cap=None):
+        """
+        Remove leftmost measurements from the deque and record them into
+        another monitor.
+
+        Parameters:
+        • monitor: Monitor to record measurements into.
+        • cap: Maximum number of measurements to pop from deque.
+
+        If no cap is specified, all queued items will be popped.
+        """
+        counter = 0
+        while True:
+            try:
+                monitor.record(self.deque.popleft())
+                counter += 1
+                if cap and counter >= cap:
+                    break
+            except IndexError:
+                break
 
 
 class Monitors(dict):
     """
-    A monitor that is itself a dict of key-monitor pairs. A call to the
-    `record` method in this class records the measurement in all of its
-    monitors. The key to associate with a monitor is at the discretion of its
-    creator.
+    A monitor that is a dict of key-monitor pairs. A call to the `record`
+    method in this class records the measurement in all of its monitors. The
+    key to associate with a monitor is at the discretion of its creator.
     """
 
-    def record(self, tags, timestamp, type, value):
+    def record(self, measurement):
         """
         Record a measurement.
-
-        Parameters:
-        • tags: Tags associated with the measurement.
-        • timestamp: Date and time of the measurement to record.
-        • type: Type of measurement to record.  {"counter", "gauge", "absolute"}
-        • value: Value of measurement to record.
-
-        The `tags` parameter is a dictionary that maps string key to string
-        value. At least one tag should have a key of `name`.
         """
         exception = None
         for monitor in self.values():
             try:
-                monitor.record(tags, timestamp, type, value)
+                monitor.record(measurement)
             except Exception as e:
                 if not exception:
                     exception = e
@@ -320,9 +328,16 @@ class timer:
     def __exit__(self, *args):
         duration = time.time() - self.begin
         try:
-            self.monitor.record(self.tags, _now(), "gauge", duration)
+            self.monitor.record(Measurement(self.tags, _now(), "gauge", duration))
         except:
             _logger.warning("Exception recording measurement", exc_info=True)
+
+
+def record(measurement):
+    """
+    Record a measurement in all monitors.
+    """
+    monitors.record(measurement)
 
 
 monitors = Monitors()

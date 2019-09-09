@@ -297,8 +297,10 @@ def operation(
         def wrapper(wrapped, instance, args, kwargs):
             tags = {"resource": wrapped.__self__.name, "operation": _name}
             with context.push({**tags, "context": "operation"}):
-                roax.monitor.monitors.record(
-                    {**tags, "name": "operation_calls_total"}, _now(), "absolute", 1
+                roax.monitor.record(
+                    roax.monitor.Measurement(
+                        {**tags, "name": "operation_calls_total"}, _now(), "absolute", 1
+                    )
                 )
                 with roax.monitor.timer({**tags, "name": "operation_duration_seconds"}):
                     authorize(security)
