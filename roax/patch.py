@@ -1,13 +1,13 @@
 """Roax document patch module."""
 
-from collections.abc import Mapping
-from copy import deepcopy
+import collections.abc
+import copy
 
 
 def merge_patch(target, patch):
     """Apply JSON merge patch document, per RFC 7386."""
-    if isinstance(patch, Mapping):
-        if not isinstance(target, Mapping):
+    if isinstance(patch, collections.abc.Mapping):
+        if not isinstance(target, collections.abc.Mapping):
             target = {}
         for name, value in patch.items():
             if value is None:
@@ -16,4 +16,4 @@ def merge_patch(target, patch):
                 target[name] = merge_patch(target.get(name), value)
         return target
     else:
-        return deepcopy(patch)
+        return copy.deepcopy(patch)

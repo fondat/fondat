@@ -5,7 +5,7 @@ import json
 import re
 import readline
 import roax.context
-import roax.schema as s
+import roax.schema
 import shlex
 import shutil
 import sys
@@ -295,7 +295,7 @@ class CLI:
                 arg = arg[len(self.prefix) :]
                 name, value = arg.split("=", 1) if "=" in arg else (arg, None)
                 name = _a2p(name)
-                if name == "_body" or name not in params:
+                if name == "_body" or name not in params.props:
                     raise ValueError
                 if value:
                     result[name] = value
@@ -316,7 +316,7 @@ class CLI:
             return self._help_resource(resource_name)
         params = operation.params
         returns = operation.returns
-        body = params.get("_body")
+        body = params.props.get("_body")
         with _open_redirects(inp, out, args, body, returns) as (inp, out):
             try:
                 parsed = self._parse_arguments(params, args)
@@ -324,14 +324,14 @@ class CLI:
                 return self._help_operation(resource_name, operation)
             try:
                 for name in parsed:
-                    parsed[name] = params[name].str_decode(parsed[name])
-                for name in params.properties:
+                    parsed[name] = params.props[name].str_decode(parsed[name])
+                for name in params.props:
                     if (
                         name != "_body"
                         and name in params.required
                         and name not in parsed
                     ):
-                        raise s.SchemaError("missing required parameter")
+                        raise roax.schema.SchemaError("missing required parameter")
                 if body:
                     name = "{body}"
                     description = (body.description or f"{name}.").lower()
@@ -344,13 +344,13 @@ class CLI:
                         self._print(
                             f'Reading body from {getattr(inp, "name", "stream")}...'
                         )
-                    if isinstance(body, s.reader):
+                    if isinstance(body, roax.schema.reader):
                         parsed["_body"] = inp
                     else:
                         parsed["_body"] = _read(inp, body)
                 name = None
                 result = operation.call(**parsed)
-            except s.SchemaError as se:
+            except roax.schema.SchemaError as se:
                 if name:
                     se.push(_p2a(name))
                 self._help_operation(resource_name, operation)
@@ -362,7 +362,7 @@ class CLI:
                     self._print(
                         f'Writing response to {getattr(out, "name", "stream")}...'
                     )
-                if isinstance(returns, s.reader):
+                if isinstance(returns, roax.schema.reader):
                     shutil.copyfileobj(result, out)
                     result.close()
                 else:

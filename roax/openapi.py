@@ -4,7 +4,7 @@ import roax.resource
 import roax.schema as s
 
 
-_schema = s.dict(properties={}, additional=True)
+_schema = s.dict({}, additional=True)
 
 
 def _body_schema(schema):
@@ -38,9 +38,8 @@ class OpenAPIResource(roax.resource.Resource):
     def __init__(self, app, name=None, description=None, security=None):
         super().__init__()
         self.app = app
-        self.read = roax.resource.operation(
-            params={}, returns=_schema, security=security
-        )(self.read)
+        self.read = roax.resource.operation(security=security)(self.read)
+        self.read.__annotations__["return"] = _schema
         self.content = None
 
     def read(self):
@@ -90,20 +89,20 @@ class OpenAPIResource(roax.resource.Resource):
                 obj["description"] = operation.description
             obj["operationId"] = operation.resource.name + "." + operation.name
             params = []
-            for name, param in operation.params.properties.items():
+            for name, param in operation.params.props.items():
                 if name != "_body":
                     p = {}
                     p["name"] = name
                     p["in"] = "query"
                     if param.description:
                         p["description"] = param.description
-                    p["required"] = name in operation.params.required
+                    #                    p["required"] = name in operation.params.required
                     p["deprecated"] = param.deprecated
                     p["allowEmptyValue"] = True
                     p["schema"] = param.json_schema
                     params.append(p)
             obj["parameters"] = params
-            _body = operation.params.properties.get("_body")
+            _body = operation.params.props.get("_body")
             if _body:
                 b = {}
                 if _body.description:

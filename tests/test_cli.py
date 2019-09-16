@@ -1,50 +1,48 @@
+import io
 import json
 import os
 import pytest
 import roax.schema as s
 import tempfile
 
-from io import BytesIO
 from roax.cli import CLI
 from roax.resource import Resource, operation
 
 
 class _TestResource(Resource):
-    @operation(
-        params={"_body": s.bytes(format="binary")}, returns=s.dict({"id": s.str()})
-    )
-    def create(self, _body):
+    @operation()
+    def create(self, _body: s.bytes(format="binary")) -> s.dict({"id": s.str()}):
         if _body != b"hello_body":
             raise BadRequest("_body not hello_body")
         return {"id": "foo"}
 
-    @operation(type="action", params={"a_a": s.int(), "b": s.str()}, returns=s.str())
-    def foo(self, a_a, b):
+    @operation(type="action")
+    def foo(self, a_a: s.int(), b: s.str()) -> s.str():
         return "hoot"
 
-    @operation(type="action", params={"_body": s.reader()}, returns=s.reader())
-    def echo(self, _body):
-        return BytesIO(_body.read())
+    @operation(type="action")
+    def echo(self, _body: s.reader()) -> s.reader():
+        return io.BytesIO(_body.read())
 
 
 @pytest.fixture(scope="module")
 def cli():
-    cli = CLI(debug=False, err=None)
+    cli = CLI(debug=True, err=None)
     cli.register_resource("test", _TestResource())
     return cli
 
 
 def test_cli_params(cli):
     line = "test foo --a-a=1 --b=abc"
-    out = BytesIO()
+    out = io.BytesIO()
     assert cli.process(line, out=out) == True
     assert out.getvalue() == b"hoot"
 
 
 def test_cli_create_binary_body_success(cli):
     line = "test create"
-    inp = BytesIO(b"hello_body")
-    out = BytesIO()
+    inp = io.BytesIO(b"hello_body")
+    out = io.BytesIO()
     assert cli.process(line, inp=inp, out=out) == True
     out.seek(0)
     assert json.loads(out.getvalue().decode()) == {"id": "foo"}
@@ -52,8 +50,8 @@ def test_cli_create_binary_body_success(cli):
 
 def test_cli_create_binary_body_failure(cli):
     line = "test create"
-    inp = BytesIO(b"not_a_match")
-    out = BytesIO()
+    inp = io.BytesIO(b"not_a_match")
+    out = io.BytesIO()
     assert cli.process(line, inp=inp, out=out) == False
 
 

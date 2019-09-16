@@ -3,9 +3,13 @@
 import roax._schema as _schema
 
 
+__all__ = []
+
+
 def _export(*args):
     for name in args:
         globals()[name] = getattr(_schema, "_" + name, None) or getattr(_schema, name)
+        __all__.append(name)
 
 
 _export(
@@ -25,8 +29,8 @@ _export(
     "any_of",
     "one_of",
     "reader",
+    "dataclass",
     "call",
-    "function_params",
     "validate",
     "SchemaError",
 )

@@ -5,6 +5,7 @@ import binascii
 import collections.abc
 import copy
 import csv
+import dataclasses
 import datetime
 import inspect
 import io
@@ -25,23 +26,22 @@ def _csv_decode(value):
     return csv.reader([value]).__next__()
 
 
-class SchemaError(Exception):
-    """Raised if a value does not conform to its schema."""
+class SchemaError(ValueError):
+    """
+    Raised if a value does not conform to its schema.
+    
+    Parameters:
+    • path: Python-style path to value with error.
+    """
 
-    def __init__(self, msg, pointer=None):
-        """Initialize the schema error."""
+    def __init__(self, msg, path=None):
         self.msg = str(msg)
-        self.pointer = pointer
-
-    def push(self, name):
-        """Push a name in front of the pointer."""
-        name = str(name)
-        self.pointer = name if not self.pointer else f"{name}/{self.pointer}"
+        self.path = path
 
     def __str__(self):
         result = []
-        if self.pointer is not None:
-            result.append(self.pointer)
+        if self.path is not None:
+            result.append(self.path)
         if self.msg is not None:
             result.append(self.msg)
         return ": ".join(result)
@@ -90,8 +90,11 @@ class _type:
         self.example = example
         self.deprecated = deprecated
 
+    def __repr__(self):
+        return self.python_type.__name__
+
     def _nullable(self):
-        """Return if value can be `None`. Can be overridden by subclasses."""
+        """Return if value can be None. Can be overridden by subclasses."""
         return self.nullable
 
     def validate(self, value):
@@ -100,14 +103,14 @@ class _type:
             raise SchemaError("value is not nullable")
         if value is not None and not isinstance(value, self.python_type):
             raise SchemaError(
-                f"value '{value}' does not match expected type {self.python_type.__name__}"
+                f"value {value} does not match expected type: {self.python_type.__name__}"
             )
         if value is not None and self.enum is not None and value not in self.enum:
             if len(self.enum) == 1:
                 raise SchemaError(f"value must be {list(self.enum)[0]}")
             else:
                 raise SchemaError(
-                    f"value '{value}' must be one of: {', '.join([self.str_encode(v) for v in self.enum])}"
+                    f"value {value} is not one of: {', '.join([self.str_encode(v) for v in self.enum])}"
                 )
 
     @property
@@ -174,21 +177,20 @@ class _type:
 
 def _required(required):
     if isinstance(required, str):
-        required = (item.lstrip().rstrip() for item in required.split(","))
-        required = (item for item in required if item)
+        required = required.replace(",", " ").split()
     return set(required)
 
 
 class _dict(_type):
     """
-    Schema type for dictionaries.
+    Schema type for dictionary.
 
     Parameters and instance variables:
-    • properties: A mapping of name to schema.
+    • props: A mapping of name to schema.
+    • required: Set of property names that are required.
     • content_type: Content type used when value is expressed in a body.  ["application/json"]
     • additional: Additional unvalidated properties are allowed.
     • nullable: Allow None as a valid value.
-    • required: Set of property names that are required.
     • default: Default value if the item value is not supplied.
     • description: A description of the schema.
     • example: An example of an instance for this schema.
@@ -196,7 +198,7 @@ class _dict(_type):
 
     def __init__(
         self,
-        properties,
+        props,
         required=set(),
         *,
         content_type="application/json",
@@ -209,21 +211,9 @@ class _dict(_type):
             content_type=content_type,
             **kwargs,
         )
-        self.properties = properties
+        self.props = props
         self.required = _required(required)
         self.additional = additional
-
-    def __contains__(self, value):
-        return value in self.properties
-
-    def __getitem__(self, key):
-        return self.properties[key]
-
-    def __iter__(self):
-        return self.properties.__iter__()
-
-    def get(self, key, default=None):
-        return self.properties.get(key, default)
 
     def _process(self, method, value):
         if value is None:
@@ -231,61 +221,57 @@ class _dict(_type):
         result = {}
         for k, v in value.items():
             try:
-                if k in self.properties:
-                    result[k] = getattr(self.properties[k], method)(v)
+                if k in self.props:
+                    result[k] = getattr(self.props[k], method)(v)
                 else:
                     if not self.additional:
                         raise SchemaError("unexpected property")
                     result[k] = v  # pass through
             except SchemaError as se:
-                se.push(k)
+                se.path = f"/{k}{se.path}" if se.path else f"/{k}"
                 raise
         return result
 
     def defaults(self, value):
-        """Populate missing dictionary properties with default values."""
+        """Set default values."""
         if value is None:
             return None
-        result = None
-        for key, schema in self.properties.items():
+        for prop, schema in self.props.items():
             if (
-                key not in value
-                and key not in self.required
+                prop not in value
+                and prop not in self.required
                 and schema.default is not None
             ):
-                if result is None:
-                    result = dict(value)
-                result[key] = schema.default
-        return result if result else value
+                value[prop] = schema.default
+            defaults = getattr(schema, "defaults", None)
+            if defaults:
+                defaults(value[prop])
 
     def validate(self, value):
         """Validate value against the schema."""
         super().validate(value)
         if value is not None:
-            for property in self.required:
-                if property not in value:
-                    raise SchemaError("value required", property)
+            for prop in self.required:
+                if prop not in value:
+                    raise SchemaError("value required", prop)
             self._process("validate", value)
 
     @property
     def json_schema(self):
         """JSON schema representation of the schema."""
         result = super().json_schema
-        result["properties"] = {k: v.json_schema for k, v in self.properties.items()}
+        result["properties"] = {k: v.json_schema for k, v in self.props.items()}
         result["required"] = list(self.required)
         return result
 
     def json_encode(self, value):
         """Encode the value into JSON object model representation."""
-        value = self.defaults(value)
         self.validate(value)
-        if value is not None and not isinstance(value, dict):
-            value = dict(value)  # make JSON encoder happy
         return self._process("json_encode", value)
 
     def json_decode(self, value):
         """Decode the value from JSON object model representation."""
-        value = self.defaults(self._process("json_decode", value))
+        value = self._process("json_decode", value)
         self.validate(value)
         return value
 
@@ -297,37 +283,37 @@ class _dict(_type):
         """Decode the value from string representation."""
         return self.json_decode(json.loads(value))
 
-    def copy(self, properties=None, required=None):
+    def copy(self, props=None, required=None):
         """Make a copy of the schema, specifying a subset of properties."""
         result = super().copy()
-        if properties is not None:
-            result.properties = {k: v for k, v in result.properties if k in properties}
+        if props is not None:
+            result.props = {k: v for k, v in result.props if k in props}
         if required is not None:
             result.required = _required(required)
         return result
 
     def strip(self, value):
         """Return a copy of the value with only properties specified in the schema."""
-        return {k: v for k, v in value.items() if k in self.properties}
+        return {k: v for k, v in value.items() if k in self.props}
 
 
 class _list(_type):
     """
-    Schema type for lists.
+    Schema type for list.
 
     Parameters and instance variables:
     • items: Schema which all items must adhere to.
     • content_type: Content type used when value is expressed in a body.  ["application/json"]
-    • min_items: The minimum number of items required.
-    • max_items: The maximum number of items required.
-    • unique_items: All items must have unique values.
+    • min: The minimum number of items required.
+    • max: The maximum number of items required.
+    • unique: All items must have unique values.
     • nullable: Allow None as a valid value.
     • default: Default value if the item value is not supplied.
     • description: A description of the schema.
     • example: An example of an instance for this schema.
 
-    List values are represented in JSON as an array and string as comma-separated
-    values.
+    List values are represented in JSON as an array and string as
+    comma-separated values.
     """
 
     def __init__(
@@ -335,9 +321,9 @@ class _list(_type):
         items,
         *,
         content_type="application/json",
-        min_items=0,
-        max_items=None,
-        unique_items=False,
+        min=0,
+        max=None,
+        unique=False,
         **kwargs,
     ):
         super().__init__(
@@ -347,9 +333,9 @@ class _list(_type):
             **kwargs,
         )
         self.items = items
-        self.min_items = min_items
-        self.max_items = max_items
-        self.unique_items = unique_items
+        self.min = min
+        self.max = max
+        self.unique = unique
 
     def _process(self, method, value):
         if value is None:
@@ -360,14 +346,32 @@ class _list(_type):
             for n, item in zip(range(len(value)), value):
                 result.append(method(item))
         except SchemaError as se:
-            se.push(n)
+            se.path = f"/{n}{se.path}" if se.path else f"/{n}"
             raise
         return result
+
+    def defaults(self, value):
+        """Set default values."""
+        defaults = getattr(self.items, "defaults", None)
+        if defaults:
+            for v in values:
+                defaults(v)
 
     @staticmethod
     def _check_not_str(value):
         if isinstance(value, str):  # strings are iterable, but not what we want
             raise SchemaError("expecting a Sequence type")
+
+    @staticmethod
+    def _is_unique(value):
+        try:
+            computed = set(value)
+        except:
+            computed = []
+            for v in value:
+                if v not in computed:
+                    computed.append(v)
+        return len(value) == len(computed)
 
     def validate(self, value):
         """Validate value against the schema."""
@@ -375,29 +379,28 @@ class _list(_type):
         super().validate(value)
         if value is not None:
             self._process("validate", value)
-            if len(value) < self.min_items:
-                raise SchemaError(f"expecting minimum number of {self.min_items} items")
-            if self.max_items is not None and len(value) > self.max_items:
-                raise SchemaError(f"expecting maximum number of {self.max_items} items")
-            if self.unique_items and len(value) != len(set(value)):
-                raise SchemaError("expecting items to be unique")
+            if len(value) < self.min:
+                raise SchemaError(f"expecting minimum number of {self.min} items")
+            if self.max is not None and len(value) > self.max:
+                raise SchemaError(f"expecting maximum number of {self.max} items")
+            if not self._is_unique(value):
+                raise SchemaError("expecting list items to be unique")
 
     @property
     def json_schema(self):
         """JSON schema representation of the schema."""
         result = super().json_schema
         result["items"] = self.items.json_schema
-        if self.min_items != 0:
-            result["minItems"] = self.min_items
-        if self.max_items is not None:
-            result["maxItems"] = self.max_items
-        if self.unique_items:
+        if self.min != 0:
+            result["minItems"] = self.min
+        if self.max is not None:
+            result["maxItems"] = self.max
+        if self.unique:
             result["uniqueItems"] = True
         return result
 
     def json_encode(self, value):
         """Encode the value into JSON object model representation."""
-        self._check_not_str(value)
         self.validate(value)
         if value is not None and not isinstance(value, list):
             value = list(value)  # make JSON encoder happy
@@ -430,7 +433,7 @@ class _list(_type):
             try:
                 return json.dumps(self.json_encode(value)).encode()
             except (TypeError, ValueError) as e:
-                raise SchemaError(str(ve)) from e
+                raise SchemaError(str(e)) from e
 
     def bin_decode(self, value):
         """Decode the value from binary representation."""
@@ -438,31 +441,26 @@ class _list(_type):
             try:
                 return self.json_decode(json.loads(value.decode()))
             except (TypeError, ValueError) as e:
-                raise SchemaError(str(ve)) from e
+                raise SchemaError(str(e)) from e
 
 
 class _set(_type):
     """
-    Schema type for sets.
+    Schema type for set.
 
     Parameters and instance variables:
-    • items: Schema which set items must adhere to.
-    • content_type: Content type used when value is expressed in a body.
+    • items: Schema which all items must adhere to.
+    • content_type: Content type used when value is expressed in a body.  ["application/json"]
     • nullable: Allow None as a valid value.
-    • required: Value is mandatory.
     • default: Default value if the item value is not supplied.
     • description: A description of the schema.
     • example: An example of an instance for this schema.
 
-    Set values are represented in JSON as an array and string as comma-separated
-    values.
+    Set values are represented in JSON as an array and string as
+    comma-separated values.
     """
 
     def __init__(self, items, *, content_type="application/json", **kwargs):
-        """
-        Initialize set schema.
-
-        """
         super().__init__(
             python_type=set, json_type="array", content_type=content_type, **kwargs
         )
@@ -476,6 +474,13 @@ class _set(_type):
         for item in value:
             result.add(method(item))
         return result
+
+    def defaults(self, value):
+        """Set default values."""
+        defaults = getattr(self.items, "defaults", None)
+        if defaults:
+            for v in values:
+                defaults(v)
 
     def validate(self, value):
         """Validate value against the schema."""
@@ -491,40 +496,40 @@ class _set(_type):
         result["uniqueItems"] = True
         return result
 
+    @staticmethod
+    def _sort(value):
+        result = value
+        if result is not None:
+            result = list(result)
+            result.sort()
+        return result
+
     def json_encode(self, value):
         """Encode the value into JSON object model representation."""
         self.validate(value)
-        if value is not None:
-            value = list(self._process("json_encode", value))
-            value.sort()
-        return value
+        return self._sort(self._process("json_encode", value))
 
     def json_decode(self, value):
         """Decode the value from JSON object model representation."""
         if value is not None:
             result = self._process("json_decode", value)
             if len(result) != len(value):
-                raise SchemaError("expecting items to be unique")
+                raise SchemaError("expecting set items to be unique")
+            self.validate(result)
             value = result
-        self.validate(value)
         return value
 
     def str_encode(self, value):
         """Encode the value into string representation."""
         self.validate(value)
-        if value is None:
-            return None
-        result = list(self._process("str_encode", value))
-        result.sort()
-        return _csv_encode(result)
+        if value is not None:
+            value = _csv_encode(self._sort(self._process("str_encode", value)))
+        return value
 
     def str_decode(self, value):
         """Decode the value from string representation."""
         if value is not None:
-            csv = _csv_decode(value)
-            value = self._process("str_decode", csv)
-            if len(value) != len(csv):
-                raise SchemaError("expecting items to be unique")
+            value = self._process("str_decode", _csv_decode(value))
         self.validate(value)
         return value
 
@@ -534,7 +539,7 @@ class _set(_type):
             try:
                 return json.dumps(self.json_encode(value)).encode()
             except (TypeError, ValueError) as e:
-                raise SchemaError(str(ve)) from e
+                raise SchemaError(str(e)) from e
 
     def bin_decode(self, value):
         """Decode the value from binary representation."""
@@ -542,12 +547,12 @@ class _set(_type):
             try:
                 return self.json_decode(json.loads(value.decode()))
             except (TypeError, ValueError) as e:
-                raise SchemaError(str(ve)) from e
+                raise SchemaError(str(e)) from e
 
 
 class _str(_type):
     """
-    Schema type for Unicode character strings.
+    Schema type for Unicode character string.
 
     Parameters and instance variables:
     • content_type: Content type used when value is expressed in a body.  ["text/plain"]
@@ -655,7 +660,7 @@ class _number(_type):
 
 class _int(_number):
     """
-    Schema type for integers.
+    Schema type for integer.
 
     Parameters and instance variables:
     • content_type: Content type used when value is expressed in a body.  ["text/plain"]
@@ -700,7 +705,7 @@ class _int(_number):
 
 class _float(_number):
     """
-    Schema type for floating point numbers.
+    Schema type for floating point number.
 
     Parameters and instance variables:
     • content_type: Content type used when value is expressed in a body.  ["text/plain"]
@@ -737,7 +742,7 @@ class _float(_number):
 
 class _bool(_type):
     """
-    Schema type for boolean values.
+    Schema type for boolean value.
 
     Parameters and instance variables:
     • content_type: Content type used when value is expressed in a body.  ["text/plain"]
@@ -779,10 +784,10 @@ class _bool(_type):
 
 class _bytes(_type):
     """
-    Schema type for byte sequences.
+    Schema type for byte sequence.
     
     Parameters and instance variables:
-    • content_type: Content type used when value is expressed in a body.  ["application/octet-stream"]
+    • content_type: Content type used when value is expressed in a body.
     • format: More finely defines the data type.  {"byte", "hex", "binary"}.
     • nullable: Allow None as a valid value.
     • default: Default value if the item value is not supplied.
@@ -875,7 +880,7 @@ class _bytes(_type):
 
 class _date(_type):
     """
-    Schema type for date values.
+    Schema type for date value.
 
     Parameters and instance variables:
     • content_type: Content type used when value is expressed in a body.  ["text/plain"]
@@ -922,7 +927,7 @@ class _date(_type):
 
 class _datetime(_type):
     """
-    Schema type for datetime values. It is highly recommended to always express
+    Schema type for datetime value. It is highly recommended to always express
     datetime values in the UTC time zone.
 
     Datetime values are represented in string and JSON values as an RFC 3339 UTC
@@ -985,7 +990,7 @@ class _datetime(_type):
 
 class _uuid(_type):
     """
-    Schema type for universally unique identifiers.
+    Schema type for universally unique identifier.
 
     Parameters and instance variables:
     • content_type: Content type used when value is expressed in a body.  ["text/plain"]
@@ -1055,9 +1060,7 @@ class all_of(_type):
             if not s1.additional:
                 raise ValueError("all_of schemas must enable additional properties")
             for s2 in schemas:
-                if s1 is not s2 and set.intersection(
-                    set(s1.properties), set(s2.properties)
-                ):
+                if s1 is not s2 and set.intersection(set(s1.props), set(s2.props)):
                     raise ValueError("all_of schemas cannot share property names")
         self.schemas = schemas
 
@@ -1104,7 +1107,7 @@ class all_of(_type):
 
 
 class _xof(_type):
-    """Base class for `one_of` and `any_of` schema types."""
+    """Base class for one_of and any_of schema types."""
 
     def __init__(self, keyword, schemas, **kwargs):
         super().__init__(**kwargs)
@@ -1134,7 +1137,7 @@ class _xof(_type):
         self._process("validate", value)
 
     def match(self, value):
-        """Return the first schema that matches the value, or `None`."""
+        """Return the first schema that matches the value, or None."""
         results = []
         for schema in self.schemas:
             try:
@@ -1249,7 +1252,116 @@ class reader(_type):
             raise SchemaError("expecting readable file-like object")
 
 
-def call(function, args, kwargs, params=None, returns=None):
+class _dataclass(_type):
+    """
+    Schema type for data class.
+
+    Parameters and instance variables:
+    • cls: Data class.
+    • required: Names of attributes that are required.
+    • content_type: Content type used when value is expressed in a body.  ["application/json"]
+    • nullable: Allow None as a valid value.
+    • description: A description of the schema.
+    • example: An example of an instance for this schema.
+    """
+
+    class _attrs:
+        def __init__(self, cls):
+            self.__dict__ = cls.__annotations__
+
+    def __init__(
+        self, cls, required=set(), *, content_type="application/json", **kwargs
+    ):
+        super().__init__(
+            python_type=object, json_type="object", content_type=content_type, **kwargs
+        )
+        self.cls = cls
+        self.required = _required(required)
+        self.attrs = _dataclass._attrs(cls)
+
+    def _process(self, method, value):
+        if value is None:
+            return None
+        result = {}
+        for name, schema in self.cls.__annotations__.items():
+            try:
+                v = getattr(value, name)
+                if v is not None or name in self.required:
+                    result[name] = getattr(schema, method)(v)
+            except SchemaError as se:
+                se.path = f"/{name}{se.path}" if se.path else f"/{name}"
+                raise
+        return result
+
+    def defaults(self, value):
+        """Set default values."""
+        for name, schema in self.cls.__annotations__.items():
+            attr = getattr(value, name)
+            if name not in self.required and attr is None:
+                setattr(value, name, schema.default)
+            defaults = getattr(schema, "defaults", None)
+            if defaults:
+                defaults(attr)
+
+    def validate(self, value):
+        """Validate value against the schema."""
+        super().validate(value)
+        if value is not None:
+            if not dataclasses.is_dataclass(value):
+                raise SchemaError("expected dataclass")
+            for name in self.required:
+                if (
+                    getattr(value, name) is None
+                    and not self.cls.__annotations__[name].nullable
+                ):
+                    raise SchemaError("value required", name)
+            self._process("validate", value)
+
+    @property
+    def json_schema(self):
+        """JSON schema representation of the schema."""
+        result = super().json_schema
+        result["properties"] = {k: v.json_schema for k, v in vars(self.attrs).items()}
+        result["required"] = list(self.required)
+        return result
+
+    def json_encode(self, value):
+        """Encode the value into JSON object model representation."""
+        self.validate(value)
+        result = self._process("json_encode", value)
+        if result is not None:
+            for name in result:
+                if result[name] is None and name not in self.required:
+                    del result[name]
+        return result
+
+    def json_decode(self, value):
+        """Decode the value from JSON object model representation."""
+        if value is not None:
+            result = {}
+            for name, schema in self.cls.__annotations__.items():
+                v = value.get(name)
+                if v is not None or name in self.required:
+                    try:
+                        v = schema.json_decode(v)
+                    except SchemaError as se:
+                        se.path = f"/{name}{se.path}" if se.path else f"/{name}"
+                        raise
+                result[name] = v
+            value = self.cls(**result)
+        self.validate(value)
+        return value
+
+    def str_encode(self, value):
+        """Encode the value into string representation."""
+        return json.dumps(self.json_encode(value))
+
+    def str_decode(self, value):
+        """Decode the value from string representation."""
+        return self.json_decode(json.loads(value))
+
+
+def call(function, args, kwargs):
     """
     Call a function, validating its input parameters and return value.
 
@@ -1257,12 +1369,6 @@ def call(function, args, kwargs, params=None, returns=None):
     • function: Function to call.
     • args: Positional arguments to pass to function.
     • kwargs: Keyword arguments to pass to function.
-    • params: Mapping of parameter names to associated schemas.
-    • returns: Schema of expected function return value.
-
-    Whether a parameter is required and any default value is defined by the
-    function, not its schema specification. If a parameter is omitted from the
-    params schema, its value is not validated.
     """
     sig = inspect.signature(function)
     if len(args) > len(
@@ -1272,98 +1378,59 @@ def call(function, args, kwargs, params=None, returns=None):
             if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)
         ]
     ):
-        raise TypeError("too many positional arguments")
-    build = {p.name: v for p, v in zip(sig.parameters.values(), args)}
+        raise TypeError("too many positional parameters")
+    params = {p.name: v for p, v in zip(sig.parameters.values(), args)}
     for k, v in kwargs.items():
-        if k in build:
-            raise TypeError(f"multiple values for argument: {k}")
-        build[k] = v
+        if k in params:
+            raise TypeError(f"multiple values for parameter {k}")
+        params[k] = v
     args = []
     kwargs = {}
     for p in sig.parameters.values():
-        if p.kind is inspect.Parameter.VAR_POSITIONAL:
-            raise TypeError(
-                "parameter validation does not support functions with *args"
-            )
-        elif p.kind is inspect.Parameter.VAR_KEYWORD:
-            raise TypeError(
-                "parameter validation does not support functions with **kwargs"
-            )
-        if p.name in build:
-            value = build[p.name]
-            if params is not None and p.name in params:
-                try:
-                    params[p.name].validate(build[p.name])
-                except SchemaError as se:
-                    se.push(p.name)
-                    raise
+        if p.kind is p.VAR_POSITIONAL:
+            raise TypeError("function with *args unsupported in validate")
+        elif p.kind is p.VAR_KEYWORD:
+            raise TypeError("function with **kwargs unsupported in validate")
+        if p.name in params:
+            value = params[p.name]
+            if p.name in function.__annotations__:
+                schema = function.__annotations__[p.name]
+                if isinstance(schema, reader) and p.name != "_body":
+                    raise TypeError(f"cannot use reader schema for parameter {p.name}")
+                elif isinstance(schema, _type):
+                    try:
+                        schema.validate(params[p.name])
+                    except SchemaError as se:
+                        se.path = f"{p.name}:{se.path}" if se.path else p.name
+                        raise
         elif p.default is not p.empty:
             value = p.default
         else:
             raise SchemaError("missing required parameter", p.name)
-        if p.kind in (
-            inspect.Parameter.POSITIONAL_ONLY,
-            inspect.Parameter.POSITIONAL_OR_KEYWORD,
-        ):
+        if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD):
             args.append(value)
         elif p.kind is inspect.Parameter.KEYWORD_ONLY:
             kwargs[p.name] = value
         else:
-            raise TypeError(f"unrecognized type for parameter {p.name}")
+            raise TypeError(f"unrecognized kind for parameter {p.name}")
     result = function(*args, **kwargs)
-    if returns is not None:
-        try:
-            returns.validate(result)
-        except SchemaError as se:
-            raise ValueError(f"return value: {se.msg}") from se
+    returns = function.__annotations__.get("return")
+    if returns is not None and isinstance(returns, _type):
+        returns.validate(result)
     return result
 
 
-def function_params(function, params):
+@wrapt.decorator
+def validate(wrapped, instance, args, kwargs):
     """
-    Return a subset of the passed parameter schemas, based on the arguments of
-    a defined function. The default properties are overridden, based function's
-    arguments.
+    Decorate a function to validate its parameters and return value.
+
+    Example:
+
+    import roax.schema as schema
+
+    @schema.validate
+    def fn(a: schema.str(), b: schema.int()) -> schema.str():
+        ...
     """
-    params = params or {}
-    properties = {}
-    required = set()
-    sig = inspect.signature(function)
-    for p in (p for p in sig.parameters.values() if p.name != "self"):
-        if p.kind is inspect.Parameter.VAR_POSITIONAL:
-            raise TypeError("function with *args not supported")
-        elif p.kind is inspect.Parameter.VAR_KEYWORD:
-            raise TypeError("function with **kwargs not supported")
-        schema = params.get(p.name)
-        if schema:
-            if isinstance(schema, reader) and p.name != "_body":
-                raise TypeError(f"parameter cannot use reader schema type: {p.name}")
-            if p.default is p.empty:
-                required.add(p.name)
-            schema = copy.copy(schema)
-            schema.default = p.default if p.default is not p.empty else None
-            properties[p.name] = schema
-        elif p.default is p.empty:
-            raise TypeError(
-                f"required parameter in function but not in params: {p.name}"
-            )
-    return _dict(properties, required)
-
-
-def validate(params=None, returns=None):
-    """
-    Decorate a function to validate its input parameters and return value.
-    Parameter default values are defined by the function, not parameter schemas.
-    If a parameter is omitted from the params schema, it must have a default
-    value.     
-    """
-
-    def decorator(function):
-        _params = function_params(function, params)
-
-        def wrapper(wrapped, instance, args, kwargs):
-            return call(wrapped, args, kwargs, _params, returns)
-
-        return wrapt.decorator(wrapper)(function)
-
-    return decorator
+    return call(wrapped, args, kwargs)

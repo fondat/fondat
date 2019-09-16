@@ -1,3 +1,4 @@
+import dataclasses
 import isodate
 import json
 import pytest
@@ -5,6 +6,7 @@ import re
 import roax.schema as s
 
 from base64 import b64encode
+from dataclasses import make_dataclass
 from io import BytesIO
 from datetime import date, datetime
 from uuid import UUID
@@ -19,6 +21,12 @@ def _equal(fn, val):
 def _error(fn, val):
     with pytest.raises(s.SchemaError):
         fn(val)
+
+
+# -- TODO -----
+
+
+# test nested defaults
 
 
 # -- dict -----
@@ -44,10 +52,6 @@ def test_dict_validate_optional_success():
     s.dict({"k": s.str(), "l": s.str()}).validate({"k": "m"})
 
 
-def test_dict_validate_default():
-    s.dict({"n": s.str(default="o")}).validate({})
-
-
 def test_dict_json_encode_success():
     _equal(
         s.dict({"eja": s.str(), "ejb": s.int()}, {"eja", "ejb"}).json_encode,
@@ -63,7 +67,10 @@ def test_dict_json_encode_optional_success():
 
 
 def test_dict_json_encode_default_success():
-    assert s.dict({"eje": s.bool(default=False)}).json_encode({}) == {"eje": False}
+    schema = s.dict({"eje": s.bool(default=False)})
+    value = {}
+    schema.defaults(value)
+    assert schema.json_encode(value) == {"eje": False}
 
 
 def test_dict_json_encode_optional_absent():
@@ -86,9 +93,10 @@ def test_dict_json_decode_optional_success():
 
 
 def test_dict_json_decode_default_success():
-    assert s.dict({"dje": s.str(default="defaulty")}).json_decode({}) == {
-        "dje": "defaulty"
-    }
+    schema = s.dict({"dje": s.str(default="defaulty")})
+    value = schema.json_decode({})
+    schema.defaults(value)
+    assert value == {"dje": "defaulty"}
 
 
 def test_dict_json_decode_additional_property_success():
@@ -115,7 +123,7 @@ def test_dict_allow_none():
 
 
 def test_dict_required_str():
-    schema = s.dict(properties={"fjx": s.str(), "fjy": s.str()}, required="fjx,fjy")
+    schema = s.dict({"fjx": s.str(), "fjy": s.str()}, "fjx fjy")
     _error(schema.validate, {})
     _error(schema.validate, {"fjx": "foo"})
     _error(schema.validate, {"fjy": "foo"})
@@ -123,13 +131,13 @@ def test_dict_required_str():
 
 
 def test_dict_strip_validate():
-    schema = s.dict(properties={"foo": s.str()})
+    schema = s.dict({"foo": s.str()})
     value = {"foo": "bar", "baz": "qux"}
     schema.validate(schema.strip(value))
 
 
 def test_dict_strip_validate_additional():
-    schema = s.dict(properties={"foo": s.str()}, additional=True)
+    schema = s.dict({"foo": s.str()}, additional=True)
     value = {"foo": "bar", "baz": "qux"}
     schema.validate(schema.strip(value))
 
@@ -157,28 +165,28 @@ def test_list_validate_type_error():
     _error(s.list(items=s.bool()).validate, "this_is_not_a_list")
 
 
-def test_list_validate_min_items_success():
-    s.list(items=s.int(), min_items=2).validate([1, 2, 3])
+def test_list_validate_min_success():
+    s.list(items=s.int(), min=2).validate([1, 2, 3])
 
 
-def test_list_validate_min_items_error():
-    _error(s.list(items=s.int(), min_items=3).validate, [1, 2])
+def test_list_validate_min_error():
+    _error(s.list(items=s.int(), min=3).validate, [1, 2])
 
 
-def test_list_validate_max_items_success():
-    s.list(items=s.int(), max_items=5).validate([1, 2, 3, 4])
+def test_list_validate_max_success():
+    s.list(items=s.int(), max=5).validate([1, 2, 3, 4])
 
 
-def test_list_validate_max_items_error():
-    _error(s.list(items=s.int(), max_items=6).validate, [1, 2, 3, 4, 5, 6, 7])
+def test_list_validate_max_error():
+    _error(s.list(items=s.int(), max=6).validate, [1, 2, 3, 4, 5, 6, 7])
 
 
 def test_list_validate_unique_success():
-    s.list(items=s.int(), unique_items=True).validate([1, 2, 3, 4, 5])
+    s.list(items=s.int(), unique=True).validate([1, 2, 3, 4, 5])
 
 
 def test_list_validate_unique_error():
-    _error(s.list(items=s.int(), unique_items=True).validate, [1, 2, 2, 3])
+    _error(s.list(items=s.int(), unique=True).validate, [1, 2, 2, 3])
 
 
 def test_list_json_encode_success():
@@ -911,25 +919,9 @@ def test_bytes_hex_str_decode():
 # -- decorators -----
 
 
-def test_params_decorator_mismatch_a():
-    with pytest.raises(TypeError):
-
-        @s.validate(params={"a": s.str()})
-        def fn(b):
-            pass
-
-
-def test_params_decorator_mismatch_b():
-    with pytest.raises(TypeError):
-
-        @s.validate(params={})
-        def fn(b):
-            pass
-
-
 def test_returns_error():
-    @s.validate(returns=s.str())
-    def fn():
+    @s.validate
+    def fn() -> s.str():
         return 1
 
     with pytest.raises(ValueError):
@@ -937,8 +929,8 @@ def test_returns_error():
 
 
 def test_returns_success():
-    @s.validate(returns=s.str())
-    def fn():
+    @s.validate
+    def fn() -> s.str():
         return "str_ftw"
 
     fn()
@@ -1096,6 +1088,111 @@ def test_reader_validate_type_success():
 
 def test_reader_validate_type_error():
     _error(s.reader().validate, "this_is_not_a_reader_object")
+
+
+# -- dataclass -----
+
+
+def test_dataclass_validate_success():
+    dc = make_dataclass("DC", [("a", s.str())])
+    s.dataclass(dc, "a").validate(dc(a="b"))
+
+
+def test_dataclass_validate_error():
+    dc = make_dataclass("DC", [("c", s.int())])
+    _error(s.dataclass(dc).validate, dc(c="does not validate"))
+
+
+def test_dataclass_validate_required_success():
+    dc = make_dataclass("DC", [("e", s.float())])
+    s.dataclass(dc, "e").validate(dc(e=1.2))
+
+
+def test_dataclass_validate_required_error():
+    DC = make_dataclass("DC", [("f", s.str())])
+    _error(s.dataclass(DC, "f").validate, DC(f=None))
+
+
+def test_dataclass_validate_optional_success():
+    DC = make_dataclass("DC", [("k", s.str()), ("l", s.str())])
+    s.dataclass(DC).validate(DC(k="m", l=None))
+
+
+def test_dataclass_json_encode_success():
+    DC = make_dataclass("DC", [("eja", s.str()), ("ejb", s.int())])
+    assert s.dataclass(DC, "eja ejb").json_encode(DC(eja="foo", ejb=123)) == {
+        "eja": "foo",
+        "ejb": 123,
+    }
+
+
+def test_dataclass_json_encode_optional_success():
+    DC = make_dataclass("DC", [("ejc", s.float()), ("ejd", s.bool())])
+    assert s.dataclass(DC, "ejc").json_encode(DC(ejc=123.45, ejd=None)) == {
+        "ejc": 123.45
+    }
+
+
+def test_dataclass_json_encode_default_success():
+    DC = make_dataclass("DC", [("eje", s.bool(default=False))])
+    schema = s.dataclass(DC)
+    value = DC(eje=None)
+    schema.defaults(value)
+    assert schema.json_encode(value) == {"eje": False}
+
+
+def test_dataclass_json_encode_optional_absent():
+    DC = make_dataclass("DC", [("eje", s.bool())])
+    assert s.dataclass(DC).json_encode(DC(eje=None)) == {}
+
+
+def test_dataclass_json_encode_error():
+    DC = make_dataclass("DC", [("ejh", s.int())])
+    _error(s.dataclass(DC, "ejh").json_encode, DC(ejh="not an int"))
+
+
+def test_dataclass_json_decode_success():
+    DC = make_dataclass("DC", [("dja", s.float()), ("djb", s.bool())])
+    assert s.dataclass(DC, "dja djb").json_decode({"dja": 802.11, "djb": True}) == DC(
+        dja=802.11, djb=True
+    )
+
+
+def test_dataclass_json_decode_optional_success():
+    DC = make_dataclass("DC", [("djc", s.int()), ("djd", s.str())])
+    assert s.dataclass(DC).json_decode({"djc": 12345}) == DC(djc=12345, djd=None)
+
+
+def test_dataclass_json_decode_default_success():
+    DC = make_dataclass("DC", [("dje", s.str(default="defaulty"))])
+    schema = s.dataclass(DC)
+    value = schema.json_decode({})
+    schema.defaults(value)
+    assert value == DC(dje="defaulty")
+
+
+def test_dataclass_json_decode_error():
+    DC = make_dataclass("DC", [("djx", s.str())])
+    _error(s.dataclass(DC, "djx").json_decode, {"djx": False})
+
+
+def test_dataclass_disallow_none():
+    DC = make_dataclass("DC", [("foo", s.str())])
+    _error(s.dataclass(DC).json_encode, None)
+
+
+def test_dataclass_allow_none():
+    DC = make_dataclass("DC", [("foo", s.str())])
+    assert s.dataclass(DC, nullable=True).json_encode(None) == None
+
+
+def test_dataclass_required_str():
+    DC = make_dataclass("DC", [("fjx", s.str()), ("fjy", s.str())])
+    schema = s.dataclass(DC, "fjx fjy")
+    _error(schema.validate, DC(fjx=None, fjy=None))
+    _error(schema.validate, DC(fjx="foo", fjy=None))
+    _error(schema.validate, DC(fjx=None, fjy="foo"))
+    schema.validate(DC(fjx="foo", fjy="foo"))
 
 
 # -- SchemaError -----

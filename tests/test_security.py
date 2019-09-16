@@ -17,20 +17,20 @@ never = Never()
 
 
 class R1(Resource):
-    @operation(type="action", params={}, returns=s.str(), security=[req1])
-    def foo(self):
+    @operation(type="action", security=[req1])
+    def foo(self) -> s.str():
         return "foo_success"
 
-    @operation(type="action", params={}, returns=s.str(), security=[req1, never])
-    def bar(self):
+    @operation(type="action", security=[req1, never])
+    def bar(self) -> s.str():
         return "bar_success"
 
-    @operation(type="action", params={}, returns=s.str(), security=[nested])
-    def nestee(self):
+    @operation(type="action", security=[nested])
+    def nestee(self) -> s.str():
         return "nest_success"
 
-    @operation(type="action", params={}, returns=s.str())
-    def nester(self):
+    @operation(type="action")
+    def nester(self) -> s.str():
         return self.nestee()
 
 

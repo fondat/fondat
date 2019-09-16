@@ -4,7 +4,7 @@ Module to manage resource items in a SQL database through DB-API 2.0 interface.
 
 import contextlib
 import logging
-import roax.resource as resource
+import roax.resource
 import roax.schema as s
 
 
@@ -100,7 +100,7 @@ class Table:
         if not isinstance(schema, s.dict):
             raise ValueError("schema for table must be roax.schema.dict")
         self.schema = schema
-        if pk not in schema:
+        if pk not in schema.props:
             raise ValueError(f"primary key '{pk}' not in schema")
         self.pk = pk
         self.adapters = {**database.adapters, **(adapters if adapters else {})}
@@ -108,7 +108,7 @@ class Table:
     @property
     def columns(self):
         """Tuple of column names."""
-        return tuple(self.schema.properties.keys())
+        return tuple(self.schema.props.keys())
 
     def adapter(self, column):
         """
@@ -121,7 +121,7 @@ class Table:
         """
         return (
             self.adapters.get(column)
-            or self.adapters.get(self.schema.properties[column].__class__)
+            or self.adapters.get(self.schema.props[column].__class__)
             or default_adapter
         )
 
@@ -176,7 +176,7 @@ class Table:
                 if result[column] is None and column not in self.schema.required:
                     del result[column]
                 else:
-                    schema = self.schema.properties[column]
+                    schema = self.schema.props[column]
                     value = self.adapter(column).decode(schema, result[column])
                     result[column] = value
             results.append(result)
@@ -197,7 +197,7 @@ class Table:
         with self.cursor() as cursor:
             query.execute(cursor)
             items = cursor.fetchall()
-        pk = self.schema.properties[self.pk]
+        pk = self.schema.props[self.pk]
         return [self.adapter(self.pk).decode(pk, item[0]) for item in items]
 
 
@@ -232,7 +232,7 @@ class Query:
         """
         Encode and add a column value to the query as a parameter.
         """
-        schema = self.table.schema.properties[column]
+        schema = self.table.schema.props[column]
         adapter = self.table.adapter(column)
         self.param(None if value is None else adapter.encode(schema, value))
 
@@ -303,7 +303,7 @@ class Adapter:
 default_adapter = Adapter()
 
 
-class TableResource(resource.Resource):
+class TableResource(roax.resource.Resource):
     """
     Base resource class for storage of resource items in a database table,
     providing basic CRUD operations.
@@ -344,9 +344,9 @@ class TableResource(resource.Resource):
         where.value(self.table.pk, id)
         results = self.table.select(where=where)
         if len(results) == 0:
-            raise resource.NotFound()
+            raise roax.resource.NotFound()
         elif len(results) > 1:
-            raise resource.InternalServerError("query matches more than one row")
+            raise roax.resource.InternalServerError("query matches more than one row")
         result = results[0]
         return result
 
@@ -367,11 +367,11 @@ class TableResource(resource.Resource):
             query.execute(cursor)
             count = cursor.rowcount
         if count == 0:
-            raise resource.NotFound()
+            raise roax.resource.NotFound()
         elif count > 1:
-            raise resource.InternalServerError("query matches more than one row")
+            raise roax.resource.InternalServerError("query matches more than one row")
         elif count == -1:
-            raise resource.InternalServerError(
+            raise roax.resource.InternalServerError(
                 "could not determine update was successful"
             )
 
@@ -384,6 +384,8 @@ class TableResource(resource.Resource):
             query.execute(cursor)
             count = cursor.rowcount
         if count < 1:
-            raise resource.NotFound()
+            raise roax.resource.NotFound()
         elif count > 1:
-            raise resource.InternalServerError("query would delete more than one row")
+            raise roax.resource.InternalServerError(
+                "query would delete more than one row"
+            )

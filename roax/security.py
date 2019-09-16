@@ -1,8 +1,7 @@
 """Module for authentication and authorization to resource operations."""
 
-import roax.context as context
-
-from roax.resource import Forbidden
+import roax.context
+import roax.resource
 
 
 class SecurityRequirement:
@@ -84,8 +83,8 @@ class ContextSecurityRequirement(SecurityRequirement):
         self.context = dict(*args, **varargs)
 
     def authorize(self):
-        if not context.last(self.context):
-            raise Forbidden
+        if not roax.context.last(self.context):
+            raise roax.resource.Forbidden
 
 
 class CLISecurityRequirement(ContextSecurityRequirement):
@@ -105,8 +104,8 @@ class NestedOperationSecurityRequirement(SecurityRequirement):
     """
 
     def authorize(self):
-        if len(context.find(context="operation")) < 2:
-            raise Forbidden
+        if len(roax.context.find(context="operation")) < 2:
+            raise roax.resource.Forbidden
 
 
 cli = CLISecurityRequirement()

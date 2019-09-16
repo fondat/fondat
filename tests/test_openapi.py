@@ -6,21 +6,19 @@ from roax.resource import Resource, operation
 from roax.wsgi import App
 
 
-params = {
-    "a": s.list(s.str()),
-    "b": s.set(s.str()),
-    "c": s.int(),
-    "d": s.float(),
-    "e": s.bool(),
-    "f": s.bytes(),
-    "g": s.datetime(),
-    "h": s.uuid(),
-}
-
-
 class _TestResource(Resource):
-    @operation(type="action", params=params, security=[])
-    def test(self, a, b, c, d, e, f, g, h):
+    @operation(type="action", security=[])
+    def test(
+        self,
+        a: s.list(s.str()),
+        b: s.set(s.str()),
+        c: s.int(),
+        d: s.float(),
+        e: s.bool(),
+        f: s.bytes(),
+        g: s.datetime(),
+        h: s.uuid(),
+    ):
         pass
 
 

@@ -1,24 +1,22 @@
 """Module to expose resources through a WSGI interface."""
 
+import base64
 import binascii
+import copy
 import logging
+import mimetypes
+import pathlib
 import re
-import roax.context as context
-import roax.schema as s
-
-from base64 import b64decode
-from copy import copy
-from mimetypes import guess_type
-from pathlib import Path
-from roax.schema import SchemaError
-from roax.resource import ResourceError, Unauthorized, authorize
-from roax.security import SecurityScheme
-from roax.static import StaticResource
-from urllib.parse import urlparse
-from webob import Request, Response, exc
+import roax.context
+import roax.schema
+import roax.static
+import roax.security
+import urllib.parse
+import webob
+import webob.exc
 
 
-class _ErrorResponse(Response):
+class _ErrorResponse(webob.Response):
     def __init__(self, code, message):
         super().__init__()
         self.status_code = code
@@ -44,15 +42,15 @@ class _App_Iter:
 
 def _response(operation, result):
     returns = operation.returns
-    response = Response()
+    response = webob.Response()
     if returns and result is not None:
         response.content_type = returns.content_type
-        if isinstance(returns, s.reader):
+        if isinstance(returns, roax.schema.reader):
             response.app_iter = _App_Iter(result)
         else:
             response.body = returns.bin_encode(result)
     else:
-        response.status_code = exc.HTTPNoContent.code
+        response.status_code = webob.exc.HTTPNoContent.code
         response.content_type = None
     return response
 
@@ -60,12 +58,12 @@ def _response(operation, result):
 def _params(request, operation):
     result = {}
     params = operation.params
-    for name, param in params.properties.items() if params else []:
+    for name, param in params.props.items() if params else []:
         try:
             if name == "_body":
                 if "_body" in params.required and not request.is_body_readable:
-                    raise SchemaError("missing request entity-body")
-                if isinstance(param, s.reader):
+                    raise roax.schema.SchemaError("missing request entity-body")
+                if isinstance(param, roax.schema.reader):
                     result["_body"] = request.body_file_raw
                 else:
                     result["_body"] = param.bin_decode(request.body)
@@ -136,7 +134,7 @@ class App:
         self.version = version
         self.description = description
         self.filters = filters or []
-        self.base = urlparse(self.url).path.rstrip("/")
+        self.base = urllib.parse.urlparse(self.url).path.rstrip("/")
         self.operations = {}
 
     def register_resource(self, path, resource, publish=True):
@@ -173,7 +171,7 @@ class App:
                     f"operation {op.name} has unknown operation type: {op.type}"
                 )
             if not publish:
-                op = copy(op)
+                op = copy.copy(op)
                 op.publish = False
             if (op_method, op_path) in self.operations:
                 raise ValueError(f"operation already defined for {op_method} {op_path}")
@@ -210,16 +208,16 @@ class App:
 
         def _static(fs_path):
             content = fs_path.read_bytes()
-            content_type, encoding = guess_type(fs_path.name)
+            content_type, encoding = mimetypes.guess_type(fs_path.name)
             if content_type is None or encoding is not None:
                 content_type = "application/octet-stream"
-            schema = s.bytes(format="binary", content_type=content_type)
-            return StaticResource(
+            schema = roax.schema.bytes(format="binary", content_type=content_type)
+            return roax.static.StaticResource(
                 content, schema, fs_path.name, "Static resource.", security
             )
 
         path = path.rstrip("/")
-        fs_path = Path(file_dir).expanduser()
+        fs_path = pathlib.Path(file_dir).expanduser()
         if fs_path.is_file():
             self.register_resource(path, _static(fs_path))
         elif fs_path.is_dir():
@@ -234,31 +232,31 @@ class App:
 
     def __call__(self, environ, start_response):
         """Handle WSGI request."""
-        request = Request(environ)
+        request = webob.Request(environ)
         try:
-            with context.push(context="wsgi", environ=_environ(environ)):
+            with roax.context.push(context="wsgi", environ=_environ(environ)):
                 operation = self._get_operation(request)
 
                 def handle(request):
                     try:
                         params = _params(request, operation)
                     except Exception:  # authorization trumps input validation
-                        authorize(operation.security)
+                        roax.resource.authorize(operation.security)
                         raise
                     return _response(operation, operation.call(**params))
 
                 filters = self.filters.copy()
                 filters.extend(_security_filters(operation.security))
                 response = _Chain(filters, handle).next(request)
-        except exc.HTTPException as he:
+        except webob.exc.HTTPException as he:
             response = _ErrorResponse(he.code, he.detail)
-        except ResourceError as re:
+        except roax.resource.ResourceError as re:
             response = _ErrorResponse(re.code, re.detail)
-        except SchemaError as se:
-            response = _ErrorResponse(exc.HTTPBadRequest.code, str(se))
+        except roax.schema.SchemaError as se:
+            response = _ErrorResponse(webob.exc.HTTPBadRequest.code, str(se))
         except Exception as e:
             logging.exception(str(e))
-            response = _ErrorResponse(exc.HTTPInternalServerError.code, str(e))
+            response = _ErrorResponse(webob.exc.HTTPInternalServerError.code, str(e))
         return response(environ, start_response)
 
     def _get_operation(self, request):
@@ -267,8 +265,8 @@ class App:
             return operation
         for _, op_path in self.operations:
             if op_path == request.path_info:  # path is defined, but not method
-                raise exc.MethodNotAllowed
-        raise exc.HTTPNotFound("resource or operation not found")
+                raise webob.exc.MethodNotAllowed
+        raise webob.exc.HTTPNotFound("resource or operation not found")
 
 
 class _Chain:
@@ -288,7 +286,7 @@ class _Chain:
         )
 
 
-class HTTPSecurityScheme(SecurityScheme):
+class HTTPSecurityScheme(roax.security.SecurityScheme):
     """
     Base class for HTTP authentication security scheme.
 
@@ -324,7 +322,7 @@ class HTTPBasicSecurityScheme(HTTPSecurityScheme):
 
     def Unauthorized(self, detail=None):
         """Return an Unauthorized exception populated with scheme and realm."""
-        return Unauthorized(detail, f"Basic realm={self.realm}")
+        return roax.resource.Unauthorized(detail, f"Basic realm={self.realm}")
 
     def filter(self, request, chain):
         """
@@ -336,13 +334,13 @@ class HTTPBasicSecurityScheme(HTTPSecurityScheme):
         if request.authorization and request.authorization[0].lower() == "basic":
             try:
                 user_id, password = (
-                    b64decode(request.authorization[1]).decode().split(":", 1)
+                    base64.b64decode(request.authorization[1]).decode().split(":", 1)
                 )
             except (binascii.Error, UnicodeDecodeError):
                 pass
             auth = self.authenticate(user_id, password)
             if auth:
-                with context.push(
+                with roax.context.push(
                     {
                         **auth,
                         "context": "auth",

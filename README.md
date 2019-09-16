@@ -18,14 +18,16 @@ interface, they can be automatically exposed through a REST and/or command line 
 ## Features
 
 * Resource operations accessed through WSGI based REST API.
-* Command-line interface to resource operations.
-* Generates [OpenAPI](https://www.openapis.org/) interface description, compatible with [Swagger UI](https://swagger.io/tools/swagger-ui/).
 * Schema enforcement of resource operation parameters and return values.
-* Authorization to resource operations enforced through imperative security policies.
+* Authorization to resource operations enforced through security policies.
+* Command-line interface to resource operations.
+* Intuitive data structure definition using data classes. 
+* Uses Python annotations to define schema of data classes, parameters and return values. 
+* Generates [OpenAPI](https://www.openapis.org/) interface description, compatible with [Swagger UI](https://swagger.io/tools/swagger-ui/).
 
 ## Quick start
 
-### Installation
+### Install
 
 ```
 pip install roax

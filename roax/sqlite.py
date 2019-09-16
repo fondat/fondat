@@ -3,7 +3,7 @@
 import contextlib
 import logging
 import roax.schema as s
-import roax.db as db
+import roax.db
 import sqlite3
 import threading
 
@@ -38,7 +38,7 @@ class _PassAdapter:
 
 INTEGER = _CastAdapter(int)
 REAL = _CastAdapter(float)
-TEXT = db.default_adapter
+TEXT = roax.db.default_adapter
 BLOB = _PassAdapter()
 BOOLEAN = _CastAdapter(bool)
 
@@ -58,7 +58,7 @@ _adapters = {
 }
 
 
-class Database(db.Database):
+class Database(roax.db.Database):
     """Manages connections to a SQLite database."""
 
     def __init__(self, file):

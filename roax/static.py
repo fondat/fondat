@@ -1,9 +1,9 @@
 """Module to provide read access to static content."""
 
-from roax.resource import Resource, operation
+import roax.resource
 
 
-class StaticResource(Resource):
+class StaticResource(roax.resource.Resource):
     """
     A resource that serves static content.
 
@@ -23,10 +23,12 @@ class StaticResource(Resource):
         super().__init__(name, description)
         self.content = content
         self.schema = schema
+        print(f"static_schema.content_type={self.schema.content_type}")
         description = f"Read the {self.name} resource."
-        self.read = operation(
-            params={}, returns=self.schema, description=description, security=security
-        )(self.read)
+        self.read.__annotations__["return"] = schema
+        self.read = roax.resource.operation(description=description, security=security)(
+            self.read
+        )
 
     def read(self):
         """Read the static resource."""

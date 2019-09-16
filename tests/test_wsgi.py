@@ -33,8 +33,7 @@ _scheme = _TestSecurityScheme("WallyWorld")
 http1 = _TestSecurityRequirement(_scheme)
 
 _r1_schema = s.dict(
-    properties={"id": s.str(), "foo": s.int(), "bar": s.bool(), "dt": s.datetime()},
-    required={"id", "foo", "bar"},
+    {"id": s.str(), "foo": s.int(), "bar": s.bool(), "dt": s.datetime()}, "id foo bar"
 )
 
 
@@ -42,36 +41,30 @@ class _Resource1(Resource):
 
     schema = _r1_schema
 
-    @operation(
-        params={"id": _r1_schema.properties["id"], "_body": _r1_schema},
-        returns=s.dict({"id": _r1_schema.properties["id"]}),
-        security=[],
-    )
-    def create(self, id, _body):
+    @operation(security=[])
+    def create(
+        self, id: _r1_schema.props["id"], _body: _r1_schema
+    ) -> s.dict({"id": _r1_schema.props["id"]}):
         return {"id": id}
 
-    @operation(
-        params={"id": _r1_schema.properties["id"], "_body": _r1_schema}, security=[]
-    )
-    def update(self, id, _body):
+    @operation(security=[])
+    def update(self, id: _r1_schema.props["id"], _body: _r1_schema):
         return
 
-    @operation(type="action", params={}, returns=s.str(format="raw"), security=[http1])
-    def foo(self):
+    @operation(type="action", security=[http1])
+    def foo(self) -> s.str(format="raw"):
         return "foo_success"
 
-    @operation(type="action", params={"uuid": s.uuid()}, security=[http1])
-    def validate_uuid(self, uuid):
+    @operation(type="action", security=[http1])
+    def validate_uuid(self, uuid: s.uuid()):
         pass
 
-    @operation(
-        type="action", params={"_body": s.reader()}, returns=s.reader(), security=[]
-    )
-    def echo(self, _body):
+    @operation(type="action", security=[])
+    def echo(self, _body: s.reader()) -> s.reader():
         return BytesIO(_body.read())
 
-    @operation(type="query", params={"optional": s.str()}, returns=s.str(), security=[])
-    def optional(self, optional="default"):
+    @operation(type="query", security=[])
+    def optional(self, optional: s.str() = "default") -> s.str():
         return optional
 
 
@@ -86,7 +79,7 @@ def test_create():
         "id": "id1",
         "foo": 1,
         "bar": True,
-        "dt": _r1_schema.properties["dt"].json_encode(datetime.now()),
+        "dt": _r1_schema.props["dt"].json_encode(datetime.now()),
     }
     response = request.get_response(app)
     result = response.json
@@ -131,17 +124,15 @@ def test_static_dir():
     foo = "<html><body>Foo</body></html>"
     bar = b"binary"
     with TemporaryDirectory() as td:
-        with open("{}/foo.html".format(td), "w") as f:
+        with open(f"{td}/foo.html", "w") as f:
             f.write(foo)
-        with open("{}/bar.bin".format(td), "wb") as f:
+        with open(f"{td}/bar.bin", "wb") as f:
             f.write(bar)
         a = App("/", "Title", "1.0")
         a.register_static("/static", td, [])
-        request = Request.blank("/static/foo.html")
-        response = request.get_response(a)
+        response = Request.blank("/static/foo.html").get_response(a)
         assert response.body == foo.encode()
-        request = Request.blank("/static/bar.bin")
-        response = request.get_response(a)
+        response = Request.blank("/static/bar.bin").get_response(a)
         assert response.body == bar
         assert response.content_type == "application/octet-stream"
 

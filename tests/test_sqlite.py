@@ -178,5 +178,9 @@ class CustomTypeSchema(s.type):
 def test_custom_adapter(database):
     schema = s.dict({"id": s.str(), "custom": CustomTypeSchema()})
     table = db.Table(database, "custom", schema, "id", {})
-    assert table.adapter("custom").encode(schema["custom"], CustomType(123)) == "123"
-    assert table.adapter("custom").decode(schema["custom"], "456") == CustomType(456)
+    assert (
+        table.adapter("custom").encode(schema.props["custom"], CustomType(123)) == "123"
+    )
+    assert table.adapter("custom").decode(schema.props["custom"], "456") == CustomType(
+        456
+    )

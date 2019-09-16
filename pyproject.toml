@@ -4,11 +4,11 @@ build-backend = "poetry.masonry.api"
 
 [tool.black]
 line-length = 88
-target-version = ['py36', 'py37', 'py38']
+target-version = ['py37', 'py38']
 
 [tool.poetry]
 name = "roax"
-version = "1.10.0"
+version = "2.0a1"
 description = "Lightweight framework for building resource-oriented applications."
 readme = "README.md"
 authors = ["Paul Bryan <pbryan@anode.ca>"]
@@ -17,13 +17,13 @@ documentation = "https://github.com/roax/roax/tree/master/docs"
 license = "MIT"
 keywords = ["wsgi", "framework", "resource", "openapi"]
 classifiers = [
-    "Development Status :: 5 - Production/Stable",
+    "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Topic :: Internet :: WWW/HTTP :: WSGI :: Application",
 ]
 
 [tool.poetry.dependencies]
-python = "^3.6"
+python = "^3.7"
 isodate = "^0.6"
 WebOb = "^1.8"
 wrapt = "^1.11"

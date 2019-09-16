@@ -10,36 +10,31 @@ from uuid import uuid4
 
 def test_crud_dict():
 
-    _schema = s.dict(
-        properties={"id": s.uuid(), "foo": s.str(), "bar": s.int()},
-        required={"foo", "bar"},
-    )
+    _schema = s.dict({"id": s.uuid(), "foo": s.str(), "bar": s.int()}, "foo bar")
 
     class FooResource(FileResource):
 
         schema = _schema
-        id_schema = _schema.properties["id"]
+        id_schema = _schema.props["id"]
 
-        @operation(
-            params={"_body": _schema}, returns=s.dict({"id": _schema.properties["id"]})
-        )
-        def create(self, _body):
+        @operation()
+        def create(self, _body: _schema) -> s.dict({"id": _schema.props["id"]}):
             return super().create(uuid4(), _body)
 
-        @operation(params={"id": _schema.properties["id"]}, returns=_schema)
-        def read(self, id):
+        @operation()
+        def read(self, id: _schema.props["id"]) -> _schema:
             return {**super().read(id), "id": id}
 
-        @operation(params={"id": _schema.properties["id"], "_body": _schema})
-        def update(self, id, _body):
+        @operation()
+        def update(self, id: _schema.props["id"], _body: _schema):
             return super().update(id, _body)
 
-        @operation(params={"id": _schema.properties["id"]})
-        def delete(self, id):
+        @operation()
+        def delete(self, id: _schema.props["id"]):
             return super().delete(id)
 
-        @operation(type="query", returns=s.list(_schema.properties["id"]))
-        def list(self):
+        @operation(type="query")
+        def list(self) -> s.list(_schema.props["id"]):
             return super().list()
 
     with TemporaryDirectory() as dir:
@@ -65,26 +60,24 @@ def test_crud_str():
 
         schema = _schema
 
-        @operation(
-            params={"id": s.str(), "_body": _schema}, returns=s.dict({"id": s.str()})
-        )
-        def create(self, id, _body):
+        @operation()
+        def create(self, id: s.str(), _body: _schema) -> s.dict({"id": s.str()}):
             return super().create(id, _body)
 
-        @operation(params={"id": s.str()}, returns=_schema)
-        def read(self, id):
+        @operation()
+        def read(self, id: s.str()) -> _schema:
             return super().read(id)
 
-        @operation(params={"id": s.str(), "_body": _schema})
-        def update(self, id, _body):
+        @operation()
+        def update(self, id: s.str(), _body: _schema):
             return super().update(id, _body)
 
-        @operation(params={"id": s.str()})
-        def delete(self, id):
+        @operation()
+        def delete(self, id: s.str()):
             return super().delete(id)
 
-        @operation(type="query", returns=s.list(s.str()))
-        def list(self):
+        @operation(type="query")
+        def list(self) -> s.list(s.str()):
             return super().list()
 
     with TemporaryDirectory() as dir:

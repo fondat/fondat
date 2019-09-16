@@ -2,9 +2,10 @@
 
 import datetime
 import importlib
+import inspect
 import roax.context as context
 import roax.monitor
-import roax.schema as s
+import roax.schema
 import threading
 import wrapt
 
@@ -254,14 +255,20 @@ def authorize(security):
         raise exception
 
 
+def _params(function):
+    sig = inspect.signature(function)
+    return roax.schema.dict(
+        props={k: v for k, v in function.__annotations__.items() if k != "return"},
+        required={p.name for p in sig.parameters.values() if p.default is p.empty},
+    )
+
+
 def operation(
     *,
     name=None,
     type=None,
     summary=None,
     description=None,
-    params=None,
-    returns=None,
     security=None,
     publish=True,
     deprecated=False,
@@ -274,12 +281,12 @@ def operation(
     • type: Type of operation being registered.  {'create', 'read', 'update', 'delete', 'action', 'query', 'patch'}
     • summary: Short summary of what the operation does.
     • description: Verbose description of the operation.  [function docstring]
-    • params: Mapping of operation parameter names to their schemas.
-    • returns: Schema of operation return value.
     • security: Security schemes, one of which must be satisfied to perform the operation.
     • publish: Publish the operation in documentation.
     • deprecated: Declare the operation as deprecated.
     """
+
+    _valid_types = {"create", "read", "update", "delete", "query", "action", "patch"}
 
     def decorator(function):
         _name = name
@@ -290,9 +297,8 @@ def operation(
             _name = function.__name__
         if _type is None and _name in {"create", "read", "update", "delete", "patch"}:
             _type = _name
-        valid_types = {"create", "read", "update", "delete", "query", "action", "patch"}
-        if _type not in valid_types:
-            raise ValueError(f"operation type must be one of: {valid_types}")
+        if _type not in _valid_types:
+            raise ValueError(f"operation type must be one of: {_valid_types}")
 
         def wrapper(wrapped, instance, args, kwargs):
             tags = {"resource": wrapped.__self__.name, "operation": _name}
@@ -306,15 +312,15 @@ def operation(
                     authorize(security)
                     return wrapped(*args, **kwargs)
 
-        decorated = s.validate(params, returns)(wrapt.decorator(wrapper)(function))
+        decorated = roax.schema.validate(wrapt.decorator(wrapper)(function))
         operation = dict(
             function=function.__name__,
             name=_name,
             type=_type,
             summary=__summary,
             description=_description,
-            params=s.function_params(function, params),
-            returns=returns,
+            params=_params(function),
+            returns=function.__annotations__.get("return"),
             security=security,
             publish=publish,
             deprecated=deprecated,
