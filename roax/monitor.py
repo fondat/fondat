@@ -1,7 +1,7 @@
 """
 Module for monitoring measurements.
 
-This module defines a `monitors` variable, which is an instance of the `Monitors`
+This module defines a "monitors" variable, which is an instance of the Monitors
 class. Your application monitor(s) can be added to/deleted from this object.
 """
 
@@ -29,7 +29,7 @@ class Measurement(
     Parameters and attributes:
     • tags: Tags associated with the measurement. Should contain a "name" key.
     • timestamp: Date and time of the measurement to record.
-    • type: Type of measurement to record.  {"counter", "gauge", "absolute"}
+    • type: Type of measurement to record.  {"counter","gauge","absolute"}
     • value: Value of measurement (int or float).
     """
 
@@ -41,10 +41,10 @@ class Counter:
     highest counter value measured.
 
     Parameter and instance variable:
-    • timestamp: The time of the data point, in seconds since Epoch.
+    • timestamp: Time of the data point, in seconds since Epoch.
 
     Instance variables:
-    • value: The highest counter value measured.
+    • value: Highest counter value measured.
     """
 
     name = "counter"
@@ -65,13 +65,13 @@ class Gauge:
     measured values.
 
     Parameter and instance variable:
-    • timestamp: The date and time of the data point.
+    • timestamp: Date and time of the data point.
 
     Instance variables:
-    • min: The minimum measured value.
-    • max: The maximum measured value.
-    • sum: The sum of all measured values
-    • count: The count of measured values.
+    • min: Minimum measured value.
+    • max: Maximum measured value.
+    • sum: Sum of all measured values
+    • count: Count of measured values.
     """
 
     name = "gauge"
@@ -99,10 +99,10 @@ class Absolute:
     absolute data point stores the sum of measured values.
 
     Parameter and instance variable:
-    • timestamp: The date and time of the data point.
+    • timestamp: Date and time of the data point.
 
     Instance variables:
-    • value: The sum of measured values.    
+    • value: Sum of measured values.    
     """
 
     name = "absolute"
@@ -122,19 +122,19 @@ _types = {Counter.name: Counter, Gauge.name: Gauge, Absolute.name: Absolute}
 class Series:
     """
     Parameters and instance variables:
-    • type: The type of the data point being tracked.
+    • type: Type of the data point being tracked.
     • patterns: Dictionary of tag names to regular expression patterns to match.
     • points: Number of data points to maintain in the time series.
     • interval: Interval between data points, in seconds.
 
     Instance variables:
-    • data: A deque of timestamp-ordered data points.
+    • data: Deque of timestamp-ordered data points.
 
-    The `patterns` parameter is a dictionary that maps tag names to regular
+    The patterns parameter is a dictionary that maps tag names to regular
     expressions (compiled or strings) to match against recorded measurement tags.
-    For example, `{"name": "foo"}` would track data where a tag includes
-    `{"name": "foo"}`, while `{"name": "foo\\..+"}` would track measurements with
-    tags that include `{"name": "foo.bar"}` and `{"name": "foo.qux"}`.
+    For example, {"name": "foo"} would track data where a tag includes
+    {"name": "foo"}, while {"name": "foo\\..+"} would track measurements with
+    tags that include {"name": "foo.bar"} and {"name": "foo.qux"}.
     """
 
     def __init__(self, type, patterns, points, interval):
@@ -188,7 +188,7 @@ class SimpleMonitor:
     """
     A simple memory round-robin monitor, capable of maintaining multiple time
     series. This resource is appropriate for collecting thousands of data points;
-    beyond that it’s advisable to use a time series database.
+    beyond that, it’s advisable to use a time series database.
 
     In this monitor, a time series is a set of data points and time intervals of
     fixed duration. A data point records data measured at that exact point in time
@@ -202,8 +202,8 @@ class SimpleMonitor:
     be stored in the time series. Consumers of the time series should perform
     interpolation if required (e.g. for graphic representation).
 
-    The simple monitor contains a `series` instance variable, which is a
-    dictionary mapping time series names to associated `Series` objects.
+    The simple monitor contains a series instance variable, which is a
+    dictionary mapping time series names to associated Series objects.
     """
 
     def __init__(self):
@@ -216,12 +216,12 @@ class SimpleMonitor:
 
         Parameters:
         • name: Name of the new time series.
-        • type: Type of data point to track.  {"counter", "gauge", "absolute"}
+        • type: Type of data point to track.  {"counter","gauge","absolute"}
         • patterns: Measurements with tags matching regular expressions are tracked.
         • points: Number of data points to maintain in the time series.
         • interval: Interval between data points, in seconds.
 
-        For `patterns` parameter, see the `Series` class initializer documentation.
+        For patterns parameter, see the Series class initializer documentation.
        """
         if name in self.series:
             raise ValueError(f"time series already exists: {name}")
@@ -239,7 +239,7 @@ class SimpleMonitor:
 
 class DequeMonitor:
     """
-    A monitor that queues all recorded measurements in a `deque` object.
+    A monitor that queues all recorded measurements in a deque object.
 
     Parameters:
     • size: Maximum number of recorded measurements to queue.  [unlimited]
@@ -287,7 +287,7 @@ class DequeMonitor:
 
 class Monitors(dict):
     """
-    A monitor that is a dict of key-monitor pairs. A call to the `record`
+    A monitor that is a dict of key-monitor pairs. A call to the record
     method in this class records the measurement in all of its monitors. The
     key to associate with a monitor is at the discretion of its creator.
     """

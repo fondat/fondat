@@ -102,7 +102,7 @@ class CLI:
     Command line interface that exposes registered resources.
 
     Parameters and instance variables:
-    • name: The name of the application.
+    • name: Name of the application.
     • debug: Print details for any raised exceptions.
     • err: Output stream for writing prompts and errors.
     • prefix: Prefix for parameters.
@@ -134,8 +134,8 @@ class CLI:
         Register a resource with the command line interface.
 
         Parameters:
-        • name: The name to expose for the resource via command line.
-        • resource: The resource to be registered.
+        • name: Name to expose for the resource via command line.
+        • resource: Resource to be registered.
         • hidden: Hide the resource in help listings.
         """
         self._check_not_registered(name)
@@ -148,16 +148,16 @@ class CLI:
         Register a command with the command line interface.
 
         Parameters:
-        • name: The name to expose for the command via command line.
-        • function: The function to call when command is invoked.
+        • name: Name to expose for the command via command line.
+        • function: Function to call when command is invoked.
         • hidden: Hide the command in help listings.
 
-        The command's docstring (__doc__) is required to have its usage on the first
+        The command's docstring is required to have its usage on the first
         line, the summary description on the second line, and any further help
         documentation on subsequent lines.
         
-        The command function requires an args parameter to accept arguments passed to
-        it from the command line.
+        The command function requires an "args" parameter to accept arguments
+        passed to it from the command line.
         """
         self._check_not_registered(name)
         self.commands[name] = function
@@ -169,12 +169,12 @@ class CLI:
         Repeatedly issue a command prompt and process input.
 
         Parameter:
-        • prompt: The prompt to display for each command.
+        • prompt: Prompt to display for each command.
         
         The prompt can be a string or a callable to return a string containing the
         prompt to display.
         """
-        prompt = prompt or f'{self.name or ""}> '
+        prompt = prompt or f"{self.name or ''}> "
         while True:
             try:
                 self.process(input(prompt() if callable(prompt) else prompt))
@@ -192,7 +192,7 @@ class CLI:
         • line: Command line string to process.
 
         Returns:
-        `True` if command line was processed successfully.
+        True if command line was processed successfully.
         """
         try:
             if self.log:

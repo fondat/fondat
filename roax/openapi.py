@@ -30,9 +30,9 @@ class OpenAPIResource(roax.resource.Resource):
     generated on the first read request, and is cached for further read requests.
 
     Parameters:
-    • name: The short name of the resource.
-    • description: A short description of the resource.
-    • security: The security requirements to read the resource.
+    • name: Short name of the resource.
+    • description: Short description of the resource.
+    • security: Security requirements to read the resource.
     """
 
     def __init__(self, app, name=None, description=None, security=None):

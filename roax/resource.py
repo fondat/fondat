@@ -30,8 +30,8 @@ class ResourceError(Exception):
     Base class for all resource errors.
 
     Parameters:
-    • detail: textual description of the error.
-    • code: the HTTP status most closely associated with the error.
+    • detail: Textual description of the error.
+    • code: HTTP status most closely associated with the error.
     """
 
     def __init__(self, detail=None, code=None):
@@ -146,22 +146,20 @@ class Resources:
 
     Initialize resources with a mapping of resource names to resources. Resources
     are expressed as either string or reference to resource instance. If string,
-    class name is expressed as module.class; for example:
-    `myapp.resources.v1.FooResource`. Resources classes expressed as strings must
-    have `__init__` methods that take no arguments other than `self`.
+    class name is expressed as module:class; for example:
+    myapp.resources.v1:FooResource. Resources classes expressed as strings must
+    have __init__ methods that take no arguments other than "self".
 
     Resources are exposed as object attributes. Example initialization:
 
-    ```
     resources = Resources({
-        'foo': 'myapp.resources.v1:FooResource',
-        'bar': 'myapp.resources.v1:BarResource',
-        'qux': qux_instance,
+        "foo": "myapp.resources.v1:FooResource",
+        "bar": "myapp.resources.v1:BarResource",
+        "qux": qux_instance,
     })
-    ```
 
     Resources can be accessed as attributes or subscript, like:
-    `resources.foo` and `resources['bar']`.
+    resources.foo and resources["bar"].
     """
 
     def __init__(self, resources={}):
@@ -176,13 +174,13 @@ class Resources:
         Register (or deregister) a resource.
 
         The resource is expressed as either string or reference to resource
-        instance. If string, class name is expressed as `module:class`; for
-        example: `myapp.resources.v1:FooResource`. A resource class expressed
-        in a string must have an `__init__` method that takes no arguments
-        (other than `self`).
+        instance. If string, class name is expressed as "module:class"; for
+        example: "myapp.resources.v1:FooResource". A resource class expressed
+        in a string must have an __init__ method that takes no arguments
+        (other than "self").
 
         Parameters:
-        • key: The key to register or deregister.
+        • key: Resource key to register or deregister.
         • resource: Resource class name, resource instance, or None to deregister.
         """
         if (
@@ -277,8 +275,8 @@ def operation(
     Decorate a resource method to register it as a resource operation.
 
     Parameters:
-    • name: Operation name. Required if the operation type is 'query' or 'action'.
-    • type: Type of operation being registered.  {'create', 'read', 'update', 'delete', 'action', 'query', 'patch'}
+    • name: Operation name. Required if the operation type is "query" or "action".
+    • type: Type of operation being registered.  {"create","read","update","delete","action","query","patch"}
     • summary: Short summary of what the operation does.
     • description: Verbose description of the operation.  [function docstring]
     • security: Security schemes, one of which must be satisfied to perform the operation.

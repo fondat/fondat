@@ -41,8 +41,8 @@ class SecurityScheme:
     Base class for security schemes.
 
     Parameters:    
-    • name: The name of the security scheme.
-    • type: The type of security scheme.
+    • name: Name of security scheme.
+    • type: Type of security scheme.
 
     A security scheme is required if security requirements and security schemes
     should be published in OpenAPI documents.

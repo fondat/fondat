@@ -121,10 +121,10 @@ class App:
     Roax WSGI application.
 
     Parameters:
-    • url: The URL to access the application.
-    • title: The title of the application.
-    • version: The API implementation version.
-    • description: A short description of the application.
+    • url: URL to access the application.
+    • title: Title of the application.
+    • version: API implementation version.
+    • description: Short description of the application.
     • filters: List of filters to apply during HTTP request processing.
     """
 
@@ -185,18 +185,19 @@ class App:
         registered as an individual resource in the application. If registering a
         directory, this method will not traverse or register any subdirectories.
 
-        If registering a single file, the path parameter is the path that the file will
-        be registered under. For example, '/' would resolve to the root of the
-        application's path.
+        If registering a single file, the path parameter is the path that the
+        file will be registered under. For example, "/" would resolve to the
+        root of the application's path.
 
-        If registering a directory, the path parameter is the path that will "contain"
-        all files in the directory. If a file name matching the index argument is
-        found in the directory, it will also be registered as the path itself.
+        If registering a directory, the path parameter is the path that will
+        "contain" all files in the directory. If a file name matching the
+        index argument is found in the directory, it will also be registered
+        as the path itself.
 
-        Every file is registered as a static resource; all content will be held in
-        memory as byte arrays. This method is apprpriate for a handful of files; for a
-        large set of files, it would likely be more appropriate to serve them using a
-        dedicated web server.
+        Every file is registered as a static resource; all content will be held
+        in memory as byte arrays. This method is apprpriate for a limited
+        number of files; for a large set of files, it would likely be more
+        appropriate to serve them using a dedicated web server.
 
         Parameters:
         • path: Path of resource relative to application URL.
@@ -291,8 +292,8 @@ class HTTPSecurityScheme(roax.security.SecurityScheme):
     Base class for HTTP authentication security scheme.
 
     Parameters:
-    • name: The name of the security scheme.
-    • scheme: The name of the HTTP authorization scheme.
+    • name: Name of the security scheme.
+    • scheme: Name of the HTTP authorization scheme.
     """
 
     def __init__(self, name, scheme, **kwargs):
@@ -312,8 +313,8 @@ class HTTPBasicSecurityScheme(HTTPSecurityScheme):
     Base class for HTTP basic authentication security scheme.
 
     Parameters:
-    • name: The name of the security scheme.
-    • realm: The realm to include in the challenge.  [name]
+    • name: Name of the security scheme.
+    • realm: Realm to include in the challenge.  [name]
     """
 
     def __init__(self, name, realm=None, **kwargs):

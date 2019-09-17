@@ -57,7 +57,7 @@ def pop(pushed):
     Pop a value that was pushed onto the context stack.
 
     Parameter:
-    • pushed: The value returned from push().
+    • pushed: Value returned from push().
     """
     pos = pushed.pos
     value = pushed.value
