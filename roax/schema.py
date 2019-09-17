@@ -7,8 +7,12 @@ __all__ = []
 
 
 def _export(*args):
+    glob = globals()
     for name in args:
-        globals()[name] = getattr(_schema, "_" + name, None) or getattr(_schema, name)
+        obj = getattr(_schema, "_" + name, None) or getattr(_schema, name)
+        obj.__name__ = name
+        obj.__module__ = __name__
+        glob[name] = obj
         __all__.append(name)
 
 

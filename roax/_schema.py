@@ -103,14 +103,14 @@ class _type:
             raise SchemaError("value is not nullable")
         if value is not None and not isinstance(value, self.python_type):
             raise SchemaError(
-                f"value {value} does not match expected type: {self.python_type.__name__}"
+                f"value {value!r} does not match expected type: {self.python_type.__name__}"
             )
         if value is not None and self.enum is not None and value not in self.enum:
             if len(self.enum) == 1:
                 raise SchemaError(f"value must be {list(self.enum)[0]}")
             else:
                 raise SchemaError(
-                    f"value {value} is not one of: {', '.join([self.str_encode(v) for v in self.enum])}"
+                    f"value {value!r} is not one of: {', '.join([self.str_encode(v) for v in self.enum])}"
                 )
 
     @property
