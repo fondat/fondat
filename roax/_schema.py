@@ -1283,7 +1283,7 @@ class _dataclass(_type):
         if value is None:
             return None
         result = {}
-        for name, schema in self.cls.__annotations__.items():
+        for name, schema in self.attrs.__dict__.items():
             try:
                 v = getattr(value, name)
                 if v is not None or name in self.required:
@@ -1328,18 +1328,13 @@ class _dataclass(_type):
     def json_encode(self, value):
         """Encode the value into JSON object model representation."""
         self.validate(value)
-        result = self._process("json_encode", value)
-        if result is not None:
-            for name in result:
-                if result[name] is None and name not in self.required:
-                    del result[name]
-        return result
+        return self._process("json_encode", value)
 
     def json_decode(self, value):
         """Decode the value from JSON object model representation."""
         if value is not None:
             result = {}
-            for name, schema in self.cls.__annotations__.items():
+            for name, schema in self.attrs.__dict__.items():
                 v = value.get(name)
                 if v is not None or name in self.required:
                     try:

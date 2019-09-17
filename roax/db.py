@@ -5,7 +5,7 @@ Module to manage resource items in a SQL database through DB-API 2.0 interface.
 import contextlib
 import logging
 import roax.resource
-import roax.schema as s
+import roax.schema
 
 
 _logger = logging.getLogger(__name__)
@@ -28,7 +28,7 @@ _markers = {
 class Database:
     """
     Base class to manage connections to a SQL database. Subclasses must
-    implement the `connect` method, and expose an `adapters` attribute.
+    implement the "connect" method, and expose an "adapters" attribute.
 
     Parameter:
     • module: DB-API 2.0 module providing access to the database.
@@ -61,7 +61,7 @@ class Database:
         closes on exit.
 
         Parameter:
-        • connection connection to open cursor on.  [None]
+        • connection Connection to open cursor on.  [None]
 
         If no connection is supplied to allocate the cursor from, a connection
         is automatically fetched.
@@ -84,31 +84,29 @@ class Table:
     • schema: Schema of table columns.
     • pk: Column name of the primary key.
     • adapters: Column transformation adapters.
- 
-    The schema must be a `roax.schema.dict` type, whose property names are
-    table columns.
 
-    Adapters is a dict of keys-to-adapter instances. Key can be column name
-    or `roax.schema` type.
+    Instance variables:
+    • columns: Mapping of column name to associated schema type.
 
+    The schema must be a roax.schema.dataclass type, whose attribute names map
+    to table columns.
+
+    The adapters parameter is a dict of keys-to-adapter instances. A key can be
+    either a column name or a roax.schema type.
     """
 
     def __init__(self, database, name, schema, pk, adapters=None):
         super().__init__()
         self.database = database
         self.name = name
-        if not isinstance(schema, s.dict):
-            raise ValueError("schema for table must be roax.schema.dict")
+        if not isinstance(schema, roax.schema.dataclass):
+            raise ValueError("schema for table must be roax.schema.dataclass")
         self.schema = schema
-        if pk not in schema.props:
+        self.columns = self.schema.attrs.__dict__
+        if pk not in self.columns:
             raise ValueError(f"primary key '{pk}' not in schema")
         self.pk = pk
         self.adapters = {**database.adapters, **(adapters if adapters else {})}
-
-    @property
-    def columns(self):
-        """Tuple of column names."""
-        return tuple(self.schema.props.keys())
 
     def adapter(self, column):
         """
@@ -117,11 +115,11 @@ class Table:
         column, then defaulting to a string encoding/decoding adapter.
 
         Parameter:
-        • column: name of column to return adapter for.
+        • column: Name of column to return adapter for.
         """
         return (
             self.adapters.get(column)
-            or self.adapters.get(self.schema.props[column].__class__)
+            or self.adapters.get(self.columns[column].__class__)
             or default_adapter
         )
 
@@ -138,7 +136,7 @@ class Table:
         closes on exit.
 
         Parameter:
-        • connection connection to open cursor on.  [None]
+        • connection Connection to open cursor on.  [None]
         """
         return self.database.cursor(connection)
 
@@ -148,14 +146,14 @@ class Table:
 
     def select(self, *, columns=None, where=None, order=None):
         """
-        Return a list of rows that match the `where` expression. Each row is expressed in a dict.
+        Return a list of rows that match the WHERE expression. Each row is expressed in a dict.
 
         Parameters:
-        • columns: iterable of column names to return, or `None` for all columns.
-        • where: `Query` object representing WHERE expression, or `None` to match all rows.
-        • order: iterable of column names to order by, or `None` to not order results.
+        • columns: Iterable of column names to return, or None for all columns.
+        • where: Query object representing WHERE expression, or None to match all rows.
+        • order: Iterable of column names to order by, or None to not order results.
         """
-        columns = tuple(columns or self.columns)
+        columns = tuple(columns or self.columns.keys())
         query = self.query()
         query.text("SELECT ")
         query.text(", ".join(columns))
@@ -173,10 +171,8 @@ class Table:
         for item in items:
             result = dict(zip(columns, item))
             for column in columns:
-                if result[column] is None and column not in self.schema.required:
-                    del result[column]
-                else:
-                    schema = self.schema.props[column]
+                schema = self.columns[column]
+                if result[column] is not None or column in self.schema.required:
                     value = self.adapter(column).decode(schema, result[column])
                     result[column] = value
             results.append(result)
@@ -184,10 +180,10 @@ class Table:
 
     def list(self, where=None):
         """
-        Return a list of primary keys that match the `where` expression.
+        Return a list of primary keys that match the where expression.
 
         Parameter:
-        • where: `Query` object representing SQL WHERE expression, or `None` to match all rows.
+        • where: Query object representing WHERE expression, or None to match all rows.
         """
         query = self.query()
         query.text(f"SELECT {self.pk} FROM {self.name}")
@@ -197,7 +193,7 @@ class Table:
         with self.cursor() as cursor:
             query.execute(cursor)
             items = cursor.fetchall()
-        pk = self.schema.props[self.pk]
+        pk = self.columns[self.pk]
         return [self.adapter(self.pk).decode(pk, item[0]) for item in items]
 
 
@@ -206,7 +202,7 @@ class Query:
     Builds a database query for a table.
 
     Parameter and instance variable:
-    • table: table for which query is to be built.
+    • table: Table for which query is to be built.
     """
 
     def __init__(self, table):
@@ -232,7 +228,7 @@ class Query:
         """
         Encode and add a column value to the query as a parameter.
         """
-        schema = self.table.schema.props[column]
+        schema = self.table.columns[column]
         adapter = self.table.adapter(column)
         self.param(None if value is None else adapter.encode(schema, value))
 
@@ -246,7 +242,7 @@ class Query:
     def build(self):
         """
         Returns a tuple of (operator, parameters) suitable to supply as
-        arguments to the `cursor.execute` method.
+        arguments to the cursor.execute method.
         """
         return (
             "".join(self.operation),
@@ -260,7 +256,7 @@ class Query:
         Build and exeute the query.
 
         Parameter:
-        • cursor: cursor to execute query under.
+        • cursor: Cursor to execute query under.
         """
         built = self.build()
         _logger.debug("%s", built)
@@ -276,7 +272,7 @@ class Adapter:
     representation that is expected by a SQL database. 
 
     This default implementation encodes to and from string value using the
-    schema's `str_encode` and `str_decode` methods.
+    schema object's str_encode and str_decode methods.
     """
 
     def encode(self, schema, value):
@@ -284,8 +280,8 @@ class Adapter:
         Encode a value as a query parameter.
 
         Parameter:
-        • schema: schema of the value to be encoded in the query.
-        • value: value to be encoded.
+        • schema: Schema of the value to be encoded in the query.
+        • value: Value to be encoded.
         """
         return schema.str_encode(value)
 
@@ -294,8 +290,8 @@ class Adapter:
         Decode a value from a query result.
 
         Parameters:
-        • schema: schema of the value to be decoded from the query result.
-        • value: value from the query result to be decoded.
+        • schema: Schema of the value to be decoded from the query result.
+        • value: Value from the query result to be decoded.
         """
         return schema.str_decode(value)
 
@@ -309,9 +305,9 @@ class TableResource(roax.resource.Resource):
     providing basic CRUD operations.
 
     Parameters:
-    • table table that resource is based on.
-    • name: short name of the resource.  [table.name]
-    • description: short description of the resource.  [resource docstring]
+    • table Table that resource is based on.
+    • name: Short name of the resource.  [table.name]
+    • description: Short description of the resource.  [resource docstring]
 
     This class does not decorate operations or validate the schema of items;
     subclasses are expected to do this.
@@ -328,11 +324,12 @@ class TableResource(roax.resource.Resource):
         query.text(", ".join(self.table.columns))
         query.text(") VALUES (")
         columns = self.table.columns
-        for n in range(0, len(columns)):
-            column = columns[n]
-            query.value(column, _body.get(column))
-            if n < len(columns) - 1:
+        comma = False
+        for column, schema in columns.items():
+            if comma:
                 query.text(", ")
+            query.value(column, getattr(_body, column))
+            comma = True
         query.text(");")
         with self.table.cursor() as cursor:
             query.execute(cursor)
@@ -348,18 +345,20 @@ class TableResource(roax.resource.Resource):
         elif len(results) > 1:
             raise roax.resource.InternalServerError("query matches more than one row")
         result = results[0]
-        return result
+        print(f"**RESULT={result}")
+        return self.table.schema.cls(**result)
 
     def update(self, id, _body):
         query = self.table.query()
         query.text(f"UPDATE {self.table.name} SET ")
         columns = self.table.columns
-        for n in range(0, len(columns)):
-            column = columns[n]
-            query.text(f"{column} = ")
-            query.value(column, _body.get(column))
-            if n < len(columns) - 1:
+        comma = False
+        for column, schema in columns.items():
+            if comma:
                 query.text(", ")
+            query.text(f"{column} = ")
+            query.value(column, getattr(_body, column, None))
+            comma = True
         query.text(f" WHERE {self.table.pk} = ")
         query.value(self.table.pk, id)
         query.text(";")
