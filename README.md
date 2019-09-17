@@ -17,13 +17,15 @@ interface, they can be automatically exposed through a REST and/or command line 
 
 ## Features
 
-* Resource operations accessed through WSGI based REST API.
+* Resource operations accessed through WSGI-based REST API.
 * Schema enforcement of resource operation parameters and return values.
 * Authorization to resource operations enforced through security policies.
-* Command-line interface to resource operations.
-* Intuitive data structure definition using data classes. 
-* Uses Python annotations to define schema of data classes, parameters and return values. 
+* Schema-enforced data structure definition using data classes. 
+* Python annotations define schema of data classes, operation parameters and return values. 
+* Representation of SQL tables as resources, with intuitive SQL query builder.
+* Monitoring of resource operations and elapsed time in time series databases.
 * Generates [OpenAPI](https://www.openapis.org/) interface description, compatible with [Swagger UI](https://swagger.io/tools/swagger-ui/).
+* Access to resource operations through command-line interface.
 
 ## Quick start
 
