@@ -44,6 +44,7 @@ BOOLEAN = _CastAdapter(bool)
 
 
 _adapters = {
+    s.dataclass: TEXT,
     s.dict: TEXT,
     s.list: TEXT,
     s.set: TEXT,
