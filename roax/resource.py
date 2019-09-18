@@ -297,14 +297,12 @@ def operation(
         def wrapper(wrapped, instance, args, kwargs):
             tags = {"resource": wrapped.__self__.name, "operation": _name}
             with context.push({**tags, "context": "operation"}):
-                roax.monitor.record(
-                    roax.monitor.Measurement(
-                        {**tags, "name": "operation_calls_total"}, _now(), "absolute", 1
-                    )
-                )
                 with roax.monitor.timer({**tags, "name": "operation_duration_seconds"}):
-                    authorize(security)
-                    return wrapped(*args, **kwargs)
+                    with roax.monitor.counter(
+                        {**tags, "name": "operation_calls_total"}
+                    ):
+                        authorize(security)
+                        return wrapped(*args, **kwargs)
 
         decorated = s.validate(params, returns)(wrapt.decorator(wrapper)(function))
         operation = dict(

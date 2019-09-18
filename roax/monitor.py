@@ -274,12 +274,12 @@ class DequeMonitor:
 
         If no cap is specified, all queued items will be popped.
         """
-        counter = 0
+        count = 0
         while True:
             try:
                 monitor.record(self.deque.popleft())
-                counter += 1
-                if cap and counter >= cap:
+                count += 1
+                if cap and count >= cap:
                     break
             except IndexError:
                 break
@@ -309,26 +309,66 @@ class Monitors(dict):
 
 class timer:
     """
-    A context manager that times statement(s) and records the duration measurement
-    as a gauge in the monitor.
+    A context manager that times the execution of work and records its
+    duration in seconds as a gauge measurement in the monitor.
 
     Parameters:
     • tags: Tags to record upon completion of the timer.
     • monitor: Monitor to record measurement in.  [monitor]
+    • status: Name of tag to record status in measurement; None excludes status.
+
+    If no exception is encounted during execution, recorded status is
+    "success", otherwise "failure".
     """
 
-    def __init__(self, tags, monitor=None):
+    def __init__(self, tags, *, monitor=None, status="status"):
         self.tags = tags
         self.monitor = monitor or monitors
+        self.status = status
 
     def __enter__(self):
         self.begin = time.time()
         return self
 
-    def __exit__(self, *args):
+    def __exit__(self, exc_type, exc_value, traceback):
         duration = time.time() - self.begin
+        tags = {**self.tags}
+        if self.status:
+            tags[self.status] = "success" if not exc_type else "failure"
         try:
-            self.monitor.record(Measurement(self.tags, _now(), "gauge", duration))
+            self.monitor.record(Measurement(tags, _now(), "gauge", duration))
+        except:
+            _logger.warning("Exception recording measurement", exc_info=True)
+
+
+class counter:
+    """
+    A context manager that records the excecution of work as a counter
+    measurement in the monitor.
+
+    Parameters:
+    • tags: Tags to record upon completion of the timer.
+    • monitor: Monitor to record measurement in.  [monitor]
+    • status: Name of tag to record status in measurement; None excludes status.
+
+    If no exception is encounted during execution, recorded status is
+    "success", otherwise "failure".
+    """
+
+    def __init__(self, tags, *, monitor=None, status="status"):
+        self.tags = tags
+        self.monitor = monitor or monitors
+        self.status = status
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        tags = {**self.tags}
+        if self.status:
+            tags[self.status] = "success" if not exc_type else "failure"
+        try:
+            self.monitor.record(Measurement(tags, _now(), "counter", 1))
         except:
             _logger.warning("Exception recording measurement", exc_info=True)
 
