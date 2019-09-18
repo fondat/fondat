@@ -334,7 +334,7 @@ class timer:
         duration = time.time() - self.begin
         tags = {**self.tags}
         if self.status:
-            tags[self.status] = "success" if not exc_type else "failure"
+            tags[self.status] = "failure" if exc_type else "success"
         try:
             self.monitor.record(Measurement(tags, _now(), "gauge", duration))
         except:
@@ -366,7 +366,7 @@ class counter:
     def __exit__(self, exc_type, exc_value, traceback):
         tags = {**self.tags}
         if self.status:
-            tags[self.status] = "success" if not exc_type else "failure"
+            tags[self.status] = "failure" if exc_type else "success"
         try:
             self.monitor.record(Measurement(tags, _now(), "counter", 1))
         except:
