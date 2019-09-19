@@ -36,7 +36,7 @@ class push:
         if len(stack) == 0:
             stack.append(
                 dict(
-                    context_type="root",
+                    context="root",
                     id=uuid.uuid4(),
                     time=datetime.datetime.now(tz=datetime.timezone.utc),
                 )
