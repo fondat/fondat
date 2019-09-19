@@ -320,7 +320,7 @@ class TableResource(roax.resource.Resource):
 
     def NotFound(self, id):
         return roax.resource.NotFound(
-            f"{self.name} item not found: {self.table.pk.str_encode(id)}"
+            f"{self.name} item not found: {self.table.columns[self.table.pk].str_encode(id)}"
         )
 
     def create(self, id, _body):
