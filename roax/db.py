@@ -318,6 +318,11 @@ class TableResource(roax.resource.Resource):
         super().__init__(name or self.table.name, description)
         self.__doc__ = self.table.schema.description
 
+    def NotFound(self, id):
+        return roax.resource.NotFound(
+            f"{self.name} item not found: {self.table.pk.str_encode(id)}"
+        )
+
     def create(self, id, _body):
         query = self.table.query()
         query.text(f"INSERT INTO {self.table.name} (")
@@ -341,7 +346,7 @@ class TableResource(roax.resource.Resource):
         where.value(self.table.pk, id)
         results = self.table.select(where=where)
         if len(results) == 0:
-            raise roax.resource.NotFound()
+            raise self.NotFound(id)
         elif len(results) > 1:
             raise roax.resource.InternalServerError("query matches more than one row")
         result = results[0]
@@ -366,7 +371,7 @@ class TableResource(roax.resource.Resource):
             query.execute(cursor)
             count = cursor.rowcount
         if count == 0:
-            raise roax.resource.NotFound()
+            raise self.NotFound(id)
         elif count > 1:
             raise roax.resource.InternalServerError("query matches more than one row")
         elif count == -1:
@@ -383,7 +388,7 @@ class TableResource(roax.resource.Resource):
             query.execute(cursor)
             count = cursor.rowcount
         if count < 1:
-            raise roax.resource.NotFound()
+            raise self.NotFound(id)
         elif count > 1:
             raise roax.resource.InternalServerError(
                 "query would delete more than one row"
