@@ -200,7 +200,7 @@ class CLI:
             args = shlex.split(line)
             if not args:
                 return True
-            with roax.context.push(context_type="cli", command=line):
+            with roax.context.push(context="cli", command=line):
                 name = args.pop(0)
                 if name in self.resources:
                     return self._process_resource(name, args, inp, out)
