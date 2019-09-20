@@ -166,19 +166,19 @@ def test_list_validate_type_error():
 
 
 def test_list_validate_min_success():
-    s.list(items=s.int(), min=2).validate([1, 2, 3])
+    s.list(items=s.int(), min_items=2).validate([1, 2, 3])
 
 
 def test_list_validate_min_error():
-    _error(s.list(items=s.int(), min=3).validate, [1, 2])
+    _error(s.list(items=s.int(), min_items=3).validate, [1, 2])
 
 
 def test_list_validate_max_success():
-    s.list(items=s.int(), max=5).validate([1, 2, 3, 4])
+    s.list(items=s.int(), max_items=5).validate([1, 2, 3, 4])
 
 
 def test_list_validate_max_error():
-    _error(s.list(items=s.int(), max=6).validate, [1, 2, 3, 4, 5, 6, 7])
+    _error(s.list(items=s.int(), max_items=6).validate, [1, 2, 3, 4, 5, 6, 7])
 
 
 def test_list_validate_unique_success():

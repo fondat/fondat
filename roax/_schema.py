@@ -321,8 +321,8 @@ class _list(_type):
         items,
         *,
         content_type="application/json",
-        min=0,
-        max=None,
+        min_items=0,
+        max_items=None,
         unique=False,
         **kwargs,
     ):
@@ -333,8 +333,8 @@ class _list(_type):
             **kwargs,
         )
         self.items = items
-        self.min = min
-        self.max = max
+        self.min_items = min_items
+        self.max_items = max_items
         self.unique = unique
 
     def _process(self, method, value):
@@ -379,11 +379,11 @@ class _list(_type):
         super().validate(value)
         if value is not None:
             self._process("validate", value)
-            if len(value) < self.min:
-                raise SchemaError(f"expecting minimum number of {self.min} items")
-            if self.max is not None and len(value) > self.max:
-                raise SchemaError(f"expecting maximum number of {self.max} items")
-            if not self._is_unique(value):
+            if len(value) < self.min_items:
+                raise SchemaError(f"expecting minimum number of {self.min_items} items")
+            if self.max_items is not None and len(value) > self.max_items:
+                raise SchemaError(f"expecting maximum number of {self.max_items} items")
+            if self.unique and not self._is_unique(value):
                 raise SchemaError("expecting list items to be unique")
 
     @property
@@ -391,10 +391,10 @@ class _list(_type):
         """JSON schema representation of the schema."""
         result = super().json_schema
         result["items"] = self.items.json_schema
-        if self.min != 0:
-            result["minItems"] = self.min
-        if self.max is not None:
-            result["maxItems"] = self.max
+        if self.min_items != 0:
+            result["minItems"] = self.min_items
+        if self.max_items is not None:
+            result["maxItems"] = self.max_items
         if self.unique:
             result["uniqueItems"] = True
         return result
