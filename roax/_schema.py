@@ -304,8 +304,8 @@ class _list(_type):
     Parameters and instance variables:
     • items: Schema which all items must adhere to.
     • content_type: Content type used when value is expressed in a body.  ["application/json"]
-    • min: The minimum number of items required.
-    • max: The maximum number of items required.
+    • min_items: The minimum number of items required.
+    • max_items: The maximum number of items required.
     • unique: All items must have unique values.
     • nullable: Allow None as a valid value.
     • default: Default value if the item value is not supplied.
@@ -622,29 +622,29 @@ class _number(_type):
     Base class for numeric types (int, float).
     """
 
-    def __init__(self, *, minimum=None, maximum=None, **kwargs):
+    def __init__(self, *, min=None, max=None, **kwargs):
         """Initialize number schema."""
         super().__init__(**kwargs)
-        self.minimum = minimum
-        self.maximum = maximum
+        self.min = min
+        self.max = max
 
     def validate(self, value):
         """Validate value against the schema."""
         super().validate(value)
         if value is not None:
-            if self.minimum is not None and value < self.minimum:
-                raise SchemaError(f"expecting minimum value of {self.minimum}")
-            if self.maximum is not None and value > self.maximum:
-                raise SchemaError(f"expecting maximum value of {self.maximum}")
+            if self.min is not None and value < self.min:
+                raise SchemaError(f"expecting minimum value of {self.min}")
+            if self.max is not None and value > self.max:
+                raise SchemaError(f"expecting maximum value of {self.max}")
 
     @property
     def json_schema(self):
         """JSON schema representation of the schema."""
         result = super().json_schema
-        if self.minimum is not None:
-            result["minimum"] = self.minimum
-        if self.maximum is not None:
-            result["maximum"] = self.maximum
+        if self.min is not None:
+            result["minimum"] = self.min
+        if self.max is not None:
+            result["maximum"] = self.max
         return result
 
     def json_encode(self, value):
@@ -664,8 +664,8 @@ class _int(_number):
 
     Parameters and instance variables:
     • content_type: Content type used when value is expressed in a body.  ["text/plain"]
-    • minimum: Inclusive lower limit of the value.
-    • maximum: Inclusive upper limit of the value.
+    • min: Inclusive lower limit of the value.
+    • max: Inclusive upper limit of the value.
     • nullable: Allow None as a valid value.
     • default: Default value if the item value is not supplied.
     • enum: A list of values that are valid.
@@ -709,8 +709,8 @@ class _float(_number):
 
     Parameters and instance variables:
     • content_type: Content type used when value is expressed in a body.  ["text/plain"]
-    • minimum: Inclusive lower limit of the value.
-    • maximum: Inclusive upper limit of the value.
+    • min: Inclusive lower limit of the value.
+    • max: Inclusive upper limit of the value.
     • nullable: Allow None as a valid value.
     • default: Default value if the item value is not supplied.
     • enum: A list of values that are valid.
@@ -1258,10 +1258,10 @@ class _dataclass(_type):
 
     Parameters and instance variables:
     • cls: Data class.
-    • required: Names of attributes that are required.
+    • required: Name of attributes that are required.  [data class "_required" variable, or empty set]
     • content_type: Content type used when value is expressed in a body.  ["application/json"]
     • nullable: Allow None as a valid value.
-    • description: A description of the schema.
+    • description: A description of the schema.  [data class docstring]
     • example: An example of an instance for this schema.
     """
 
@@ -1270,13 +1270,23 @@ class _dataclass(_type):
             self.__dict__ = cls.__annotations__
 
     def __init__(
-        self, cls, required=set(), *, content_type="application/json", **kwargs
+        self,
+        cls,
+        required=None,
+        *,
+        description=None,
+        content_type="application/json",
+        **kwargs,
     ):
         super().__init__(
-            python_type=object, json_type="object", content_type=content_type, **kwargs
+            python_type=object,
+            json_type="object",
+            content_type=content_type,
+            description=description or getattr(self, "description", cls.__doc__),
+            **kwargs,
         )
         self.cls = cls
-        self.required = _required(required)
+        self.required = _required(required or getattr(cls, "_required", set()))
         self.attrs = _dataclass._attrs(cls)
 
     def _process(self, method, value):
