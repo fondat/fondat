@@ -262,6 +262,7 @@ def _params(function):
 
 
 def operation(
+    fn=None,
     *,
     name=None,
     type=None,
@@ -327,4 +328,7 @@ def operation(
             function._roax_operation_ = operation  # __init__ will register it
         return decorated
 
-    return decorator
+    if callable(fn):
+        return decorator(fn)
+    else:
+        return decorator
