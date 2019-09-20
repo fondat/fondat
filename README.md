@@ -49,8 +49,8 @@ from wsgiref.simple_server import make_server
 
 class HelloResource(Resource):
 
-    @operation(returns=schema.str(), security=[])
-    def read(self):
+    @operation(security=[])
+    def read(self) -> schema.str():
         return "Hello world!"
 
 app = App("/", "Hello", "1.0")
