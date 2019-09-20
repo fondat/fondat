@@ -306,7 +306,7 @@ class TableResource(roax.resource.Resource):
 
     Parameters:
     • table Table that resource is based on.
-    • name: Short name of the resource.  [table.name]
+    • name: Short name of the resource.  [table.name in lower case]
     • description: Short description of the resource.  [resource docstring]
 
     This class does not decorate operations or validate the schema of items;
@@ -315,7 +315,7 @@ class TableResource(roax.resource.Resource):
 
     def __init__(self, table=None, name=None, description=None):
         self.table = table or self.table
-        super().__init__(name or self.table.name, description)
+        super().__init__(name or self.table.name.lower(), description)
         self.__doc__ = self.table.schema.description
 
     def NotFound(self, id):
