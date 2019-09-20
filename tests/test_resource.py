@@ -12,9 +12,13 @@ class R1(Resource):
 
     schema = body_schema
 
-    @operation()
+    @operation  # no params
     def create(self, body: body_schema) -> s.uuid():
         return uuid.UUID("705d9048-97d6-4071-8359-3dbf0531fee9")
+
+    @operation()  # empty params
+    def delete(self, id: s.uuid()):
+        pass
 
     @operation(type="query")
     def foo(self) -> s.str():
@@ -34,6 +38,12 @@ class InvalidOperationTypeResource(Resource):
 
     def not_a_valid_operation_type(self):
         pass
+
+
+def test_r1_operations():
+    r1 = R1()
+    assert r1.operations["create"].name == "create"
+    assert r1.operations["foo"].type == "query"
 
 
 def test_call():

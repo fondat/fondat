@@ -11,6 +11,7 @@ from io import BytesIO
 from datetime import date, datetime
 from uuid import UUID
 
+
 _UTC = isodate.tzinfo.Utc()
 
 
@@ -431,20 +432,20 @@ def test_int_validate_type_error():
     _error(s.int().validate, 123.45)
 
 
-def test_int_validate_minimum_success():
-    s.int(minimum=1).validate(2)
+def test_int_validate_min_success():
+    s.int(min=1).validate(2)
 
 
-def test_int_validate_minimum_error():
-    _error(s.int(minimum=2).validate, 1)
+def test_int_validate_minerror():
+    _error(s.int(min=2).validate, 1)
 
 
-def test_int_validate_maximum_success():
-    s.int(maximum=3).validate(2)
+def test_int_validate_max_success():
+    s.int(max=3).validate(2)
 
 
-def test_int_validate_maximum_error():
-    _error(s.int(maximum=4).validate, 5)
+def test_int_validate_max_error():
+    _error(s.int(max=4).validate, 5)
 
 
 def test_int_json_encode_success():
@@ -502,20 +503,20 @@ def test_float_validate_type_error():
     _error(s.float().validate, "123.45")
 
 
-def test_float_validate_minimum_success():
-    s.float(minimum=1.0).validate(1.1)
+def test_float_validate_min_success():
+    s.float(min=1.0).validate(1.1)
 
 
-def test_float_validate_minimum_error():
-    _error(s.float(minimum=2.0).validate, 1.9)
+def test_float_validate_min_error():
+    _error(s.float(min=2.0).validate, 1.9)
 
 
-def test_float_validate_maximum_success():
-    s.float(maximum=3.0).validate(2.9)
+def test_float_validate_max_success():
+    s.float(max=3.0).validate(2.9)
 
 
-def test_float_validate_maximum_error():
-    _error(s.float(maximum=4.0).validate, 4.1)
+def test_float_validate_max_error():
+    _error(s.float(max=4.0).validate, 4.1)
 
 
 def test_float_json_encode_success():
@@ -1186,9 +1187,14 @@ def test_dataclass_allow_none():
     assert s.dataclass(DC, nullable=True).json_encode(None) == None
 
 
-def test_dataclass_required_str():
-    DC = make_dataclass("DC", [("fjx", s.str()), ("fjy", s.str())])
-    schema = s.dataclass(DC, "fjx fjy")
+def test_dataclass_required():
+    @dataclasses.dataclass
+    class DC:
+        fjx: s.str()
+        fjy: s.str()
+        _required = "fjx fjy"
+
+    schema = s.dataclass(DC)
     _error(schema.validate, DC(fjx=None, fjy=None))
     _error(schema.validate, DC(fjx="foo", fjy=None))
     _error(schema.validate, DC(fjx=None, fjy="foo"))
