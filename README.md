@@ -35,7 +35,7 @@ pip install roax
 
 ## Documentation
 
-See the [docs](https://github.com/roax/roax/docs) folder for documentation.
+See the [docs](https://github.com/roax/roax/tree/master/docs) folder for documentation.
 
 ## Develop
 
