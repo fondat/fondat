@@ -150,7 +150,7 @@ class App:
         for op in resource.operations.values():
             if op.security is None:
                 raise ValueError(
-                    f"operation {op.name} must express security requirements"
+                    f"{op.name} operation must include security requirements"
                 )
             if op.type == "create":
                 op_method, op_path = "POST", res_path

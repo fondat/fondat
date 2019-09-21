@@ -110,11 +110,11 @@ class Resource:
     • description: Short description of the resource.  [resource docstring]
     • security: Security requirements for resource operations.
 
-    Description can also be defined in a class variable.
+    Description be defined in a class variable.
 
-    Security requirements can be defined as a class variable. An operation
-    inherits the resource's security requirements unless overrriden in the
-    operation itself. 
+    Security requirements can be defined as a class variable. All resource
+    operations inherit the resource's security requirements unless overrriden
+    in the operation itself. 
     """
 
     def __init__(self, name=None, description=None, security=None):
@@ -143,22 +143,29 @@ class Resource:
         """Register a resource operation."""
         name = operation["name"]
         if name in self.operations:
-            raise ValueError(f"operation name already registered: {name}")
-        self.operations[name] = _Operation({**operation, "resource": self})
+            raise ValueError(f"{name} operation name already registered")
+        security = (
+            operation["security"]
+            if operation["security"] is not None
+            else self.security
+        )
+        self.operations[name] = _Operation(
+            {**operation, "resource": self, "security": security}
+        )
 
 
 class Resources:
     """
-    Provides a single object to hold shared application resources. Resource
-    classes expressed as string values are lazily imported and instantiated at the
-    time of first access; this solves potential circular dependencies between
-    resources.
+    Provides a single object to hold shared application resources. 
 
-    Initialize resources with a mapping of resource names to resources. Resources
-    are expressed as either string or reference to resource instance. If string,
-    class name is expressed as module:class; for example:
-    myapp.resources.v1:FooResource. Resources classes expressed as strings must
-    have __init__ methods that take no arguments other than "self".
+    Resources are expressed as either string or resource instance.
+
+    If string, class name is expressed as "module:class"; for example:
+    "myapp.resources.v1:FooResource". Resources classes expressed as strings
+    must have __init__ methods that take no arguments other than "self".
+    Resource classes expressed as string values are lazily imported and
+    instantiated at the time of first access; this solves potential circular
+    dependencies between resources.
 
     Resources are exposed as object attributes. Example initialization:
 
@@ -168,7 +175,7 @@ class Resources:
         "qux": qux_instance,
     })
 
-    Resources can be accessed as attributes or subscript, like:
+    Resources can be accessed as either attributes or keys, like:
     resources.foo and resources["bar"].
     """
 
@@ -310,18 +317,14 @@ def operation(
             raise ValueError(f"operation type must be one of: {_valid_types}")
 
         def wrapper(wrapped, instance, args, kwargs):
-            operation = wrapped.__self__.operations[_name]
-            tags = {"resource": wrapped.__self__.name, "operation": _name}
+            operation = wrapped.__self__.operations[wrapped.__name__]
+            tags = {"resource": operation.resource.name, "operation": operation.name}
             with context.push({**tags, "context": "operation"}):
                 with roax.monitor.timer({**tags, "name": "operation_duration_seconds"}):
                     with roax.monitor.counter(
                         {**tags, "name": "operation_calls_total"}
                     ):
-                        authorize(
-                            operation.security
-                            if operation.security is not None
-                            else wrapped.__self__.security
-                        )
+                        authorize(operation.security)
                         return wrapped(*args, **kwargs)
 
         decorated = roax.schema.validate(wrapt.decorator(wrapper)(function))
