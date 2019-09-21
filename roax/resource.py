@@ -108,9 +108,16 @@ class Resource:
     Parameters and instance variables:
     • name: Short name of the resource.  [class name in lower case]
     • description: Short description of the resource.  [resource docstring]
+    • security: Security requirements for resource operations.
+
+    Description can also be defined in a class variable.
+
+    Security requirements can be defined as a class variable. An operation
+    inherits the resource's security requirements unless overrriden in the
+    operation itself. 
     """
 
-    def __init__(self, name=None, description=None):
+    def __init__(self, name=None, description=None, security=None):
         super().__init__()
         self.name = name or getattr(self, "name", type(self).__name__.lower())
         self.description = (
@@ -118,6 +125,9 @@ class Resource:
             or getattr(self, "description", None)
             or self.__doc__
             or self.__class__.__name__
+        )
+        self.security = (
+            security if security is not None else getattr(self, "security", None)
         )
         self.operations = {}
         for function in (
@@ -280,7 +290,7 @@ def operation(
     • type: Type of operation being registered.  {"create","read","update","delete","action","query","patch"}
     • summary: Short summary of what the operation does.
     • description: Verbose description of the operation.  [function docstring]
-    • security: Security schemes, one of which must be satisfied to perform the operation.
+    • security: Security requirements for the operation.
     • publish: Publish the operation in documentation.
     • deprecated: Declare the operation as deprecated.
     """
@@ -300,13 +310,18 @@ def operation(
             raise ValueError(f"operation type must be one of: {_valid_types}")
 
         def wrapper(wrapped, instance, args, kwargs):
+            operation = wrapped.__self__.operations[_name]
             tags = {"resource": wrapped.__self__.name, "operation": _name}
             with context.push({**tags, "context": "operation"}):
                 with roax.monitor.timer({**tags, "name": "operation_duration_seconds"}):
                     with roax.monitor.counter(
                         {**tags, "name": "operation_calls_total"}
                     ):
-                        authorize(security)
+                        authorize(
+                            operation.security
+                            if operation.security is not None
+                            else wrapped.__self__.security
+                        )
                         return wrapped(*args, **kwargs)
 
         decorated = roax.schema.validate(wrapt.decorator(wrapper)(function))

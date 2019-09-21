@@ -34,13 +34,22 @@ class R1(Resource):
         return self.nestee()
 
 
+class R2(Resource):
+
+    security = [req1]
+
+    @operation(type="action")
+    def foo(self) -> s.str():
+        return "foo_success"
+
+
 def test_security_req_success():
     r1 = R1()
     with context.push(req1=True):
         assert r1.foo() == "foo_success"
 
 
-def test_security_req_unauth():
+def test_security_req_forbidden():
     r1 = R1()
     with pytest.raises(Forbidden):
         r1.foo()
@@ -56,3 +65,15 @@ def test_security_req_multiple_unnested():
 def test_security_req_nested():
     r1 = R1()
     assert r1.nester() == "nest_success"
+
+
+def test_resource_security_success():
+    r2 = R2()
+    with context.push(req1=True):
+        assert r2.foo() == "foo_success"
+
+
+def test_resource_security_forbidden():
+    r2 = R2()
+    with pytest.raises(Forbidden):
+        r2.foo()
