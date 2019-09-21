@@ -17,7 +17,7 @@ class Hello(Resource):
     security = []
 
     @operation
-    def read(self) -> schema.str():
+    def read(self) -> s.str():
         return "Hello world!"
 
 app = roax.wsgi.App("/", "HelloWorld", "1.0")
@@ -32,7 +32,7 @@ if __name__== "__main__":
 Roax enforces schema of data classes, data structures, parameters and return
 values, using the Schema module:
 ```python
-import roax.schema as schema
+import roax.schema as s
 ```
 
 Roax can expose resources and associated operations as a REST API, using the
@@ -68,7 +68,7 @@ returns a `str` value. The schema of parameters and return types of
 operations are enforced when the method is called:
 ```python
     @operation
-    def read(self) -> schema.str():
+    def read(self) -> s.str():
         return "Hello world!"
 ```
 
