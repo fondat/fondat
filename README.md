@@ -27,38 +27,15 @@ interface, they can be automatically exposed through a REST and/or command line 
 * Generates [OpenAPI](https://www.openapis.org/) interface description, compatible with [Swagger UI](https://swagger.io/tools/swagger-ui/).
 * Access to resource operations through command-line interface.
 
-## Quick start
-
-### Install
+## Install
 
 ```
 pip install roax
 ```
 
-### Hello world
+## Documentation
 
-Here is a minimal application that responds with `"Hello world!"` when the
-client accesses [http://localhost:8000/hello](http://localhost:8000/hello).
-
-```python
-import roax.schema as schema
-
-from roax.resource import Resource, operation
-from roax.wsgi import App
-from wsgiref.simple_server import make_server
-
-class HelloResource(Resource):
-
-    @operation(security=[])
-    def read(self) -> schema.str():
-        return "Hello world!"
-
-app = App("/", "Hello", "1.0")
-app.register_resource("/hello", HelloResource())
-
-if __name__== "__main__":
-    make_server("", 8000, app).serve_forever()
-```
+See the [docs](https://github.com/roax/roax/docs) folder for documentation.
 
 ## Develop
 
