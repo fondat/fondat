@@ -350,7 +350,6 @@ class TableResource(roax.resource.Resource):
         elif len(results) > 1:
             raise roax.resource.InternalServerError("query matches more than one row")
         result = results[0]
-        print(f"**RESULT={result}")
         return self.table.schema.cls(**result)
 
     def update(self, id, _body):
