@@ -105,13 +105,6 @@ _environ_keys = {
 }
 
 
-def _to_set(value):
-    """Coerce an iterable or a single value into a set of values."""
-    return set(
-        filter(None, value if isinstance(value, collections.abc.Iterable) else [value])
-    )
-
-
 class App:
     """
     Roax WSGI application.
