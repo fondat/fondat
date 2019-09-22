@@ -2,6 +2,8 @@
 
 import base64
 import binascii
+import collections.abc
+import contextlib
 import copy
 import logging
 import mimetypes
@@ -86,34 +88,28 @@ def _security_filters(requirements):
     return result
 
 
-_context_patterns = [
-    re.compile(p)
-    for p in (
-        "^REQUEST_METHOD$",
-        "^SCRIPT_NAME$",
-        "^PATH_INFO$",
-        "^QUERY_STRING$",
-        "^CONTENT_TYPE$",
-        "^CONTENT_LENGTH$",
-        "^SERVER_NAME$",
-        "^SERVER_PORT$",
-        "^SERVER_PROTOCOL$",
-        "^HTTP_.*",
-        "^wsgi.version$",
-        "^wsgi.multithread$",
-        "^wsgi.multiprocess$",
-        "^wsgi.run_once$",
+_environ_keys = {
+    "REQUEST_METHOD",
+    "SCRIPT_NAME",
+    "PATH_INFO",
+    "QUERY_STRING",
+    "CONTENT_TYPE",
+    "CONTENT_LENGTH",
+    "SERVER_NAME",
+    "SERVER_PORT",
+    "SERVER_PROTOCOL",
+    "wsgi.version",
+    "wsgi.multithread",
+    "wsgi.multiprocess",
+    "wsgi.run_once",
+}
+
+
+def _to_set(value):
+    """Coerce an iterable or a single value into a set of values."""
+    return set(
+        filter(None, value if isinstance(value, collections.abc.Iterable) else [value])
     )
-]
-
-
-def _environ(environ):
-    result = {}
-    for key, value in environ.items():
-        for pattern in _context_patterns:
-            if pattern.match(key):
-                result[key] = value
-    return result
 
 
 class App:
@@ -126,9 +122,12 @@ class App:
     • version: API implementation version.
     • description: Short description of the application.
     • filters: List of filters to apply during HTTP request processing.
+    • authenticate: Default value of WWW-Authenticate header in Unauthorized responses.
     """
 
-    def __init__(self, url, title, version, description=None, filters=None):
+    def __init__(
+        self, url, title, version, description=None, filters=None, authenticate=None
+    ):
         self.url = url
         self.title = title
         self.version = version
@@ -136,6 +135,7 @@ class App:
         self.filters = filters or []
         self.base = urllib.parse.urlparse(self.url).path.rstrip("/")
         self.operations = {}
+        self.authenticate = authenticate
 
     def register_resource(self, path, resource, publish=True):
         """
@@ -235,10 +235,17 @@ class App:
         """Handle WSGI request."""
         request = webob.Request(environ)
         try:
-            with roax.context.push(context="wsgi", environ=_environ(environ)):
+            with roax.context.push(
+                context="wsgi",
+                environ={
+                    k: v
+                    for k, v in environ.items()
+                    if k in _environ_keys or k.startswith("HTTP_")
+                },
+            ):
                 operation = self._get_operation(request)
 
-                def handle(request):
+                def terminus(request):
                     try:
                         params = _params(request, operation)
                     except Exception:  # authorization trumps input validation
@@ -248,9 +255,13 @@ class App:
 
                 filters = self.filters.copy()
                 filters.extend(_security_filters(operation.security))
-                response = _Chain(filters, handle).next(request)
+                response = _Chain(filters, terminus).next(request)
         except webob.exc.HTTPException as he:
             response = _ErrorResponse(he.code, he.detail)
+        except roax.resource.Unauthorized as u:
+            response = _ErrorResponse(u.code, u.detail)
+            if not response.www_authenticate:  # could have been set by filter
+                response.www_authenticate = self.authenticate or "Authenticate"
         except roax.resource.ResourceError as re:
             response = _ErrorResponse(re.code, re.detail)
         except roax.schema.SchemaError as se:
@@ -271,19 +282,19 @@ class App:
 
 
 class _Chain:
-    """A chain of filters, terminated by a handler."""
+    """A chain of request filters, terminated by a terminus request handler."""
 
-    def __init__(self, filters=[], handler=None):
+    def __init__(self, filters=[], terminus=None):
         """Initialize a filter chain."""
         self.filters = list(filters)
-        self.handler = handler
+        self.terminus = terminus
 
     def next(self, request):
         """Calls the next filter in the chain, or the terminus."""
         return (
             self.filters.pop(0)(request, self)
             if self.filters
-            else self.handler(request)
+            else self.terminus(request)
         )
 
 
@@ -294,6 +305,7 @@ class HTTPSecurityScheme(roax.security.SecurityScheme):
     Parameters:
     • name: Name of the security scheme.
     • scheme: Name of the HTTP authorization scheme.
+    • description: A short description for the security scheme.
     """
 
     def __init__(self, name, scheme, **kwargs):
@@ -310,20 +322,18 @@ class HTTPSecurityScheme(roax.security.SecurityScheme):
 
 class HTTPBasicSecurityScheme(HTTPSecurityScheme):
     """
-    Base class for HTTP basic authentication security scheme.
+    Base class for HTTP basic authentication security scheme. Subclass must
+    implement the authenticate method.
 
     Parameters:
     • name: Name of the security scheme.
     • realm: Realm to include in the challenge.  [name]
+    • description: A short description for the security scheme.
     """
 
     def __init__(self, name, realm=None, **kwargs):
         super().__init__(name, "basic", **kwargs)
         self.realm = realm or name
-
-    def Unauthorized(self, detail=None):
-        """Return an Unauthorized exception populated with scheme and realm."""
-        return roax.resource.Unauthorized(detail, f"Basic realm={self.realm}")
 
     def filter(self, request, chain):
         """
@@ -339,26 +349,105 @@ class HTTPBasicSecurityScheme(HTTPSecurityScheme):
                 )
             except (binascii.Error, UnicodeDecodeError):
                 pass
-            auth = self.authenticate(user_id, password)
-            if auth:
-                with roax.context.push(
-                    {
-                        **auth,
-                        "context": "auth",
-                        "type": "http",
-                        "scheme": self.scheme,
-                        "realm": self.realm,
-                    }
-                ):
-                    return chain.next(request)
-        return chain.next(request)
+            else:
+                auth = self.authenticate(user_id, password)
+        with roax.context.push(auth) if auth else contextlib.nullcontext():
+            return chain.next(request)
 
     def authenticate(user_id, password):
         """
         Perform authentication of credentials supplied in the HTTP request. If
-        authentication is successful, a dict is returned, which is added
-        to the context that is pushed on the context stack. If authentication
-        fails, None is returned. This method should not raise an exception
-        unless an unrecoverable error occurs.
+        authentication is successful, a context is returned to be pushed on
+        the context stack. If authentication fails, None is returned. This
+        method should not raise an exception unless an unrecoverable error
+        occurs.
         """
         raise NotImplementedError
+
+
+class APIKeySecurityScheme(roax.security.SecurityScheme):
+    """
+    Base class for API key authentication security scheme. Subclass must
+    implement the authenticate method.
+
+    Parameters:
+    • name: Name of the security scheme.
+    • key: Name of API key to be used.
+    • location: Location of API key.  {"header", "cookie"}
+    • description: A short description for the security scheme.
+    """
+
+    def __init__(self, name, key, location, **kwargs):
+        super().__init__(name, "apiKey", **kwargs)
+        self.key = key
+        self.location = location
+
+    @property
+    def json(self):
+        """JSON representation of the security scheme."""
+        result = super().json
+        result["name"] = self.key
+        result["in"] = self.location
+        return result
+
+    def authenticate(value):
+        """
+        Perform authentication of API key value supplied in the HTTP request.
+        If authentication is successful, a context is returned to be pushed on
+        the context stack. If authentication fails, None is returned. This
+        method should not raise an exception unless an unrecoverable error
+        occurs.
+        """
+        raise NotImplementedError
+
+
+class HeaderSecurityScheme(APIKeySecurityScheme):
+    """
+    Base class for header authentication security scheme. Subclass must
+    implement the authenticate method.
+
+    Parameters:
+    • name: Name of the security scheme.
+    • header: Name of the header to be used.
+    • description: A short description for the security scheme.
+    """
+
+    def __init__(self, name, header, **kwargs):
+        super().__init__(name, key=header, location="header", **kwargs)
+
+    def filter(self, request, chain):
+        """
+        Filters the incoming HTTP request. If the request contains the header,
+        it is passed to the authenticate method. If authentication is
+        successful, a context is added to the context stack.
+        """
+        header = request.headers.get(self.key)
+        auth = self.authenticate(header) if header is not None else None
+        with roax.context.push(auth) if auth else contextlib.nullcontext():
+            return chain.next(request)
+
+
+class CookieSecurityScheme(APIKeySecurityScheme):
+    """
+    Base class for cookie authentication security scheme. Subclass must
+    implement the authenticate method.
+
+    Parameters:
+    • name: Name of the security scheme.
+    • cookie: Name of cookie to be used.
+    • description: A short description for the security scheme.
+    """
+
+    def __init__(self, name, cookie, **kwargs):
+        super().__init__(name, key=cookie, location="cookie", **kwargs)
+
+    def filter(self, request, chain):
+        """
+        Filters the incoming HTTP request. If the request contains the cookie,
+        it is passed to the authenticate method. If authentication is
+        successful, a context is added to the context stack.
+        """
+        cookie = request.cookies.get(self.key)
+        auth = self.authenticate(cookie) if cookie is not None else None
+        with roax.context.push(auth) if auth else contextlib.nullcontext():
+            return chain.next(request)

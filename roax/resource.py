@@ -54,16 +54,6 @@ class Unauthorized(ResourceError):
 
     code, detail = 401, "Unauthorized"
 
-    def __init__(self, detail=None, challenge=None):
-        """
-        Initialize resource error.
-
-        • detail: Human-readable description of the error.
-        • challenge: Applicable authentication scheme and parameters.
-        """
-        super().__init__()
-        self.challenge = challenge
-
 
 class Forbidden(ResourceError):
     """Raised if authorization to the resource is refused."""
@@ -253,8 +243,15 @@ def _summary(function):
 
 def authorize(security):
     """
-    Peform authorization of the operation. If one security requirement does not
-    raise an exception, then authorization is granted. If all security requirements
+    Peform authorization of the operation.
+    
+    If a single security requirement does not raise an exception, then
+    this function passes and authorization is granted.
+
+    If all security requirements raise exceptions, then this function
+    will raise an exception. If 
+
+    If all security requirements
     raise exceptions, then authorization is denied, and the exception raised by the
     first security requirement is raised.
     """

@@ -6,7 +6,7 @@ import roax.resource
 
 class SecurityRequirement:
     """
-    Performs authorization of resource operations.
+    Base class to perform authorization of resource operations.
 
     Parameters:
     • scheme: Security scheme to associate with the security requirement.
@@ -24,9 +24,15 @@ class SecurityRequirement:
 
     def authorize(self):
         """
-        Determine authorization for the operation. Raises an exception if authorization
-        is not granted. The exception raised should be a ResourceError (like
-        Unauthorized), or be meaningful relative to its associated security scheme.        
+        Raise an exception if no authorization to perform the operation is
+        granted.
+
+        If no valid context or credentials are established, then the
+        roax.resource.Unauthorized exception should be raised.
+
+        If a valid context or credentials are established, but are
+        insufficient to provide authorization for the operation, then
+        the roax.resource.Forbidden exception should be raised. 
         """
         raise NotImplementedError
 
@@ -43,6 +49,7 @@ class SecurityScheme:
     Parameters:    
     • name: Name of security scheme.
     • type: Type of security scheme.
+    • description: A short description for the security scheme.
 
     A security scheme is required if security requirements and security schemes
     should be published in OpenAPI documents.
@@ -84,7 +91,7 @@ class ContextSecurityRequirement(SecurityRequirement):
 
     def authorize(self):
         if not roax.context.last(self.context):
-            raise roax.resource.Forbidden
+            raise roax.resource.Unauthorized
 
 
 class CLISecurityRequirement(ContextSecurityRequirement):
@@ -105,7 +112,7 @@ class NestedOperationSecurityRequirement(SecurityRequirement):
 
     def authorize(self):
         if len(roax.context.find(context="operation")) < 2:
-            raise roax.resource.Forbidden
+            raise roax.resource.Unauthorized
 
 
 cli = CLISecurityRequirement()

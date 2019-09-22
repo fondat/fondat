@@ -1,22 +1,23 @@
 import pytest
 import roax.context as context
+import roax.resource
 import roax.schema as s
+import roax.security
 
-from roax.resource import Forbidden, Resource, operation
-from roax.security import ContextSecurityRequirement, SecurityRequirement, nested
+from roax.resource import operation
 
 
-class Never(SecurityRequirement):
+class Never(roax.security.SecurityRequirement):
     def authorized(self):
         raise Forbidden
 
 
-req1 = ContextSecurityRequirement(req1=True)
+req1 = roax.security.ContextSecurityRequirement(req1=True)
 
 never = Never()
 
 
-class R1(Resource):
+class R1(roax.resource.Resource):
     @operation(type="action", security=[req1])
     def foo(self) -> s.str():
         return "foo_success"
@@ -25,7 +26,7 @@ class R1(Resource):
     def bar(self) -> s.str():
         return "bar_success"
 
-    @operation(type="action", security=[nested])
+    @operation(type="action", security=[roax.security.nested])
     def nestee(self) -> s.str():
         return "nest_success"
 
@@ -34,7 +35,7 @@ class R1(Resource):
         return self.nestee()
 
 
-class R2(Resource):
+class R2(roax.resource.Resource):
 
     security = [req1]
 
@@ -51,14 +52,14 @@ def test_security_req_success():
 
 def test_security_req_forbidden():
     r1 = R1()
-    with pytest.raises(Forbidden):
+    with pytest.raises(roax.resource.Unauthorized):
         r1.foo()
 
 
 def test_security_req_multiple_unnested():
     r1 = R1()
     for n in range(0, 3):
-        with pytest.raises(Forbidden):
+        with pytest.raises(roax.resource.Unauthorized):
             r1.nestee()
 
 
@@ -75,5 +76,5 @@ def test_resource_security_success():
 
 def test_resource_security_forbidden():
     r2 = R2()
-    with pytest.raises(Forbidden):
+    with pytest.raises(roax.resource.Unauthorized):
         r2.foo()
