@@ -294,7 +294,7 @@ def operation(
 
     Parameters:
     • name: Operation name. Required if the operation type is "query" or "action".
-    • type: Type of operation being registered.  {"create","read","update","delete","action","query","patch"}
+    • type: Type of operation being registered.  {"create", "read", "update", "delete", "action", "query", "patch"}
     • summary: Short summary of what the operation does.
     • description: Verbose description of the operation.  [function docstring]
     • security: Security requirements for the operation.
