@@ -1425,8 +1425,7 @@ def call(function, args, kwargs):
     return result
 
 
-@wrapt.decorator
-def validate(wrapped, instance, args, kwargs):
+def validate(_fn):
     """
     Decorate a function to validate its parameters and return value.
 
@@ -1438,4 +1437,14 @@ def validate(wrapped, instance, args, kwargs):
     def fn(a: schema.str(), b: schema.int()) -> schema.str():
         ...
     """
-    return call(wrapped, args, kwargs)
+
+    def decorator(function):
+        def wrapper(wrapped, instance, args, kwargs):
+            return call(wrapped, args, kwargs)
+
+        return wrapt.decorator(wrapper)(function)
+
+    if callable(_fn):
+        return decorator(_fn)
+    else:
+        return decorator
