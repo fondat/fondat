@@ -245,26 +245,29 @@ def authorize(security):
     """
     Peform authorization of the operation.
     
-    If a single security requirement does not raise an exception, then
-    this function passes and authorization is granted.
+    This function executes all of the security requirements associated with
+    the operation. If a single security requirement does not raise a
+    security exception {Unauthorized, Forbidden}, then this function passes
+    and authorization is granted.
 
-    If all security requirements raise exceptions, then this function
-    will raise an exception. If 
-
-    If all security requirements
-    raise exceptions, then authorization is denied, and the exception raised by the
-    first security requirement is raised.
+    If all security requirements raised a security exception: if one security
+    requirement raised Forbidden, then Forbidden is raised; otherwise
+    Unauthorized is raised.
     """
     exception = None
     for requirement in security or []:
         try:
             requirement.authorize()
             return  # security requirement authorized the operation
-        except Exception as e:
+        except Forbidden:
+            exception = Forbidden
+        except Unauthorized:
             if not exception:
-                exception = e  # first exception encountered
+                exception = Unauthorized
+        except Exception as e:
+            raise InternalServerError("unexpected exception encountered") from e
     if exception:
-        raise exception
+        raise exception()
 
 
 def _params(function):
