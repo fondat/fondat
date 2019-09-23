@@ -233,3 +233,51 @@ def test_cookie_success():
     response = request.get_response(app2)
     assert response.status_code == 200
     assert response.body.decode() == "success"
+
+
+class _TestHeaderScheme(roax.wsgi.HeaderSecurityScheme):
+    def __init__(self):
+        super().__init__("my_scheme", "token")
+
+    def authenticate(self, value):
+        if value == "super":
+            return {"context": "auth", "user_id": value, "role": "superuser"}
+
+
+class _TestHeaderSecurityRequirement(roax.security.SecurityRequirement):
+    def __init__(self):
+        self.scheme = _TestHeaderScheme()
+
+    def authorize(self):
+        ctx = context.last(context="auth")
+        if not ctx:
+            raise roax.resource.Unauthorized
+
+
+header = _TestHeaderSecurityRequirement()
+
+
+class _HeaderResource(Resource):
+    @operation(security=[header])
+    def read(self) -> s.str():
+        return "success"
+
+
+app3 = roax.wsgi.App("/", "Title", "1.0")
+app3.register_resource("/r3", _HeaderResource())
+
+
+def test_header_unauthorized():
+    request = webob.Request.blank("/r3")
+    request.method = "GET"
+    response = request.get_response(app3)
+    assert response.status_code == 401
+
+
+def test_cookie_success():
+    request = webob.Request.blank("/r3")
+    request.method = "GET"
+    request.headers["token"] = "super"
+    response = request.get_response(app3)
+    assert response.status_code == 200
+    assert response.body.decode() == "success"
