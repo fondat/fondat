@@ -252,7 +252,8 @@ def authorize(security):
 
     If all security requirements raised a security exception: if one security
     requirement raised Forbidden, then Forbidden is raised; otherwise
-    Unauthorized is raised.
+    Unauthorized is raised. If a non-security exception is raised, then
+    it is re-raised by this function.
     """
     exception = None
     for requirement in security or []:
@@ -264,8 +265,8 @@ def authorize(security):
         except Unauthorized:
             if not exception:
                 exception = Unauthorized
-        except Exception as e:
-            raise InternalServerError("unexpected exception encountered") from e
+        except:
+            raise
     if exception:
         raise exception()
 
