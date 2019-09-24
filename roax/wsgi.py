@@ -229,7 +229,7 @@ class App:
         request = webob.Request(environ)
         try:
             with roax.context.push(
-                context="wsgi",
+                context="roax.wsgi",
                 environ={
                     k: v
                     for k, v in environ.items()
