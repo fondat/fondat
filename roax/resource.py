@@ -319,8 +319,13 @@ def operation(
 
         def wrapper(wrapped, instance, args, kwargs):
             operation = wrapped.__self__.operations[wrapped.__name__]
-            tags = {"resource": operation.resource.name, "operation": operation.name}
-            with context.push({**tags, "context": "operation"}):
+            with context.push(
+                {
+                    "context": "roax.operation",
+                    "operation": operation.name,
+                    "resource": operation.resource.name,
+                }
+            ):
                 with roax.monitor.timer({**tags, "name": "operation_duration_seconds"}):
                     with roax.monitor.counter(
                         {**tags, "name": "operation_calls_total"}
