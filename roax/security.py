@@ -101,7 +101,7 @@ class CLISecurityRequirement(ContextSecurityRequirement):
     """
 
     def __init__(self):
-        super().__init__(context="cli")
+        super().__init__(context="roax.cli")
 
 
 class NestedOperationSecurityRequirement(SecurityRequirement):
@@ -111,7 +111,7 @@ class NestedOperationSecurityRequirement(SecurityRequirement):
     """
 
     def authorize(self):
-        if len(roax.context.find(context="operation")) < 2:
+        if len(roax.context.find(context="roax.operation")) < 2:
             raise roax.resource.Unauthorized
 
 
