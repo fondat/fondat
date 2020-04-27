@@ -194,6 +194,10 @@ class _dict(_type):
     • default: Default value if the item value is not supplied.
     • description: A description of the schema.
     • example: An example of an instance for this schema.
+
+    The `additional` value can be a boolean value or schema type. If the
+    latter, then additional property values must validate to the specified
+    type.
     """
 
     def __init__(
@@ -223,10 +227,12 @@ class _dict(_type):
             try:
                 if k in self.props:
                     result[k] = getattr(self.props[k], method)(v)
-                else:
-                    if not self.additional:
-                        raise SchemaError("unexpected property")
+                elif not self.additional:
+                    raise SchemaError("unexpected property")
+                elif self.additional == True:
                     result[k] = v  # pass through
+                else:
+                    result[k] = getattr(self.additional, method)(v)
             except SchemaError as se:
                 se.path = f"/{k}{se.path}" if se.path else f"/{k}"
                 raise
@@ -293,7 +299,7 @@ class _dict(_type):
         return result
 
     def strip(self, value):
-        """Return a copy of the value with only properties specified in the schema."""
+        """Return a copy of the value with only properties explicitly specified in the schema."""
         return {k: v for k, v in value.items() if k in self.props}
 
 

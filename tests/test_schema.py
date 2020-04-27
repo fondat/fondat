@@ -143,6 +143,18 @@ def test_dict_strip_validate_additional():
     schema.validate(schema.strip(value))
 
 
+def test_dict_validate_additional_success():
+    schema = s.dict({"foo": s.str()}, additional=s.int())
+    value = {"foo": "bar", "a": 1, "b": 2, "c": 3}
+    schema.validate(value)
+
+
+def test_dict_validate_additional_success():
+    schema = s.dict({"foo": s.str()}, additional=s.int())
+    value = {"foo": "bar", "a": 1, "b": 2, "c": "three"}
+    _error(schema.validate, value)
+
+
 # -- list -----
 
 
