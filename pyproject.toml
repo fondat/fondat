@@ -26,10 +26,10 @@ classifiers = [
 python = "^3.7"
 isodate = "^0.6"
 WebOb = "^1.8"
-wrapt = "^1.11"
+wrapt = "^1.12"
 
 [tool.poetry.dev-dependencies]
-black = "^19.3b0"
-pre-commit = "^1.18"
-pytest = "^5.1"
-pytest-cov = "^2.7"
+black = "^19.10b0"
+pre-commit = "^2.3"
+pytest = "^5.4"
+pytest-cov = "^2.8"
