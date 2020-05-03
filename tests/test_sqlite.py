@@ -13,16 +13,16 @@ from uuid import uuid4
 @dataclasses.dataclass
 class DC:
     id: s.uuid()
-    str: s.str()
-    dict: s.dict({"a": s.int()})
-    list: s.list(s.int())
-    _set: s.set(s.str())
-    int: s.int()
-    float: s.float()
-    bool: s.bool()
-    bytes: s.bytes(format="binary")
-    date: s.date()
-    datetime: s.datetime()
+    str: s.str(nullable=True)
+    dict: s.dict({"a": s.int()}, nullable=True)
+    list: s.list(s.int(), nullable=True)
+    _set: s.set(s.str(), nullable=True)
+    int: s.int(nullable=True)
+    float: s.float(nullable=True)
+    bool: s.bool(nullable=True)
+    bytes: s.bytes(format="binary", nullable=True)
+    date: s.date(nullable=True)
+    datetime: s.datetime(nullable=True)
 
 
 _schema = s.dataclass(DC)

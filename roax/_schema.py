@@ -58,7 +58,6 @@ class _type:
     • content_type: Content type used when value is expressed in a body.  ["text/plain"]
     • enum: A list of values that are valid.
     • nullable: Allow None as a valid value.
-    • default: Default value if the item value is not supplied.
     • description: A description of the schema.
     • example: An example of an instance for this schema.
     • deprecated: Schema should be transitioned out of usage.
@@ -72,7 +71,6 @@ class _type:
         format=None,
         content_type="text/plain",
         enum=None,
-        default=None,
         description=None,
         example=None,
         nullable=False,
@@ -85,7 +83,6 @@ class _type:
         self.content_type = content_type
         self.nullable = nullable
         self.enum = enum
-        self.default = default
         self.description = description
         self.example = example
         self.deprecated = deprecated
@@ -123,8 +120,6 @@ class _type:
             result["format"] = self.format
         if self.nullable is not None:
             result["nullable"] = self.nullable
-        if self.default is not None:
-            result["default"] = self.json_encode(self.default)
         if self.enum:
             result["enum"] = [self.json_encode(v) for v in self.enum]
         if self.description:
@@ -191,13 +186,12 @@ class _dict(_type):
     • content_type: Content type used when value is expressed in a body.  ["application/json"]
     • additional: Additional unvalidated properties are allowed.
     • nullable: Allow None as a valid value.
-    • default: Default value if the item value is not supplied.
     • description: A description of the schema.
     • example: An example of an instance for this schema.
 
-    The `additional` value can be a boolean value or schema type. If the
-    latter, then additional property values must validate to the specified
-    type.
+    The additional value can be a boolean value or schema type. If True, then any
+    additional value is allowed. If a schema type, then any additional property
+    value must validate with the specified type.
     """
 
     def __init__(
@@ -237,21 +231,6 @@ class _dict(_type):
                 se.path = f"/{k}{se.path}" if se.path else f"/{k}"
                 raise
         return result
-
-    def defaults(self, value):
-        """Set default values."""
-        if value is None:
-            return None
-        for prop, schema in self.props.items():
-            if (
-                prop not in value
-                and prop not in self.required
-                and schema.default is not None
-            ):
-                value[prop] = schema.default
-            defaults = getattr(schema, "defaults", None)
-            if defaults:
-                defaults(value[prop])
 
     def validate(self, value):
         """Validate value against the schema."""
@@ -314,7 +293,6 @@ class _list(_type):
     • max_items: The maximum number of items required.
     • unique: All items must have unique values.
     • nullable: Allow None as a valid value.
-    • default: Default value if the item value is not supplied.
     • description: A description of the schema.
     • example: An example of an instance for this schema.
 
@@ -355,13 +333,6 @@ class _list(_type):
             se.path = f"/{n}{se.path}" if se.path else f"/{n}"
             raise
         return result
-
-    def defaults(self, value):
-        """Set default values."""
-        defaults = getattr(self.items, "defaults", None)
-        if defaults:
-            for v in values:
-                defaults(v)
 
     @staticmethod
     def _check_not_str(value):
@@ -458,7 +429,6 @@ class _set(_type):
     • items: Schema which all items must adhere to.
     • content_type: Content type used when value is expressed in a body.  ["application/json"]
     • nullable: Allow None as a valid value.
-    • default: Default value if the item value is not supplied.
     • description: A description of the schema.
     • example: An example of an instance for this schema.
 
@@ -480,13 +450,6 @@ class _set(_type):
         for item in value:
             result.add(method(item))
         return result
-
-    def defaults(self, value):
-        """Set default values."""
-        defaults = getattr(self.items, "defaults", None)
-        if defaults:
-            for v in values:
-                defaults(v)
 
     def validate(self, value):
         """Validate value against the schema."""
@@ -567,7 +530,6 @@ class _str(_type):
     • pattern: Regular expression that the string must match.
     • format: More finely defines the data type.
     • nullable: Allow None as a valid value.
-    • default: Default value if the item value is not supplied.
     • enum: A list of values that are valid.
     • description: A description of the schema.
     • example: An example of an instance for this schema.
@@ -673,7 +635,6 @@ class _int(_number):
     • min: Inclusive lower limit of the value.
     • max: Inclusive upper limit of the value.
     • nullable: Allow None as a valid value.
-    • default: Default value if the item value is not supplied.
     • enum: A list of values that are valid.
     • description: A description of the schema.
     • example: An example of an instance for this schema.
@@ -718,7 +679,6 @@ class _float(_number):
     • min: Inclusive lower limit of the value.
     • max: Inclusive upper limit of the value.
     • nullable: Allow None as a valid value.
-    • default: Default value if the item value is not supplied.
     • enum: A list of values that are valid.
     • description: A description of the schema.
     • example: An example of an instance for this schema.
@@ -753,7 +713,6 @@ class _bool(_type):
     Parameters and instance variables:
     • content_type: Content type used when value is expressed in a body.  ["text/plain"]
     • nullable: Allow None as a valid value.
-    • default: Default value if the item value is not supplied.
     • description: A description of the schema.
     • example: An example of an instance for this schema.
     """
@@ -796,7 +755,6 @@ class _bytes(_type):
     • content_type: Content type used when value is expressed in a body.
     • format: More finely defines the data type.  {"byte", "hex", "binary"}.
     • nullable: Allow None as a valid value.
-    • default: Default value if the item value is not supplied.
     • description: A description of the schema.
     • example: An example of an instance for this schema.
 
@@ -891,7 +849,6 @@ class _date(_type):
     Parameters and instance variables:
     • content_type: Content type used when value is expressed in a body.  ["text/plain"]
     • nullable: Allow None as a valid value.
-    • default: Default value if the item value is not supplied.
     • enum: A list of values that are valid.
     • description: A description of the schema.
     • example: An example of an instance for this schema.
@@ -942,7 +899,6 @@ class _datetime(_type):
     Parameters and instance variables:
     • content_type: Content type used when value is expressed in a body.  ["text/plain"]
     • nullable: Allow None as a valid value.
-    • default: Default value if the item value is not supplied.
     • enum: A list of values that are valid.
     • description: A description of the schema.
     • example: An example of an instance for this schema.
@@ -1001,7 +957,6 @@ class _uuid(_type):
     Parameters and instance variables:
     • content_type: Content type used when value is expressed in a body.  ["text/plain"]
     • nullable: Allow None as a valid value.
-    • default: Default value if the item value is not supplied.
     • enum: A list of values that are valid.
     • description: A description of the schema.
     • example: An example of an instance for this schema.
@@ -1050,7 +1005,6 @@ class all_of(_type):
 
     Parameters and instance variables:
     • schemas: List of schemas to match against.
-    • default: Default value if the item value is not supplied.
     • enum: A list of values that are valid.
     • description: A description of the schema.
     • example: An example of an instance for this schema.
@@ -1194,7 +1148,6 @@ class any_of(_xof):
 
     Parameters and instance variables:
     • schemas: List of schemas to match against.
-    • default: Default value if the item value is not supplied.
     • enum: A list of values that are valid.
     • description: A description of the schema.
     • example: An example of an instance for this schema.
@@ -1218,7 +1171,6 @@ class one_of(_xof):
 
     Parameters and instance variables:
     • schemas: List of schemas to match against.
-    • default: Default value if the item value is not supplied.
     • enum: A list of values that are valid.
     • description: A description of the schema.
     • example: An example of an instance for this schema.
@@ -1264,7 +1216,6 @@ class _dataclass(_type):
 
     Parameters and instance variables:
     • cls: Data class.
-    • required: Name of attributes that are required.  [data class "_required" variable, or empty set]
     • content_type: Content type used when value is expressed in a body.  ["application/json"]
     • nullable: Allow None as a valid value.
     • description: A description of the schema.  [data class docstring]
@@ -1276,13 +1227,7 @@ class _dataclass(_type):
             self.__dict__ = cls.__annotations__
 
     def __init__(
-        self,
-        cls,
-        required=None,
-        *,
-        description=None,
-        content_type="application/json",
-        **kwargs,
+        self, cls, *, description=None, content_type="application/json", **kwargs
     ):
         super().__init__(
             python_type=object,
@@ -1292,8 +1237,19 @@ class _dataclass(_type):
             **kwargs,
         )
         self.cls = cls
-        self.required = _required(required or getattr(cls, "_required", set()))
         self.attrs = _dataclass._attrs(cls)
+        self.required = self._required()
+
+    def _required(self):
+        """Return dataclass fields that are required."""
+        result = set()
+        for field in dataclasses.fields(self.cls):
+            if (
+                field.default is dataclasses.MISSING
+                and field.default_factory is dataclasses.MISSING
+            ):
+                result.add(field.name)
+        return result
 
     def _process(self, method, value):
         if value is None:
@@ -1309,28 +1265,12 @@ class _dataclass(_type):
                 raise
         return result
 
-    def defaults(self, value):
-        """Set default values."""
-        for name, schema in self.cls.__annotations__.items():
-            attr = getattr(value, name)
-            if name not in self.required and attr is None:
-                setattr(value, name, schema.default)
-            defaults = getattr(schema, "defaults", None)
-            if defaults:
-                defaults(attr)
-
     def validate(self, value):
         """Validate value against the schema."""
         super().validate(value)
         if value is not None:
             if not dataclasses.is_dataclass(value):
                 raise SchemaError("expected dataclass")
-            for name in self.required:
-                if (
-                    getattr(value, name) is None
-                    and not self.cls.__annotations__[name].nullable
-                ):
-                    raise SchemaError("value required", name)
             self._process("validate", value)
 
     @property
@@ -1349,17 +1289,17 @@ class _dataclass(_type):
     def json_decode(self, value):
         """Decode the value from JSON object model representation."""
         if value is not None:
-            result = {}
+            kwargs = {}
             for name, schema in self.attrs.__dict__.items():
-                v = value.get(name)
-                if v is not None or name in self.required:
-                    try:
-                        v = schema.json_decode(v)
-                    except SchemaError as se:
-                        se.path = f"/{name}{se.path}" if se.path else f"/{name}"
-                        raise
-                result[name] = v
-            value = self.cls(**result)
+                try:
+                    if name in self.required and name not in value:
+                        raise SchemaError("value required", name)
+                    if name in value:
+                        kwargs[name] = schema.json_decode(value[name])
+                except SchemaError as se:
+                    se.path = f"/{name}{se.path}" if se.path else f"/{name}"
+                    raise
+            value = self.cls(**kwargs)
         self.validate(value)
         return value
 
@@ -1431,26 +1371,27 @@ def call(function, args, kwargs):
     return result
 
 
-def validate(_fn):
+def validate(function):
     """
-    Decorate a function to validate its parameters and return value.
+    Decorate a function to validate its parameters and return value using its
+    schema annotations.
 
     Example:
 
     import roax.schema as schema
 
     @schema.validate
-    def fn(a: schema.str(), b: schema.int()) -> schema.str():
+    def function(a: schema.str(), b: schema.int()) -> schema.str():
         ...
     """
 
-    def decorator(function):
+    def decorator(fn):
         def wrapper(wrapped, instance, args, kwargs):
             return call(wrapped, args, kwargs)
 
         return wrapt.decorator(wrapper)(function)
 
-    if callable(_fn):
-        return decorator(_fn)
+    if callable(function):
+        return decorator(function)
     else:
         return decorator

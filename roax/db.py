@@ -5,7 +5,7 @@ Module to manage resource items in a SQL database through DB-API 2.0 interface.
 import contextlib
 import logging
 import roax.resource
-import roax.schema
+import roax.schema as s
 
 
 _logger = logging.getLogger(__name__)
@@ -99,7 +99,7 @@ class Table:
         super().__init__()
         self.database = database
         self.name = name
-        if not isinstance(schema, roax.schema.dataclass):
+        if not isinstance(schema, s.dataclass):
             raise ValueError("schema for table must be roax.schema.dataclass")
         self.schema = schema
         self.columns = self.schema.attrs.__dict__
@@ -173,7 +173,11 @@ class Table:
             for column in columns:
                 schema = self.columns[column]
                 if result[column] is not None or column in self.schema.required:
-                    value = self.adapter(column).decode(schema, result[column])
+                    try:
+                        value = self.adapter(column).decode(schema, result[column])
+                    except s.SchemaError as se:
+                        se.path = column
+                        raise
                     result[column] = value
             results.append(result)
         return results
@@ -230,7 +234,11 @@ class Query:
         """
         schema = self.table.columns[column]
         adapter = self.table.adapter(column)
-        self.param(None if value is None else adapter.encode(schema, value))
+        try:
+            self.param(None if value is None else adapter.encode(schema, value))
+        except s.SchemaError as se:
+            se.path = column
+            raise
 
     def query(self, query):
         """
@@ -324,6 +332,7 @@ class TableResource(roax.resource.Resource):
         )
 
     def create(self, id, _body):
+        self.table.schema.validate(_body)
         query = self.table.query()
         query.text(f"INSERT INTO {self.table.name} (")
         query.text(", ".join(self.table.columns))
@@ -349,10 +358,17 @@ class TableResource(roax.resource.Resource):
             raise self.NotFound(id)
         elif len(results) > 1:
             raise roax.resource.InternalServerError("query matches more than one row")
-        result = results[0]
-        return self.table.schema.cls(**result)
+        kwargs = results[0]
+        result = self.table.schema.cls(**kwargs)
+        try:
+            self.table.schema.validate(result)
+        except s.SchemaError as se:
+            _logger.error(se)
+            raise roax.resource.InternalServerError
+        return result
 
     def update(self, id, _body):
+        self.table.schema.validate(_body)
         query = self.table.query()
         query.text(f"UPDATE {self.table.name} SET ")
         columns = self.table.columns

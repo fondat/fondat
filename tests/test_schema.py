@@ -6,7 +6,7 @@ import re
 import roax.schema as s
 
 from base64 import b64encode
-from dataclasses import make_dataclass
+from dataclasses import make_dataclass, field
 from io import BytesIO
 from datetime import date, datetime
 from uuid import UUID
@@ -22,12 +22,6 @@ def _equal(fn, val):
 def _error(fn, val):
     with pytest.raises(s.SchemaError):
         fn(val)
-
-
-# -- TODO -----
-
-
-# test nested defaults
 
 
 # -- dict -----
@@ -67,13 +61,6 @@ def test_dict_json_encode_optional_success():
     )
 
 
-def test_dict_json_encode_default_success():
-    schema = s.dict({"eje": s.bool(default=False)})
-    value = {}
-    schema.defaults(value)
-    assert schema.json_encode(value) == {"eje": False}
-
-
 def test_dict_json_encode_optional_absent():
     _equal(s.dict({"eje": s.bool()}).json_encode, {})
 
@@ -91,13 +78,6 @@ def test_dict_json_decode_success():
 
 def test_dict_json_decode_optional_success():
     _equal(s.dict({"djc": s.int(), "djd": s.str()}).json_decode, {"djc": 12345})
-
-
-def test_dict_json_decode_default_success():
-    schema = s.dict({"dje": s.str(default="defaulty")})
-    value = schema.json_decode({})
-    schema.defaults(value)
-    assert value == {"dje": "defaulty"}
 
 
 def test_dict_json_decode_additional_property_success():
@@ -1107,86 +1087,60 @@ def test_reader_validate_type_error():
 
 
 def test_dataclass_validate_success():
-    dc = make_dataclass("DC", [("a", s.str())])
-    s.dataclass(dc, "a").validate(dc(a="b"))
+    DC = make_dataclass("DC", [("a", s.str())])
+    s.dataclass(DC).validate(DC(a="b"))
 
 
 def test_dataclass_validate_error():
-    dc = make_dataclass("DC", [("c", s.int())])
-    _error(s.dataclass(dc).validate, dc(c="does not validate"))
+    DC = make_dataclass("DC", [("c", s.int())])
+    _error(s.dataclass(DC).validate, DC(c="does not validate"))
 
 
 def test_dataclass_validate_required_success():
-    dc = make_dataclass("DC", [("e", s.float())])
-    s.dataclass(dc, "e").validate(dc(e=1.2))
+    DC = make_dataclass("DC", [("e", s.float())])
+    s.dataclass(DC).validate(DC(e=1.2))
 
 
 def test_dataclass_validate_required_error():
     DC = make_dataclass("DC", [("f", s.str())])
-    _error(s.dataclass(DC, "f").validate, DC(f=None))
+    _error(s.dataclass(DC).validate, DC(f=None))
 
 
 def test_dataclass_validate_optional_success():
-    DC = make_dataclass("DC", [("k", s.str()), ("l", s.str())])
-    s.dataclass(DC).validate(DC(k="m", l=None))
+    DC = make_dataclass(
+        "DC", [("k", s.str()), ("l", s.str(nullable=True), field(default=None))]
+    )
+    s.dataclass(DC).validate(DC(k="m"))
 
 
 def test_dataclass_json_encode_success():
     DC = make_dataclass("DC", [("eja", s.str()), ("ejb", s.int())])
-    assert s.dataclass(DC, "eja ejb").json_encode(DC(eja="foo", ejb=123)) == {
+    assert s.dataclass(DC).json_encode(DC(eja="foo", ejb=123)) == {
         "eja": "foo",
         "ejb": 123,
     }
 
 
-def test_dataclass_json_encode_optional_success():
-    DC = make_dataclass("DC", [("ejc", s.float()), ("ejd", s.bool())])
-    assert s.dataclass(DC, "ejc").json_encode(DC(ejc=123.45, ejd=None)) == {
-        "ejc": 123.45
-    }
-
-
-def test_dataclass_json_encode_default_success():
-    DC = make_dataclass("DC", [("eje", s.bool(default=False))])
-    schema = s.dataclass(DC)
-    value = DC(eje=None)
-    schema.defaults(value)
-    assert schema.json_encode(value) == {"eje": False}
-
-
-def test_dataclass_json_encode_optional_absent():
-    DC = make_dataclass("DC", [("eje", s.bool())])
-    assert s.dataclass(DC).json_encode(DC(eje=None)) == {}
-
-
 def test_dataclass_json_encode_error():
     DC = make_dataclass("DC", [("ejh", s.int())])
-    _error(s.dataclass(DC, "ejh").json_encode, DC(ejh="not an int"))
+    _error(s.dataclass(DC).json_encode, DC(ejh="not an int"))
 
 
 def test_dataclass_json_decode_success():
     DC = make_dataclass("DC", [("dja", s.float()), ("djb", s.bool())])
-    assert s.dataclass(DC, "dja djb").json_decode({"dja": 802.11, "djb": True}) == DC(
+    assert s.dataclass(DC).json_decode({"dja": 802.11, "djb": True}) == DC(
         dja=802.11, djb=True
     )
 
 
 def test_dataclass_json_decode_optional_success():
-    DC = make_dataclass("DC", [("djc", s.int()), ("djd", s.str())])
+    DC = make_dataclass("DC", [("djc", s.int()), ("djd", s.str(), field(default=None))])
     assert s.dataclass(DC).json_decode({"djc": 12345}) == DC(djc=12345, djd=None)
-
-
-def test_dataclass_json_decode_default_success():
-    DC = make_dataclass("DC", [("dje", s.str(default="defaulty"))])
-    schema = s.dataclass(DC)
-    value = schema.json_decode({})
-    schema.defaults(value)
-    assert value == DC(dje="defaulty")
 
 
 def test_dataclass_json_decode_error():
     DC = make_dataclass("DC", [("djx", s.str())])
-    _error(s.dataclass(DC, "djx").json_decode, {"djx": False})
+    _error(s.dataclass(DC).json_decode, {"djx": False})
 
 
 def test_dataclass_disallow_none():
