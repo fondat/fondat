@@ -31,28 +31,11 @@ _schema = s.dataclass(DC)
 @pytest.fixture(scope="module")
 def database():
     with tempfile.TemporaryDirectory() as dir:
-        db = sqlite.Database(f"{dir}/test.db")
-        with db.cursor() as cursor:
-            cursor.execute(
-                """
-                CREATE TABLE FOO (
-                    id TEXT,
-                    str TEXT,
-                    dict TEXT,
-                    list TEXT,
-                    _set TEXT,
-                    int INT,
-                    float REAL,
-                    bool INT,
-                    bytes BLOB,
-                    date TEXT,
-                    datetime TEXT
-                );
-            """
-            )
-        yield db
-        with db.cursor() as cursor:
-            cursor.execute("DROP TABLE FOO;")
+        database = sqlite.Database(f"{dir}/test.db")
+        foo = db.Table(database, "foo", _schema, "id")
+        foo.create()
+        yield database
+        foo.drop()
 
 
 @pytest.fixture(scope="module")
@@ -143,9 +126,9 @@ def testlist_where(resource):
             datetime=None,
         )
         assert resource.create(id, body) == {"id": id}
-    where = table.query()
+    where = table.database.query()
     where.text("int < ")
-    where.value("int", 10)
+    where.value(table, "int", 10)
     ids = table.list(where=where)
     assert len(ids) == 10
     for id in table.list():
@@ -214,13 +197,3 @@ class CustomTypeSchema(s.type):
 
     def validate(self, value):
         return s.int().validate(value.value)
-
-
-def test_custom_adapter(database):
-    DC2 = dataclasses.make_dataclass(
-        "DC2", [("id", s.str()), ("custom", CustomTypeSchema())]
-    )
-    schema = s.dataclass(DC2)
-    table = db.Table(database, "custom", schema, "id", {})
-    assert table.adapter("custom").encode(schema.attrs.custom, CustomType(123)) == "123"
-    assert table.adapter("custom").decode(schema.attrs.custom, "456") == CustomType(456)

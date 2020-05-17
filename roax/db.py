@@ -61,7 +61,7 @@ class Database:
         closes on exit.
 
         Parameter:
-        • connection Connection to open cursor on.  [None]
+        • connection: Connection to open cursor on.  [None]
 
         If no connection is supplied to allocate the cursor from, a connection
         is automatically fetched.
@@ -72,6 +72,10 @@ class Database:
                 yield cursor
             finally:
                 cursor.close()
+
+    def query(self):
+        """Return a new query builder for the database."""
+        return Query(self)
 
 
 class Table:
@@ -117,10 +121,8 @@ class Table:
         Parameter:
         • column: Name of column to return adapter for.
         """
-        return (
-            self.adapters.get(column)
-            or self.adapters.get(self.columns[column].__class__)
-            or default_adapter
+        return self.adapters.get(column) or self.adapters.get(
+            self.columns[column].__class__
         )
 
     def connect(self):
@@ -140,10 +142,6 @@ class Table:
         """
         return self.database.cursor(connection)
 
-    def query(self):
-        """Return a new query builder for the table."""
-        return Query(self)
-
     def select(self, *, columns=None, where=None, order=None):
         """
         Return a list of rows that match the WHERE expression. Each row is expressed in a dict.
@@ -154,7 +152,7 @@ class Table:
         • order: Iterable of column names to order by, or None to not order results.
         """
         columns = tuple(columns or self.columns.keys())
-        query = self.query()
+        query = self.database.query()
         query.text("SELECT ")
         query.text(", ".join(columns))
         query.text(f" FROM {self.name}")
@@ -174,7 +172,7 @@ class Table:
                 schema = self.columns[column]
                 if result[column] is not None or column in self.schema.required:
                     try:
-                        value = self.adapter(column).decode(schema, result[column])
+                        value = self.adapter(column).sql_decode(schema, result[column])
                     except s.SchemaError as se:
                         se.path = column
                         raise
@@ -189,7 +187,7 @@ class Table:
         Parameter:
         • where: Query object representing WHERE expression, or None to match all rows.
         """
-        query = self.query()
+        query = self.database.query()
         query.text(f"SELECT {self.pk} FROM {self.name}")
         if where:
             query.text(" WHERE ")
@@ -198,19 +196,47 @@ class Table:
             query.execute(cursor)
             items = cursor.fetchall()
         pk = self.columns[self.pk]
-        return [self.adapter(self.pk).decode(pk, item[0]) for item in items]
+        return [self.adapter(self.pk).sql_decode(pk, item[0]) for item in items]
+
+    def create(self):
+        """
+        Create table in database.
+        """
+        query = self.database.query()
+        query.text(f"CREATE TABLE {self.name} (")
+        columns = []
+        for name, schema in self.columns.items():
+            column = f"{name} {self.adapter(name).sql_type}"
+            if name == self.pk:
+                column += " PRIMARY KEY"
+            if not schema.nullable:
+                column += " NOT NULL"
+            columns.append(column)
+        query.text(", ".join(columns))
+        query.text(");")
+        with self.database.cursor() as cursor:
+            query.execute(cursor)
+
+    def drop(self):
+        """
+        Drop table in database.
+        """
+        query = self.database.query()
+        query.text(f"DROP TABLE {self.name};")
+        with self.database.cursor() as cursor:
+            query.execute(cursor)
 
 
 class Query:
     """
-    Builds a database query for a table.
+    Builds a database query.
 
     Parameter and instance variable:
-    • table: Table for which query is to be built.
+    • database: Database for which query is to be built.
     """
 
-    def __init__(self, table):
-        self.table = table
+    def __init__(self, database):
+        self.database = database
         self.operation = []
         self.parameters = []
 
@@ -224,18 +250,18 @@ class Query:
         the query operation. No encoding of the parameter value is performed.
         """
         self.operation.append(
-            _markers[self.table.database.paramstyle].format(len(self.parameters))
+            _markers[self.database.paramstyle].format(len(self.parameters))
         )
         self.parameters.append(param)
 
-    def value(self, column, value):
+    def value(self, table, column, value):
         """
-        Encode and add a column value to the query as a parameter.
+        Encode and add a table column value to the query as a parameter.
         """
-        schema = self.table.columns[column]
-        adapter = self.table.adapter(column)
+        schema = table.columns[column]
+        adapter = table.adapter(column)
         try:
-            self.param(None if value is None else adapter.encode(schema, value))
+            self.param(None if value is None else adapter.sql_encode(schema, value))
         except s.SchemaError as se:
             se.path = column
             raise
@@ -255,7 +281,7 @@ class Query:
         return (
             "".join(self.operation),
             {str(n): self.parameters[n] for n in range(0, len(self.parameters))}
-            if self.table.database.paramstyle in {"named", "pyformat"}
+            if self.database.paramstyle in {"named", "pyformat"}
             else self.parameters,
         )
 
@@ -273,17 +299,20 @@ class Query:
 
 class Adapter:
     """
-    Encodes values for queries and decodes values from query results.
+    Adapts Roax schema type to database schema type.
 
     Each SQL database expects different Python representations for data types
-    it supports. The purpose of an adapter is to convert a value to and from a
-    representation that is expected by a SQL database. 
+    it supports. An adapter converts a value to and from a representation that
+    is expected by the SQL database. 
 
-    This default implementation encodes to and from string value using the
-    schema object's str_encode and str_decode methods.
-    """
+    Parameters and instance variables:
+    • sql_type: The SQL type associated with the adapter.
+   """
 
-    def encode(self, schema, value):
+    def __init__(self, sql_type):
+        self.sql_type = sql_type
+
+    def sql_encode(self, schema, value):
         """
         Encode a value as a query parameter.
 
@@ -291,9 +320,9 @@ class Adapter:
         • schema: Schema of the value to be encoded in the query.
         • value: Value to be encoded.
         """
-        return schema.str_encode(value)
+        raise NotImplementedError
 
-    def decode(self, schema, value):
+    def sql_decode(self, schema, value):
         """
         Decode a value from a query result.
 
@@ -301,10 +330,7 @@ class Adapter:
         • schema: Schema of the value to be decoded from the query result.
         • value: Value from the query result to be decoded.
         """
-        return schema.str_decode(value)
-
-
-default_adapter = Adapter()
+        raise NotImplementedError
 
 
 class TableResource(roax.resource.Resource):
@@ -333,7 +359,7 @@ class TableResource(roax.resource.Resource):
 
     def create(self, id, _body):
         self.table.schema.validate(_body)
-        query = self.table.query()
+        query = self.table.database.query()
         query.text(f"INSERT INTO {self.table.name} (")
         query.text(", ".join(self.table.columns))
         query.text(") VALUES (")
@@ -342,7 +368,7 @@ class TableResource(roax.resource.Resource):
         for column, schema in columns.items():
             if comma:
                 query.text(", ")
-            query.value(column, getattr(_body, column))
+            query.value(self.table, column, getattr(_body, column))
             comma = True
         query.text(");")
         with self.table.cursor() as cursor:
@@ -350,9 +376,9 @@ class TableResource(roax.resource.Resource):
         return {"id": id}
 
     def read(self, id):
-        where = self.table.query()
+        where = self.table.database.query()
         where.text(f"{self.table.pk} = ")
-        where.value(self.table.pk, id)
+        where.value(self.table, self.table.pk, id)
         results = self.table.select(where=where)
         if len(results) == 0:
             raise self.NotFound(id)
@@ -369,7 +395,7 @@ class TableResource(roax.resource.Resource):
 
     def update(self, id, _body):
         self.table.schema.validate(_body)
-        query = self.table.query()
+        query = self.table.database.query()
         query.text(f"UPDATE {self.table.name} SET ")
         columns = self.table.columns
         comma = False
@@ -377,10 +403,10 @@ class TableResource(roax.resource.Resource):
             if comma:
                 query.text(", ")
             query.text(f"{column} = ")
-            query.value(column, getattr(_body, column, None))
+            query.value(self.table, column, getattr(_body, column, None))
             comma = True
         query.text(f" WHERE {self.table.pk} = ")
-        query.value(self.table.pk, id)
+        query.value(self.table, self.table.pk, id)
         query.text(";")
         with self.table.cursor() as cursor:
             query.execute(cursor)
@@ -395,9 +421,9 @@ class TableResource(roax.resource.Resource):
             )
 
     def delete(self, id):
-        query = self.table.query()
+        query = self.table.database.query()
         query.text(f"DELETE FROM {self.table.name} WHERE {self.table.pk} = ")
-        query.value(self.table.pk, id)
+        query.value(self.table, self.table.pk, id)
         query.text(";")
         with self.table.cursor() as cursor:
             query.execute(cursor)

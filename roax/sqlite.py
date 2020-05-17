@@ -12,16 +12,17 @@ _logger = logging.getLogger(__name__)
 
 
 class _CastAdapter:
-    def __init__(self, type):
+    def __init__(self, type, sql_type):
         self.type = type
+        self.sql_type = sql_type
 
-    def encode(self, schema, value):
+    def sql_encode(self, schema, value):
         try:
             return self.type(value)
         except ValueError as ve:
             raise s.SchemaError(str(ve)) from ve
 
-    def decode(self, schema, value):
+    def sql_decode(self, schema, value):
         try:
             return self.type(value)
         except ValueError as ve:
@@ -29,18 +30,31 @@ class _CastAdapter:
 
 
 class _PassAdapter:
-    def encode(self, schema, value):
+    def __init__(self, sql_type):
+        self.sql_type = sql_type
+
+    def sql_encode(self, schema, value):
         return value
 
-    def decode(self, schema, value):
+    def sql_decode(self, schema, value):
         return value
 
 
-INTEGER = _CastAdapter(int)
-REAL = _CastAdapter(float)
-TEXT = roax.db.default_adapter
-BLOB = _PassAdapter()
-BOOLEAN = _CastAdapter(bool)
+class _TextAdapter:
+
+    sql_type = "TEXT"
+
+    def sql_encode(self, schema, value):
+        return schema.str_encode(value)
+
+    def sql_decode(self, schema, value):
+        return schema.str_decode(value)
+
+
+INTEGER = _CastAdapter(int, "INTEGER")
+REAL = _CastAdapter(float, "REAL")
+TEXT = _TextAdapter()
+BLOB = _PassAdapter("BLOB")
 
 
 _adapters = {
@@ -51,7 +65,7 @@ _adapters = {
     s.str: TEXT,
     s.int: INTEGER,
     s.float: REAL,
-    s.bool: BOOLEAN,
+    s.bool: _CastAdapter(bool, "INTEGER"),
     s.bytes: BLOB,
     s.date: TEXT,
     s.datetime: TEXT,
@@ -60,13 +74,21 @@ _adapters = {
 
 
 class Database(roax.db.Database):
-    """Manages connections to a SQLite database."""
+    """
+    Manages connections to a SQLite database.
+
+    Parameter and instance variable:
+    • file: Path to SQLite database file.
+
+    Instance variable:
+    • adapters: Column transformation adapters.
+    """
 
     def __init__(self, file):
         super().__init__(sqlite3)
         self.file = file
-        self.local = threading.local()
-        self.adapters = _adapters
+        self.adapters = _adapters.copy()
+        self._local = threading.local()
 
     @contextlib.contextmanager
     def connect(self):
@@ -81,24 +103,24 @@ class Database(roax.db.Database):
         connection shall exhibit transaction demarcation.
         """
         try:
-            connection = self.local.connection
-            self.local.count += 1
+            connection = self._local.connection
+            self._local.count += 1
         except AttributeError:
             connection = sqlite3.connect(self.file)
             _logger.debug("%s", "sqlite connection begin")
-            self.local.connection = connection
-            self.local.count = 1
+            self._local.connection = connection
+            self._local.count = 1
         try:
             yield connection
-            if self.local.count == 1:
+            if self._local.count == 1:
                 _logger.debug("%s", "sqlite connection commit")
                 connection.commit()
         except:
-            if self.local.count == 1:
+            if self._local.count == 1:
                 _logger.debug("%s", "sqlite connection rollback")
                 connection.rollback()
             raise
         finally:
-            self.local.count -= 1
-            if not self.local.count:
-                del self.local.connection
+            self._local.count -= 1
+            if not self._local.count:
+                del self._local.connection
