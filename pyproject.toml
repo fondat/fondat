@@ -4,7 +4,7 @@ build-backend = "poetry.masonry.api"
 
 [tool.black]
 line-length = 88
-target-version = ['py37', 'py38']
+target-version = ['py36', 'py37', 'py38']
 
 [tool.poetry]
 name = "roax"
@@ -23,7 +23,7 @@ classifiers = [
 ]
 
 [tool.poetry.dependencies]
-python = "^3.7"
+python = "^3.6"
 isodate = "^0.6"
 WebOb = "^1.8"
 wrapt = "^1.12"
