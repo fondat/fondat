@@ -3,6 +3,7 @@ Module to manage resource items in a SQL database through DB-API 2.0 interface.
 """
 
 import contextlib
+import inspect
 import logging
 import roax.resource
 import roax.schema as s
@@ -115,15 +116,23 @@ class Table:
     def adapter(self, column):
         """
         Return an adapter for the specified column. An adapter is selected,
-        matching first based on column name, on the schema type of the
-        column, then defaulting to a string encoding/decoding adapter.
+        matching first based on column name, on the schema type of the column.
 
         Parameter:
         • column: Name of column to return adapter for.
         """
-        return self.adapters.get(column) or self.adapters.get(
-            self.columns[column].__class__
-        )
+        try:
+            return self.adapters[column]
+        except KeyError:
+            cls = self.columns[column].__class__
+            while True:
+                try:
+                    return self.adapters[cls]
+                except KeyError:
+                    try:
+                        cls = cls.__bases__[0]  # naïve
+                    except IndexError:
+                        break
 
     def connect(self):
         """
