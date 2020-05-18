@@ -228,7 +228,7 @@ class _dict(_type):
                 else:
                     result[k] = getattr(self.additional, method)(v)
             except SchemaError as se:
-                se.path = f"/{k}{se.path}" if se.path else f"/{k}"
+                se.path = f"{k}/{se.path}" if se.path else f"{k}"
                 raise
         return result
 
@@ -1247,6 +1247,7 @@ class _dataclass(_type):
             if (
                 field.default is dataclasses.MISSING
                 and field.default_factory is dataclasses.MISSING
+                and not getattr(self.attrs, field.name).nullable
             ):
                 result.add(field.name)
         return result
@@ -1293,11 +1294,13 @@ class _dataclass(_type):
             for name, schema in self.attrs.__dict__.items():
                 try:
                     if name in self.required and name not in value:
-                        raise SchemaError("value required", name)
-                    if name in value:
+                        raise SchemaError("value required")
+                    elif name in value:
                         kwargs[name] = schema.json_decode(value[name])
+                    else:
+                        kwargs[name] = None
                 except SchemaError as se:
-                    se.path = f"/{name}{se.path}" if se.path else f"/{name}"
+                    se.path = f"{name}/{se.path}" if se.path else f"{name}"
                     raise
             value = self.cls(**kwargs)
         self.validate(value)

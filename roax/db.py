@@ -273,6 +273,21 @@ class Query:
         self.operation += query.operation
         self.parameters += query.parameters
 
+    def queries(self, queries, separator=None):
+        """
+        Add a series of queries, separated by a separator.
+
+        Parametes:
+        • separator: Separator between queries being added.
+        • queries: Sequence of queries to be added to the query.
+        """
+        sep = False
+        for query in queries:
+            if sep and separator is not None:
+                self.text(separator)
+            self.query(query)
+            sep = True
+
     def build(self):
         """
         Returns a tuple of (operator, parameters) suitable to supply as
@@ -393,18 +408,19 @@ class TableResource(roax.resource.Resource):
             raise roax.resource.InternalServerError
         return result
 
-    def update(self, id, _body):
-        self.table.schema.validate(_body)
+    def _update(self, id, *, old=None, new):
+        self.table.schema.validate(new)
         query = self.table.database.query()
         query.text(f"UPDATE {self.table.name} SET ")
         columns = self.table.columns
-        comma = False
+        updates = []
         for column, schema in columns.items():
-            if comma:
-                query.text(", ")
-            query.text(f"{column} = ")
-            query.value(self.table, column, getattr(_body, column, None))
-            comma = True
+            if old is None or getattr(old, column, None) != getattr(new, column, None):
+                update = self.table.database.query()
+                update.text(f"{column} = ")
+                update.value(self.table, column, getattr(new, column, None))
+                updates.append(update)
+        query.queries(updates, ", ")
         query.text(f" WHERE {self.table.pk} = ")
         query.value(self.table, self.table.pk, id)
         query.text(";")
@@ -419,6 +435,22 @@ class TableResource(roax.resource.Resource):
             raise roax.resource.InternalServerError(
                 "could not determine update was successful"
             )
+
+    def update(self, id, _body):
+        self._update(id, new=_body)
+
+    def patch(self, id, _body):
+        schema = self.table.schema
+        for column in self.table.columns:
+            col_schema = getattr(schema.attrs, column)
+            if isinstance(col_schema, s.bytes) and col_schema.format == "binary":
+                raise ResourceError(
+                    "patch not supported on dataclass with bytes attribute of binary format"
+                )
+        old = self.read(id)
+        new = schema.json_decode(roax.patch.merge_patch(schema.json_encode(old), _body))
+        if old != new:
+            self._update(id, old=old, new=new)
 
     def delete(self, id):
         query = self.table.database.query()

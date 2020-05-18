@@ -6,6 +6,7 @@ import roax.schema as s
 import roax.sqlite as sqlite
 import tempfile
 
+from dataclasses import dataclass
 from datetime import date, datetime
 from uuid import uuid4
 
@@ -20,7 +21,7 @@ class DC:
     int: s.int(nullable=True)
     float: s.float(nullable=True)
     bool: s.bool(nullable=True)
-    bytes: s.bytes(format="binary", nullable=True)
+    bytes: s.bytes(format="byte", nullable=True)
     date: s.date(nullable=True)
     datetime: s.datetime(nullable=True)
 
@@ -50,6 +51,27 @@ def resource(table):
     return db.TableResource(table)
 
 
+def test_binary(database):
+    @dataclass
+    class Bin:
+        id: s.uuid()
+        bin: s.bytes(format="binary")
+
+    schema = s.dataclass(Bin)
+    row = Bin(uuid4(), b"12345")
+    table = db.Table(database, "bin", schema, "id")
+    table.create()
+    try:
+        resource = db.TableResource(table)
+        resource.create(row.id, row)
+        assert resource.read(row.id) == row
+        row.bin = b"bacon"
+        resource.update(row.id, row)
+        assert resource.read(row.id).bin == b"bacon"
+    finally:
+        table.drop()
+
+
 def test_crud(resource):
     body = DC(
         id=uuid4(),
@@ -77,6 +99,9 @@ def test_crud(resource):
     body.datetime = None
     resource.update(body.id, body)
     assert resource.read(body.id) == body
+    resource.patch(body.id, {"str": "bacon"})
+    body = resource.read(body.id)
+    assert body.str == "bacon"
     resource.delete(body.id)
     with pytest.raises(r.NotFound):
         resource.read(body.id)
