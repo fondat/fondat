@@ -101,7 +101,7 @@ class CLI:
     """
     Command line interface that exposes registered resources.
 
-    Parameters and instance variables:
+    Parameters and attributes:
     • name: Name of the application.
     • debug: Print details for any raised exceptions.
     • err: Output stream for writing prompts and errors.

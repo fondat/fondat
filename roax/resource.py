@@ -95,7 +95,7 @@ class Resource:
     """
     Base class for a resource.
     
-    Parameters and instance variables:
+    Parameters and attributes:
     • name: Short name of the resource.  [class name in lower case]
     • description: Short description of the resource.  [resource docstring]
     • security: Security requirements for resource operations.

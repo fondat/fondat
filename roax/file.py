@@ -34,7 +34,7 @@ class FileResource(roax.resource.Resource):
     Base class for a file-based resource; each item is a stored as a separate file
     in a directory.
 
-    Parameters and instance variables:
+    Parameters and attributes:
     • name: Short name of the resource. (default: the class name in lower case)
     • description: Short description of the resource. (default: the resource docstring)
     • dir: Directory to store resource items in.

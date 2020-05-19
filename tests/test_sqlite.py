@@ -26,29 +26,30 @@ class DC:
     datetime: s.datetime(nullable=True)
 
 
-_schema = s.dataclass(DC)
+DC._schema = s.dataclass(DC)
+
+
+class TR(db.TableResource):
+    def __init__(self, database):
+        super().__init__(db.Table("foo", DC._schema, "id"), database=database)
 
 
 @pytest.fixture(scope="module")
 def database():
     with tempfile.TemporaryDirectory() as dir:
         database = sqlite.Database(f"{dir}/test.db")
-        foo = db.Table(database, "foo", _schema, "id")
-        foo.create()
+        foo = db.Table("foo", DC._schema, "id")
+        database.create_table(foo)
         yield database
-        foo.drop()
-
-
-@pytest.fixture(scope="module")
-def table(database):
-    return db.Table(database, "foo", _schema, "id")
+        database.drop_table(foo)
 
 
 @pytest.fixture(scope="function")
-def resource(table):
-    with table.cursor() as cursor:
+def resource(database):
+    with database.cursor() as cursor:
         cursor.execute("DELETE FROM FOO;")
-    return db.TableResource(table)
+    resource = TR(database)
+    return resource
 
 
 def test_binary(database):
@@ -59,17 +60,18 @@ def test_binary(database):
 
     schema = s.dataclass(Bin)
     row = Bin(uuid4(), b"12345")
-    table = db.Table(database, "bin", schema, "id")
-    table.create()
+    table = db.Table("bin", schema, "id")
+    database.create_table(table)
     try:
         resource = db.TableResource(table)
+        resource.database = database
         resource.create(row.id, row)
         assert resource.read(row.id) == row
         row.bin = b"bacon"
         resource.update(row.id, row)
         assert resource.read(row.id).bin == b"bacon"
     finally:
-        table.drop()
+        database.drop_table(table)
 
 
 def test_crud(resource):
@@ -126,11 +128,11 @@ def testlist(resource):
             datetime=None,
         )
         assert resource.create(id, body) == {"id": id}
-    ids = table.list()
+    ids = resource.list()
     assert len(ids) == count
     for id in ids:
         resource.delete(id)
-    assert len(table.list()) == 0
+    assert len(resource.list()) == 0
 
 
 def testlist_where(resource):
@@ -151,14 +153,14 @@ def testlist_where(resource):
             datetime=None,
         )
         assert resource.create(id, body) == {"id": id}
-    where = table.database.query()
+    where = resource.database.query()
     where.text("int < ")
-    where.value(table, "int", 10)
-    ids = table.list(where=where)
+    where.value(table.columns["int"], 10)
+    ids = resource.list(where=where)
     assert len(ids) == 10
-    for id in table.list():
+    for id in resource.list():
         resource.delete(id)
-    assert len(table.list()) == 0
+    assert len(resource.list()) == 0
 
 
 def test_delete_NotFound(resource):
@@ -168,7 +170,7 @@ def test_delete_NotFound(resource):
 
 def test_rollback(database, resource):
     table = resource.table
-    assert len(table.list()) == 0
+    assert len(resource.list()) == 0
     try:
         with database.connect():  # transaction demarcation
             id = uuid4()
@@ -186,16 +188,16 @@ def test_rollback(database, resource):
                 datetime=None,
             )
             resource.create(id, body)
-            assert len(table.list()) == 1
+            assert len(resource.list()) == 1
             raise RuntimeError  # force rollback
     except RuntimeError:
         pass
-    assert len(table.list()) == 0
+    assert len(resource.list()) == 0
 
 
 def test_schema_subclass_adapter(resource):
     class strsub(s.str):
         pass
 
-    adapter = resource.table.adapter("str")
+    adapter = resource.database.adapter(strsub())
     assert adapter.sql_type == "TEXT"

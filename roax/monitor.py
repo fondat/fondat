@@ -40,10 +40,10 @@ class Counter:
     monotonicaly increase (unless being reset). The counter data point stores the
     highest counter value measured.
 
-    Parameter and instance variable:
+    Parameter and attribute:
     • timestamp: Time of the data point, in seconds since Epoch.
 
-    Instance variables:
+    Attributes:
     • value: Highest counter value measured.
     """
 
@@ -64,10 +64,10 @@ class Gauge:
     value. The gauge data point stores the minimum, maximum, sum and count of
     measured values.
 
-    Parameter and instance variable:
+    Parameter and attribute:
     • timestamp: Date and time of the data point.
 
-    Instance variables:
+    Attributes:
     • min: Minimum measured value.
     • max: Maximum measured value.
     • sum: Sum of all measured values
@@ -98,10 +98,10 @@ class Absolute:
     An absolute data point. An absolute measurement is an integer value. The
     absolute data point stores the sum of measured values.
 
-    Parameter and instance variable:
+    Parameter and attribute:
     • timestamp: Date and time of the data point.
 
-    Instance variables:
+    Attributes:
     • value: Sum of measured values.    
     """
 
@@ -121,13 +121,13 @@ _types = {Counter.name: Counter, Gauge.name: Gauge, Absolute.name: Absolute}
 
 class Series:
     """
-    Parameters and instance variables:
+    Parameters and attributes:
     • type: Type of the data point being tracked.
     • patterns: Dictionary of tag names to regular expression patterns to match.
     • points: Number of data points to maintain in the time series.
     • interval: Interval between data points, in seconds.
 
-    Instance variables:
+    Attributes:
     • data: Deque of timestamp-ordered data points.
 
     The patterns parameter is a dictionary that maps tag names to regular
@@ -202,8 +202,8 @@ class SimpleMonitor:
     be stored in the time series. Consumers of the time series should perform
     interpolation if required (e.g. for graphic representation).
 
-    The simple monitor contains a series instance variable, which is a
-    dictionary mapping time series names to associated Series objects.
+    The simple monitor contains a series attribute, which is a dictionary
+    mapping time series names to associated Series objects.
     """
 
     def __init__(self):

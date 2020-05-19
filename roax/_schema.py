@@ -51,7 +51,7 @@ class _type:
     """
     Base class for all schema types.
 
-    Parameters and instance variables:
+    Parameters and attributes:
     • python_type: Python data type.
     • json_type: JSON schema data type.
     • format: More finely defines the data type.
@@ -180,7 +180,7 @@ class _dict(_type):
     """
     Schema type for dictionary.
 
-    Parameters and instance variables:
+    Parameters and attributes:
     • props: A mapping of name to schema.
     • required: Set of property names that are required.
     • content_type: Content type used when value is expressed in a body.  ["application/json"]
@@ -286,7 +286,7 @@ class _list(_type):
     """
     Schema type for list.
 
-    Parameters and instance variables:
+    Parameters and attributes:
     • items: Schema which all items must adhere to.
     • content_type: Content type used when value is expressed in a body.  ["application/json"]
     • min_items: The minimum number of items required.
@@ -425,7 +425,7 @@ class _set(_type):
     """
     Schema type for set.
 
-    Parameters and instance variables:
+    Parameters and attributes:
     • items: Schema which all items must adhere to.
     • content_type: Content type used when value is expressed in a body.  ["application/json"]
     • nullable: Allow None as a valid value.
@@ -523,7 +523,7 @@ class _str(_type):
     """
     Schema type for Unicode character string.
 
-    Parameters and instance variables:
+    Parameters and attributes:
     • content_type: Content type used when value is expressed in a body.  ["text/plain"]
     • min_length: Minimum character length of the string.
     • max_length: Maximum character length of the string.
@@ -630,7 +630,7 @@ class _int(_number):
     """
     Schema type for integer.
 
-    Parameters and instance variables:
+    Parameters and attributes:
     • content_type: Content type used when value is expressed in a body.  ["text/plain"]
     • min: Inclusive lower limit of the value.
     • max: Inclusive upper limit of the value.
@@ -674,7 +674,7 @@ class _float(_number):
     """
     Schema type for floating point number.
 
-    Parameters and instance variables:
+    Parameters and attributes:
     • content_type: Content type used when value is expressed in a body.  ["text/plain"]
     • min: Inclusive lower limit of the value.
     • max: Inclusive upper limit of the value.
@@ -710,7 +710,7 @@ class _bool(_type):
     """
     Schema type for boolean value.
 
-    Parameters and instance variables:
+    Parameters and attributes:
     • content_type: Content type used when value is expressed in a body.  ["text/plain"]
     • nullable: Allow None as a valid value.
     • description: A description of the schema.
@@ -751,7 +751,7 @@ class _bytes(_type):
     """
     Schema type for byte sequence.
     
-    Parameters and instance variables:
+    Parameters and attributes:
     • content_type: Content type used when value is expressed in a body.
     • format: More finely defines the data type.  {"byte", "hex", "binary"}.
     • nullable: Allow None as a valid value.
@@ -846,7 +846,7 @@ class _date(_type):
     """
     Schema type for date value.
 
-    Parameters and instance variables:
+    Parameters and attributes:
     • content_type: Content type used when value is expressed in a body.  ["text/plain"]
     • nullable: Allow None as a valid value.
     • enum: A list of values that are valid.
@@ -896,7 +896,7 @@ class _datetime(_type):
     Datetime values are represented in string and JSON values as an RFC 3339 UTC
     date and time in a string. Example: "2018-06-16T12:34:56.789Z".
 
-    Parameters and instance variables:
+    Parameters and attributes:
     • content_type: Content type used when value is expressed in a body.  ["text/plain"]
     • nullable: Allow None as a valid value.
     • enum: A list of values that are valid.
@@ -954,7 +954,7 @@ class _uuid(_type):
     """
     Schema type for universally unique identifier.
 
-    Parameters and instance variables:
+    Parameters and attributes:
     • content_type: Content type used when value is expressed in a body.  ["text/plain"]
     • nullable: Allow None as a valid value.
     • enum: A list of values that are valid.
@@ -1003,7 +1003,7 @@ class all_of(_type):
     each dictionary allows additional properties and no dictionary defines the same
     property as another.
 
-    Parameters and instance variables:
+    Parameters and attributes:
     • schemas: List of schemas to match against.
     • enum: A list of values that are valid.
     • description: A description of the schema.
@@ -1146,7 +1146,7 @@ class any_of(_xof):
     of the schemas. Values are encoded/decoded using the first valid
     matching schema in the list.
 
-    Parameters and instance variables:
+    Parameters and attributes:
     • schemas: List of schemas to match against.
     • enum: A list of values that are valid.
     • description: A description of the schema.
@@ -1169,7 +1169,7 @@ class one_of(_xof):
     exactly one schema. Values are encoded/decoded using the sole matching
     schema.
 
-    Parameters and instance variables:
+    Parameters and attributes:
     • schemas: List of schemas to match against.
     • enum: A list of values that are valid.
     • description: A description of the schema.
@@ -1194,7 +1194,7 @@ class reader(_type):
     values to be transmitted without allocating all in memory. In operations, this
     schema type can only used in _body parameter and return values.
 
-    Parameters and instance variables:
+    Parameters and attributes:
     • content_type: Content type used when value is expressed in a body.  ["application/octet-stream"]
     """
 
@@ -1214,7 +1214,7 @@ class _dataclass(_type):
     """
     Schema type for data class.
 
-    Parameters and instance variables:
+    Parameters and attributes:
     • cls: Data class.
     • content_type: Content type used when value is expressed in a body.  ["application/json"]
     • nullable: Allow None as a valid value.

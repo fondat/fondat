@@ -13,8 +13,8 @@ _logger = logging.getLogger(__name__)
 
 class _CastAdapter:
     def __init__(self, type, sql_type):
-        self.type = type
         self.sql_type = sql_type
+        self.type = type
 
     def sql_encode(self, schema, value):
         try:
@@ -77,17 +77,13 @@ class Database(roax.db.Database):
     """
     Manages connections to a SQLite database.
 
-    Parameter and instance variable:
+    Parameter and attribute:
     • file: Path to SQLite database file.
-
-    Instance variable:
-    • adapters: Column transformation adapters.
     """
 
     def __init__(self, file):
-        super().__init__(sqlite3)
+        super().__init__(sqlite3, _adapters)
         self.file = file
-        self.adapters = _adapters.copy()
         self._local = threading.local()
 
     @contextlib.contextmanager
