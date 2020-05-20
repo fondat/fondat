@@ -195,9 +195,9 @@ def test_rollback(database, resource):
     assert len(resource.list()) == 0
 
 
-def test_schema_subclass_adapter(resource):
+def test_schema_subclass_adapter(database):
     class strsub(s.str):
         pass
 
-    adapter = resource.database.adapter(strsub())
+    adapter = database.adapter(strsub())
     assert adapter.sql_type == "TEXT"

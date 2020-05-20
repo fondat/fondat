@@ -148,9 +148,8 @@ class Resources:
     """
     Provides a single object to hold shared application resources. 
 
-    Resources are expressed as either string or resource instance.
-
-    If string, class name is expressed as "module:class"; for example:
+    Resources are expressed as either string or resource instance. If string,
+    class name is expressed as "module:class"; for example:
     "myapp.resources.v1:FooResource". Resources classes expressed as strings
     must have __init__ methods that take no arguments other than "self".
     Resource classes expressed as string values are lazily imported and
@@ -165,64 +164,73 @@ class Resources:
         "qux": qux_instance,
     })
 
-    Resources can be accessed as either attributes or keys, like:
-    resources.foo and resources["bar"].
+    Resources can be accessed as either attributes or items, like:
+    resources.foo and resources["foo"].
     """
 
     def __init__(self, resources={}):
         super().__init__()
-        self._lock = threading.Lock()
-        self._resources = {}
-        for key, resource in resources.items():
-            self.register(key, resource)
+        self._roax_lock = threading.Lock()
+        self._roax_resources = {}
+        for name, value in resources.items():
+            setattr(self, name, value)
 
-    def register(self, key, resource=None):
-        """
-        Register (or deregister) a resource.
-
-        The resource is expressed as either string or reference to resource
-        instance. If string, class name is expressed as "module:class"; for
-        example: "myapp.resources.v1:FooResource". A resource class expressed
-        in a string must have an __init__ method that takes no arguments
-        (other than "self").
-
-        Parameters:
-        • key: Resource key to register or deregister.
-        • resource: Resource class name, resource instance, or None to deregister.
-        """
-        if (
-            resource is not None
-            and not isinstance(resource, str)
-            and not isinstance(resource, Resource)
-        ):
-            raise ValueError("resource must be str, Resource type or None")
-        if isinstance(resource, str) and "." not in resource:
-            raise ValueError("resource class name must be fully qualified")
-        if resource is None:
-            self._resources.pop(key, None)
-        else:
-            self._resources[key] = resource
-
-    def _resolve(self, key):
-        _resources = super().__getattribute__("_resources")
-        if isinstance(_resources[key], str):
-            with super().__getattribute__("_lock"):
-                if isinstance(_resources[key], str):
-                    mod, cls = _resources[key].split(":")
-                    _resources[key] = getattr(importlib.import_module(mod), cls)()
-        return _resources[key]
-
-    def __getattribute__(self, name):
+    def __getattr__(self, name):
         try:
-            return super().__getattribute__("_resolve")(name)
-        except KeyError as ke:
-            return super().__getattribute__(name)
+            return self[name]
+        except KeyError:
+            raise AttributeError(
+                f"{self.__class__.__name__} object has no attribute '{name}'"
+            )
 
-    def __getitem__(self, key):
-        return self._resolve(key)
+    def __setattr__(self, name, value):
+        if name.startswith("_roax_") or name in super().__dir__():
+            super().__setattr__(name, value)
+        else:
+            self[name] = value
+
+    def __delattr__(self, name):
+        if name.startswith("_roax_") or name in super().__dir__():
+            super().__delattr__(name)
+        else:
+            try:
+                del self[name]
+            except KeyError:
+                raise AttributeError(name)
 
     def __dir__(self):
-        return list(super().__dir__() + self.map.keys())
+        return [*super().__dir__(), *iter(self._roax_resources)]
+
+    def __len__(self):
+        return len(self._roax_resources)
+
+    def __getitem__(self, key):
+        return self._roax_resolve(key)
+
+    def __setitem__(self, key, value):
+        if not isinstance(value, str) and not isinstance(value, Resource):
+            raise TypeError("resource must be str or Resource type")
+        if isinstance(value, str) and ("." not in value or ":" not in value):
+            raise ValueError("resource class name must be fully qualified")
+        self._roax_resources[key] = value
+
+    def __delitem__(self, key):
+        del self._roax_resources[key]
+
+    def __iter__(self):
+        return iter(self._roax_resources)
+
+    def __contains__(self, item):
+        return item in self._roax_resources
+
+    def _roax_resolve(self, key):
+        resources = self._roax_resources
+        if isinstance(resources[key], str):
+            with self._roax_lock:
+                if isinstance(resources[key], str):
+                    mod, cls = resources[key].split(":")
+                    resources[key] = getattr(importlib.import_module(mod), cls)()
+        return resources[key]
 
 
 def _summary(function):

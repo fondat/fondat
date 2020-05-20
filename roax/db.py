@@ -322,10 +322,6 @@ class TableResource(roax.resource.Resource):
     • name: Short name of the resource.  [table.name in lower case]
     • description: Short description of the resource.  [resource docstring]
 
-    While database can be supplied as an initialization parameter, and exposed
-    as an attribute, subclasses are allowed to define database as a property
-    to allow for lazy initialization.
-
     This class does not decorate operations for schema and validation;
     subclasses are expected to do this based on their own requirements.
     """
