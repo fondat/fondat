@@ -1,9 +1,9 @@
-
 import asyncio
 import concurrent.futures
 import pytest
 import roax.context as context
 import time
+
 
 def test_basic():
     assert context.stack() is None
@@ -20,7 +20,7 @@ def test_basic():
 
 def test_thread_isolation():
     def thread(seed):
-        assert context.stack() is None  # threads do not inherit from caller
+        assert context.stack() is None  # threads do not inherit from invoker
         for n in range(0, 10):
             with context.push(context="thread1", seed=seed):
                 time.sleep(0.01)
@@ -30,6 +30,7 @@ def test_thread_isolation():
                     time.sleep(0.01)
                     assert context.last(context="thread2")["seed"] == seed2
         assert context.stack() is None
+
     assert context.stack() is None
     with context.push(context="main"):
         assert len(context.stack()) == 2  # main and root
@@ -53,6 +54,7 @@ def test_coroutine_isolation():
                     await asyncio.sleep(0.01)
                     assert context.last(context="coro2")["seed"] == seed2
         assert len(context.stack()) == 2
+
     async def run():
         assert context.stack() is None
         with context.push(context="main"):
@@ -61,4 +63,5 @@ def test_coroutine_isolation():
             await asyncio.gather(*coroutines)
             assert len(context.stack()) == 2
         assert context.stack() is None
+
     asyncio.run(run())

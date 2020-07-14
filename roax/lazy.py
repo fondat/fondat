@@ -98,6 +98,7 @@ def lazy_class(spec):
     Parameters:
     • spec: String specifying "module:class" to import module and resolve class.
     """
+
     def callback():
         module, class_ = spec.split(":", 1)
         return getattr(importlib.import_module(module), class_)

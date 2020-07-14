@@ -47,14 +47,17 @@ class Element:
         class _iter:
             def __init__(self, next):
                 self.next = next
+
             def __iter__(self):
                 return self
+
             def __next__(self):
                 if self.next is None:
                     raise StopIteration
                 result = self.next._value
                 self.next = self.next._next
                 return result
+
         return _iter(self)
 
     def __len__(self):
