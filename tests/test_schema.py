@@ -111,18 +111,6 @@ def test_dict_required_str():
     schema.validate({"fjx": "foo", "fjy": "foo"})
 
 
-def test_dict_strip_validate():
-    schema = s.dict({"foo": s.str()})
-    value = {"foo": "bar", "baz": "qux"}
-    schema.validate(schema.strip(value))
-
-
-def test_dict_strip_validate_additional():
-    schema = s.dict({"foo": s.str()}, additional=True)
-    value = {"foo": "bar", "baz": "qux"}
-    schema.validate(schema.strip(value))
-
-
 def test_dict_validate_additional_success():
     schema = s.dict({"foo": s.str()}, additional=s.int())
     value = {"foo": "bar", "a": 1, "b": 2, "c": 3}

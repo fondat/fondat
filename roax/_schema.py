@@ -104,7 +104,7 @@ class _type:
             )
         if value is not None and self.enum is not None and value not in self.enum:
             if len(self.enum) == 1:
-                raise SchemaError(f"value must be {list(self.enum)[0]}")
+                raise SchemaError(f"value must be {next(iter(self.enum))}")
             else:
                 raise SchemaError(
                     f"value {value!r} is not one of: {', '.join([self.str_encode(v) for v in self.enum])}"
@@ -232,13 +232,17 @@ class _dict(_type):
                 raise
         return result
 
-    def validate(self, value):
-        """Validate value against the schema."""
+    def _validate(self, value):
         super().validate(value)
         if value is not None:
             for prop in self.required:
                 if prop not in value:
                     raise SchemaError("value required", prop)
+
+    def validate(self, value):
+        """Validate value against the schema."""
+        self._validate(value)
+        if value is not None:
             self._process("validate", value)
 
     @property
@@ -251,13 +255,13 @@ class _dict(_type):
 
     def json_encode(self, value):
         """Encode the value into JSON object model representation."""
-        self.validate(value)
+        self._validate(value)
         return self._process("json_encode", value)
 
     def json_decode(self, value):
         """Decode the value from JSON object model representation."""
         value = self._process("json_decode", value)
-        self.validate(value)
+        self._validate(value)
         return value
 
     def str_encode(self, value):
@@ -267,19 +271,6 @@ class _dict(_type):
     def str_decode(self, value):
         """Decode the value from string representation."""
         return self.json_decode(json.loads(value))
-
-    def copy(self, props=None, required=None):
-        """Make a copy of the schema, specifying a subset of properties."""
-        result = super().copy()
-        if props is not None:
-            result.props = {k: v for k, v in result.props if k in props}
-        if required is not None:
-            result.required = _required(required)
-        return result
-
-    def strip(self, value):
-        """Return a copy of the value with only properties explicitly specified in the schema."""
-        return {k: v for k, v in value.items() if k in self.props}
 
 
 class _list(_type):
@@ -327,7 +318,7 @@ class _list(_type):
         method = getattr(self.items, method)
         result = []
         try:
-            for n, item in zip(range(len(value)), value):
+            for n, item in enumerate(value):
                 result.append(method(item))
         except SchemaError as se:
             se.path = f"/{n}{se.path}" if se.path else f"/{n}"
@@ -350,18 +341,22 @@ class _list(_type):
                     computed.append(v)
         return len(value) == len(computed)
 
-    def validate(self, value):
-        """Validate value against the schema."""
+    def _validate(self, value):
         self._check_not_str(value)
         super().validate(value)
         if value is not None:
-            self._process("validate", value)
             if len(value) < self.min_items:
                 raise SchemaError(f"expecting minimum number of {self.min_items} items")
             if self.max_items is not None and len(value) > self.max_items:
                 raise SchemaError(f"expecting maximum number of {self.max_items} items")
             if self.unique and not self._is_unique(value):
                 raise SchemaError("expecting list items to be unique")
+
+    def validate(self, value):
+        """Validate value against the schema."""
+        self._validate(value)
+        if value is not None:
+            self._process("validate", value)
 
     @property
     def json_schema(self):
@@ -378,7 +373,7 @@ class _list(_type):
 
     def json_encode(self, value):
         """Encode the value into JSON object model representation."""
-        self.validate(value)
+        self._validate(value)
         if value is not None and not isinstance(value, list):
             value = list(value)  # make JSON encoder happy
         return self._process("json_encode", value)
@@ -387,12 +382,12 @@ class _list(_type):
         """Decode the value from JSON object model representation."""
         self._check_not_str(value)
         result = self._process("json_decode", value)
-        self.validate(result)
+        self._validate(result)
         return result
 
     def str_encode(self, value):
         """Encode the value into string representation."""
-        self.validate(value)
+        self._validate(value)
         if value is None:
             return None
         return _csv_encode(self._process("str_encode", value))
@@ -401,7 +396,7 @@ class _list(_type):
         """Decode the value from string representation."""
         if value is not None:
             value = self._process("str_decode", _csv_decode(value))
-        self.validate(value)
+        self._validate(value)
         return value
 
     def bin_encode(self, value):
@@ -419,6 +414,10 @@ class _list(_type):
                 return self.json_decode(json.loads(value.decode()))
             except (TypeError, ValueError) as e:
                 raise SchemaError(str(e)) from e
+
+
+def _sorted(value):
+    return sorted(value) if value is not None else None
 
 
 class _set(_type):
@@ -451,9 +450,12 @@ class _set(_type):
             result.add(method(item))
         return result
 
+    def _validate(self, value):
+        super().validate(value)
+
     def validate(self, value):
         """Validate value against the schema."""
-        super().validate(value)
+        self._validate(value)
         if value is not None:
             self._process("validate", value)
 
@@ -465,18 +467,10 @@ class _set(_type):
         result["uniqueItems"] = True
         return result
 
-    @staticmethod
-    def _sort(value):
-        result = value
-        if result is not None:
-            result = list(result)
-            result.sort()
-        return result
-
     def json_encode(self, value):
         """Encode the value into JSON object model representation."""
-        self.validate(value)
-        return self._sort(self._process("json_encode", value))
+        self._validate(value)
+        return _sorted(self._process("json_encode", value))
 
     def json_decode(self, value):
         """Decode the value from JSON object model representation."""
@@ -484,22 +478,22 @@ class _set(_type):
             result = self._process("json_decode", value)
             if len(result) != len(value):
                 raise SchemaError("expecting set items to be unique")
-            self.validate(result)
+            self._validate(result)
             value = result
         return value
 
     def str_encode(self, value):
         """Encode the value into string representation."""
-        self.validate(value)
+        self._validate(value)
         if value is not None:
-            value = _csv_encode(self._sort(self._process("str_encode", value)))
+            value = _csv_encode(_sorted(self._process("str_encode", value)))
         return value
 
     def str_decode(self, value):
         """Decode the value from string representation."""
         if value is not None:
             value = self._process("str_decode", _csv_decode(value))
-        self.validate(value)
+        self._validate(value)
         return value
 
     def bin_encode(self, value):
@@ -1215,7 +1209,7 @@ class _dataclass(_type):
     Schema type for data class.
 
     Parameters and attributes:
-    • cls: Data class.
+    • class_: Data class.
     • content_type: Content type used when value is expressed in a body.  ["application/json"]
     • nullable: Allow None as a valid value.
     • description: A description of the schema.  [data class docstring]
@@ -1223,27 +1217,27 @@ class _dataclass(_type):
     """
 
     class _attrs:
-        def __init__(self, cls):
-            self.__dict__ = cls.__annotations__
+        def __init__(self, class_):
+            self.__dict__ = class_.__annotations__
 
     def __init__(
-        self, cls, *, description=None, content_type="application/json", **kwargs
+        self, class_, *, description=None, content_type="application/json", **kwargs
     ):
         super().__init__(
             python_type=object,
             json_type="object",
             content_type=content_type,
-            description=description or getattr(self, "description", cls.__doc__),
+            description=description or getattr(self, "description", class_.__doc__),
             **kwargs,
         )
-        self.cls = cls
-        self.attrs = _dataclass._attrs(cls)
+        self.class_ = class_
+        self.attrs = _dataclass._attrs(class_)
         self.required = self._required()
 
     def _required(self):
         """Return dataclass fields that are required."""
         result = set()
-        for field in dataclasses.fields(self.cls):
+        for field in dataclasses.fields(self.class_):
             if (
                 field.default is dataclasses.MISSING
                 and field.default_factory is dataclasses.MISSING
@@ -1266,12 +1260,16 @@ class _dataclass(_type):
                 raise
         return result
 
-    def validate(self, value):
-        """Validate value against the schema."""
+    def _validate(self, value):
         super().validate(value)
         if value is not None:
             if not dataclasses.is_dataclass(value):
                 raise SchemaError("expected dataclass")
+
+    def validate(self, value):
+        """Validate value against the schema."""
+        self._validate(value)
+        if value is not None:
             self._process("validate", value)
 
     @property
@@ -1284,7 +1282,7 @@ class _dataclass(_type):
 
     def json_encode(self, value):
         """Encode the value into JSON object model representation."""
-        self.validate(value)
+        self._validate(value)
         return self._process("json_encode", value)
 
     def json_decode(self, value):
@@ -1302,8 +1300,8 @@ class _dataclass(_type):
                 except SchemaError as se:
                     se.path = f"{name}/{se.path}" if se.path else f"{name}"
                     raise
-            value = self.cls(**kwargs)
-        self.validate(value)
+            value = self.class_(**kwargs)
+        self._validate(value)
         return value
 
     def str_encode(self, value):
@@ -1381,10 +1379,10 @@ def validate(function):
 
     Example:
 
-    import roax.schema as schema
+    import roax.schema as s
 
-    @schema.validate
-    def function(a: schema.str(), b: schema.int()) -> schema.str():
+    @s.validate
+    def function(a: s.str(), b: s.int()) -> s.str():
         ...
     """
 
