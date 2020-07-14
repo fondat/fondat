@@ -34,7 +34,6 @@ _export(
     "one_of",
     "reader",
     "dataclass",
-    "call",
     "validate",
     "SchemaError",
 )

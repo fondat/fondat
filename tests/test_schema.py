@@ -1,3 +1,4 @@
+import asyncio
 import dataclasses
 import isodate
 import json
@@ -897,27 +898,8 @@ def test_bytes_hex_str_decode():
     assert s.bytes(format="hex").str_decode("DEADBEEF") == b"\xde\xad\xbe\xef"
 
 
-# -- decorators -----
-
-
-def test_returns_error():
-    @s.validate
-    def fn() -> s.str():
-        return 1
-
-    with pytest.raises(ValueError):
-        fn()
-
-
-def test_returns_success():
-    @s.validate
-    def fn() -> s.str():
-        return "str_ftw"
-
-    fn()
-
-
 # -- all_of -----
+
 
 _all_of_schemas = s.all_of(
     [
@@ -1160,3 +1142,40 @@ def test_dataclass_required():
 
 def test_SchemaError_str():
     assert str(s.SchemaError("text", "/a/b")) == "/a/b: text"
+
+
+# -- decorators -----
+
+
+def test_sync_decorator_success():
+    @s.validate
+    def fn() -> s.str():
+        return "str_ftw"
+
+    fn()
+
+
+def test_sync_decorator_error():
+    @s.validate
+    def fn() -> s.str():
+        return 1
+
+    with pytest.raises(ValueError):
+        fn()
+
+
+def test_async_decorator_success():
+    @s.validate
+    async def coro() -> s.str():
+        return "str_ftw"
+
+    assert asyncio.run(coro()) == "str_ftw"
+
+
+def test_sync_decorator_error():
+    @s.validate
+    def coro() -> s.str():
+        return 1
+
+    with pytest.raises(ValueError):
+        asyncio.run(coro())

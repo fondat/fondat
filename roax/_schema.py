@@ -1,5 +1,6 @@
 """Internal module to define, encode, decode and validate JSON data structures."""
 
+import asyncio
 import base64
 import binascii
 import collections.abc
@@ -1313,15 +1314,7 @@ class _dataclass(_type):
         return self.json_decode(json.loads(value))
 
 
-def call(function, args, kwargs):
-    """
-    Call a function, validating its input parameters and return value.
-
-    Parameters:
-    • function: Function to call.
-    • args: Positional arguments to pass to function.
-    • kwargs: Keyword arguments to pass to function.
-    """
+def _validate_arguments(function, args, kwargs):
     sig = inspect.signature(function)
     if len(args) > len(
         [
@@ -1365,34 +1358,36 @@ def call(function, args, kwargs):
             kwargs[p.name] = value
         else:
             raise TypeError(f"unrecognized kind for parameter {p.name}")
-    result = function(*args, **kwargs)
+
+
+def _validate_return_value(function, value):
     returns = function.__annotations__.get("return")
     if returns is not None and isinstance(returns, _type):
-        returns.validate(result)
-    return result
+        returns.validate(value)
 
 
 def validate(function):
     """
-    Decorate a function to validate its parameters and return value using its
-    schema annotations.
-
-    Example:
-
-    import roax.schema as s
-
-    @s.validate
-    def function(a: s.str(), b: s.int()) -> s.str():
-        ...
+    Decorate a function or coroutine function to validate its parameters and
+    return value using schema annotations.
     """
 
-    def decorator(fn):
-        def wrapper(wrapped, instance, args, kwargs):
-            return call(wrapped, args, kwargs)
+    if asyncio.iscoroutinefunction(function):
 
-        return wrapt.decorator(wrapper)(function)
+        @wrapt.decorator
+        async def decorator(wrapped, instance, args, kwargs):
+            _validate_arguments(wrapped, args, kwargs)
+            result = await wrapped(*args, **kwargs)
+            _validate_return_value(wrapped, result)
+            return result
 
-    if callable(function):
-        return decorator(function)
     else:
-        return decorator
+
+        @wrapt.decorator
+        def decorator(wrapped, instance, args, kwargs):
+            _validate_arguments(wrapped, args, kwargs)
+            result = wrapped(*args, **kwargs)
+            _validate_return_value(wrapped, result)
+            return result
+
+    return decorator(function)
