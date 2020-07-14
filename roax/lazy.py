@@ -1,4 +1,4 @@
-"""Roax module to perform lazy evaluation."""
+"""Module to perform lazy evaluation."""
 
 import importlib
 import threading
@@ -8,7 +8,7 @@ class LazyMap:
     """
     A map of key-value pairs, in which value can be lazily initialized at time
     of first access. This is useful to allow resources to access other
-    resources and break any circular dependencies. 
+    resource classes and break any circular dependencies. 
 
     Parameters:
     • init: Mapping of key-value pairs to initialize the lazy map.

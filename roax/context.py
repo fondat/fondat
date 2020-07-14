@@ -1,5 +1,5 @@
 """
-Roax module to manage the context stack.
+Module to manage the context stack.
 
 The context stack allows context to be built up as operations are performed.
 It can provide information about the origin of a request, identify principal(s)
