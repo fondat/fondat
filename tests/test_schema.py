@@ -1172,7 +1172,7 @@ def test_async_decorator_success():
     assert asyncio.run(coro()) == "str_ftw"
 
 
-def test_sync_decorator_error():
+def test_async_decorator_error():
     @s.validate
     def coro() -> s.str():
         return 1
