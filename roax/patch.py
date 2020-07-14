@@ -1,4 +1,4 @@
-"""Roax document patch module."""
+"""Document patch module."""
 
 import collections.abc
 import copy
