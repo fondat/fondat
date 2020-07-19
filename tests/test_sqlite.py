@@ -1,8 +1,8 @@
 import dataclasses
 import pytest
-import roax.db as db
 import roax.resource as r
 import roax.schema as s
+import roax.sql as sql
 import roax.sqlite as sqlite
 import tempfile
 
@@ -29,30 +29,35 @@ class DC:
 DC._schema = s.dataclass(DC)
 
 
-class TR(db.TableResource):
+class TR(sql.TableResource):
     def __init__(self, database):
-        super().__init__(db.Table("foo", DC._schema, "id"), database=database)
+        super().__init__(sql.Table("foo", DC._schema, "id"), database=database)
 
 
-@pytest.fixture(scope="module")
-def database():
+@pytest.fixture(scope="function")  # FIXME: scope to module with event_loop fixture?
+async def database():
     with tempfile.TemporaryDirectory() as dir:
         database = sqlite.Database(f"{dir}/test.db")
-        foo = db.Table("foo", DC._schema, "id")
-        database.create_table(foo)
+        foo = sql.Table("foo", DC._schema, "id")
+        await database.create_table(foo)
         yield database
-        database.drop_table(foo)
+        await database.drop_table(foo)
 
 
 @pytest.fixture(scope="function")
-def resource(database):
-    with database.cursor() as cursor:
-        cursor.execute("DELETE FROM FOO;")
+async def resource(database):
+    stmt = sql.Statement()
+    stmt.text("DELETE FROM FOO;")
+    async with database.transaction() as t:
+        await t.execute(stmt)
     resource = TR(database)
     return resource
 
 
-def test_binary(database):
+pytestmark = pytest.mark.asyncio
+
+
+async def test_binary(database):
     @dataclass
     class Bin:
         id: s.uuid()
@@ -60,21 +65,21 @@ def test_binary(database):
 
     schema = s.dataclass(Bin)
     row = Bin(uuid4(), b"12345")
-    table = db.Table("bin", schema, "id")
-    database.create_table(table)
+    table = sql.Table("bin", schema, "id")
+    await database.create_table(table)
     try:
-        resource = db.TableResource(table)
+        resource = sql.TableResource(table, database)
         resource.database = database
-        resource.create(row.id, row)
-        assert resource.read(row.id) == row
+        await resource.create(row.id, row)
+        assert await resource.read(row.id) == row
         row.bin = b"bacon"
-        resource.update(row.id, row)
-        assert resource.read(row.id).bin == b"bacon"
+        await resource.update(row.id, row)
+        assert (await resource.read(row.id)).bin == b"bacon"
     finally:
-        database.drop_table(table)
+        await database.drop_table(table)
 
 
-def test_crud(resource):
+async def test_crud(resource):
     body = DC(
         id=uuid4(),
         str="string",
@@ -88,8 +93,8 @@ def test_crud(resource):
         date=s.date().str_decode("2019-01-01"),
         datetime=s.datetime().str_decode("2019-01-01T01:01:01Z"),
     )
-    resource.create(body.id, body)
-    assert resource.read(body.id) == body
+    await resource.create(body.id, body)
+    assert await resource.read(body.id) == body
     body.dict = {"a": 2}
     body.list = [2, 3, 4]
     body._set = None
@@ -99,17 +104,17 @@ def test_crud(resource):
     body.bytes = None
     body.date = None
     body.datetime = None
-    resource.update(body.id, body)
-    assert resource.read(body.id) == body
-    resource.patch(body.id, {"str": "bacon"})
-    body = resource.read(body.id)
+    await resource.update(body.id, body)
+    assert await resource.read(body.id) == body
+    await resource.patch(body.id, {"str": "bacon"})
+    body = await resource.read(body.id)
     assert body.str == "bacon"
-    resource.delete(body.id)
+    await resource.delete(body.id)
     with pytest.raises(r.NotFound):
-        resource.read(body.id)
+        await resource.read(body.id)
 
 
-def testlist(resource):
+async def testlist(resource):
     table = resource.table
     count = 10
     for n in range(0, count):
@@ -127,15 +132,15 @@ def testlist(resource):
             date=None,
             datetime=None,
         )
-        assert resource.create(id, body) == {"id": id}
-    ids = resource.list()
+        assert await resource.create(id, body) == {"id": id}
+    ids = await resource.list()
     assert len(ids) == count
     for id in ids:
-        resource.delete(id)
-    assert len(resource.list()) == 0
+        await resource.delete(id)
+    assert len(await resource.list()) == 0
 
 
-def testlist_where(resource):
+async def testlist_where(resource):
     table = resource.table
     for n in range(0, 20):
         id = uuid4()
@@ -152,27 +157,27 @@ def testlist_where(resource):
             date=None,
             datetime=None,
         )
-        assert resource.create(id, body) == {"id": id}
-    where = resource.database.query()
+        assert await resource.create(id, body) == {"id": id}
+    where = sql.Statement()
     where.text("int < ")
-    where.value(table.columns["int"], 10)
-    ids = resource.list(where=where)
+    where.param(10, table.columns["int"])
+    ids = await resource.list(where=where)
     assert len(ids) == 10
-    for id in resource.list():
-        resource.delete(id)
-    assert len(resource.list()) == 0
+    for id in await resource.list():
+        await resource.delete(id)
+    assert len(await resource.list()) == 0
 
 
-def test_delete_NotFound(resource):
+async def test_delete_NotFound(resource):
     with pytest.raises(r.NotFound):
-        resource.delete(uuid4())
+        await resource.delete(uuid4())
 
 
-def test_rollback(database, resource):
+async def test_rollback(database, resource):
     table = resource.table
-    assert len(resource.list()) == 0
+    assert len(await resource.list()) == 0
     try:
-        with database.connect():  # transaction demarcation
+        async with database.transaction():  # transaction demarcation
             id = uuid4()
             body = DC(
                 id=id,
@@ -187,17 +192,19 @@ def test_rollback(database, resource):
                 date=None,
                 datetime=None,
             )
-            resource.create(id, body)
-            assert len(resource.list()) == 1
+            await resource.create(id, body)
+            assert len(await resource.list()) == 1
             raise RuntimeError  # force rollback
     except RuntimeError:
         pass
-    assert len(resource.list()) == 0
+    assert len(await resource.list()) == 0
 
 
+"""
 def test_schema_subclass_adapter(database):
     class strsub(s.str):
         pass
 
     adapter = database.adapter(strsub())
     assert adapter.sql_type == "TEXT"
+"""
