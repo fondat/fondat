@@ -8,6 +8,7 @@ import copy
 import csv
 import dataclasses
 import datetime
+import decimal
 import inspect
 import io
 import isodate
@@ -686,7 +687,7 @@ class _float(_number):
 
     def json_decode(self, value):
         """Decode the value from JSON object model representation."""
-        value = value.__float__() if isinstance(value, int) else value
+        value = float(value) if isinstance(value, int) else value
         self.validate(value)
         return value
 
@@ -697,6 +698,63 @@ class _float(_number):
                 value = float(value)
             except ValueError as ve:
                 raise SchemaError("expecting a number") from ve
+        self.validate(value)
+        return value
+
+
+class _decimal(_number):
+    """
+    Schema type for decimal number.
+
+    Parameters and attributes:
+    • prec: number of digits of precision.
+    • content_type: Content type used when value is expressed in a body.  ["text/plain"]
+    • min: Inclusive lower limit of the value.
+    • max: Inclusive upper limit of the value.
+    • nullable: Allow None as a valid value.
+    • enum: A list of values that are valid.
+    • description: A description of the schema.
+    • example: An example of an instance for this schema.
+    """
+
+    def __init__(self, prec=None, **kwargs):
+        super().__init__(
+            python_type=decimal.Decimal, json_type="number", format="double", **kwargs
+        )
+        self.prec = prec
+
+    def _round(self, value):
+        if value is not None and self.prec is not None:
+            value = round(value, self.prec)
+        return value
+
+    def json_encode(self, value):
+        """Encode the value into JSON object model representation."""
+        self.validate(value)
+        if value is not None:
+            return float(self._round(value))
+
+    def json_decode(self, value):
+        """Decode the value from JSON object model representation."""
+        if value.__class__ not in {int, float}:
+            raise SchemaError("expecting a number") 
+        value = self._round(decimal.Decimal(str(value)))
+        self.validate(value)
+        return value
+
+    def str_encode(self, value):
+        """Encode the value into string representation."""
+        self.validate(value)
+        if value is not None:
+            return str(self._round(value))
+
+    def str_decode(self, value):
+        """Decode the value from string representation."""
+        if value is not None:
+            try:
+                value = self._round(decimal.Decimal(value))
+            except decimal.InvalidOperation as io:
+                raise SchemaError("expecting a number") from io
         self.validate(value)
         return value
 
@@ -1358,6 +1416,38 @@ def _validate_arguments(function, args, kwargs):
             kwargs[p.name] = value
         else:
             raise TypeError(f"unrecognized kind for parameter {p.name}")
+
+
+class _resource(_type):
+    """
+    Schema type for resource.
+
+    Parameters and attributes:
+    • class_: Class the defines the resource.
+    • content_type: Content type used when value is expressed in a body.
+    • nullable: Allow None as a valid value.
+    • description: A description of the schema.  [resource class docstring]
+    """
+
+    def __init__(
+        self, class_, *, description=None, content_type="application/json", **kwargs
+    ):
+        super().__init__(
+            python_type=object,
+            json_type="object",
+            content_type=content_type,
+            description=description or getattr(self, "description", class_.__doc__),
+            **kwargs,
+        )
+        self.class_ = class_
+
+    def json_encode(self, value):
+        """Encode the value into JSON object model representation."""
+        return str_encode(value)
+
+    def str_encode(self, value):
+        """Encode the value into string representation."""
+        return str(value.id)
 
 
 def _validate_return_value(function, value):

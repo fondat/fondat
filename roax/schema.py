@@ -24,6 +24,7 @@ _export(
     "str",
     "int",
     "float",
+    "decimal",
     "bool",
     "bytes",
     "date",
@@ -34,6 +35,7 @@ _export(
     "one_of",
     "reader",
     "dataclass",
+    "resource",
     "validate",
     "SchemaError",
 )

@@ -548,6 +548,95 @@ def test_float_allow_none():
     assert s.float(nullable=True).json_encode(None) == None
 
 
+# -- decimal -----
+
+import decimal
+D = decimal.Decimal
+
+def test_decimal_validate_type_success():
+    s.decimal().validate(D(123.45))
+
+
+def test_decimal_validate_type_error():
+    _error(s.decimal().validate, "123.45")
+
+
+def test_decimal_validate_min_success():
+    s.decimal(min=D(1.0)).validate(D(1.1))
+
+
+def test_decimal_validate_min_error():
+    _error(s.decimal(min=D(2.0)).validate, D(1.9))
+
+
+def test_decimal_validate_max_success():
+    s.decimal(max=D(3.0)).validate(D(2.9))
+
+
+def test_decimal_validate_max_error():
+    _error(s.decimal(max=D(4.0)).validate, D(4.1))
+
+
+def test_decimal_json_encode_success():
+    assert s.decimal().json_encode(D("6.1")) == 6.1
+
+
+def test_decimal_json_encode_error():
+    _error(s.decimal().json_encode, "7")
+
+
+def test_decimal_json_decode_int():
+    assert s.decimal().json_decode(8) == D(8.0)
+
+
+def test_decimal_json_decode_decimal():
+    assert s.decimal().json_decode(9.1) == D("9.1")
+
+
+def test_decimal_json_decode_error():
+    _error(s.decimal().json_decode, "err")
+
+
+def test_decimal_str_decode_decimal():
+    assert s.decimal(prec=1).str_decode(11.3) == D("11.3")
+
+
+def test_decimal_str_decode_int():
+    assert s.decimal().str_decode("12") == D(12.0)
+
+
+def test_decimal_str_decode_error():
+    _error(s.decimal().str_decode, "1,2")
+
+
+def test_decimal_validate_enum_success():
+    s.decimal(enum=[D("1.2"), D("3.4"), D("5.6")]).validate(D("3.4"))
+
+
+def test_decimal_validate_enum_error():
+    _error(s.decimal(enum=[D("6.7"), D("8.9"), D("10.11")]).validate, D("12.13"))
+
+
+def test_decimal_disallow_none():
+    _error(s.decimal().json_encode, None)
+
+
+def test_decimal_allow_none():
+    assert s.decimal(nullable=True).json_encode(None) == None
+
+
+def test_decimal_round_imprecise_float():
+    assert s.decimal(prec=2).json_decode(1.23) == D("1.23")
+
+
+def test_decimal_round_down():
+    assert s.decimal(prec=2).str_encode(D("1.234")) == "1.23"
+
+
+def test_decimal_round_up():
+    assert s.decimal(prec=2).str_encode(D("1.235")) == "1.24"
+
+
 # -- bool -----
 
 
