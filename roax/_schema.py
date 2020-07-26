@@ -736,11 +736,9 @@ class _decimal(_number):
 
     def json_decode(self, value):
         """Decode the value from JSON object model representation."""
-        if value.__class__ not in {int, float}:
-            raise SchemaError("expecting a number") 
-        value = self._round(decimal.Decimal(str(value)))
-        self.validate(value)
-        return value
+        return self.str_decode(
+            None if value is None else str(value)
+        )  # avoid float conversion inaccuracy
 
     def str_encode(self, value):
         """Encode the value into string representation."""
@@ -752,7 +750,7 @@ class _decimal(_number):
         """Decode the value from string representation."""
         if value is not None:
             try:
-                value = self._round(decimal.Decimal(value))
+                value = decimal.Decimal(value)
             except decimal.InvalidOperation as io:
                 raise SchemaError("expecting a number") from io
         self.validate(value)
