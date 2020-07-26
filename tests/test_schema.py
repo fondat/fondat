@@ -598,7 +598,7 @@ def test_decimal_json_decode_error():
 
 
 def test_decimal_str_decode_decimal():
-    assert s.decimal(prec=1).str_decode(11.3) == D("11.3")
+    assert s.decimal(prec=1).str_decode("11.3") == D("11.3")
 
 
 def test_decimal_str_decode_int():
