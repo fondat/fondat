@@ -19,19 +19,19 @@ import uuid
 _stack = contextvars.ContextVar("_roax_stack")
 
 
-class Element:
+class _Element:
     """
     A context stack element.
  
-    The context stack is a linked list; each stack element contains a value
-    and a reference to the next element below it on the stack. Because stacks
-    are linked lists, they can be safely forked when asynchronous tasks are
-    performed.
+    The context stack is a linked list of elements; each stack element
+    contains a value and a reference to the next element below it on the
+    stack. Because stacks are linked lists, they can be safely forked when
+    asynchronous tasks are performed.
 
     Each element is iterable; it will iterate over the values of the entire
-    stack, beginning with this element's value, then the next element's
-    value below it, and so on. In this sense the element at the top represents
-    the entire stack.
+    stack, beginning with the referenced element's value, then the next
+    element's value below it, and so on. In this sense the element at the top
+    represents the entire stack.
 
     Parameters:
     • value: the value to place at the top of the stack.
@@ -64,44 +64,39 @@ class Element:
         return sum(1 for _ in self)
 
 
-def stack():
-    """Return the context-local stack or None if no stack currently exists."""
-    return _stack.get(None)
-
-
 class push:
     """
     Return a context manager that:
-    • upon entry, pushes a context value onto the context stack
+    • upon entry, pushes an element onto the context stack
     • upon exit, resets the content stack to its original state
 
-    A pushed value must be a mapping, and should contain a "context" value
-    expressing the type of context being pushed onto the stack.
+    A pushed element must be a mapping, and should contain a "context" value
+    expressing the type of context being pushed onto the stack; context
+    values beginning with "roax." are reserved.
 
     If no context-local stack exists, then pushing a value causes a new stack
-    to be created. The stack will be initialized with a "root" value, which
-    will contain unique identifier "id" and timestamp "time" values.
+    to be created with an initial "root" element, which will contain a unique
+    identifier "id" and timestamp "time".
 
-    A context value is a mapping of key-value pairs. It is expressed as:
-    • push(mapping): Value is initialized from a mapping object's key-value pairs.
-    • push(**kwargs): Value is initialized with name-value pairs in keyword arguments. 
+    A context element is a mapping of key-value pairs. It is expressed as:
+    • push(mapping): Element is initialized from a mapping object's key-value pairs.
+    • push(**kwargs): Element is initialized with name-value pairs in keyword arguments. 
     """
 
     def __init__(self, *args, **kwargs):
         self._value = dict(*args, **kwargs)
 
     def __enter__(self):
-        stack_ = stack()
-        if not stack_:
-            stack_ = Element(
+        stack = _stack.get(None)
+        if not stack:
+            stack = _Element(
                 dict(
                     context="root",
                     id=uuid.uuid4(),
                     time=datetime.datetime.now(tz=datetime.timezone.utc),
                 )
             )
-        self._token = _stack.set(Element(self._value, stack_))
-        return self
+        self._token = _stack.set(_Element(self._value, stack))
 
     def __exit__(self, *args):
         _stack.reset(self._token)
@@ -109,48 +104,43 @@ class push:
 
 def find(*args, **kwargs):
     """
-    Return a list of all values on the contact stack that have the specified
-    keys and values. Values are returned in the order of most recent to least
-    recent (top of stack to bottom).
+    Return a generator that yields elements on the context stack that match
+    the specified keys and values. Elements are returned in the order of most
+    recent to least recent (top of stack to bottom).
 
-    The value to search for can be expressed as follows:
-    • find(mapping): Value is expressed as a mapping object's key-value pairs.
-    • find(**kwargs): Value is expressed with name-value pairs in keyword arguments. 
+    The elements to match can be expressed as follows:
+    • find(mapping): Match is expressed as a mapping object's key-value pairs.
+    • find(**kwargs): Match is expressed with name-value pairs in keyword arguments.
+
+    Supplying no parameters will yield all elements on the stack. 
     """
-    result = []
     test = dict(*args, **kwargs).items()
-    for value in stack() or ():
-        if isinstance(value, collections.abc.Mapping):
-            if test <= value.items():  # test for subset
-                result.append(value)
-    return result
+    return (value for value in _stack.get(()) if test <= value.items())
 
 
 def first(*args, **kwargs):
     """
-    Return the first (least recent) value pushed on to the contact stack that
-    has the specified keys and values, or None if no such value is found.
+    Return the first (least recent) element pushed on to the contact stack
+    that matches the specified keys and values, or None if no such element is
+    found.
 
-    The value to search for can be expressed as follows:
-    • first(mapping): Value is expressed as a mapping object's key-value pairs.
-    • first(**kwargs): Value is expressed with name-value pairs in keyword arguments. 
+    The element to match for can be expressed as follows:
+    • first(mapping): Match is expressed as a mapping object's key-value pairs.
+    • first(**kwargs): Match is expressed with name-value pairs in keyword arguments. 
     """
-    found = find(*args, **kwargs)
-    if found:
-        return found[-1]
+    result = None
+    for result in find(*args, **kwargs):
+        pass
+    return result
 
 
 def last(*args, **kwargs):
     """
-    Return the last (most recent) value pushed on to the contact stack that
-    has the specified keys and values, or None if no such value is found.
+    Return the last (most recent) element pushed on to the contact stack that
+    matches the specified keys and values, or None if no such element is found.
 
-    The value to search for can be expressed as follows:
-    • last(mapping): Value is expressed as a mapping object's key-value pairs.
-    • last(**kwargs): Value is expressed with name-value pairs in keyword arguments. 
+    The element to match for can be expressed as follows:
+    • last(mapping): Match is expressed as a mapping object's key-value pairs.
+    • last(**kwargs): Match is expressed with name-value pairs in keyword arguments. 
     """
-    test = dict(*args, **kwargs).items()
-    for value in stack() or ():
-        if isinstance(value, collections.abc.Mapping):
-            if test <= value.items():  # test for subset
-                return value  # return fast
+    return next(iter(find(*args, **kwargs)), None)
