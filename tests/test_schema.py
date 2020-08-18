@@ -1,10 +1,10 @@
 import asyncio
 import dataclasses
+import fondat.schema as s
 import isodate
 import json
 import pytest
 import re
-import roax.schema as s
 
 from base64 import b64encode
 from dataclasses import make_dataclass, field
@@ -551,7 +551,9 @@ def test_float_allow_none():
 # -- decimal -----
 
 import decimal
+
 D = decimal.Decimal
+
 
 def test_decimal_validate_type_success():
     s.decimal().validate(D(123.45))
@@ -1224,6 +1226,21 @@ def test_dataclass_required():
     _error(schema.validate, DC(fjx="foo", fjy=None))
     _error(schema.validate, DC(fjx=None, fjy="foo"))
     schema.validate(DC(fjx="foo", fjy="foo"))
+
+
+# -- resource -----
+
+
+class Resource:
+    pass
+
+
+def test_resource_class():
+    assert s.resource(Resource).cls == Resource
+
+
+def test_resource_class_tuple():
+    assert s.resource(("tests.test_schema", "Resource")).cls == Resource
 
 
 # -- SchemaError -----

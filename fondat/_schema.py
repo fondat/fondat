@@ -9,6 +9,7 @@ import csv
 import dataclasses
 import datetime
 import decimal
+import importlib
 import inspect
 import io
 import isodate
@@ -1421,23 +1422,34 @@ class _resource(_type):
     Schema type for resource.
 
     Parameters and attributes:
-    • class_: Class the defines the resource.
+    • cls: Class the defines the resource.
     • content_type: Content type used when value is expressed in a body.
     • nullable: Allow None as a valid value.
     • description: A description of the schema.  [resource class docstring]
+
+    The class parameter can be a resource class, or a tuple containing
+    ("module", class") strings to import the module and resolve the resource
+    class.
     """
 
     def __init__(
-        self, class_, *, description=None, content_type="application/json", **kwargs
+        self, cls, *, description=None, content_type="application/json", **kwargs
     ):
         super().__init__(
             python_type=object,
             json_type="object",
             content_type=content_type,
-            description=description or getattr(self, "description", class_.__doc__),
+            description=description or getattr(self, "description", cls.__doc__),
             **kwargs,
         )
-        self.class_ = class_
+        self._cls = cls
+
+    @property
+    def cls(self):
+        if type(self._cls) is tuple:
+            m, c = self._cls
+            self._cls = getattr(importlib.import_module(m), c)
+        return self._cls
 
     def json_encode(self, value):
         """Encode the value into JSON object model representation."""
@@ -1454,10 +1466,10 @@ def _validate_return_value(function, value):
         returns.validate(value)
 
 
-def validate(function):
+def _validate(function):
     """
-    Decorate a function or coroutine function to validate its parameters and
-    return value using schema annotations.
+    Decorate a function or coroutine to validate its parameters and return
+    value using schema annotations.
     """
 
     if asyncio.iscoroutinefunction(function):
@@ -1479,3 +1491,15 @@ def validate(function):
             return result
 
     return decorator(function)
+
+
+def _data(cls, **kwargs):
+    """
+    Decorate a class to be a data class with an added _schema attribute.
+
+    All parameters are passed through to the dataclass decorator.
+    """
+
+    result = dataclasses.dataclass(cls, **kwargs)
+    result._schema = _dataclass(result)
+    return result

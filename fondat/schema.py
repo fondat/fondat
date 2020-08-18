@@ -1,6 +1,6 @@
 """Module to define, encode, decode and validate JSON data structures."""
 
-import roax._schema as _schema
+import fondat._schema as _schema
 
 
 __all__ = []
@@ -17,6 +17,7 @@ def _export(*args):
 
 
 _export(
+    "SchemaError",
     "type",
     "dict",
     "list",
@@ -37,5 +38,5 @@ _export(
     "dataclass",
     "resource",
     "validate",
-    "SchemaError",
+    "data",
 )
