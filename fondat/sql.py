@@ -269,7 +269,7 @@ class Table:
         • where: Statement containing WHERE expression, or None to list all rows.
         """
         stmt = Statement()
-        stmt.text("SELECT {self.pk} FROM {self.name}")
+        stmt.text(f"SELECT {self.pk} FROM {self.name}")
         if where:
             stmt.text(" WHERE ")
             stmt.statement(where)
@@ -404,6 +404,7 @@ def table_resource(table, security=None):
 
         @fondat.resource.operation(security=security)
         async def delete(self, id: table.columns[table.pk]):
+            await self.get(id)
             stmt = Statement()
             stmt.text(f"DELETE FROM {self.table.name} WHERE {self.table.pk} = ")
             stmt.param(id, self.table.columns[self.table.pk])

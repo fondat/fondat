@@ -111,97 +111,95 @@ async def test_gpppd(resource):
 #         await database.drop_table(table)
 
 
-# async def testlist(resource):
-#     table = resource.table
-#     count = 10
-#     for n in range(0, count):
-#         id = uuid4()
-#         body = DC(
-#             id=id,
-#             str=None,
-#             dict=None,
-#             list=None,
-#             _set=None,
-#             int=None,
-#             float=None,
-#             bool=None,
-#             bytes=None,
-#             date=None,
-#             datetime=None,
-#         )
-#         assert await resource.create(id, body) == {"id": id}
-#     ids = await resource.list()
-#     assert len(ids) == count
-#     for id in ids:
-#         await resource.delete(id)
-#     assert len(await resource.list()) == 0
+async def test_list(resource):
+    table = resource.table
+    count = 10
+    for n in range(0, count):
+        id = uuid4()
+        data = DC(
+            id=id,
+            str=None,
+            dict=None,
+            list=None,
+            _set=None,
+            int=None,
+            float=None,
+            bool=None,
+            bytes=None,
+            date=None,
+            datetime=None,
+        )
+        assert await resource.post(id, data) == {"id": id}
+    ids = await table.list()
+    assert len(ids) == count
+    for id in ids:
+        await resource.delete(id)
+    assert len(await table.list()) == 0
 
 
-# async def testlist_where(resource):
-#     table = resource.table
-#     for n in range(0, 20):
-#         id = uuid4()
-#         body = DC(
-#             id=id,
-#             str=None,
-#             dict=None,
-#             list=None,
-#             _set=None,
-#             int=n,
-#             float=None,
-#             bool=None,
-#             bytes=None,
-#             date=None,
-#             datetime=None,
-#         )
-#         assert await resource.create(id, body) == {"id": id}
-#     where = sql.Statement()
-#     where.text("int < ")
-#     where.param(10, table.columns["int"])
-#     ids = await resource.list(where=where)
-#     assert len(ids) == 10
-#     for id in await resource.list():
-#         await resource.delete(id)
-#     assert len(await resource.list()) == 0
+async def test_list_where(resource):
+    table = resource.table
+    for n in range(0, 20):
+        id = uuid4()
+        body = DC(
+            id=id,
+            str=None,
+            dict=None,
+            list=None,
+            _set=None,
+            int=n,
+            float=None,
+            bool=None,
+            bytes=None,
+            date=None,
+            datetime=None,
+        )
+        assert await resource.post(id, body) == {"id": id}
+    where = sql.Statement()
+    where.text("int < ")
+    where.param(10, table.columns["int"])
+    ids = await table.list(where=where)
+    assert len(ids) == 10
+    for id in await table.list():
+        await resource.delete(id)
+    assert len(await table.list()) == 0
 
 
-# async def test_delete_NotFound(resource):
-#     with pytest.raises(r.NotFound):
-#         await resource.delete(uuid4())
+async def test_delete_NotFound(resource):
+    with pytest.raises(r.NotFound):
+        await resource.delete(uuid4())
 
 
-# async def test_rollback(database, resource):
-#     table = resource.table
-#     assert len(await resource.list()) == 0
-#     try:
-#         async with database.transaction():  # transaction demarcation
-#             id = uuid4()
-#             body = DC(
-#                 id=id,
-#                 str=None,
-#                 dict=None,
-#                 list=None,
-#                 _set=None,
-#                 int=None,
-#                 float=None,
-#                 bool=None,
-#                 bytes=None,
-#                 date=None,
-#                 datetime=None,
-#             )
-#             await resource.create(id, body)
-#             assert len(await resource.list()) == 1
-#             raise RuntimeError  # force rollback
-#     except RuntimeError:
-#         pass
-#     assert len(await resource.list()) == 0
+async def test_rollback(resource):
+    table = resource.table
+    assert len(await table.list()) == 0
+    try:
+        async with table.database.transaction():  # transaction demarcation
+            id = uuid4()
+            body = DC(
+                id=id,
+                str=None,
+                dict=None,
+                list=None,
+                _set=None,
+                int=None,
+                float=None,
+                bool=None,
+                bytes=None,
+                date=None,
+                datetime=None,
+            )
+            await resource.post(id, body)
+            assert len(await table.list()) == 1
+            raise RuntimeError  # force rollback
+    except RuntimeError:
+        pass
+    assert len(await table.list()) == 0
 
 
-"""
 def test_schema_subclass_adapter(database):
     class strsub(s.str):
         pass
 
-    adapter = database.adapter(strsub())
+    adapter = database.adapters[strsub()]
     assert adapter.sql_type == "TEXT"
-"""
