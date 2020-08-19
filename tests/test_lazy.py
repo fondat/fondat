@@ -1,6 +1,6 @@
 import pytest
 
-from roax.lazy import LazyMap, lazy
+from fondat.lazy import LazyMap, lazy
 
 
 @lazy

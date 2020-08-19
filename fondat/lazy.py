@@ -2,6 +2,7 @@
 
 import importlib
 import threading
+import wrapt
 
 
 class LazyMap:
@@ -24,8 +25,8 @@ class LazyMap:
 
     def __init__(self, init={}):
         super().__init__()
-        self._roax_lock = threading.Lock()
-        self._roax_map = {}
+        self._fondat_lock = threading.Lock()
+        self._fondat_map = {}
         for name, value in init.items():
             setattr(self, name, value)
 
@@ -38,13 +39,13 @@ class LazyMap:
             )
 
     def __setattr__(self, name, value):
-        if name.startswith("_roax_") or name in super().__dir__():
+        if name.startswith("_fondat_") or name in super().__dir__():
             super().__setattr__(name, value)
         else:
             self[name] = value
 
     def __delattr__(self, name):
-        if name.startswith("_roax_") or name in super().__dir__():
+        if name.startswith("_fondat_") or name in super().__dir__():
             super().__delattr__(name)
         else:
             try:
@@ -53,33 +54,33 @@ class LazyMap:
                 raise AttributeError(name)
 
     def __dir__(self):
-        return [*super().__dir__(), *iter(self._roax_map)]
+        return [*super().__dir__(), *iter(self._fondat_map)]
 
     def __len__(self):
-        return len(self._roax_map)
+        return len(self._fondat_map)
 
     def __getitem__(self, key):
-        return self._roax_resolve(key)
+        return self._fondat_resolve(key)
 
     def __setitem__(self, key, value):
-        self._roax_map[key] = value
+        self._fondat_map[key] = value
 
     def __delitem__(self, key):
-        del self._roax_map[key]
+        del self._fondat_map[key]
 
     def __iter__(self):
-        return iter(self._roax_map)
+        return iter(self._fondat_map)
 
     def __contains__(self, item):
-        return item in self._roax_map
+        return item in self._fondat_map
 
-    def _roax_resolve(self, key):
-        value = self._roax_map[key]
+    def _fondat_resolve(self, key):
+        value = self._fondat_map[key]
         if is_lazy(value):
-            with self._roax_lock:
+            with self._fondat_lock:
                 if is_lazy(value):  # prevent race
-                    self._roax_map[key] = value()
-            value = self._roax_map[key]
+                    self._fondat_map[key] = value()
+            value = self._fondat_map[key]
         return value
 
 
@@ -87,25 +88,26 @@ def lazy(function):
     """Decorator that tags a callable to be used for lazy initialization."""
     if not callable(function):
         raise TypeError
-    setattr(function, "_roax_lazy", True)
+    setattr(function, "_fondat_lazy", True)
     return function
 
 
-def lazy_class(spec):
+def lazy_class(module, class_):
     """
     Return a lazy callback function to import and load a class.
 
     Parameters:
-    • spec: String specifying "module:class" to import module and resolve class.
+    • module: String containing module to import.
+    • module: String containing class name in module to resolve.
     """
 
+    @lazy
     def callback():
-        module, class_ = spec.split(":", 1)
         return getattr(importlib.import_module(module), class_)
 
-    return lazy(callback)
+    return callback
 
 
 def is_lazy(function):
     """Return True if the function is a tagged as a lazy callback function."""
-    return callable(function) and getattr(function, "_roax_lazy", None)
+    return callable(function) and getattr(function, "_fondat_lazy", None)

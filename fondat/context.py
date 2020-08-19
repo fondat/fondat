@@ -16,7 +16,7 @@ import datetime
 import uuid
 
 
-_stack = contextvars.ContextVar("_roax_stack")
+_stack = contextvars.ContextVar("_fondat_stack")
 
 
 class _Element:
@@ -72,7 +72,7 @@ class push:
 
     A pushed element must be a mapping, and should contain a "context" value
     expressing the type of context being pushed onto the stack; context
-    values beginning with "roax." are reserved.
+    values beginning with "fondat." are reserved.
 
     If no context-local stack exists, then pushing a value causes a new stack
     to be created with an initial "root" element, which will contain a unique
