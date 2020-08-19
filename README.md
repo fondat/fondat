@@ -1,22 +1,23 @@
-# Roax
+# Fondat
 
-[![PyPI](https://badge.fury.io/py/roax.svg)](https://badge.fury.io/py/roax)
-[![License](https://img.shields.io/github/license/roax/roax.svg)](https://github.com/roax/roax/blob/master/LICENSE)
-[![GitHub](https://img.shields.io/badge/github-master-blue.svg)](https://github.com/roax/roax/)
-[![Test](https://github.com/roax/roax/workflows/Test/badge.svg)](https://github.com/roax/roax/actions?query=workflow/test)
+[![PyPI](https://badge.fury.io/py/fondat.svg)](https://badge.fury.io/py/fondat)
+[![License](https://img.shields.io/github/license/fondat/fondat.svg)](https://github.com/fondat/fondat/blob/master/LICENSE)
+[![GitHub](https://img.shields.io/badge/github-master-blue.svg)](https://github.com/fondat/fondat/)
+[![Test](https://github.com/fondat/fondat/workflows/Test/badge.svg)](https://github.com/fondat/fondat/actions?query=workflow/test)
 [![Black](https://img.shields.io/badge/code%20style-black-black.svg)](https://github.com/psf/black)
 
-Ro·ax /ˈɹoʊ.æks/: A lightweight Python resource-oriented framework. 
+Fon·dat: A foundation for Python resource-oriented applications. 
 
 ## Introduction
 
-Roax is a lightweight framework for building resource-oriented applications in Python.
-By composing your application as a set of resources that expose operations through a uniform
-interface, they can be automatically exposed through a REST and/or command line interface.
+Fondat is a foundation for building resource-oriented applications in Python.
+By composing your application as a set of resources that expose operations,
+they can be automatically exposed through a HTTP API, GraphQL and/or command
+line interface.
 
 ## Features
 
-* Resource operations accessed through WSGI-based REST API.
+* Resource operations accessed through ASGI-based API.
 * Schema enforcement of resource operation parameters and return values.
 * Authorization to resource operations enforced through security policies.
 * Schema-enforced data structure definition using Python data classes. 
@@ -25,16 +26,17 @@ interface, they can be automatically exposed through a REST and/or command line 
 * Monitoring of resource operations and elapsed time in time series databases.
 * Generates [OpenAPI](https://www.openapis.org/) interface description, compatible with [Swagger UI](https://swagger.io/tools/swagger-ui/).
 * Access to resource operations through command-line interface.
+* Asynchronous uniform resource interface.
 
 ## Install
 
 ```
-pip install roax
+pip install fondat
 ```
 
 ## Documentation
 
-See the [docs](https://github.com/roax/roax/tree/master/docs) folder for documentation.
+See the [docs](https://github.com/fondat/fondat/tree/master/docs) folder for documentation.
 
 ## Develop
 

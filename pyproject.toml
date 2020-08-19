@@ -7,29 +7,32 @@ line-length = 88
 target-version = ['py38']
 
 [tool.poetry]
-name = "roax"
+name = "fondat"
 version = "3.0a1"
-description = "Lightweight framework for building resource-oriented applications."
+description = "A foundation for Python resource-oriented applications."
 readme = "README.md"
-authors = ["Roax authors"]
-homepage = "https://github.com/roax/roax/"
-documentation = "https://github.com/roax/roax/tree/master/docs"
+authors = ["Fondat authors"]
+homepage = "https://github.com/fondat/fondat/"
+documentation = "https://github.com/fondat/fondat/tree/master/docs"
 license = "MIT"
-keywords = ["wsgi", "framework", "resource", "openapi"]
+keywords = ["asgi", "framework", "resource", "openapi"]
 classifiers = [
-    "Development Status :: 3 - Beta",
+    "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Topic :: Software Development :: Libraries :: Application Frameworks",
 ]
 
 [tool.poetry.dependencies]
 python = "^3.8"
+aiofile = "^3.0"
+aiosqlite = "^0.15"
 isodate = "^0.6"
 WebOb = "^1.8"
 wrapt = "^1.12"
 
 [tool.poetry.dev-dependencies]
 black = "^19.10b0"
-pre-commit = "^2.3"
-pytest = "^5.4"
-pytest-cov = "^2.8"
+pre-commit = "^2.6"
+pytest = "^6.0"
+pytest-asyncio = "^0.14"
+pytest-cov = "^2.10"
