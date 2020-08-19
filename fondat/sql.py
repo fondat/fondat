@@ -1,14 +1,14 @@
 """
-Module to manage resource items in a SQL database through DB-API 2.0 interface.
+Module to manage resource items in a SQL database.
 """
 
 import collections.abc
 import contextlib
+import fondat.patch
+import fondat.resource
+import fondat.schema as s
 import inspect
 import logging
-import roax.patch
-import roax.resource
-import roax.schema as s
 
 from dataclasses import dataclass
 
@@ -18,7 +18,7 @@ _logger = logging.getLogger(__name__)
 
 class Adapter:
     """
-    Adapts Roax schema type to database schema type.
+    Adapts a Fondat schema type to a database schema type.
 
     Each SQL database expects different Python representations for data types
     it supports. An adapter converts a value to and from a representation that
@@ -45,7 +45,7 @@ class Adapter:
         raise NotImplementedError
 
 
-class Adapters(collections.abc.Mapping):
+class _Adapters(collections.abc.Mapping):
     """
     A mapping of schema classes to associated adapters.
 
@@ -76,149 +76,8 @@ class Adapters(collections.abc.Mapping):
         return len(self.adapters)
 
 
-class Database:
-    """
-    Base class for a SQL database. Subclasses must implement the
-    "transaction" method and expose the "marker".
-
-    Parameters:
-    • adapters: Mapping of adapters to be used with the database.
-    """
-
-    def __init__(self, adapters):
-        self.adapters = Adapters(adapters)
-
-    async def transaction(self):
-        """
-        Return a context manager that manages a database transaction.
-
-        A transaction provides the means to execute a SQL statement, and
-        provides transaction semantics (commit/rollback). Upon exit of the
-        context manager, in the event of an exception, the transaction will be
-        rolled back; otherwise, the transaction will be committed. 
-
-        If more than one request for a transaction is made within the same
-        task, the same transaction will be returned; only the outermost
-        yielded transaction will exhibit commit/rollback behavior.
-        """
-        raise NotImplementedError
-
-    async def create_table(self, table):
-        """
-        Create table in database.
-
-        Parameters:
-        • table: Object representing table to create.
-        """
-        stmt = Statement()
-        stmt.text(f"CREATE TABLE {table.name} (")
-        columns = []
-        for name, schema in table.columns.items():
-            column = [name, self.adapters[schema].sql_type]
-            if name == table.pk:
-                column.append("PRIMARY KEY")
-            if not schema.nullable:
-                column.append("NOT NULL")
-            columns.append(" ".join(column))
-        stmt.text(", ".join(columns))
-        stmt.text(");")
-        async with self.transaction() as t:
-            await t.execute(stmt)
-
-    async def drop_table(self, table):
-        """
-        Drop table in database.
-
-        Parameters:
-        • table: Object representing table to drop.
-        """
-        stmt = Statement()
-        stmt.text(f"DROP TABLE {table.name};")
-        async with self.transaction() as t:
-            await t.execute(stmt)
-
-    async def create_index(self, index):
-        """
-        Create index in database.
-
-        Parameters:
-        • index: Object representing index to create.
-        """
-        stmt = Statement()
-        stmt.text("CREATE ")
-        if index.unique:
-            stmt.text("UNIQUE ")
-        stmt.text(f"INDEX {index.name} on {index.table.name} (")
-        stmt.text(", ".join(index.columns))
-        stmt.text(");")
-        async with self.transaction() as t:
-            await t.execute(stmt)
-
-    async def drop_index(self, index):
-        """
-        Drop index in database.
-
-        Parameters:
-        • index: Object representing index to drop.
-        """
-        stmt = Statement()
-        stmt.text(f"DROP INDEX {index.name};")
-        async with self.transaction() as t:
-            await t.execute(stmt)
-
-
-class Table:
-    """
-    Represents a table in a SQL database.
-
-    Parameters and attributes:
-    • name: Name of database table.
-    • schema: Schema of table columns.
-    • pk: Column name of the primary key.
-
-    Attributes:
-    • columns: Mapping of column names to associated schema types.
-
-    The schema must be a roax.schema.dataclass type, whose attribute names map
-    to table columns.
-    """
-
-    def __init__(self, name, schema, pk):
-        self.name = name
-        if not isinstance(schema, s.dataclass):
-            raise ValueError("schema for table must be roax.schema.dataclass")
-        self.schema = schema
-        self.columns = self.schema.attrs.__dict__
-        if pk not in self.columns:
-            raise ValueError(f"primary key '{pk}' not in schema")
-        self.pk = pk
-
-
-class Index:
-    """
-    Represents an index on a table in a SQL database.
-
-    Parameters:
-    • name: the name of the index.
-    • table: table that the index defined for.
-    • columns: list of column names to index.
-    • unique: are columns unique in table.
-    """
-
-    def __init__(self, name, table, columns, unique=False):
-        self.name = name
-        self.table = table
-        for column in columns:
-            if column not in table.columns:
-                raise ValueError(f"column '{column}' not in {table.name} table")
-        self.columns = columns
-        self.unique = unique
-
-
 class Statement:
-    """
-    Builds a SQL statement. 
-    """
+    """Builds a SQL statement."""
 
     PARAM = object()
 
@@ -244,6 +103,22 @@ class Statement:
         self.operation.append(Statement.PARAM)
         self.parameters.append((value, schema))
 
+    def params(self, params, separator=None):
+        """
+        Append a sequence of parameters to this statement, optionally
+        separating each with a separator.
+
+        Parameters:
+        • params: Sequence of tuples (value, schema) to be added.
+        • separator: Text separator between parameters.
+        """
+        sep = False
+        for param in params:
+            if sep and separator is not None:
+                self.text(separator)
+            self.param(*param)
+            sep = True
+
     def statement(self, statement):
         """
         Add another statement to this statement.
@@ -254,9 +129,9 @@ class Statement:
     def statements(self, statements, separator=None):
         """
         Add a sequence of statements to this statement, optionally separating
-        each with optional separator.
+        each with a separator.
 
-        Parametes:
+        Parameters:
         • statements: Sequence of statements to be added to the statement.
         • separator: Separator between statements to be added.
         """
@@ -268,124 +143,100 @@ class Statement:
             sep = True
 
 
-class TableResource:
+class Database:
     """
-    Base resource class for storage of resource items in a database table,
-    providing basic CRUD operations.
+    Base class for a SQL database. Subclasses must implement the
+    "transaction" method and expose the "marker".
+
+    Parameters:
+    • adapters: Mapping of adapters to be used with the database.
+    """
+
+    def __init__(self, adapters):
+        self.adapters = _Adapters(adapters)
+
+    async def transaction(self):
+        """
+        Return a context manager that manages a database transaction.
+
+        A transaction provides the means to execute a SQL statement, and
+        provides transaction semantics (commit/rollback). Upon exit of the
+        context manager, in the event of an exception, the transaction will be
+        rolled back; otherwise, the transaction will be committed. 
+
+        If more than one request for a transaction is made within the same
+        task, the same transaction will be returned; only the outermost
+        yielded transaction will exhibit commit/rollback behavior.
+        """
+        raise NotImplementedError
+
+
+class Table:
+    """
+    Represents a table in a SQL database.
 
     Parameters and attributes:
-    • table Table that resource is based on.
-    • database: Database the resource is attached to.
+    • name: Name of database table.
+    • schema: Schema of table columns.
+    • pk: Column name of the primary key.
 
-    This class does not decorate operations for schema and validation;
-    subclasses are expected define decorated operation methods as required.
+    Attributes:
+    • columns: Mapping of column names to associated schema types.
+
+    The schema must be a fondat.schema.dataclass type, whose attribute names map
+    to table columns.
     """
 
-    def __init__(self, table, database):
-        super().__init__()
-        self.table = table
+    def __init__(self, database, name, schema, pk):
+        if not isinstance(schema, s.dataclass):
+            raise ValueError("schema for table must be fondat.schema.dataclass")
         self.database = database
+        self.name = name
+        self.schema = schema
+        self.columns = self.schema.attrs.__dict__
+        if pk not in self.columns:
+            raise ValueError(f"primary key '{pk}' not in schema")
+        self.pk = pk
 
-    async def create(self, id, _body):
-        self.table.schema.validate(_body)
+    async def create(self):
+        """Create table in database."""
         stmt = Statement()
-        stmt.text(f"INSERT INTO {self.table.name} (")
-        stmt.text(", ".join(self.table.columns))
-        stmt.text(") VALUES (")
-        columns = self.table.columns
-        comma = False
-        for column, schema in columns.items():
-            if comma:
-                stmt.text(", ")
-            stmt.param(getattr(_body, column), schema)
-            comma = True
+        stmt.text(f"CREATE TABLE {self.name} (")
+        columns = []
+        for name, schema in self.columns.items():
+            column = [name, self.database.adapters[schema].sql_type]
+            if name == self.pk:
+                column.append("PRIMARY KEY")
+            if not schema.nullable:
+                column.append("NOT NULL")
+            columns.append(" ".join(column))
+        stmt.text(", ".join(columns))
         stmt.text(");")
         async with self.database.transaction() as t:
             await t.execute(stmt)
-        return {"id": id}
 
-    async def read(self, id):
-        where = Statement()
-        where.text(f"{self.table.pk} = ")
-        where.param(id, self.table.columns[self.table.pk])
-        results = await self.select(where=where)
-        if len(results) == 0:
-            raise roax.resource.NotFound(
-                f"item not found: {self.table.columns[self.table.pk].str_encode(id)}"
-            )
-        elif len(results) > 1:
-            raise roax.resource.InternalServerError("result matches more than one row")
-        kwargs = results[0]
-        try:
-            result = self.table.schema.class_(**kwargs)
-            self.table.schema.validate(result)
-        except (TypeError, s.SchemaError) as e:
-            _logger.error(e)
-            raise roax.resource.InternalServerError
-        return result
-
-    async def _update(self, id, *, old=None, new):
-        self.table.schema.validate(new)
+    async def drop(self):
+        """Drop table from database."""
         stmt = Statement()
-        stmt.text(f"UPDATE {self.table.name} SET ")
-        columns = self.table.columns
-        updates = []
-        for column, schema in columns.items():
-            if old is None or getattr(old, column, None) != getattr(new, column, None):
-                update = Statement()
-                update.text(f"{column} = ")
-                update.param(getattr(new, column, None), self.table.columns[column])
-                updates.append(update)
-        stmt.statements(updates, ", ")
-        stmt.text(f" WHERE {self.table.pk} = ")
-        stmt.param(id, self.table.columns[self.table.pk])
-        stmt.text(";")
+        stmt.text(f"DROP TABLE {self.name};")
         async with self.database.transaction() as t:
-            await t.execute(stmt)
-
-    async def update(self, id, _body):
-        async with self.database.transaction():  # transaction demaraction
-            await self.read(id)  # raises NotFound
-            await self._update(id, new=_body)
-
-    async def patch(self, id, _body):
-        for column, schema in self.table.columns.items():
-            if isinstance(schema, s.bytes) and schema.format == "binary":
-                raise ResourceError(
-                    "patch not supported on dataclass with bytes attribute of binary format"
-                )
-        async with self.database.transaction():  # transaction demaraction
-            old = await self.read(id)
-            new = self.table.schema.json_decode(
-                roax.patch.merge_patch(self.table.schema.json_encode(old), _body)
-            )
-            if old != new:
-                await self._update(id, old=old, new=new)
-
-    async def delete(self, id):
-        stmt = Statement()
-        stmt.text(f"DELETE FROM {self.table.name} WHERE {self.table.pk} = ")
-        stmt.param(id, self.table.columns[self.table.pk])
-        stmt.text(";")
-        async with self.database.transaction() as t:
-            await self.read(id)  # raises NotFound
             await t.execute(stmt)
 
     async def select(self, columns=None, where=None, order=None):
         """
-        Return a list of rows that match the WHERE expression. Each row is expressed in a dict.
+        Return a list of rows in table that match the where expression. Each
+        row is expressed in a dict.
 
         Parameters:
-        • columns: Iterable of column names to return, or None for all columns.
+        • columns: Column names to return, or None for all columns.
         • where: Statement containing WHERE expression, or None to match all rows.
-        • order: Iterable of column names to order by, or None to not order results.
+        • order: Column names to order by, or None to not order results.
         """
-        table = self.table
-        columns = tuple(columns or table.columns.keys())
+        columns = tuple(columns or self.columns.keys())
         stmt = Statement()
         stmt.text("SELECT ")
         stmt.text(", ".join(columns))
-        stmt.text(f" FROM {table.name}")
+        stmt.text(f" FROM {self.name}")
         if where:
             stmt.text(" WHERE ")
             stmt.statement(where)
@@ -398,7 +249,7 @@ class TableResource:
             async for row in await t.execute(stmt):
                 result = dict(zip(columns, row))
                 for column in columns:
-                    schema = table.columns[column]
+                    schema = self.columns[column]
                     if result[column] is not None:
                         try:
                             result[column] = self.database.adapters[schema].sql_decode(
@@ -417,7 +268,157 @@ class TableResource:
         Parameters:
         • where: Statement containing WHERE expression, or None to list all rows.
         """
+        stmt = Statement()
+        stmt.text("SELECT {self.pk} FROM {self.name}")
+        if where:
+            stmt.text(" WHERE ")
+            stmt.statement(where)
+        stmt.text(";")
+        pk_schema = self.columns[self.pk]
+        result = []
+        async with self.database.transaction() as t:
+            async for row in await t.execute(stmt):
+                result.append(
+                    self.database.adapters[pk_schema].sql_decode(row[0], pk_schema)
+                )
+        return result
 
-        return [
-            row[self.table.pk] for row in await self.select((self.table.pk,), where)
-        ]
+
+class Index:
+    """
+    Represents an index on a table in a SQL database.
+
+    Parameters:
+    • name: the name of the index.
+    • table: table that the index defined for.
+    • columns: list of column names to index.
+    • unique: are columns unique in table.
+    """
+
+    def __init__(self, name, table, columns, unique=False):
+        self.name = name
+        self.table = table
+        for column in columns:
+            if column not in table.columns:
+                raise ValueError(f"column '{column}' not in {table.name} table")
+        self.columns = columns
+        self.unique = unique
+
+    async def create(self):
+        """Create index in database."""
+        stmt = Statement()
+        stmt.text("CREATE ")
+        if index.unique:
+            stmt.text("UNIQUE ")
+        stmt.text(f"INDEX {self.name} on {self.table.name} (")
+        stmt.text(", ".join(self.columns))
+        stmt.text(");")
+        async with self.table.database.transaction() as t:
+            await t.execute(stmt)
+
+    async def drop(self):
+        """Drop index from database."""
+        stmt = Statement()
+        stmt.text(f"DROP INDEX {self.name};")
+        async with self.transaction() as t:
+            await t.execute(stmt)
+
+
+def table_resource(table, security=None):
+    """Return a new table resource class."""
+
+    @fondat.resource.resource
+    class TableResource:
+        def __init__(self, id):
+            self.id = id
+            self.table = table
+
+        @fondat.resource.operation(security=security)
+        async def get(self, id: table.columns[table.pk]) -> table.schema:
+            where = Statement()
+            where.text(f"{self.table.pk} = ")
+            where.param(id, self.table.columns[table.pk])
+            results = await self.table.select(where=where)
+            try:
+                kwargs = next(iter(results))
+            except StopIteration:
+                raise fondat.resource.NotFound(
+                    f"row not found: {self.table.columns[self.table.pk].str_encode(id)}"
+                )
+            try:
+                result = self.table.schema.class_(**kwargs)
+                self.table.schema.validate(
+                    result
+                )  # TODO: simplify and just check for required?
+            except (TypeError, s.SchemaError) as e:
+                _logger.error(e)
+                raise fondat.resource.InternalServerError
+            return result
+
+        async def _update(self, id, old, new):
+            if old == new:
+                return
+            self.table.schema.validate(new)
+            stmt = Statement()
+            stmt.text(f"UPDATE {self.table.name} SET ")
+            columns = self.table.columns
+            updates = []
+            for column, schema in columns.items():
+                if getattr(old, column, None) != getattr(new, column, None):
+                    update = Statement()
+                    update.text(f"{column} = ")
+                    update.param(getattr(new, column, None), self.table.columns[column])
+                    updates.append(update)
+            stmt.statements(updates, ", ")
+            stmt.text(f" WHERE {self.table.pk} = ")
+            stmt.param(id, self.table.columns[self.table.pk])
+            stmt.text(";")
+            async with self.table.database.transaction() as t:
+                await t.execute(stmt)
+
+        @fondat.resource.operation(security=security)
+        async def put(self, id: table.columns[table.pk], data: table.schema):
+            await self._update(id, await self.get(id), data)
+
+        @fondat.resource.operation(security=security)
+        async def post(
+            self, id: table.columns[table.pk], data: table.schema
+        ) -> s.dict({"id": table.columns[table.pk]}):
+            setattr(data, self.table.pk, id)
+            self.table.schema.validate(data)
+            stmt = Statement()
+            stmt.text(f"INSERT INTO {self.table.name} (")
+            stmt.text(", ".join(self.table.columns))
+            stmt.text(") VALUES (")
+            stmt.params(
+                (
+                    (getattr(data, column), schema)
+                    for column, schema in self.table.columns.items()
+                ),
+                ", ",
+            )
+            stmt.text(");")
+            async with self.table.database.transaction() as t:
+                await t.execute(stmt)
+            return dict(id=id)
+
+        @fondat.resource.operation(security=security)
+        async def delete(self, id: table.columns[table.pk]):
+            stmt = Statement()
+            stmt.text(f"DELETE FROM {self.table.name} WHERE {self.table.pk} = ")
+            stmt.param(id, self.table.columns[self.table.pk])
+            stmt.text(";")
+            async with self.table.database.transaction() as t:
+                await t.execute(stmt)
+
+        @fondat.resource.operation(security=security)
+        async def patch(
+            self, id: table.columns[table.pk], doc: s.dict({}, additional=True)
+        ):
+            old = await self.get(id)
+            new = self.table.schema.json_decode(
+                fondat.patch.merge_patch(self.table.schema.json_encode(old), doc)
+            )
+            await self._update(id, old, new)
+
+    return TableResource

@@ -3,9 +3,9 @@
 import aiosqlite
 import contextlib
 import contextvars
+import fondat.schema as s
+import fondat.sql
 import logging
-import roax.schema as s
-import roax.sql
 
 
 _logger = logging.getLogger(__name__)
@@ -121,20 +121,19 @@ class Transaction:
 
     def _sql_encode(self, param):
         value, schema = param
-        if value is None:
+        if value is None or schema is None:
             return None
-        if schema is None:
-            return value
         return self.database.adapters[schema].sql_encode(value, schema)
 
     async def execute(self, statement):
-        """TODO: docstring"""
-        sql = "".join(map(lambda o: "?" if o is statement.PARAM else o, statement.operation))
+        sql = "".join(
+            map(lambda o: "?" if o is statement.PARAM else o, statement.operation)
+        )
         params = [self._sql_encode(param) for param in statement.parameters]
         return Rows(await self.connection.execute(sql, params))
 
 
-class Database(roax.sql.Database):
+class Database(fondat.sql.Database):
     """
     Manages access to a SQLite database.
 
@@ -145,7 +144,7 @@ class Database(roax.sql.Database):
     def __init__(self, file):
         super().__init__(_adapters)
         self.file = file
-        self._tx = contextvars.ContextVar("roax_sqlite_tx")
+        self._tx = contextvars.ContextVar("fondat_sqlite_tx")
 
     @contextlib.asynccontextmanager
     async def transaction(self):
