@@ -810,14 +810,14 @@ class _bytes(_type):
     • description: A description of the schema.
     • example: An example of an instance for this schema.
 
-    In "byte" format, a byte sequence is represented as a base64-encoded string.
+    In "byte" format, a value is represented as a base64-encoded string.
     Example: "Um9heCBpcyBhIHBhcnQgb2YgYSBjb21wbGV0ZSBicmVha2Zhc3QuCg==".
 
-    In "hex" format, a byte sequence is represented as string of hexadecimal
+    In "hex" format, a value is represented as string of hexadecimal
     numbers. Example: "54776f2073636f6f7073206f662072616973696e732e".
 
-    In "binary" format, a byte sequence is represented as a raw sequence of bytes.
-    For this reason, it cannot be expressed in string or JSON representations. 
+    In "binary" format, a value is represented as a raw sequence of bytes. If
+    encoded as a string or as JSON, value is encoded in "byte" (base64) format.
     """
 
     def __init__(
@@ -836,52 +836,36 @@ class _bytes(_type):
 
     def json_encode(self, value):
         """Encode the value into JSON object model representation."""
-        if self.format == "binary":
-            raise SchemaError(
-                "binary format cannot be encoded into JSON representation"
-            )
         return self.str_encode(value)
 
     def json_decode(self, value):
         """Decode the value from JSON object model representation."""
-        if self.format == "binary":
-            raise SchemaError(
-                "binary format cannot be decoded from JSON representation"
-            )
         return self.str_decode(value)
 
     def str_encode(self, value):
         """Encode the value into string representation."""
         self.validate(value)
-        if self.format == "binary":
-            raise SchemaError(
-                "binary format cannot be encoded into string representation"
-            )
-        elif value is None:
+        if value is None:
             return None
+        elif self.format in {"byte", "binary"}:
+            return base64.b64encode(value).decode()
         elif self.format == "hex":
             return value.hex()
-        elif self.format == "byte":
-            return base64.b64encode(value).decode()
 
     def str_decode(self, value):
         """Decode the value from string representation."""
-        if self.format == "binary":
-            raise SchemaError(
-                "binary format cannot be decoded from string representation"
-            )
-        elif value is None:
+        if value is None:
             return None
+        elif self.format in {"byte", "binary"}:
+            try:
+                result = None if value is None else base64.b64decode(value)
+            except binascii.Error as be:
+                raise SchemaError("expecting a base64-encoded value") from be
         elif self.format == "hex":
             try:
                 result = bytes.fromhex(value)
             except ValueError as ve:
                 raise SchemaError("expecting a hexadecimal encoded value") from ve
-        elif self.format == "byte":
-            try:
-                result = None if value is None else base64.b64decode(value)
-            except binascii.Error as be:
-                raise SchemaError("expecting a base64-encoded value") from be
         self.validate(result)
         return result
 
