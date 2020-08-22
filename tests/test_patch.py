@@ -1,6 +1,6 @@
 import pytest
 
-from roax.patch import merge_patch
+from fondat.patch import merge_patch
 
 
 def _test_patch(original, patch, result):
