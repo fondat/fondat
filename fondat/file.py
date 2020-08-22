@@ -1,140 +1,123 @@
 """Module to store resource items in files."""
 
+import aiofiles
+import dataclasses
+import enum
+import fondat.resource
+import fondat.schema as s
+import logging
 import os
 import os.path
-import roax.resource
-import roax.schema as s
 
-try:
-    import fcntl  # supported in *nix
-except ImportError:
-    fcntl = None
+from fondat.resource import resource, operation
 
 
-_map = [(c, "%{:02X}".format(ord(c))) for c in '%/\\:*?"<>|']
+_logger = logging.getLogger(__name__)
+
+
+_map = {ord(c): "%{:02x}".format(ord(c)) for c in '.%/\\:*?"<>|'}
 
 
 def _quote(s):
-    """_quote('abc/def') -> 'abc%2Fdef'"""
-    for m in _map:
-        s = s.replace(m[0], m[1])
-    return s
+    """_quote('abc/def') -> 'abc%2fdef'"""
+    return s.translate(_map)
 
 
 def _unquote(s):
-    """_unquote('abc%2Fdef') -> 'abc/def'"""
+    """_unquote('abc%2fdef') -> 'abc/def'"""
     if "%" in s:
-        for m in _map:
-            s = s.replace(m[1], m[0])
+        for k, v in _map.items():
+            s = s.replace(v, chr(k))
     return s
 
 
-class FileResource(roax.resource.Resource):
+def file_resource(path, schema, extension="", compress=None, security=None):
     """
-    Base class for a file-based resource; each item is a stored as a separate file
-    in a directory.
+    Return a resource class that manages files in a directory.
 
-    Parameters and attributes:
-    • name: Short name of the resource. (default: the class name in lower case)
-    • description: Short description of the resource. (default: the resource docstring)
-    • dir: Directory to store resource items in.
-    • schema: Schema for resource items.
-    • id_schema: Schema for resource item identifiers. (default: str)
+    Parameters:
+    • path: Path to directory where files are stored.
+    • schema: Schema of file content.
     • extenson: Filename extension to use for each file (including dot).
+    • compress: Algorithm to compress and decompress file content.
 
-    This class is appropriate for up to hundreds or thousands of items; it is
-    probably not appropriate for tens of thousands or more.
+    Compression algorithm is any object or module that exposes callable
+    "compress" and "decompress" attributes. Examples: bz2, gzip, lzma, zlib.
     """
 
-    def __init__(
-        self,
-        dir=None,
-        name=None,
-        description=None,
-        schema=None,
-        id_schema=None,
-        extension=None,
-    ):
-        super().__init__(name, description)
-        self.dir = os.path.expanduser((dir or self.dir).rstrip("/"))
-        self.schema = schema or self.schema
-        self.id_schema = id_schema or getattr(self, "id_schema", s.str())
-        self.extension = extension or getattr(self, "extension", "")
-        os.makedirs(self.dir, exist_ok=True)
-        self.__doc__ = self.schema.description
+    _path = os.path.expanduser((path).rstrip("/"))
 
-    def create(self, id, _body):
-        """Create a resource item."""
-        try:
-            self._write("xb", id, _body)
-        except roax.resource.NotFound:
-            raise roax.resource.InternalServerError(
-                f"{self.name} resource directory not found"
-            )
-        return {"id": id}
+    os.makedirs(_path, exist_ok=True)
 
-    def read(self, id):
-        """Read a resource item."""
-        return self._read("rb", id)
+    def filename(id):
+        return f"{_path}/{_quote(id)}{extension}"
 
-    def update(self, id, _body):
-        """Update a resource item."""
-        return self._write("wb", id, _body)
+    async def read(file):
+        async with aiofiles.open(file, "rb") as file:
+            content = await file.read()
+            if compress:
+                content = compress.decompress(content)
+            return schema.bin_decode(content)
 
-    def delete(self, id):
-        """Delete a resource item."""
-        try:
-            os.remove(self._filename(id))
-        except FileNotFoundError:
-            raise roax.resource.NotFound(f"{self.name} item not found: {id}")
+    async def write(file, content):
+        if compress:
+            content = compress.compress(content)
+        async with aiofiles.open(file, "xb") as file:
+            await file.write(content)
 
-    def list(self):
-        """Return a list of all resource item identifiers."""
-        result = []
-        try:
-            listdir = os.listdir(self.dir)
-        except FileNotFoundError:
-            raise roax.resource.InternalServerError(
-                f"{self.name} resource directory not found"
-            )
-        for name in listdir:
-            if name.endswith(self.extension):
-                name = name[: len(name) - len(self.extension)]
-                str_id = _unquote(name)
-                if name != _quote(str_id):  # ignore improperly encoded names
-                    continue
-                try:
-                    result.append(self.id_schema.str_decode(str_id))
-                except s.SchemaError:
-                    pass  # ignore filenames that can't be parsed
-        return result
-
-    def _filename(self, id):
-        """Return the full filename for the specified resource item identifier."""
-        return f"{self.dir}/{_quote(self.id_schema.str_encode(id))}{self.extension}"
-
-    def _open(self, id, mode):
-        try:
-            file = open(self._filename(id), mode)
-            if fcntl:
-                fcntl.flock(file.fileno(), fcntl.LOCK_EX)
-            return file
-        except FileNotFoundError:
-            raise roax.resource.NotFound(f"{self.name} item not found: {id}")
-        except FileExistsError:
-            raise roax.resource.Conflict(f"{self.name} item already exists: {id}")
-
-    def _read(self, mode, id):
-        with self._open(id, mode) as file:
+    @resource
+    class FileResource:
+        @operation(security=security)
+        async def get(self, id: s.str()) -> schema:
+            """Read item."""
             try:
-                result = self.schema.bin_decode(file.read())
-                self.schema.validate(result)
-            except s.SchemaError as se:
-                raise roax.resource.InternalServerError(
-                    "content read from file failed schema validation"
-                ) from se
-        return result
+                result = await read(filename(id))
+            except FileNotFoundError:
+                raise fondat.resource.NotFound(f"item not found: {id}")
+            except (TypeError, s.SchemaError) as e:
+                _logger.error(e)
+                raise fondat.resource.InternalServerError
+            return result
 
-    def _write(self, mode, id, body):
-        with self._open(id, mode) as file:
-            file.write(self.schema.bin_encode(body))
+        @operation(security=security)
+        async def put(self, id: s.str(), data: schema):
+            """Write item."""
+            dst = filename(id)
+            tmp = dst + ".__tmp"
+            content = schema.bin_encode(data)
+            try:
+                await write(tmp, content)
+            except FileNotFoundError:
+                raise fondat.resource.InternalServerError(
+                    "resource directory not found"
+                )
+            os.replace(tmp, dst)
+
+        @operation(security=security)
+        async def delete(self, id: s.str()):
+            """Delete item."""
+            try:
+                os.remove(filename(id))
+            except FileNotFoundError:
+                raise fondat.resource.NotFound(f"item not found: {id}")
+
+        @operation(type="query", security=security)
+        async def list(self) -> s.list(s.str()):
+            """Return list of items."""
+            result = []
+            try:
+                listdir = os.listdir(_path)
+            except FileNotFoundError:
+                raise fondat.resource.InternalServerError(
+                    "resource directory not found"
+                )
+            for name in filter(lambda n: n.endswith(extension), listdir):
+                if extension:
+                    name = name[: -len(extension)]
+                id = _unquote(name)
+                if _quote(id) != name:  # ignore improperly encoded names
+                    continue
+                result.append(id)
+            return result
+
+    return FileResource
