@@ -329,8 +329,7 @@ def table_resource(table, security=None):
 
     @fondat.resource.resource
     class TableResource:
-        def __init__(self, id):
-            self.id = id
+        def __init__(self):
             self.table = table
 
         @fondat.resource.operation(security=security)
