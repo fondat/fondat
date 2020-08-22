@@ -6,12 +6,15 @@ class. Your application monitor(s) can be added to/deleted from this object.
 """
 
 import collections
+import contextlib
+import dataclasses
 import datetime
 import logging
 import math
 import re
+import fondat.context as context
+import fondat.schema as s
 import time
-import typing
 
 
 _logger = logging.getLogger(__name__)
@@ -20,18 +23,25 @@ _logger = logging.getLogger(__name__)
 _now = lambda: datetime.datetime.now(tz=datetime.timezone.utc)
 
 
-class Measurement(
-    collections.namedtuple("Measurement", "tags, timestamp, type, value")
-):
+@s.data
+class Measurement:
     """
     An individual measurement.
 
-    Parameters and attributes:
+    Attributes:
     • tags: Tags associated with the measurement. Should contain a "name" key.
     • timestamp: Date and time of the measurement to record.
-    • type: Type of measurement to record.  {"counter","gauge","absolute"}
+    • type: Type of measurement to record.  {"counter", "gauge", "absolute"}
     • value: Value of measurement (int or float).
     """
+
+    tags: s.dict({}, additional=True)
+    timestamp: s.datetime()
+    type: s.str(enum={"counter", "gauge", "absolute"})
+    value: s.one_of((s.int(), s.float()))
+
+    def __post_init__(self):
+        self._schema.validate(self)
 
 
 class Counter:
@@ -116,7 +126,7 @@ class Absolute:
         self.value += value
 
 
-_types = {Counter.name: Counter, Gauge.name: Gauge, Absolute.name: Absolute}
+_types = {t.name: t for t in {Counter, Gauge, Absolute}}
 
 
 class Series:
@@ -186,21 +196,22 @@ class Series:
 
 class SimpleMonitor:
     """
-    A simple memory round-robin monitor, capable of maintaining multiple time
-    series. This resource is appropriate for collecting thousands of data points;
-    beyond that, it’s advisable to use a time series database.
+    A simple in-memory round-robin monitor, capable of maintaining multiple
+    time series. This class is appropriate for collecting thousands of data
+    points; beyond that, it’s probably advisable to use an external time
+    series database.
 
-    In this monitor, a time series is a set of data points and time intervals of
-    fixed duration. A data point records data measured at that exact point in time
-    and the subsequent interval.
+    In this monitor, a time series is a set of data points and time intervals
+    of fixed duration. A data point records data measured at that exact point
+    in time and the subsequent interval.
     
     This monitor handles the following types of recorded measurements in data
     points: "counter", "gauge" and "absolute". For more information on these
     types, see their class documentation. 
 
-    If no measurement is recorded for a given data point, the data point will not
-    be stored in the time series. Consumers of the time series should perform
-    interpolation if required (e.g. for graphic representation).
+    If no measurement is recorded for a given data point, the data point will
+    not be stored in the time series. Consumers of the time series should
+    perform interpolation if required (e.g. for graphic representation).
 
     The simple monitor contains a series attribute, which is a dictionary
     mapping time series names to associated Series objects.
@@ -216,7 +227,7 @@ class SimpleMonitor:
 
         Parameters:
         • name: Name of the new time series.
-        • type: Type of data point to track.  {"counter","gauge","absolute"}
+        • type: Type of data point to track.  {"counter", "gauge", "absolute"}
         • patterns: Measurements with tags matching regular expressions are tracked.
         • points: Number of data points to maintain in the time series.
         • interval: Interval between data points, in seconds.
@@ -229,24 +240,22 @@ class SimpleMonitor:
             raise ValueError(f"unsupported data point type: {type}")
         self.series[name] = Series(type, patterns, points, interval)
 
-    def record(self, measurement):
-        """
-        Record a measurement.
-        """
+    async def record(self, measurement):
+        """Record a measurement."""
         for series in self.series.values():
             series.record(measurement)
 
 
 class DequeMonitor:
     """
-    A monitor that queues all recorded measurements in a deque object.
+    A monitor that stores all recorded measurements in a deque object.
 
     Parameters:
-    • size: Maximum number of recorded measurements to queue.  [unlimited]
+    • size: Maximum number of recorded measurements to enqueue.  [unlimited]
     • deque: Deque to store measurements in.  [new deque]
 
-    If the maximum queue size if reached, oldest measurements will be
-    truncated.
+    When a measurement is recorded, if the maximum queue size is reached, the
+    oldest measurement is expunged.
     """
 
     def __init__(self, size=None, deque=None):
@@ -254,19 +263,17 @@ class DequeMonitor:
         self.deque = deque if deque is not None else collections.deque()
         self.size = size
 
-    def record(self, measurement):
-        """
-        Record a measurement.
-        """
-        if self.size and len(self.deque) >= self.size:
+    async def record(self, measurement):
+        """Record a measurement."""
+        if self.size is not None:
             while len(self.deque) >= self.size:
                 self.deque.popleft()
         self.deque.append(measurement)
 
-    def pop(self, monitor, cap=None):
+    async def pop(self, monitor, cap=None):
         """
-        Remove leftmost measurements from the deque and record them into
-        another monitor.
+        Remove oldest measurements from the deque and record them into another
+        monitor.
 
         Parameters:
         • monitor: Monitor to record measurements into.
@@ -275,31 +282,28 @@ class DequeMonitor:
         If no cap is specified, all queued items will be popped.
         """
         count = 0
-        while True:
+        while (count < cap) if cap else True:
             try:
-                monitor.record(self.deque.popleft())
-                count += 1
-                if cap and count >= cap:
-                    break
+                measurement = self.deque.popleft()
             except IndexError:
                 break
+            await monitor.record(measurement)
+            count += 1
 
 
 class Monitors(dict):
     """
-    A monitor that is a dict of key-monitor pairs. A call to the record
-    method in this class records the measurement in all of its monitors. The
-    key to associate with a monitor is at the discretion of its creator.
+    A monitor that is a dict of key-monitor pairs. A call to the record method
+    in this monitor records the measurement in all contained monitors. The key
+    to associate with a monitor is at the discretion of its creator.
     """
 
-    def record(self, measurement):
-        """
-        Record a measurement.
-        """
+    async def record(self, measurement):
+        """Record a measurement."""
         exception = None
         for monitor in self.values():
             try:
-                monitor.record(measurement)
+                await monitor.record(measurement)
             except Exception as e:
                 if not exception:
                     exception = e
@@ -314,29 +318,29 @@ class timer:
 
     Parameters:
     • tags: Tags to record upon completion of the timer.
-    • monitor: Monitor to record measurement in.  [monitor]
+    • monitors: Monitors to record measurement in.  [context monitors]
     • status: Name of tag to record status in measurement; None excludes status.
 
     If no exception is encounted during execution, recorded status is
     "success", otherwise "failure".
     """
 
-    def __init__(self, tags, *, monitor=None, status="status"):
+    def __init__(self, tags, *, monitors=None, status="status"):
         self.tags = tags
-        self.monitor = monitor or monitors
+        self.monitors = monitors
         self.status = status
 
-    def __enter__(self):
-        self.begin = time.time()
+    async def __aenter__(self):
+        self.begin = time.perf_counter()
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback):
-        duration = time.time() - self.begin
+    async def __aexit__(self, exc_type, exc_value, traceback):
+        duration = time.perf_counter() - self.begin
         tags = {**self.tags}
         if self.status:
             tags[self.status] = "failure" if exc_type else "success"
         try:
-            self.monitor.record(Measurement(tags, _now(), "gauge", duration))
+            await record(Measurement(tags, _now(), "gauge", duration), self.monitors)
         except:
             _logger.warning("Exception recording measurement", exc_info=True)
 
@@ -348,36 +352,51 @@ class counter:
 
     Parameters:
     • tags: Tags to record upon completion of the timer.
-    • monitor: Monitor to record measurement in.  [monitor]
+    • monitors: Monitors to record measurement in.  [context monitors]
     • status: Name of tag to record status in measurement; None excludes status.
 
     If no exception is encounted during execution, recorded status is
     "success", otherwise "failure".
     """
 
-    def __init__(self, tags, *, monitor=None, status="status"):
+    def __init__(self, tags, *, monitors=None, status="status"):
         self.tags = tags
-        self.monitor = monitor or monitors
+        self.monitors = monitors
         self.status = status
 
-    def __enter__(self):
+    async def __aenter__(self):
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    async def __aexit__(self, exc_type, exc_value, traceback):
         tags = {**self.tags}
         if self.status:
             tags[self.status] = "failure" if exc_type else "success"
         try:
-            self.monitor.record(Measurement(tags, _now(), "counter", 1))
+            await record(Measurement(tags, _now(), "counter", 1), self.monitors)
         except:
             _logger.warning("Exception recording measurement", exc_info=True)
 
 
-def record(measurement):
-    """
-    Record a measurement in all monitors.
-    """
-    monitors.record(measurement)
+@contextlib.contextmanager
+def push(monitor):
+    """Return a context manager that pushes a monitor onto the context stack."""
+    with context.push(context="fondat.monitor", monitor=monitor):
+        yield
 
 
-monitors = Monitors()
+def get_monitors():
+    """Return a generator that yields all context monitors."""
+    return (c["monitor"] for c in context.find(context="fondat.monitor"))
+
+
+async def record(measurement, monitors=None):
+    """
+    Record a measurement in the specified monitors. If no monitors are
+    specified, then measurement is recorded in all context monitors.
+
+    Parameters:
+    • measurement: Measurement to record.
+    • monitors: Monitors to record in.
+    """
+    for monitor in monitors or get_monitors():
+        await monitor.record(measurement)
