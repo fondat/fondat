@@ -1,16 +1,10 @@
 [[package]]
 category = "main"
-description = "Asynchronous file operations."
-name = "aiofile"
+description = "File support for asyncio."
+name = "aiofiles"
 optional = false
-python-versions = ">3.4.*, <4"
-version = "3.0.0"
-
-[package.dependencies]
-caio = ">=0.5.3,<0.6.0"
-
-[package.extras]
-develop = ["aiomisc", "pytest", "pytest-cov"]
+python-versions = "*"
+version = "0.5.0"
 
 [[package]]
 category = "main"
@@ -46,13 +40,12 @@ description = "Classes Without Boilerplate"
 name = "attrs"
 optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
-version = "19.3.0"
+version = "20.1.0"
 
 [package.extras]
-azure-pipelines = ["coverage", "hypothesis", "pympler", "pytest (>=4.3.0)", "six", "zope.interface", "pytest-azurepipelines"]
-dev = ["coverage", "hypothesis", "pympler", "pytest (>=4.3.0)", "six", "zope.interface", "sphinx", "pre-commit"]
-docs = ["sphinx", "zope.interface"]
-tests = ["coverage", "hypothesis", "pympler", "pytest (>=4.3.0)", "six", "zope.interface"]
+dev = ["coverage (>=5.0.2)", "hypothesis", "pympler", "pytest (>=4.3.0)", "six", "zope.interface", "sphinx", "sphinx-rtd-theme", "pre-commit"]
+docs = ["sphinx", "sphinx-rtd-theme", "zope.interface"]
+tests = ["coverage (>=5.0.2)", "hypothesis", "pympler", "pytest (>=4.3.0)", "six", "zope.interface"]
 
 [[package]]
 category = "dev"
@@ -73,17 +66,6 @@ typed-ast = ">=1.4.0"
 
 [package.extras]
 d = ["aiohttp (>=3.3.2)", "aiohttp-cors"]
-
-[[package]]
-category = "main"
-description = "Asynchronous file IO for Linux Posix and Wondows."
-name = "caio"
-optional = false
-python-versions = ">=3.5.*, <4"
-version = "0.5.3"
-
-[package.extras]
-develop = ["aiomisc", "pytest", "pytest-cov"]
 
 [[package]]
 category = "dev"
@@ -385,14 +367,14 @@ python-versions = "*"
 version = "1.12.1"
 
 [metadata]
-content-hash = "b238e4c7557324454b0326acf23792c89d00354ba494b0a215d60aff431d8506"
+content-hash = "b4927e2fca0509302b97a8d793e9ea0c4cd360338cf78caf178fb262ff227fb0"
 lock-version = "1.0"
 python-versions = "^3.8"
 
 [metadata.files]
-aiofile = [
-    {file = "aiofile-3.0.0-py3-none-any.whl", hash = "sha256:227836cbebd0f9577bc5ef10639f219b0dede40d7c120d6fb5518e9f84d846c6"},
-    {file = "aiofile-3.0.0.tar.gz", hash = "sha256:325e529fa61dbb84d4e35e245b18749dbb513575fd5d0cca466ea4c0f0cc86a2"},
+aiofiles = [
+    {file = "aiofiles-0.5.0-py3-none-any.whl", hash = "sha256:377fdf7815cc611870c59cbd07b68b180841d2a2b79812d8c218be02448c2acb"},
+    {file = "aiofiles-0.5.0.tar.gz", hash = "sha256:98e6bcfd1b50f97db4980e182ddd509b7cc35909e903a8fe50d8849e02d815af"},
 ]
 aiosqlite = [
     {file = "aiosqlite-0.15.0-py3-none-any.whl", hash = "sha256:19b984b6702aed9f1c85c023f37296954547fc4030dae8e9d027b2a930bed78b"},
@@ -407,27 +389,12 @@ atomicwrites = [
     {file = "atomicwrites-1.4.0.tar.gz", hash = "sha256:ae70396ad1a434f9c7046fd2dd196fc04b12f9e91ffb859164193be8b6168a7a"},
 ]
 attrs = [
-    {file = "attrs-19.3.0-py2.py3-none-any.whl", hash = "sha256:08a96c641c3a74e44eb59afb61a24f2cb9f4d7188748e76ba4bb5edfa3cb7d1c"},
-    {file = "attrs-19.3.0.tar.gz", hash = "sha256:f7b7ce16570fe9965acd6d30101a28f62fb4a7f9e926b3bbc9b61f8b04247e72"},
+    {file = "attrs-20.1.0-py2.py3-none-any.whl", hash = "sha256:2867b7b9f8326499ab5b0e2d12801fa5c98842d2cbd22b35112ae04bf85b4dff"},
+    {file = "attrs-20.1.0.tar.gz", hash = "sha256:0ef97238856430dcf9228e07f316aefc17e8939fc8507e18c6501b761ef1a42a"},
 ]
 black = [
     {file = "black-19.10b0-py36-none-any.whl", hash = "sha256:1b30e59be925fafc1ee4565e5e08abef6b03fe455102883820fe5ee2e4734e0b"},
     {file = "black-19.10b0.tar.gz", hash = "sha256:c2edb73a08e9e0e6f65a0e6af18b059b8b1cdd5bef997d7a0b181df93dc81539"},
-]
-caio = [
-    {file = "caio-0.5.3-cp35-cp35m-macosx_10_6_intel.whl", hash = "sha256:81274d37b2098276122a09880a8cc770caa6dff1e1a996dbd34583e47f259018"},
-    {file = "caio-0.5.3-cp35-cp35m-manylinux2010_x86_64.whl", hash = "sha256:954ac149ff3cc7b2904e66ccd3e9015429f1ecdf91029bb20324ab493ae0a495"},
-    {file = "caio-0.5.3-cp35-cp35m-manylinux2014_x86_64.whl", hash = "sha256:24e036edcaf4149020ea2d6ed78c1ac855a00158980fdd281ac51947d3f4c6eb"},
-    {file = "caio-0.5.3-cp36-cp36m-macosx_10_9_x86_64.whl", hash = "sha256:3db58364561f5a778a72a679794c4c0538d4fdb010c7c373c87f0d66b94b1b84"},
-    {file = "caio-0.5.3-cp36-cp36m-manylinux2010_x86_64.whl", hash = "sha256:68b2c8529b7d4625fe913317206803ab15c067fd5c4812bb11f7edbb236d0b2c"},
-    {file = "caio-0.5.3-cp36-cp36m-manylinux2014_x86_64.whl", hash = "sha256:dbf0fcbf0cbc73a44ed8f0f70be15856402ee9bae6986a5494c2e0f3953b2b7f"},
-    {file = "caio-0.5.3-cp37-cp37m-macosx_10_9_x86_64.whl", hash = "sha256:556253f87a69575d1712367c3c9ddef0e914ed5dc45403a230c7efbab9fee9ce"},
-    {file = "caio-0.5.3-cp37-cp37m-manylinux2010_x86_64.whl", hash = "sha256:71aebb2fdd604f0c5b7e751a70013109dffde74c8a2bff6d25d8b0a09904a5fb"},
-    {file = "caio-0.5.3-cp37-cp37m-manylinux2014_x86_64.whl", hash = "sha256:e4237bc513ba16b748068e364a258b1000c8d9155f58ef862314937b5ff47b1b"},
-    {file = "caio-0.5.3-cp38-cp38-macosx_10_9_x86_64.whl", hash = "sha256:393bc1d08778d8288fbe3fdef794a672807e3853f97d08b66ee9b3728c6aad36"},
-    {file = "caio-0.5.3-cp38-cp38-manylinux2010_x86_64.whl", hash = "sha256:2dbdc306e991fb051dd5acb3ccceda360acd3bedf0f0ff7e662b736af9c82523"},
-    {file = "caio-0.5.3-cp38-cp38-manylinux2014_x86_64.whl", hash = "sha256:197fab08573235f8a7acb0fc09971e331d5354cf6b8be6ade8308a6aabef7da5"},
-    {file = "caio-0.5.3.tar.gz", hash = "sha256:5c01a1a2f341c9251e1c8140ea88f014cd63c71bd6aab3554fbda2c749bf503e"},
 ]
 cfgv = [
     {file = "cfgv-3.2.0-py2.py3-none-any.whl", hash = "sha256:32e43d604bbe7896fe7c248a9c2276447dbef840feb28fe20494f62af110211d"},

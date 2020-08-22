@@ -24,7 +24,7 @@ classifiers = [
 
 [tool.poetry.dependencies]
 python = "^3.8"
-aiofile = "^3.0"
+aiofiles = "^0.5"
 aiosqlite = "^0.15"
 isodate = "^0.6"
 WebOb = "^1.8"
