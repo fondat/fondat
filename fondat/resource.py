@@ -181,36 +181,23 @@ _methods = {
     "delete": "mutation",
     "patch": "mutation",
 }
-_types = {"query": "get", "mutation": "post", "link": "get"}
 
 
 def operation(
-    wrapped=None,
-    *,
-    type=None,
-    method=None,
-    security=None,
-    publish=True,
-    deprecated=False,
+    wrapped=None, *, type=None, security=None, publish=True, deprecated=False,
 ):
     """
     Decorate a resource coroutine to register it as an operation.
 
     Parameters:
     • type: Type of operation.  {"query", "mutation", "link"}
-    • method: Method type of operation.  {"get", "put", "post", "delete", "patch"}
     • security: Security requirements for the operation.
     • publish: Publish the operation in documentation.
     • deprecated: Declare the operation as deprecated.
 
-    The method intentionally aligns with standard HTTP methods:
-    {"get", "put", "post", "delete", "patch"}. If an operation is named the
-    same as one of these method types without explicitly specifying a method
-    for the operation, it will be assigned that method type.
-
-    The default method for query operations is "get"; the default method
-    for mutation operations is "post". This should not ordinarily be
-    overridden.
+    If method name is "get", then type shall default to "query"; if name is
+    one of {"put", "post", "delete", "patch"} then type shall default to
+    "mutation"; otherwise type must be specified.
     """
 
     if wrapped is None:
@@ -229,18 +216,12 @@ def operation(
     description = wrapped.__doc__ or name
     summary = _summary(wrapped)
 
-    _method = method or (name if name in _methods else None)
-    _type = type or (_methods.get(_method))
-    _method = _method or _types.get(_type)
+    _type = type or (_methods.get(name))
 
     if _type is None:
         raise ValueError(f"unknown operation type: {type}")
-    if _type not in _types:
+    if _type not in {"query", "mutation", "link"}:
         raise ValueError(f"invalid operation type: {type}")
-    if _method is None:
-        raise ValueError(f"unknown operation method: {method}")
-    if _method not in _methods:
-        raise ValueError(f"invalid operation method: {method}")
 
     @wrapt.decorator
     async def wrapper(wrapped, instance, args, kwargs):
@@ -258,7 +239,6 @@ def operation(
     wrapped._fondat_operation = _Descriptor(
         name=name,
         type=_type,
-        method=_method,
         summary=summary,
         description=description,
         security=security,
