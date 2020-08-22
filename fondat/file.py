@@ -40,6 +40,7 @@ def file_resource(path, schema, extension="", compress=None, security=None):
     • schema: Schema of file content.
     • extenson: Filename extension to use for each file (including dot).
     • compress: Algorithm to compress and decompress file content.
+    • security: Security requirements to apply to all operations.
 
     Compression algorithm is any object or module that exposes callable
     "compress" and "decompress" attributes. Examples: bz2, gzip, lzma, zlib.
@@ -103,7 +104,7 @@ def file_resource(path, schema, extension="", compress=None, security=None):
 
         @operation(type="query", security=security)
         async def list(self) -> s.list(s.str()):
-            """Return list of items."""
+            """Return list of item identifiers."""
             result = []
             try:
                 listdir = os.listdir(_path)
