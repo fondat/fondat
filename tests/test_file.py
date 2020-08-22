@@ -101,7 +101,7 @@ async def test_invalid_directory():
         await fr.list()
 
 
-async def test_read_schemaerror():
+async def test_schemaerror():
     with TemporaryDirectory() as dir:
         fr = file_resource(dir, schema=s.int(), extension=".int")()
         await fr.put("1", 1)
