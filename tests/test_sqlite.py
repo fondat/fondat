@@ -51,7 +51,7 @@ async def resource(table):
     async with table.database.transaction() as t:
         await t.execute(stmt)
     resource = sql.table_resource(table)
-    return resource("id1")
+    return resource()
 
 
 async def test_gpppd(resource):
@@ -89,26 +89,25 @@ async def test_gpppd(resource):
         await resource.get(data.id)
 
 
-# async def test_binary(database):
-#     @dataclass
-#     class Bin:
-#         id: s.uuid()
-#         bin: s.bytes(format="binary")
+async def test_binary(database):
+    @dataclass
+    class Bin:
+        id: s.uuid()
+        bin: s.bytes(format="binary")
 
-#     schema = s.dataclass(Bin)
-#     row = Bin(uuid4(), b"12345")
-#     table = sql.Table("bin", schema, "id")
-#     await database.create_table(table)
-#     try:
-#         resource = sql.TableResource(table, database)
-#         resource.database = database
-#         await resource.create(row.id, row)
-#         assert await resource.read(row.id) == row
-#         row.bin = b"bacon"
-#         await resource.update(row.id, row)
-#         assert (await resource.read(row.id)).bin == b"bacon"
-#     finally:
-#         await database.drop_table(table)
+    schema = s.dataclass(Bin)
+    row = Bin(uuid4(), b"\x01\x02\x03\x04\x05")
+    table = sql.Table(database, "bin", schema, "id")
+    await table.create()
+    try:
+        resource = sql.table_resource(table)()
+        await resource.post(row.id, row)
+        assert await resource.get(row.id) == row
+        row.bin = b"bacon"
+        await resource.put(row.id, row)
+        assert (await resource.get(row.id)).bin == b"bacon"
+    finally:
+        await table.drop()
 
 
 async def test_list(resource):
