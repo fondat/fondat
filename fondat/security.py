@@ -1,7 +1,7 @@
 """Module for authentication and authorization to resource operations."""
 
-import roax.context
-import roax.resource
+import fondat.context
+import fondat.resource
 
 
 class SecurityRequirement:
@@ -22,17 +22,17 @@ class SecurityRequirement:
         self.scheme = scheme
         self.scopes = scopes
 
-    def authorize(self):
+    async def authorize(self):
         """
         Raise an exception if no authorization to perform the operation is
         granted.
 
         If no valid context or credentials are established, then the
-        roax.resource.Unauthorized exception should be raised.
+        fondat.resource.Unauthorized exception should be raised.
 
         If a valid context or credentials are established, but are
         insufficient to provide authorization for the operation, then
-        the roax.resource.Forbidden exception should be raised. 
+        the fondat.resource.Forbidden exception should be raised. 
         """
         raise NotImplementedError
 
@@ -89,9 +89,9 @@ class ContextSecurityRequirement(SecurityRequirement):
         super().__init__()
         self.context = dict(*args, **varargs)
 
-    def authorize(self):
-        if not roax.context.last(self.context):
-            raise roax.resource.Unauthorized
+    async def authorize(self):
+        if not fondat.context.last(self.context):
+            raise fondat.resource.Unauthorized
 
 
 class CLISecurityRequirement(ContextSecurityRequirement):
@@ -101,20 +101,26 @@ class CLISecurityRequirement(ContextSecurityRequirement):
     """
 
     def __init__(self):
-        super().__init__(context="roax.cli")
+        super().__init__(context="fondat.cli")
 
 
-class NestedOperationSecurityRequirement(SecurityRequirement):
+class CallerSecurityRequirement(SecurityRequirement):
     """
-    Authorizes an operation if it's called (directly or indirectly) from another
-    operation.
+    Authorizes an operation if it's called by another operation.
+
+    Parameters:
+    • resource: String containing module and class name of operation resource.
+    • operation: String containing name of operation.
     """
 
-    def authorize(self):
-        if len(roax.context.find(context="roax.operation")) < 2:
-            raise roax.resource.Unauthorized
+    def __init__(self, resource, operation):
+        self.resource = resource
+        self.operation = operation
+
+    async def authorize(self):
+        ctx = fondat.context.last(context="fondat.operation")
+        if ctx["resource"] != self.resource or ctx["operation"] != self.operation:
+            raise fondat.resource.Unauthorized
 
 
 cli = CLISecurityRequirement()
-
-nested = NestedOperationSecurityRequirement()
