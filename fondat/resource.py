@@ -234,7 +234,10 @@ def operation(
             async with monitor.timer({"name": "operation_duration_seconds", **tags}):
                 async with monitor.counter({"name": "operation_calls_total", **tags}):
                     await authorize(operation.security)
-                    return await wrapped(*args, **kwargs)
+                    schema.validate_arguments(wrapped, args, kwargs)
+                    result = await wrapped(*args, **kwargs)
+                    schema.validate_return(wrapped, result, InternalServerError)
+                    return result
 
     wrapped._fondat_operation = _Descriptor(
         name=name,
@@ -248,7 +251,7 @@ def operation(
         returns=wrapped.__annotations__.get("return"),
     )
 
-    return schema.validate(wrapper(wrapped))
+    return wrapper(wrapped)
 
 
 def get_operations(resource):
