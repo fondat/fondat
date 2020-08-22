@@ -38,5 +38,7 @@ _export(
     "dataclass",
     "resource",
     "validate",
+    "validate_arguments",
+    "validate_return",
     "data",
 )

@@ -1355,6 +1355,49 @@ class _dataclass(_type):
         return self.json_decode(json.loads(value))
 
 
+class _resource(_type):
+    """
+    Schema type for resource.
+
+    Parameters and attributes:
+    • cls: Class the defines the resource.
+    • content_type: Content type used when value is expressed in a body.
+    • nullable: Allow None as a valid value.
+    • description: A description of the schema.  [resource class docstring]
+
+    The class parameter can be a resource class, or a tuple containing
+    ("module", class") strings to import the module and resolve the resource
+    class.
+    """
+
+    def __init__(
+        self, cls, *, description=None, content_type="application/json", **kwargs
+    ):
+        super().__init__(
+            python_type=object,
+            json_type="object",
+            content_type=content_type,
+            description=description or getattr(self, "description", cls.__doc__),
+            **kwargs,
+        )
+        self._cls = cls
+
+    @property
+    def cls(self):
+        if type(self._cls) is tuple:
+            m, c = self._cls
+            self._cls = getattr(importlib.import_module(m), c)
+        return self._cls
+
+    def json_encode(self, value):
+        """Encode the value into JSON object model representation."""
+        return str_encode(value)
+
+    def str_encode(self, value):
+        """Encode the value into string representation."""
+        return str(value.id)
+
+
 def _validate_arguments(function, args, kwargs):
     sig = inspect.signature(function)
     if len(args) > len(
@@ -1401,53 +1444,13 @@ def _validate_arguments(function, args, kwargs):
             raise TypeError(f"unrecognized kind for parameter {p.name}")
 
 
-class _resource(_type):
-    """
-    Schema type for resource.
-
-    Parameters and attributes:
-    • cls: Class the defines the resource.
-    • content_type: Content type used when value is expressed in a body.
-    • nullable: Allow None as a valid value.
-    • description: A description of the schema.  [resource class docstring]
-
-    The class parameter can be a resource class, or a tuple containing
-    ("module", class") strings to import the module and resolve the resource
-    class.
-    """
-
-    def __init__(
-        self, cls, *, description=None, content_type="application/json", **kwargs
-    ):
-        super().__init__(
-            python_type=object,
-            json_type="object",
-            content_type=content_type,
-            description=description or getattr(self, "description", cls.__doc__),
-            **kwargs,
-        )
-        self._cls = cls
-
-    @property
-    def cls(self):
-        if type(self._cls) is tuple:
-            m, c = self._cls
-            self._cls = getattr(importlib.import_module(m), c)
-        return self._cls
-
-    def json_encode(self, value):
-        """Encode the value into JSON object model representation."""
-        return str_encode(value)
-
-    def str_encode(self, value):
-        """Encode the value into string representation."""
-        return str(value.id)
-
-
-def _validate_return_value(function, value):
+def _validate_return(function, value, exception=None):
     returns = function.__annotations__.get("return")
     if returns is not None and isinstance(returns, _type):
-        returns.validate(value)
+        try:
+            returns.validate(value)
+        except e:
+            raise exception from e if exception is not None else e
 
 
 def _validate(function):
@@ -1462,7 +1465,7 @@ def _validate(function):
         async def decorator(wrapped, instance, args, kwargs):
             _validate_arguments(wrapped, args, kwargs)
             result = await wrapped(*args, **kwargs)
-            _validate_return_value(wrapped, result)
+            _validate_return(wrapped, result)
             return result
 
     else:
@@ -1471,7 +1474,7 @@ def _validate(function):
         def decorator(wrapped, instance, args, kwargs):
             _validate_arguments(wrapped, args, kwargs)
             result = wrapped(*args, **kwargs)
-            _validate_return_value(wrapped, result)
+            _validate_return(wrapped, result)
             return result
 
     return decorator(function)
