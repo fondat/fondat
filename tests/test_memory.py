@@ -1,151 +1,100 @@
+import fondat.resource as r
+import fondat.schema as s
 import pytest
-import roax.resource as r
-import roax.schema as s
 
-from roax.memory import MemoryResource
-from roax.resource import BadRequest, Conflict, NotFound, operation
+from fondat.memory import memory_resource
+from fondat.resource import BadRequest, Conflict, NotFound, operation
 from time import sleep
 from uuid import uuid4
 
 
-def test_crud_dict():
+pytestmark = pytest.mark.asyncio
 
-    _schema = s.dict({"id": s.uuid(), "foo": s.str(), "bar": s.int()}, "foo bar")
 
-    class FooResource(MemoryResource):
-        @operation()
-        def create(self, _body: _schema) -> s.dict({"id": _schema.props["id"]}):
-            return super().create(uuid4(), _body)
-
-        def read(self, id: _schema.props["id"]) -> _schema:
-            return {**super().read(id), "id": id}
-
-        @operation()
-        def update(self, id: _schema.props["id"], _body: _schema):
-            return super().update(id, _body)
-
-        @operation()
-        def delete(self, id: _schema.props["id"]):
-            return super().delete(id)
-
-        @operation(type="query")
-        def list(self) -> s.list(_schema.props["id"]):
-            return super().list()
-
-    rs = FooResource()
+async def test_gpdl_dict():
+    schema = s.dict({"foo": s.str(), "bar": s.int()}, "foo bar")
+    mr = memory_resource(schema)()
+    id = "id1"
     r1 = {"foo": "hello", "bar": 1}
-    id = rs.create(r1)["id"]
-    r1["id"] = id
-    r2 = rs.read(id)
+    await mr.put(id, r1)
+    r2 = await mr.get(id)
     assert r1 == r2
     r1["bar"] = 2
-    rs.update(id, r1)
-    r2 = rs.read(id)
+    await mr.put(id, r1)
+    r2 = await mr.get(id)
     assert r1 == r2
-    rs.delete(id)
-    assert rs.list() == []
+    await mr.delete(id)
+    assert await mr.list() == []
 
 
-def test_crud_str():
-
-    _schema = s.str()
-
-    class StrResource(MemoryResource):
-        @operation()
-        def create(self, id: s.str(), _body: _schema) -> s.dict({"id": s.str()}):
-            return super().create(id, _body)
-
-        @operation()
-        def read(self, id: s.str()) -> _schema:
-            return super().read(id)
-
-        @operation()
-        def update(self, id: s.str(), _body: _schema):
-            return super().update(id, _body)
-
-        @operation()
-        def delete(self, id: s.str()):
-            return super().delete(id)
-
-        @operation(type="query")
-        def list(self) -> s.list(s.str()):
-            return super().list()
-
-    mr = StrResource()
-    body = "你好，世界!"
+async def test_gpdl_str():
+    mr = memory_resource(s.str())()
+    data = "你好，世界!"
     id = "hello_world"
-    assert mr.create(id, body)["id"] == id
-    assert mr.list() == [id]
-    assert mr.read(id) == body
-    body = "Goodbye world!"
-    mr.update(id, body)
-    assert mr.read(id) == body
-    mr.delete(id)
-    assert mr.list() == []
+    await mr.put(id, data)
+    assert await mr.list() == [id]
+    assert await mr.get(id) == data
+    data = "Goodbye world!"
+    await mr.put(id, data)
+    assert await mr.get(id) == data
+    await mr.delete(id)
+    assert await mr.list() == []
 
 
-def test_crud_bytes():
-
-    mr = MemoryResource()
-    body = b"\x00\x0e\0x01\0x01\0x00"
+async def test_gpdl_bytes():
+    mr = memory_resource(s.bytes())()
+    data = b"\x00\x0e\0x01\0x01\0x00"
     id = "binary"
-    assert mr.create(id, body)["id"] == id
-    assert mr.list() == [id]
-    assert mr.read(id) == body
-    body = bytes((1, 2, 3, 4, 5))
-    mr.update(id, body)
-    assert mr.read(id) == body
-    mr.delete(id)
-    assert mr.list() == []
+    await mr.put(id, data)
+    assert await mr.list() == [id]
+    assert await mr.get(id) == data
+    data = bytes((1, 2, 3, 4, 5))
+    await mr.put(id, data)
+    assert await mr.get(id) == data
+    await mr.delete(id)
+    assert await mr.list() == []
 
 
-def test_create_conflict():
-    mr = MemoryResource()
-    mr.create("1", "foo")
-    with pytest.raises(Conflict):
-        mr.create("1", "foo")
-
-
-def test_read_notfound():
-    mr = MemoryResource()
+async def test_get_notfound():
+    mr = memory_resource(s.str())()
     with pytest.raises(NotFound):
-        mr.read("1")
+        await mr.get("1")
 
 
-def test_delete_notfound():
-    mr = MemoryResource()
+async def test_delete_notfound():
+    mr = memory_resource(s.str())()
     with pytest.raises(NotFound):
-        mr.delete("1")
+        await mr.delete("1")
 
 
-def test_clear():
-    mr = MemoryResource()
-    mr.create("1", "foo")
-    mr.create("2", "bar")
-    assert len(mr.list()) == 2
-    mr.clear()
-    assert len(mr.list()) == 0
+async def test_clear():
+    mr = memory_resource(s.str())()
+    await mr.put("1", "foo")
+    await mr.put("2", "bar")
+    assert len(await mr.list()) == 2
+    await mr.clear()
+    assert len(await mr.list()) == 0
 
 
-def test_size_limit():
-    mr = MemoryResource(size=1)
-    mr.create("1", "foo")
+async def test_size_limit():
+    mr = memory_resource(s.str(), size=1)()
+    await mr.put("1", "foo")
     with pytest.raises(BadRequest):
-        mr.create("2", "bar")
+        await mr.put("2", "bar")
 
 
-def test_size_evict():
-    mr = MemoryResource(size=2, evict=True)
-    mr.create("1", "foo")
-    mr.create("2", "bar")
-    mr.create("3", "qux")
-    assert set(mr.list()) == {"2", "3"}
+async def test_size_evict():
+    mr = memory_resource(s.str(), size=2, evict=True)()
+    await mr.put("1", "foo")
+    await mr.put("2", "bar")
+    await mr.put("3", "qux")
+    assert set(await mr.list()) == {"2", "3"}
 
 
-def test_ttl():
-    mr = MemoryResource(ttl=0.1)
-    mr.create("1", "foo")
-    mr.read("1")
+async def test_ttl():
+    mr = memory_resource(s.str(), ttl=0.1)()
+    await mr.put("1", "foo")
+    await mr.get("1")
     sleep(0.2)
     with pytest.raises(NotFound):
-        read = mr.read("1")
+        await mr.get("1")
