@@ -1,21 +1,17 @@
+import fondat.resource as r
+import fondat.schema as s
 import pytest
-import roax.resource as r
-import roax.schema as s
 
-from roax.static import StaticResource
-from roax.resource import operation
+from fondat.static import static_resource
+from fondat.resource import operation
 
 
-_schema = s.bytes(format="binary")
+schema = s.bytes(format="binary")
 
-_content = b"This is the content that will be returned."
-
-
-class _TestResource(StaticResource):
-    def __init__(self):
-        super().__init__(_content, _schema)
+content = b"This is the content that will be returned."
 
 
-def test_read():
-    tr = _TestResource()
-    assert tr.read() == _content
+@pytest.mark.asyncio
+async def test_get():
+    resource = static_resource(content, schema)()
+    assert await resource.get() == content
