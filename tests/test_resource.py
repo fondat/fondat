@@ -86,5 +86,5 @@ def test_mismatch_operation_type():
                 pass
 
 
-def test_resource_error():
-    assert str(ResourceError("foo", 123)) == "foo"
+def test_resource_error_str():
+    assert str(ResourceError("foo")) == "foo"

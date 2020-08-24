@@ -4,91 +4,32 @@ Module to implement resources.
 A resource is an addressible object that exposes operations through a uniform
 set of methods.
 
-
 A resource class contains operation methods, each decorated with the
 @operation decorator.
 """
 
 import asyncio
 import functools
+import http
 import inspect
 import fondat.context as context
 import fondat.monitor as monitor
 import fondat.schema as schema
+import types
 import wrapt
 
 
 class ResourceError(Exception):
-    """
-    Base class for resource errors.
+    """Base class for resource errors."""
 
-    Parameters:
-    • detail: Textual description of the error.
-    • code: HTTP status associated with the error.
-    """
-
-    def __init__(self, detail=None, code=None):
-        if detail is not None:
-            self.detail = detail
-        if code is not None:
-            self.code = code
-        try:
-            self.detail, self.code
-        except AttributeError as ae:
-            raise ValueError(ae)
-
-        super().__init__(self.detail)
-
-    def __str__(self):
-        return self.detail
+    pass
 
 
-class BadRequest(ResourceError):
-    """Raised if the request is malformed."""
-
-    detail, code = "Bad Request", 400
-
-
-class Unauthorized(ResourceError):
-    """Raised if the request lacks valid authentication credentials."""
-
-    detail, code = "Unauthorized", 401
-
-
-class Forbidden(ResourceError):
-    """Raised if authorization to the resource is refused."""
-
-    detail, code = "Forbidden", 403
-
-
-class NotFound(ResourceError):
-    """Raised if the resource could not be found."""
-
-    detail, code = "Not Found", 404
-
-
-class OperationNotAllowed(ResourceError):
-    """Raised if the resource does not allow the requested operation."""
-
-    detail, code = "Operation Not Allowed", 405
-
-
-class Conflict(ResourceError):
-    """Raised if there is a conflict with the current state of the resource."""
-
-    detail, code = "Conflict", 409
-
-
-class PreconditionFailed(ResourceError):
-    """Raised if the revision provided does not match the current resource."""
-
-    detail, code = "Precondition Failed", 412
-
-
-class InternalServerError(ResourceError):
-    """Raised if the server encountered an unexpected condition."""
-
-    detail, code = "Internal Server Error", 500
+# generate concrete error classes
+for status in http.HTTPStatus:
+    if 400 <= status <= 599:
+        name = "".join([w.capitalize() for w in status.name.split("_")])
+        globals()[name] = type(name, (ResourceError,), {"status": status})
 
 
 def _summary(function):
@@ -146,12 +87,6 @@ def _params(function):
     )
 
 
-class _Descriptor:
-    def __init__(self, **kwargs):
-        for key in kwargs:
-            setattr(self, key, kwargs[key])
-
-
 def resource(wrapped=None, *, tag=None):
     """
     Decorate a class to be a resource containing operations.
@@ -168,7 +103,7 @@ def resource(wrapped=None, *, tag=None):
         attr = getattr(wrapped, name)
         if operation := getattr(attr, "_fondat_operation", None):
             operations[name] = operation
-    wrapped._fondat_resource = _Descriptor(
+    wrapped._fondat_resource = types.SimpleNamespace(
         tag=tag or wrapped.__name__.lower(), operations=operations,
     )
     return wrapped
@@ -236,10 +171,13 @@ def operation(
                     await authorize(operation.security)
                     schema.validate_arguments(wrapped, args, kwargs)
                     result = await wrapped(*args, **kwargs)
-                    schema.validate_return(wrapped, result, InternalServerError)
+                    try:
+                        schema.validate_return(wrapped, result)
+                    except SchemaError as se:
+                        raise InternalServerError from se
                     return result
 
-    wrapped._fondat_operation = _Descriptor(
+    wrapped._fondat_operation = types.SimpleNamespace(
         name=name,
         type=_type,
         summary=summary,
