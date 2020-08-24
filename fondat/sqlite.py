@@ -127,7 +127,7 @@ class Transaction:
 
     async def execute(self, statement):
         sql = "".join(
-            map(lambda o: "?" if o is statement.PARAM else o, statement.operation)
+            ["?" if op is statement.PARAM else op for op in statement.operation]
         )
         params = [self._sql_encode(param) for param in statement.parameters]
         return Rows(await self.connection.execute(sql, params))
