@@ -965,22 +965,6 @@ def test_bytes_invalid_format():
         s.bytes(format="foo")
 
 
-def test_bytes_binary_json_encode():
-    _error(s.bytes(format="binary").json_encode, b"12345")
-
-
-def test_bytes_binary_json_decode():
-    _error(s.bytes(format="binary").json_decode, "ain't gonna decode")
-
-
-def test_bytes_binary_str_encode():
-    _error(s.bytes(format="binary").str_encode, b"12345")
-
-
-def test_bytes_binary_str_decode():
-    _error(s.bytes(format="binary").str_decode, "ain't gonna decode")
-
-
 def test_bytes_hex_str_encode():
     assert s.bytes(format="hex").str_encode(b"\xde\xad\xbe\xef") == "deadbeef"
 
@@ -1133,15 +1117,11 @@ def test_one_of_match_inner_none_ambiguous():
     assert s.one_of((s.str(nullable=True), s.int(nullable=True))).match(None) == None
 
 
-# -- reader -----
+# -- stream -----
 
 
-def test_reader_validate_type_success():
-    s.reader().validate(BytesIO())
-
-
-def test_reader_validate_type_error():
-    _error(s.reader().validate, "this_is_not_a_reader_object")
+def test_stream_validate_type_success():
+    s.stream().validate(object())
 
 
 # -- dataclass -----

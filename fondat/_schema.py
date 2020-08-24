@@ -1224,11 +1224,15 @@ class one_of(_xof):
         return values[0]  # return matching value
 
 
-class reader(_type):
+class _stream(_type):
     """
-    Schema type for file-like object to read binary content. Allows large-payload
-    values to be transmitted without allocating all in memory. In operations, this
-    schema type can only used in _body parameter and return values.
+    Schema type for an asynchronous iterator to read byte strings. Allows a
+    large byte string to be exchanged without allocating memory to store the
+    entire value.
+
+    Each next call on the stream iterator returns a byte string containing
+    1 or more bytes. When there are no further bytes to exchange, then
+    StopAsyncIteration is raised.
 
     Parameters and attributes:
     • content_type: Content type used when value is expressed in a body.  ["application/octet-stream"]
@@ -1238,12 +1242,6 @@ class reader(_type):
         super().__init__(
             json_type="string", format="binary", content_type=content_type, **kwargs
         )
-
-    def validate(self, value):
-        """Validate value against the schema."""
-        super().validate(value)
-        if not callable(getattr(value, "read", None)):
-            raise SchemaError("expecting readable file-like object")
 
 
 class _dataclass(_type):
@@ -1424,9 +1422,7 @@ def _validate_arguments(function, args, kwargs):
             value = params[p.name]
             if p.name in function.__annotations__:
                 schema = function.__annotations__[p.name]
-                if isinstance(schema, reader) and p.name != "_body":
-                    raise TypeError(f"cannot use reader schema for parameter {p.name}")
-                elif isinstance(schema, _type):
+                if isinstance(schema, _type):
                     try:
                         schema.validate(params[p.name])
                     except SchemaError as se:
@@ -1444,13 +1440,10 @@ def _validate_arguments(function, args, kwargs):
             raise TypeError(f"unrecognized kind for parameter {p.name}")
 
 
-def _validate_return(function, value, exception=None):
+def _validate_return(function, value):
     returns = function.__annotations__.get("return")
     if returns is not None and isinstance(returns, _type):
-        try:
-            returns.validate(value)
-        except e:
-            raise exception from e if exception is not None else e
+        returns.validate(value)
 
 
 def _validate(function):
