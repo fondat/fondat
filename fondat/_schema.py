@@ -32,7 +32,7 @@ def _csv_decode(value):
 class SchemaError(ValueError):
     """
     Raised if a value does not conform to its schema.
-    
+
     Parameters:
     • path: Python-style path to value with error.
     """
@@ -628,9 +628,9 @@ class _int(_number):
     Schema type for integer.
 
     Parameters and attributes:
-    • content_type: Content type used when value is expressed in a body.  ["text/plain"]
     • min: Inclusive lower limit of the value.
     • max: Inclusive upper limit of the value.
+    • content_type: Content type used when value is expressed in a body.  ["text/plain"]
     • nullable: Allow None as a valid value.
     • enum: A list of values that are valid.
     • description: A description of the schema.
@@ -672,9 +672,9 @@ class _float(_number):
     Schema type for floating point number.
 
     Parameters and attributes:
-    • content_type: Content type used when value is expressed in a body.  ["text/plain"]
     • min: Inclusive lower limit of the value.
     • max: Inclusive upper limit of the value.
+    • content_type: Content type used when value is expressed in a body.  ["text/plain"]
     • nullable: Allow None as a valid value.
     • enum: A list of values that are valid.
     • description: A description of the schema.
@@ -709,18 +709,21 @@ class _decimal(_number):
 
     Parameters and attributes:
     • prec: number of digits of precision.
-    • content_type: Content type used when value is expressed in a body.  ["text/plain"]
     • min: Inclusive lower limit of the value.
     • max: Inclusive upper limit of the value.
+    • content_type: Content type used when value is expressed in a body.  ["text/plain"]
     • nullable: Allow None as a valid value.
     • enum: A list of values that are valid.
     • description: A description of the schema.
     • example: An example of an instance for this schema.
+
+    Decimal values are represented in JSON as strings, due to the imprecision
+    of floating point numbers.
     """
 
     def __init__(self, prec=None, **kwargs):
         super().__init__(
-            python_type=decimal.Decimal, json_type="number", format="double", **kwargs
+            python_type=decimal.Decimal, json_type="string", format="decimal", **kwargs
         )
         self.prec = prec
 
@@ -733,27 +736,27 @@ class _decimal(_number):
         """Encode the value into JSON object model representation."""
         self.validate(value)
         if value is not None:
-            return float(self._round(value))
+            return self.str_encode(value)
 
     def json_decode(self, value):
         """Decode the value from JSON object model representation."""
-        return self.str_decode(
-            None if value is None else str(value)
-        )  # avoid float conversion inaccuracy
+        return self.str_decode(value)
 
     def str_encode(self, value):
         """Encode the value into string representation."""
         self.validate(value)
-        if value is not None:
-            return str(self._round(value))
+        return None if value is None else str(self._round(value))
 
     def str_decode(self, value):
         """Decode the value from string representation."""
         if value is not None:
             try:
                 value = decimal.Decimal(value)
-            except decimal.InvalidOperation as io:
-                raise SchemaError("expecting a number") from io
+            except (decimal.InvalidOperation, TypeError) as error:
+                raise SchemaError(
+                    "expecting a string containing decimal number"
+                ) from error
+        value = self._round(value)
         self.validate(value)
         return value
 
@@ -785,9 +788,7 @@ class _bool(_type):
     def str_encode(self, value):
         """Encode the value into string representation."""
         self.validate(value)
-        if value is None:
-            return None
-        return "true" if value else "false"
+        return None if value is None else "true" if value else "false"
 
     def str_decode(self, value):
         """Decode the value from string representation."""
@@ -802,7 +803,7 @@ class _bool(_type):
 class _bytes(_type):
     """
     Schema type for byte sequence.
-    
+
     Parameters and attributes:
     • content_type: Content type used when value is expressed in a body.
     • format: More finely defines the data type.  {"byte", "hex", "binary"}.
@@ -1226,12 +1227,10 @@ class one_of(_xof):
 
 class _stream(_type):
     """
-    Schema type for an asynchronous iterator to read byte strings. Allows a
-    large byte string to be exchanged without allocating memory to store the
-    entire value.
+    Schema type for an asynchronous iterator to read byte strings.
 
-    Each next call on the stream iterator returns a byte string containing
-    1 or more bytes. When there are no further bytes to exchange, then
+    Each __anext__ call on the stream iterator returns a byte string containing
+    0 or more bytes. When there are no further bytes to exchange, then
     StopAsyncIteration is raised.
 
     Parameters and attributes:
@@ -1353,49 +1352,6 @@ class _dataclass(_type):
         return self.json_decode(json.loads(value))
 
 
-class _resource(_type):
-    """
-    Schema type for resource.
-
-    Parameters and attributes:
-    • cls: Class the defines the resource.
-    • content_type: Content type used when value is expressed in a body.
-    • nullable: Allow None as a valid value.
-    • description: A description of the schema.  [resource class docstring]
-
-    The class parameter can be a resource class, or a tuple containing
-    ("module", class") strings to import the module and resolve the resource
-    class.
-    """
-
-    def __init__(
-        self, cls, *, description=None, content_type="application/json", **kwargs
-    ):
-        super().__init__(
-            python_type=object,
-            json_type="object",
-            content_type=content_type,
-            description=description or getattr(self, "description", cls.__doc__),
-            **kwargs,
-        )
-        self._cls = cls
-
-    @property
-    def cls(self):
-        if type(self._cls) is tuple:
-            m, c = self._cls
-            self._cls = getattr(importlib.import_module(m), c)
-        return self._cls
-
-    def json_encode(self, value):
-        """Encode the value into JSON object model representation."""
-        return str_encode(value)
-
-    def str_encode(self, value):
-        """Encode the value into string representation."""
-        return str(value.id)
-
-
 def _validate_arguments(function, args, kwargs):
     sig = inspect.signature(function)
     if len(args) > len(
@@ -1473,13 +1429,13 @@ def _validate(function):
     return decorator(function)
 
 
-def _data(cls, **kwargs):
+def _data(class_, **kwargs):
     """
     Decorate a class to be a data class with an added _schema attribute.
 
     All parameters are passed through to the dataclass decorator.
     """
 
-    result = dataclasses.dataclass(cls, **kwargs)
+    result = dataclasses.dataclass(class_, **kwargs)
     result._schema = _dataclass(result)
     return result
