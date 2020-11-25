@@ -6,7 +6,6 @@ from fondat.resource import (
     ResourceError,
     resource,
     operation,
-    get_operations,
 )
 
 
@@ -51,15 +50,6 @@ class R3(R1):
 @pytest.mark.asyncio
 async def test_call():
     await R1().post(body={"foo": "bar"})
-
-
-def test_operations():
-    assert get_operations(R1).keys() == {"post", "delete", "foo"}
-    assert get_operations(R1()).keys() == {"post", "delete", "foo"}
-
-
-def test_inheritance():
-    assert get_operations(R3).keys() == {"post", "delete", "foo", "bar"}
 
 
 @pytest.mark.asyncio
