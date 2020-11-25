@@ -98,7 +98,7 @@ def lazy_class(module, class_):
 
     Parameters:
     • module: String containing module to import.
-    • module: String containing class name in module to resolve.
+    • class_: String containing class name in module to resolve.
     """
 
     @lazy
