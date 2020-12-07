@@ -231,21 +231,12 @@ class DecimalCodec(Codec):
     """
     Codec for decimal numbers.
 
-    Parameters and attributes:
-    • precision: Number of digits of precision.  [floating point]
-
-    Decimal values are represented in JSON as strings, due to the imprecision
+    Decimal numbers are represented in JSON as strings, due to the imprecision
     of floating point numbers.
     """
 
     python_type = decimal.Decimal
     json_type = str
-
-    def __init__(self, precision=None):
-        self.precision = precision
-
-    def _round(self, value: decimal.Decimal) -> decimal.Decimal:
-        return round(value, self.precision) if self.precision is not None else value
 
     @validate_arguments
     def json_encode(self, value: decimal.Decimal) -> str:
@@ -257,12 +248,12 @@ class DecimalCodec(Codec):
 
     @validate_arguments
     def str_encode(self, value: decimal.Decimal) -> str:
-        return str(self._round(value))
+        return str(value)
 
     @validate_arguments
     def str_decode(self, value: str) -> decimal.Decimal:
         try:
-            return self._round(decimal.Decimal(value))
+            return decimal.Decimal(value)
         except decimal.InvalidOperation:
             raise ValueError("expecting a string containing decimal number")
 
