@@ -4,7 +4,7 @@ build-backend = "poetry.masonry.api"
 
 [tool.black]
 line-length = 88
-target-version = ['py38']
+target-version = ['py39']
 
 [tool.poetry]
 name = "fondat"
@@ -23,10 +23,9 @@ classifiers = [
 ]
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "^3.9"
 aiofiles = "^0.6"
 aiosqlite = "^0.16"
-isodate = "^0.6"
 multidict = "^5.0"
 wrapt = "^1.12"
 
