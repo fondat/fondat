@@ -1,6 +1,5 @@
 import asyncio
 import dataclasses
-import isodate
 import json
 import pytest
 import re
@@ -10,12 +9,9 @@ from dataclasses import make_dataclass, field
 from decimal import Decimal
 from fondat.validate import validate, MinLen, MaxLen, Pattern, MinValue, MaxValue
 from io import BytesIO
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Annotated, Union, TypedDict
 from uuid import UUID
-
-
-_UTC = isodate.tzinfo.Utc()
 
 
 # -- str -----
@@ -184,7 +180,7 @@ def test_date_validate_type_error():
 
 
 def test_datetime_validate_type_success():
-    validate(datetime(2015, 6, 7, 8, 9, 10, 0, _UTC), datetime)
+    validate(datetime(2015, 6, 7, 8, 9, 10, 0, timezone.utc), datetime)
 
 
 def test_datetime_validate_type_error():

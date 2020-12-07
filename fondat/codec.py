@@ -10,7 +10,6 @@ import decimal
 import enum
 import functools
 import io
-import isodate
 import json
 import typing
 import uuid
@@ -297,26 +296,25 @@ class DateCodec(Codec):
 
     @validate_arguments
     def str_encode(self, value: datetime.date) -> str:
-        return isodate.date_isoformat(value)
+        return value.isoformat()
 
     @validate_arguments
     def str_decode(self, value: str) -> datetime.date:
-        return isodate.parse_date(value)
+        return datetime.date.fromisoformat(value)
 
     @validate_arguments
     def bytes_encode(self, value: datetime.date) -> bytes:
-        return isodate.date_isoformat(value).encode()
+        return self.str_encode(value).encode()
 
     @validate_arguments
     def bytes_decode(self, value: bytes) -> datetime.date:
-        return isodate.parse_date(value.decode())
+        return self.str_decode(value.decode())
 
 
 def _to_utc(value):
-    _UTC = isodate.tzinfo.Utc()
     if value.tzinfo is None:  # naive value interpreted as UTC
-        value = value.replace(tzinfo=_UTC)
-    return value.astimezone(_UTC)
+        value = value.replace(tzinfo=datetime.timezone.utc)
+    return value.astimezone(datetime.timezone.utc)
 
 
 class DatetimeCodec(Codec):
@@ -325,17 +323,10 @@ class DatetimeCodec(Codec):
 
     Datetime values are represented in string and JSON values as an RFC 3339
     UTC date and time in a string. Example: "2018-06-16T12:34:56.789012Z".
-
-    Parameters and attributes:
-    • fractional: Include fractions of seconds.
     """
 
     python_type = datetime.datetime
     json_type = str
-
-    def __init__(self, fractional=False):
-        self.fractional = fractional
-        self._format = "%Y-%m-%dT%H:%M:%S.%fZ" if fractional else "%Y-%m-%dT%H:%M:%SZ"
 
     @validate_arguments
     def json_encode(self, value: datetime.datetime) -> str:
@@ -347,14 +338,18 @@ class DatetimeCodec(Codec):
 
     @validate_arguments
     def str_encode(self, value: datetime.datetime) -> str:
-        return isodate.datetime_isoformat(_to_utc(value), self._format)
+        result = _to_utc(value).isoformat()
+        if result.endswith("+00:00"):
+            result = result[0:-6]            
+        if "+" not in result and not result.endswith("Z"):
+            result = f"{result}Z"
+        return result
 
     @validate_arguments
     def str_decode(self, value: str) -> datetime.datetime:
-        result = _to_utc(isodate.parse_datetime(value))
-        if result.microsecond and not self.fractional:  # truncate fractional value
-            result -= datetime.timedelta(microseconds=result.microsecond)
-        return result
+        if value.endswith("Z"):
+            value = value[0:-1]
+        return _to_utc(datetime.datetime.fromisoformat(value))
 
     @validate_arguments
     def bytes_encode(self, value: datetime.datetime) -> bytes:

@@ -1,8 +1,8 @@
 import dataclasses
+import datetime
 import decimal
 import fondat.codec
 import enum
-import isodate
 import json
 import pytest
 import typing
@@ -11,11 +11,7 @@ import re
 from base64 import b64encode
 from dataclasses import make_dataclass, field
 from io import BytesIO
-from datetime import date, datetime
 from uuid import UUID
-
-
-_UTC = isodate.tzinfo.Utc()
 
 
 def _equal(fn, val):
@@ -473,19 +469,19 @@ def test_bool_str_decode_error():
 # -- date -----
 
 
-date_codec = fondat.codec.get_codec(date)
+date_codec = fondat.codec.get_codec(datetime.date)
 
 
 def test_date_encodings():
-    _test_encodings(date_codec, date(2020, 12, 6))
+    _test_encodings(date_codec, datetime.date(2020, 12, 6))
 
 
 def test_date_json_encode_success_naive():
-    assert date_codec.json_encode(date(2016, 7, 8)) == "2016-07-08"
+    assert date_codec.json_encode(datetime.date(2016, 7, 8)) == "2016-07-08"
 
 
 def test_date_json_encode_success_aware():
-    assert date_codec.json_encode(date(2017, 6, 7)) == "2017-06-07"
+    assert date_codec.json_encode(datetime.date(2017, 6, 7)) == "2017-06-07"
 
 
 def test_date_json_encode_error():
@@ -493,15 +489,15 @@ def test_date_json_encode_error():
 
 
 def test_date_json_decode_z():
-    assert date_codec.json_decode("2018-08-09") == date(2018, 8, 9)
+    assert date_codec.json_decode("2018-08-09") == datetime.date(2018, 8, 9)
 
 
 def test_date_json_decode_offset():
-    assert date_codec.json_decode("2019-09-10") == date(2019, 9, 10)
+    assert date_codec.json_decode("2019-09-10") == datetime.date(2019, 9, 10)
 
 
 def test_date_json_decode_missing_tz():
-    assert date_codec.json_decode("2020-10-11") == date(2020, 10, 11)
+    assert date_codec.json_decode("2020-10-11") == datetime.date(2020, 10, 11)
 
 
 def test_date_json_decode_error():
@@ -515,23 +511,23 @@ def test_date_str_decode_error():
 # -- datetime -----
 
 
-datetime_codec = fondat.codec.get_codec(datetime)
+datetime_codec = fondat.codec.get_codec(datetime.datetime)
 
 
 def test_datetime_encodings():
-    _test_encodings(datetime_codec, datetime(2020, 12, 6, 16, 10, 45, 0, _UTC))
+    _test_encodings(datetime_codec, datetime.datetime(2020, 12, 6, 16, 10, 45, 0, datetime.timezone.utc))
 
 
 def test_datetime_json_encode_success_naive():
     assert (
-        datetime_codec.json_encode(datetime(2016, 7, 8, 9, 10, 11))
+        datetime_codec.json_encode(datetime.datetime(2016, 7, 8, 9, 10, 11))
         == "2016-07-08T09:10:11Z"
     )
 
 
 def test_datetime_json_encode_success_aware():
     assert (
-        datetime_codec.json_encode(datetime(2017, 6, 7, 8, 9, 10, 0, _UTC))
+        datetime_codec.json_encode(datetime.datetime(2017, 6, 7, 8, 9, 10, 0, datetime.timezone.utc))
         == "2017-06-07T08:09:10Z"
     )
 
@@ -541,20 +537,20 @@ def test_datetime_json_encode_error():
 
 
 def test_datetime_json_decode_z():
-    assert datetime_codec.json_decode("2018-08-09T10:11:12Z") == datetime(
-        2018, 8, 9, 10, 11, 12, 0, _UTC
+    assert datetime_codec.json_decode("2018-08-09T10:11:12Z") == datetime.datetime(
+        2018, 8, 9, 10, 11, 12, 0, datetime.timezone.utc
     )
 
 
 def test_datetime_json_decode_offset():
-    assert datetime_codec.json_decode("2019-09-10T11:12:13+01:00") == datetime(
-        2019, 9, 10, 10, 12, 13, 0, _UTC
+    assert datetime_codec.json_decode("2019-09-10T11:12:13+01:00") == datetime.datetime(
+        2019, 9, 10, 10, 12, 13, 0, datetime.timezone.utc
     )
 
 
 def test_datetime_json_decode_missing_tz():
-    assert datetime_codec.json_decode("2020-10-11T12:13:14") == datetime(
-        2020, 10, 11, 12, 13, 14, 0, _UTC
+    assert datetime_codec.json_decode("2020-10-11T12:13:14") == datetime.datetime(
+        2020, 10, 11, 12, 13, 14, 0, datetime.timezone.utc
     )
 
 
@@ -563,50 +559,25 @@ def test_datetime_json_decode_error():
 
 
 def test_datetime_str_decode_z():
-    assert datetime_codec.str_decode("2021-11-12T13:14:15Z") == datetime(
-        2021, 11, 12, 13, 14, 15, 0, _UTC
+    assert datetime_codec.str_decode("2021-11-12T13:14:15Z") == datetime.datetime(
+        2021, 11, 12, 13, 14, 15, 0, datetime.timezone.utc
     )
 
 
 def test_datetime_str_decode_offset():
-    assert datetime_codec.str_decode("2022-12-13T14:15:16+01:00") == datetime(
-        2022, 12, 13, 13, 15, 16, 0, _UTC
+    assert datetime_codec.str_decode("2022-12-13T14:15:16+01:00") == datetime.datetime(
+        2022, 12, 13, 13, 15, 16, 0, datetime.timezone.utc
     )
 
 
 def test_datetime_json_decode_missing_tz():
-    assert datetime_codec.str_decode("2020-10-11T12:13:14") == datetime(
-        2020, 10, 11, 12, 13, 14, 0, _UTC
+    assert datetime_codec.str_decode("2020-10-11T12:13:14") == datetime.datetime(
+        2020, 10, 11, 12, 13, 14, 0, datetime.timezone.utc
     )
 
 
 def test_datetime_str_decode_error():
     _error(datetime_codec.str_decode, "1425691090160")
-
-
-def test_datetime_str_decode_retain_microsecond():
-    assert fondat.codec.DatetimeCodec(fractional=True).str_decode(
-        "2018-01-02T03:04:05.123Z"
-    ) == datetime(2018, 1, 2, 3, 4, 5, 123000, _UTC)
-
-
-def test_datetime_str_encode_retain_microsecond():
-    fondat.codec.DatetimeCodec(fractional=True).str_encode(
-        datetime(2018, 1, 2, 3, 4, 5, 123456, _UTC)
-    ) == "2018-01-02T03:04:05.123456Z"
-
-
-def test_datetime_str_decode_truncate_microsecond():
-    assert datetime_codec.str_decode("2018-01-02T03:04:05.123456Z") == datetime(
-        2018, 1, 2, 3, 4, 5, 0, _UTC
-    )
-
-
-def test_datetime_str_encode_truncate_microsecond():
-    assert (
-        datetime_codec.str_encode(datetime(2018, 1, 2, 3, 4, 5, 123456, _UTC))
-        == "2018-01-02T03:04:05Z"
-    )
 
 
 # -- uuid -----
