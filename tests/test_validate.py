@@ -7,7 +7,15 @@ import re
 from base64 import b64encode
 from dataclasses import make_dataclass, field
 from decimal import Decimal
-from fondat.validate import validate, MinLen, MaxLen, Pattern, MinValue, MaxValue
+from fondat.validate import (
+    validate,
+    validate_return_value,
+    MinLen,
+    MaxLen,
+    Pattern,
+    MinValue,
+    MaxValue,
+)
 from io import BytesIO
 from datetime import date, datetime, timezone
 from typing import Annotated, Union, TypedDict
@@ -358,43 +366,44 @@ def test_typeddict_required_error():
 
 
 def test_typeddict_optional_success():
-    TD = TypedDict("TD", dict(l=str), total=False)
+    class TD(TypedDict, total=False):
+        l: str
+
     validate(dict(), TD)
 
 
 # -- decorators -----
 
-"""
+
 def test_sync_decorator_success():
-    @s.validate
-    def fn() -> s.str():
+    @validate_return_value
+    def fn() -> str:
         return "str_ftw"
 
     fn()
 
 
 def test_sync_decorator_error():
-    @s.validate
-    def fn() -> s.str():
+    @validate_return_value
+    def fn() -> str:
         return 1
 
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         fn()
 
 
 def test_async_decorator_success():
-    @s.validate
-    async def coro() -> s.str():
+    @validate_return_value
+    async def coro() -> str:
         return "str_ftw"
 
     assert asyncio.run(coro()) == "str_ftw"
 
 
 def test_async_decorator_error():
-    @s.validate
-    def coro() -> s.str():
+    @validate_return_value
+    def coro() -> str:
         return 1
 
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         asyncio.run(coro())
-"""
