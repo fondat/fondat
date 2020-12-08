@@ -662,49 +662,58 @@ def _enum_codec(type_):
     return EnumCodec()
 
 
+_builtin_codecs = {
+    codec.python_type: codec()
+    for codec in (
+        StrCodec,
+        BytesCodec,
+        IntCodec,
+        FloatCodec,
+        BoolCodec,
+        NoneCodec,
+        DecimalCodec,
+        DateCodec,
+        DatetimeCodec,
+        UUIDCodec,
+    )
+}
+
+
+def _issubclass(cls, cls_or_tuple):
+    try:
+        return issubclass(cls, cls_or_tuple)
+    except TypeError:
+        return False
+
+
+@functools.cache
 def get_codec(type_):
     """Return a codec compatible with the specified type."""
 
-    def _issubclass(cls, cls_or_tuple):
-        try:
-            return issubclass(cls, cls_or_tuple)
-        except TypeError:
-            return False
+    origin = typing.get_origin(type_)
+    args = typing.get_args(type_)
 
-    scalar_codecs = {
-        codec.python_type: codec()
-        for codec in (
-            StrCodec,
-            BytesCodec,
-            IntCodec,
-            FloatCodec,
-            BoolCodec,
-            NoneCodec,
-            DecimalCodec,
-            DateCodec,
-            DatetimeCodec,
-            UUIDCodec,
-        )
-    }
+    if origin is typing.Annotated:
+        for annotation in args[1:]:
+            if isinstance(annotation, Codec):
+                return annotation
+        type_ = args[0]  # strip annotation
 
-    @functools.cache
-    def _get_codec(t):
-        if result := scalar_codecs.get(t):
-            return result
-        if origin := typing.get_origin(t):
-            t = origin[typing.get_args(t)]
-        if origin is typing.Union:
-            return _union_codec(t)
-        if _issubclass(t, dict) and getattr(t, "__annotations__", None) is not None:
-            return _typed_dict_codec(t)
-        if _issubclass(origin, collections.abc.Mapping):
-            return _mapping_codec(t)
-        if _issubclass(origin, collections.abc.Iterable):
-            return _iterable_codec(t)
-        if _issubclass(t, enum.Enum):
-            return _enum_codec(t)
-        if dataclasses.is_dataclass(t):
-            return _dataclass_codec(t)
-        raise TypeError(f"invalid type: {t}")
+    if result := _builtin_codecs.get(type_):
+        return result
+    if origin := typing.get_origin(type_):
+        t = origin[typing.get_args(type_)]
+    if origin is typing.Union:
+        return _union_codec(type_)
+    if _issubclass(type_, dict) and getattr(type_, "__annotations__", None) is not None:
+        return _typed_dict_codec(type_)
+    if _issubclass(origin, collections.abc.Mapping):
+        return _mapping_codec(type_)
+    if _issubclass(origin, collections.abc.Iterable):
+        return _iterable_codec(type_)
+    if _issubclass(type_, enum.Enum):
+        return _enum_codec(type_)
+    if dataclasses.is_dataclass(type_):
+        return _dataclass_codec(type_)
 
-    return _get_codec(typing._strip_annotations(type_))
+    raise TypeError(f"invalid type: {type_}")

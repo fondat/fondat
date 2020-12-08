@@ -404,14 +404,6 @@ def test_decimal_str_decode_error():
     _error(decimal_codec.str_decode, "1,2")
 
 
-def test_decimal_round_down():
-    assert fondat.codec.DecimalCodec(precision=2).str_encode(D("1.234")) == "1.23"
-
-
-def test_decimal_round_up():
-    assert fondat.codec.DecimalCodec(precision=2).str_encode(D("1.235")) == "1.24"
-
-
 # -- bool -----
 
 
@@ -515,7 +507,10 @@ datetime_codec = fondat.codec.get_codec(datetime.datetime)
 
 
 def test_datetime_encodings():
-    _test_encodings(datetime_codec, datetime.datetime(2020, 12, 6, 16, 10, 45, 0, datetime.timezone.utc))
+    _test_encodings(
+        datetime_codec,
+        datetime.datetime(2020, 12, 6, 16, 10, 45, 0, datetime.timezone.utc),
+    )
 
 
 def test_datetime_json_encode_success_naive():
@@ -527,7 +522,9 @@ def test_datetime_json_encode_success_naive():
 
 def test_datetime_json_encode_success_aware():
     assert (
-        datetime_codec.json_encode(datetime.datetime(2017, 6, 7, 8, 9, 10, 0, datetime.timezone.utc))
+        datetime_codec.json_encode(
+            datetime.datetime(2017, 6, 7, 8, 9, 10, 0, datetime.timezone.utc)
+        )
         == "2017-06-07T08:09:10Z"
     )
 
