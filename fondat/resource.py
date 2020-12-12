@@ -14,7 +14,7 @@ import http
 import inspect
 import fondat.context as context
 import fondat.monitor as monitor
-import fondat.schema as schema
+import fondat.validate
 import types
 import wrapt
 
@@ -79,14 +79,6 @@ async def authorize(security):
         raise exception
 
 
-def _params(function):
-    sig = inspect.signature(function)
-    return schema.dict(
-        props={k: v for k, v in function.__annotations__.items() if k != "return"},
-        required={p.name for p in sig.parameters.values() if p.default is p.empty},
-    )
-
-
 def resource(wrapped=None, *, tag=None):
     """
     Decorate a class to be a resource containing operations.
@@ -98,48 +90,9 @@ def resource(wrapped=None, *, tag=None):
     if wrapped is None:
         return functools.partial(resource, tag=tag)
 
-    operations = {}
-    for name in dir(wrapped):
-        attr = getattr(wrapped, name)
-        if operation := getattr(attr, "_fondat_operation", None):
-            operations[name] = operation
-        if link := getattr(attr, "_fondat_link", None):
-            links[name] = link
     wrapped._fondat_resource = types.SimpleNamespace(
-        tag=tag or wrapped.__name__.lower(),
+        tag=tag or wrapped.__name__.lower()
     )
-    return wrapped
-
-
-class _Link:
-    def __init__(self, returns):
-        self._returns = returns
-
-    @property
-    def returns(self):
-        while lazy.is_lazy(self._returns):
-            self._returns = self._returns()
-        return self._returns
-
-
-def link(wrapped=None):
-    """
-    Decorate a resource method or coroutine that returns a related resource.
-
-    The return type annotation of the method can specify the resource class, or
-    alternatively, a lazy callback function to resolve the resource class.
-    """
-
-    if wrapped is None:
-        return functools.partial(link)
-
-    if not asyncio.iscoroutinefunction(wrapped):
-        raise TypeError("link method must be a coroutine")
-
-    if returns := wrapped.__annotations__.get("return") is None:
-        raise TypeError("link must have return type annotation")
-
-    wrapped._fondat_link = _Link(returns=wrapped.__annotations__.get("return"),)
 
     return wrapped
 
@@ -157,7 +110,12 @@ _operation_types = {"query", "mutation"}
 
 
 def operation(
-    wrapped=None, *, type=None, security=None, publish=True, deprecated=False,
+    wrapped=None,
+    *,
+    type=None,
+    security=None,
+    publish=True,
+    deprecated=False,
 ):
     """
     Decorate a resource coroutine that performs an operation.
@@ -194,6 +152,12 @@ def operation(
     if _type not in _operation_types:
         raise ValueError(f"operation type must be one of: {_operation_types}")
 
+    for p in inspect.signature(wrapped).parameters.values():
+        if p.kind is p.VAR_POSITIONAL:
+            raise ValueError("function with *args unsupported")
+        elif p.kind is p.VAR_KEYWORD:
+            raise ValueError("function with **kwargs unsupported")
+
     @wrapt.decorator
     async def wrapper(wrapped, instance, args, kwargs):
         operation = getattr(wrapped, "_fondat_operation")
@@ -205,13 +169,7 @@ def operation(
             async with monitor.timer({"name": "operation_duration_seconds", **tags}):
                 async with monitor.counter({"name": "operation_calls_total", **tags}):
                     await authorize(operation.security)
-                    schema.validate_arguments(wrapped, args, kwargs)
-                    returned = await wrapped(*args, **kwargs)
-                    try:
-                        schema.validate_return(wrapped, returned)
-                    except SchemaError as se:
-                        raise InternalServerError from se
-                    return returned
+                    return await wrapped(*args, **kwargs)
 
     wrapped._fondat_operation = types.SimpleNamespace(
         type=_type,
@@ -220,8 +178,8 @@ def operation(
         security=security,
         publish=publish,
         deprecated=deprecated,
-        params=_params(wrapped),
-        returns=wrapped.__annotations__.get("return"),
     )
 
+    wrapped = fondat.validate.validate_arguments(wrapped)
+    #    wrapped = fondat.validate.validate_return_value(wrapped)
     return wrapper(wrapped)
