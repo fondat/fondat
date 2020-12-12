@@ -1,10 +1,11 @@
 """Module that provides type annotations."""
 
+from __future__ import annotations
+
 import asyncio
 import collections.abc
 import dataclasses
 import enum
-import fondat.future
 import inspect
 import re
 import typing
@@ -130,7 +131,7 @@ def _validate_mapping(type_, value):
 
 def _validate_iterable(type_, value):
     if isinstance(value, str) or isinstance(value, collections.abc.ByteString):
-        return  # these not the iterables we are looking for
+        return  # these are not the iterables we are looking for
     item_type = typing.get_args(type_)[0]
     for item_value in value:
         validate(item_value, item_type)
@@ -184,7 +185,9 @@ def validate(value, type_):
         origin = type_
 
     # basic type validation
-    if origin is typing.Union:
+    if origin is typing.Any:
+        pass
+    elif origin is typing.Union:
         _validate_union(type_, value)
     elif not _isinstance(value, dict) and not _isinstance(value, origin):
         raise TypeError(
@@ -224,6 +227,7 @@ def validate_arguments(callable):
     ]
 
     def _validate(instance, args, kwargs):
+        hints = typing.get_type_hints(callable)
         if instance:
             args = (instance, *args)
         params = {
@@ -231,9 +235,9 @@ def validate_arguments(callable):
             **kwargs,
         }
         for param in (p for p in sig.parameters.values() if p.name in params):
-            if (hint := param.annotation) is not inspect.Parameter.empty:
+            if hint := hints.get(param.name):
                 try:
-                    validate(params[param.name], param.annotation)
+                    validate(params[param.name], hint)
                 except (TypeError, ValueError) as e:
                     _decorate_exception(e, f"in parameter: {param.name}")
                     raise

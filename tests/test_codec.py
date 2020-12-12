@@ -111,7 +111,6 @@ def test_dict_validate_additional_success():
 
 # -- list -----
 
-
 def test_list_encodings():
     _test_encodings(fondat.codec.get_codec(list[int]), [1, 2, 3])
 
@@ -169,7 +168,6 @@ def test_list_str_decode_crazy_csv_scenario():
         '"e"',
     ]
 
-
 def test_list_str_decode_int_error():
     _error(fondat.codec.get_codec(list[int]).str_decode, "12,a,34,56")
 
@@ -206,7 +204,6 @@ def test_set_str_decode_str_success():
 
 
 def test_set_str_decode_str_encode():
-    # FIXME: not sorted yet!
     assert (
         fondat.codec.get_codec(set[int]).str_encode({2, 3, 1}) == "1,2,3"
     )  # sorts result
@@ -266,7 +263,7 @@ def test_str_json_encode_success():
 
 def test_str_json_encode_error():
     with pytest.raises(TypeError):
-        print(str_codec.json_encode(123))
+        str_codec.json_encode(123)
 
 
 def test_str_json_decode_success():
@@ -274,7 +271,7 @@ def test_str_json_decode_success():
 
 
 def test_str_json_decode_error():
-    _error(str_codec.json_decode, [])
+    _error(str_codec.json_decode, 123)#[])
 
 
 def test_str_str_decode_success():
@@ -680,7 +677,9 @@ def test_enum_mixed_json_types():
         STR_MEMBER = "s"
         INT_MEMBER = 1
 
-    assert fondat.codec.get_codec(mixed).json_type == typing.Union[str, int]
+    codec = fondat.codec.get_codec(mixed)
+    assert codec.json_decode("s") == mixed.STR_MEMBER
+    assert codec.json_decode(1) == mixed.INT_MEMBER
 
 
 # -- union -----

@@ -1,5 +1,7 @@
 """Module to encode and decode values."""
 
+from __future__ import annotations
+
 import base64
 import binascii
 import collections.abc
@@ -15,11 +17,16 @@ import typing
 import uuid
 import wrapt
 
+from collections.abc import Iterable
+from fondat.typing import affix_type_hints
 from fondat.validate import validate_arguments
+from typing import Any, Union
 
 
 class Codec:
     """Base class for codecs."""
+
+    pass
 
 
 class StrCodec(Codec):
@@ -96,14 +103,14 @@ class IntCodec(Codec):
     """Codec for integers."""
 
     python_type = int
-    json_type = int
+    json_type = Union[int, float]
 
     @validate_arguments
     def json_encode(self, value: int) -> int:
         return value
 
     @validate_arguments
-    def json_decode(self, value: typing.Union[int, float]) -> int:
+    def json_decode(self, value: IntCodec.json_type) -> int:
         result = value
         if isinstance(result, float):
             result = int(result)
@@ -132,14 +139,14 @@ class FloatCodec(Codec):
     """Codec for floating point numbers."""
 
     python_type = float
-    json_type = float
+    json_type = Union[int, float]
 
     @validate_arguments
     def json_encode(self, value: float) -> float:
         return value
 
     @validate_arguments
-    def json_decode(self, value: typing.Union[float, int]) -> float:
+    def json_decode(self, value: FloatCodec.json_type) -> float:
         return float(value) if isinstance(value, int) else value
 
     @validate_arguments
@@ -410,7 +417,7 @@ def _typed_dict_codec(type_):
                 continue
         return result
 
-    class TypedDictCodec(Codec):
+    class TypedDictCodec:
 
         python_type = type_
         json_type = dict[str, typing.Union[tuple(c.json_type for c in codecs.values())]]
@@ -439,6 +446,7 @@ def _typed_dict_codec(type_):
         def bytes_decode(self, value: bytes) -> python_type:
             return self.str_decode(value.decode())
 
+    affix_type_hints(TypedDictCodec, localns=TypedDictCodec.__dict__)
     return TypedDictCodec()
 
 
@@ -446,7 +454,7 @@ def _mapping_codec(type_):
 
     key_codec, value_codec = tuple(get_codec(t) for t in typing.get_args(type_))
 
-    class MappingCodec(Codec):
+    class MappingCodec:
 
         python_type = type_
         json_type = dict[str, value_codec.json_type]
@@ -483,6 +491,7 @@ def _mapping_codec(type_):
         def bytes_decode(self, value: bytes) -> python_type:
             return self.str_decode(value.decode())
 
+    affix_type_hints(MappingCodec, localns=MappingCodec.__dict__)
     return MappingCodec()
 
 
@@ -491,7 +500,7 @@ def _iterable_codec(type_):
     (item_codec,) = tuple(get_codec(t) for t in typing.get_args(type_))
     is_set = issubclass(typing.get_origin(type_), collections.abc.Set)
 
-    class IterableCodec(Codec):
+    class IterableCodec:
 
         python_type = type_
         json_type = list[item_codec.json_type]
@@ -524,6 +533,7 @@ def _iterable_codec(type_):
         def bytes_decode(self, value: bytes) -> python_type:
             return type_(self.json_decode(json.loads(value.decode())))
 
+    affix_type_hints(IterableCodec, localns=IterableCodec.__dict__)
     return IterableCodec()
 
 
@@ -531,7 +541,7 @@ def _dataclass_codec(type_):
 
     codecs = {k: get_codec(v) for k, v in typing.get_type_hints(type_).items()}
 
-    class DataclassCodec(Codec):
+    class DataclassCodec:
 
         python_type = type_
         json_type = dict[str, typing.Union[tuple(c.json_type for c in codecs.values())]]
@@ -569,6 +579,7 @@ def _dataclass_codec(type_):
         def bytes_decode(self, value: bytes) -> python_type:
             return self.str_decode(value.decode())
 
+    affix_type_hints(DataclassCodec, localns=DataclassCodec.__dict__)
     return DataclassCodec()
 
 
@@ -577,7 +588,7 @@ def _union_codec(type_):
     types = typing.get_args(type_)
     codecs = tuple(get_codec(t) for t in types)
 
-    class UnionCodec(Codec):
+    class UnionCodec:
 
         python_type = type_
         json_type = typing.Union[tuple(codec.json_type for codec in codecs)]
@@ -614,6 +625,7 @@ def _union_codec(type_):
         def bytes_decode(self, value: bytes) -> python_type:
             return self._process("bytes_decode", value)
 
+    affix_type_hints(UnionCodec, localns=UnionCodec.__dict__)
     return UnionCodec()
 
 
@@ -622,7 +634,7 @@ def _enum_codec(type_):
     codecs = {member: get_codec(type(member.value)) for member in type_}
     codec_set = set(codecs.values())
 
-    class EnumCodec(Codec):
+    class EnumCodec:
 
         python_type = type_
         json_type = typing.Union[tuple(codec.json_type for codec in codecs.values())]
@@ -659,24 +671,25 @@ def _enum_codec(type_):
         def bytes_decode(self, value: bytes) -> python_type:
             return type_(self._decode("bytes_decode", value))
 
+    affix_type_hints(EnumCodec, localns=EnumCodec.__dict__)
     return EnumCodec()
 
 
-_builtin_codecs = {
-    codec.python_type: codec()
-    for codec in (
-        StrCodec,
-        BytesCodec,
-        IntCodec,
-        FloatCodec,
-        BoolCodec,
-        NoneCodec,
-        DecimalCodec,
-        DateCodec,
-        DatetimeCodec,
-        UUIDCodec,
-    )
-}
+_builtins = {}
+for codec in (
+    StrCodec,
+    BytesCodec,
+    IntCodec,
+    FloatCodec,
+    BoolCodec,
+    NoneCodec,
+    DecimalCodec,
+    DateCodec,
+    DatetimeCodec,
+    UUIDCodec,
+):
+    affix_type_hints(codec)
+    _builtins[codec.python_type] = codec()
 
 
 def _issubclass(cls, cls_or_tuple):
@@ -699,10 +712,10 @@ def get_codec(type_):
                 return annotation
         type_ = args[0]  # strip annotation
 
-    if result := _builtin_codecs.get(type_):
+    if result := _builtins.get(type_):
         return result
     if origin := typing.get_origin(type_):
-        t = origin[typing.get_args(type_)]
+        type_ = origin[typing.get_args(type_)]
     if origin is typing.Union:
         return _union_codec(type_)
     if _issubclass(type_, dict) and getattr(type_, "__annotations__", None) is not None:
