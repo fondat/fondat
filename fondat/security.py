@@ -32,7 +32,7 @@ class SecurityRequirement:
 
         If a valid context or credentials are established, but are
         insufficient to provide authorization for the operation, then
-        the fondat.resource.Forbidden exception should be raised. 
+        the fondat.resource.Forbidden exception should be raised.
         """
         raise NotImplementedError
 
@@ -46,7 +46,7 @@ class SecurityScheme:
     """
     Base class for security schemes.
 
-    Parameters:    
+    Parameters:
     • name: Name of security scheme.
     • type: Type of security scheme.
     • description: A short description for the security scheme.
@@ -83,7 +83,7 @@ class ContextSecurityRequirement(SecurityRequirement):
 
         The context value to search for can be expressed as follows:
         • ContextSecurityRequirement(mapping): Mapping object's key-value pairs.
-        • ContextSecurityRequirement(**kwargs): Name-value pairs in keyword arguments. 
+        • ContextSecurityRequirement(**kwargs): Name-value pairs in keyword arguments.
 
         """
         super().__init__()
