@@ -23,6 +23,9 @@ from fondat.validate import validate_arguments
 from typing import Any, Union
 
 
+NoneType = type(None)
+
+
 class Codec:
     """Base class for codecs."""
 
@@ -203,7 +206,6 @@ class BoolCodec(Codec):
 class NoneCodec(Codec):
     """Codec for None."""
 
-    NoneType = type(None)
     python_type = NoneType
     json_type = NoneType
 
@@ -338,7 +340,7 @@ class DatetimeCodec(Codec):
     def str_encode(self, value: datetime.datetime) -> str:
         result = _to_utc(value).isoformat()
         if result.endswith("+00:00"):
-            result = result[0:-6]            
+            result = result[0:-6]
         if "+" not in result and not result.endswith("Z"):
             result = f"{result}Z"
         return result
@@ -569,7 +571,7 @@ def _dataclass_codec(type_):
 
         @validate_arguments
         def str_decode(self, value: str) -> python_type:
-            return _type(self.json_decode(json.loads(value)))
+            return self.json_decode(json.loads(value))
 
         @validate_arguments
         def bytes_encode(self, value: python_type) -> bytes:
