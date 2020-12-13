@@ -1,5 +1,4 @@
 import fondat.context as context
-import fondat.schema as s
 import fondat.security
 import pytest
 
@@ -22,11 +21,11 @@ never = Never()
 @resource
 class R1:
     @operation(type="mutation", security=[req1])
-    async def foo(self) -> s.str():
+    async def foo(self) -> str:
         return "foo_success"
 
     @operation(type="mutation", security=[req1, never])
-    async def bar(self) -> s.str():
+    async def bar(self) -> str:
         return "bar_success"
 
 
