@@ -10,7 +10,7 @@ import fondat.security
 import threading
 import typing
 
-from fondat.resource import resource, operation, NotFound, BadRequest
+from fondat.resource import resource, operation, NotFound, BadRequest, In
 from fondat.typing import affix_type_hints
 
 
@@ -18,12 +18,12 @@ _now = lambda: datetime.datetime.now(tz=datetime.timezone.utc)
 
 _delta = lambda s: datetime.timedelta(seconds=s)
 
-_Item = collections.namedtuple("Item", "data,time")
+_Item = collections.namedtuple("Item", "value,time")
 
 _Oldest = collections.namedtuple("Oldest", "key,time")
 
 
-def memory_resource(
+def mapping_resource(
     key_type: type,
     value_type: type,
     size: int = None,
@@ -44,7 +44,7 @@ def memory_resource(
     """
 
     @resource
-    class Container:
+    class MappingResource:
         def __init__(self):
             self.storage = {}
             self.lock = threading.Lock()
@@ -69,15 +69,15 @@ def memory_resource(
             with self.lock:
                 self.storage.clear()
 
-    Container.key_type = key_type
-    Container.value_type = value_type
-    Container.size = size
-    Container.evict = evict
-    Container.ttl = ttl
+    MappingResource.key_type = key_type
+    MappingResource.value_type = value_type
+    MappingResource.size = size
+    MappingResource.evict = evict
+    MappingResource.ttl = ttl
 
     @resource
     class Item:
-        def __init__(self, container: Container, key: key_type):
+        def __init__(self, container: MappingResource, key: key_type):
             self.container = container
             self.key = key
 
@@ -89,10 +89,10 @@ def memory_resource(
                 self.container.ttl and _now() > item.time + _delta(self.container.ttl)
             ):
                 raise NotFound
-            return item.data
+            return item.value
 
         @operation(security=security)
-        async def put(self, data: value_type) -> None:
+        async def put(self, value: typing.Annotated[value_type, In.BODY]) -> None:
             """Write item."""
             with self.container.lock:
                 now = _now()
@@ -119,7 +119,7 @@ def memory_resource(
                     and len(self.container.storage) >= self.container.size
                 ):
                     raise BadRequest("item size limit reached")
-                self.container.storage[self.key] = _Item(copy.deepcopy(data), now)
+                self.container.storage[self.key] = _Item(copy.deepcopy(value), now)
 
         @operation(security=security)
         async def delete(self):
@@ -128,9 +128,31 @@ def memory_resource(
             with self.container.lock:
                 self.container.storage.pop(self.key, None)
 
-    affix_type_hints(Container, localns=locals())
+    affix_type_hints(MappingResource, localns=locals())
     affix_type_hints(Item, localns=locals())
+    MappingResource.__qualname__ = "MappingResource"
+    return MappingResource
 
-    Container.__name__ = Container.__qualname__ = "MemoryResource"
 
-    return Container
+def static_resource(value, security=None):
+    """
+    Return a new static resource class that serves the supplied value.
+
+    Parameters:
+
+    • value: Value to return in a get operation.
+    • security: Security requirements to access the resource.
+    """
+
+    @resource
+    class StaticResource:
+
+        value_type = type(value)
+
+        @operation(security=security)
+        async def get(self) -> type(value):
+            return value
+
+    affix_type_hints(StaticResource, localns=locals())
+    StaticResource.__qualname__ = "StaticResource"
+    return StaticResource
