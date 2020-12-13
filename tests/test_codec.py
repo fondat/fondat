@@ -111,6 +111,7 @@ def test_dict_validate_additional_success():
 
 # -- list -----
 
+
 def test_list_encodings():
     _test_encodings(fondat.codec.get_codec(list[int]), [1, 2, 3])
 
@@ -167,6 +168,7 @@ def test_list_str_decode_crazy_csv_scenario():
         "d",
         '"e"',
     ]
+
 
 def test_list_str_decode_int_error():
     _error(fondat.codec.get_codec(list[int]).str_decode, "12,a,34,56")
@@ -271,7 +273,7 @@ def test_str_json_decode_success():
 
 
 def test_str_json_decode_error():
-    _error(str_codec.json_decode, 123)#[])
+    _error(str_codec.json_decode, 123)
 
 
 def test_str_str_decode_success():
