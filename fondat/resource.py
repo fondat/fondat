@@ -13,6 +13,7 @@ import functools
 import http
 import inspect
 import fondat.context as context
+import fondat.enum
 import fondat.monitor as monitor
 import fondat.validate
 import types
@@ -23,6 +24,9 @@ class ResourceError(Exception):
     """Base class for resource errors."""
 
     pass
+
+
+In = fondat.enum.str_enum("In", "query header body")
 
 
 # generate concrete error classes
