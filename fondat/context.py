@@ -22,7 +22,7 @@ _stack = contextvars.ContextVar("_fondat_stack")
 class _Element:
     """
     A context stack element.
- 
+
     The context stack is a linked list of elements; each stack element
     contains a value and a reference to the next element below it on the
     stack. Because stacks are linked lists, they can be safely forked when
@@ -80,7 +80,7 @@ class push:
 
     A context element is a mapping of key-value pairs. It is expressed as:
     • push(mapping): Element is initialized from a mapping object's key-value pairs.
-    • push(**kwargs): Element is initialized with name-value pairs in keyword arguments. 
+    • push(**kwargs): Element is initialized with name-value pairs in keyword arguments.
     """
 
     def __init__(self, *args, **kwargs):
@@ -112,7 +112,7 @@ def find(*args, **kwargs):
     • find(mapping): Match is expressed as a mapping object's key-value pairs.
     • find(**kwargs): Match is expressed with name-value pairs in keyword arguments.
 
-    Supplying no parameters will yield all elements on the stack. 
+    Supplying no parameters will yield all elements on the stack.
     """
     test = dict(*args, **kwargs).items()
     return (value for value in _stack.get(()) if test <= value.items())
@@ -126,7 +126,7 @@ def first(*args, **kwargs):
 
     The element to match for can be expressed as follows:
     • first(mapping): Match is expressed as a mapping object's key-value pairs.
-    • first(**kwargs): Match is expressed with name-value pairs in keyword arguments. 
+    • first(**kwargs): Match is expressed with name-value pairs in keyword arguments.
     """
     result = None
     for result in find(*args, **kwargs):
@@ -141,6 +141,6 @@ def last(*args, **kwargs):
 
     The element to match for can be expressed as follows:
     • last(mapping): Match is expressed as a mapping object's key-value pairs.
-    • last(**kwargs): Match is expressed with name-value pairs in keyword arguments. 
+    • last(**kwargs): Match is expressed with name-value pairs in keyword arguments.
     """
     return next(iter(find(*args, **kwargs)), None)
