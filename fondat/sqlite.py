@@ -5,6 +5,7 @@
 import aiosqlite
 import contextlib
 import contextvars
+import enum
 import fondat.codec
 import fondat.sql
 import functools
@@ -62,6 +63,24 @@ class _TextAdapter:
         return self.codec.str_decode(value)
 
 
+class _EnumAdapter:
+    """Converts value to/from SQLite to enumerations."""
+
+    def __init__(self, pytype: type):
+        self._pytype = pytype
+        self._utype = Union[tuple(type(member.value) for member in pytype)]
+        if typing.get_origin(self._utype) is Union:
+            raise TypeError("SQLite does not support mixed-type Enums")
+        self._adapter = _get_adapter(self._utype)
+        self.sql_type = self._adapter.sql_type
+
+    def sql_encode(self, value: Any) -> Any:
+        return self._adapter.sql_encode(value.value)
+
+    def sql_decode(self, value: Any) -> Any:
+        return self._pytype(self._adapter.sql_decode(value))
+    
+
 _adapters = {
     bool: _CastAdapter(bool, "INTEGER"),
     bytes: _PassAdapter("BLOB"),
@@ -72,6 +91,13 @@ _adapters = {
 
 
 NoneType = type(None)
+
+
+def _issubclass(cls, cls_or_tuple):
+    try:
+        return issubclass(cls, cls_or_tuple)
+    except TypeError:
+        return False
 
 
 @functools.cache
@@ -85,6 +111,8 @@ def _get_adapter(pytype: type) -> Any:
             return _get_adapter(Union[tuple(a for a in args if a is not NoneType)])
     if adapter := _adapters.get(stripped):
         return adapter
+    elif _issubclass(pytype, enum.Enum):
+        return _EnumAdapter(pytype) 
     else:
         return _TextAdapter(pytype)
 
