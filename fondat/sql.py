@@ -1,139 +1,94 @@
-"""
-Module to manage resource items in a SQL database.
-"""
+"""Module to manage resource items in a SQL database."""
 
-import collections.abc
-import contextlib
+# from __future__ import annotations
+
 import fondat.patch
-import fondat.resource
-import fondat.schema as s
-import inspect
 import logging
+import typing
 
-from dataclasses import dataclass
+from collections.abc import Iterable
+from dataclasses import dataclass, is_dataclass
+from fondat.resource import resource, operation
+from typing import Annotated, Any, Union
 
 
 _logger = logging.getLogger(__name__)
 
 
-class Adapter:
+def is_nullable(pytype):
+    """Return if Python type allows for None value."""
+    NoneType = type(None)
+    if typing.get_origin(pytype) is Annotated:
+        pytype = typing.get_args(pytype)[0]  # strip annotation
+    if pytype is NoneType:
+        return True
+    if typing.get_origin(pytype) is not Union:
+        return False
+    for arg in typing.get_args(pytype):
+        if arg is NoneType:
+            return True
+    return False
+
+
+@dataclass
+class Parameter:
     """
-    Adapts a Fondat schema type to a database schema type.
+    Represents a parameterized value to include in a statement.
 
-    Each SQL database expects different Python representations for data types
-    it supports. An adapter converts a value to and from a representation that
-    is expected by the SQL database.
-
-    Parameters and attributes:
-    • schema: Schema of values to be encoded/decoded.
-    • sql_type: The SQL type associated with the adapter.
-   """
-
-    def __init__(self, sql_type):
-        self.sql_type = sql_type
-
-    def sql_encode(self, value, schema):
-        """
-        Encode a value as a statement parameter.
-        """
-        raise NotImplementedError
-
-    def sql_decode(self, value, schema):
-        """
-        Decode a value from a query result.
-        """
-        raise NotImplementedError
-
-
-class _Adapters(collections.abc.Mapping):
-    """
-    A mapping of schema classes to associated adapters.
-
-    Parameter:
-    • adapters: Mapping of adatpers to initialize.
+    Attributes:
+    • pytype: The type of the pameter to be included.
+    • value: The value of the parameter to be included.
     """
 
-    def __init__(self, adapters=None):
-        self.adapters = {k: v for k, v in adapters.items()} if adapters else {}
-
-    def __getitem__(self, key):
-        """Return an adapter for the specified schema type."""
-        cls = key.__class__
-        while True:
-            try:
-                return self.adapters[cls]
-            except KeyError:
-                try:
-                    cls = cls.__bases__[0]  # naïve
-                except IndexError:
-                    break
-        raise KeyError(f"no adapter for schema type {schema.__class__.__name__}")
-
-    def __iter__(self):
-        return iter(self.adapters)
-
-    def __len__(self):
-        return len(self.adapters)
+    pytype: type
+    value: Any
 
 
-class Statement:
-    """Builds a SQL statement."""
-
-    PARAM = object()
+class Statement(Iterable):
+    """Represents a SQL statement."""
 
     def __init__(self):
-        self.operation = []
-        self.parameters = []
+        self.fragments = []
 
-    def text(self, text):
+    def __iter__(self):
+        return iter(self.fragments)
+
+    def text(self, value: str) -> None:
         """Append text to the statement."""
-        self.operation.append(text)
+        self.fragments.append(value)
 
-    def param(self, value, schema=None):
-        """
-        Append a parameter value to the statement.
-        
-        If a schema is provided, the value will be encoded to SQL when the
-        statement is executed.
+    def param(self, value: Parameter) -> None:
+        """Append a parameter to the statement."""
+        self.fragments.append(value)
 
-        Parametes:
-        • value: The value of parameter to append.
-        • schema: Schema of the parameter value to append.
+    def params(self, params: Iterable[Parameter], separator: str = None) -> None:
         """
-        self.operation.append(Statement.PARAM)
-        self.parameters.append((value, schema))
-
-    def params(self, params, separator=None):
-        """
-        Append a sequence of parameters to this statement, optionally
-        separating each with a separator.
+        Append parameters to this statement, with optional text separator.
 
         Parameters:
-        • params: Sequence of tuples (value, schema) to be added.
-        • separator: Text separator between parameters.
+        • params: Parameters to be added.
+        • separator: Separator between parameters.
         """
         sep = False
         for param in params:
             if sep and separator is not None:
                 self.text(separator)
-            self.param(*param)
+            self.param(param)
             sep = True
 
-    def statement(self, statement):
-        """
-        Add another statement to this statement.
-        """
-        self.operation += statement.operation
-        self.parameters += statement.parameters
+    #    def statement(self, statement: Statement) -> None:
+    def statement(self, statement) -> None:
+        """Append another statement to this statement."""
+        self.fragments += statement.fragments
 
-    def statements(self, statements, separator=None):
+    #    def statements(self, statements: Iterable[Statement], separator: str = None) -> None:
+    def statements(self, statements, separator: str = None) -> None:
         """
-        Add a sequence of statements to this statement, optionally separating
-        each with a separator.
+        Append statements to this statement, with optional text separator.
 
         Parameters:
-        • statements: Sequence of statements to be added to the statement.
-        • separator: Separator between statements to be added.
+        • statements: Statements to be added to the statement.
+        • separator: Separator between statements.
         """
         sep = False
         for statement in statements:
@@ -143,31 +98,50 @@ class Statement:
             sep = True
 
 
+class Results:
+    """Base class for SQL statement execution results."""
+
+
+class Transaction:
+    """
+    Base class for a SQL transaction.
+
+    A transaction object is a context manager that manages a database
+    transaction. A transaction provides the means to execute a SQL
+    statement, and provides transaction semantics (commit/rollback).
+
+    Upon exit of the context manager, in the event of an exception, the
+    transaction will be rolled back; otherwise, the transaction will be
+    committed.
+    """
+
+    async def execute(self, statement: Statement) -> Results:
+        raise NotImplementedError
+
+
 class Database:
-    """
-    Base class for a SQL database. Subclasses must implement the
-    "transaction" method and expose the "marker".
+    """Base class for a SQL database."""
 
-    Parameters:
-    • adapters: Mapping of adapters to be used with the database.
-    """
-
-    def __init__(self, adapters):
-        self.adapters = _Adapters(adapters)
-
-    async def transaction(self):
+    async def transaction(self) -> Transaction:
         """
-        Return a context manager that manages a database transaction.
-
-        A transaction provides the means to execute a SQL statement, and
-        provides transaction semantics (commit/rollback). Upon exit of the
-        context manager, in the event of an exception, the transaction will be
-        rolled back; otherwise, the transaction will be committed. 
+        Return context manager that manages a database transaction.
 
         If more than one request for a transaction is made within the same
         task, the same transaction will be returned; only the outermost
         yielded transaction will exhibit commit/rollback behavior.
         """
+        raise NotImplementedError
+
+    def sql_encode(self, pytype: type, value: Any) -> Any:
+        """Encode a value as a SQL statement parameter."""
+        raise NotImplementedError
+
+    def sql_decode(self, pytype: type, value: Any) -> Any:
+        """Decode a value from a SQL query result."""
+        raise NotImplementedError
+
+    def sql_type(self, pytype: type) -> str:
+        """TODO: Description."""
         raise NotImplementedError
 
 
@@ -177,25 +151,23 @@ class Table:
 
     Parameters and attributes:
     • name: Name of database table.
-    • schema: Schema of table columns.
-    • pk: Column name of the primary key.
+    • database: Database where table is managed.
+    • schema: Data class representing the table schema.
+    • pk: Column name of primary key.
 
     Attributes:
-    • columns: Mapping of column names to associated schema types.
-
-    The schema must be a fondat.schema.dataclass type, whose attribute names map
-    to table columns.
+    • columns: Mapping of column names to ther associated types.
     """
 
-    def __init__(self, database, name, schema, pk):
-        if not isinstance(schema, s.dataclass):
-            raise ValueError("schema for table must be fondat.schema.dataclass")
-        self.database = database
+    def __init__(self, name: str, database: Database, schema: type, pk: str):
         self.name = name
+        self.database = database
+        if not is_dataclass(schema):
+            raise TypeError("table schema must be a dataclass")
         self.schema = schema
-        self.columns = self.schema.attrs.__dict__
+        self.columns = typing.get_type_hints(schema, include_extras=True)
         if pk not in self.columns:
-            raise ValueError(f"primary key '{pk}' not in schema")
+            raise ValueError(f"unknown primary key: {pk}")
         self.pk = pk
 
     async def create(self):
@@ -203,11 +175,11 @@ class Table:
         stmt = Statement()
         stmt.text(f"CREATE TABLE {self.name} (")
         columns = []
-        for name, schema in self.columns.items():
-            column = [name, self.database.adapters[schema].sql_type]
-            if name == self.pk:
+        for column_name, column_type in self.columns.items():
+            column = [column_name, self.database.sql_type(column_type)]
+            if column_name == self.pk:
                 column.append("PRIMARY KEY")
-            if not schema.nullable:
+            if not is_nullable(column_type):
                 column.append("NOT NULL")
             columns.append(" ".join(column))
         stmt.text(", ".join(columns))
@@ -222,16 +194,27 @@ class Table:
         async with self.database.transaction() as t:
             await t.execute(stmt)
 
-    async def select(self, columns=None, where=None, order=None):
+    async def select(
+        self,
+        columns: Union[Iterable[str], str] = None,
+        where: Statement = None,
+        order: str = None,
+        limit: int = None,
+        offset: int = None,
+    ) -> list[dict[str, Any]]:
         """
         Return a list of rows in table that match the where expression. Each
-        row is expressed in a dict.
+        row result is expressed in a dict object.
 
         Parameters:
         • columns: Column names to return, or None for all columns.
         • where: Statement containing WHERE expression, or None to match all rows.
         • order: Column names to order by, or None to not order results.
+        • limit: Limit the number of results returned, or None to not limit.
+        • offset: Number of rows to skip, or None to skip none.
         """
+        if isinstance(columns, str):
+            columns = columns.replace(",", " ").split()
         columns = tuple(columns or self.columns.keys())
         stmt = Statement()
         stmt.text("SELECT ")
@@ -241,47 +224,79 @@ class Table:
             stmt.text(" WHERE ")
             stmt.statement(where)
         if order:
-            stmt.text(f" ORDER BY ")
+            stmt.text(" ORDER BY ")
             stmt.text(", ".join(order))
+        if limit is not None:
+            stmt.text(f" LIMIT {limit}")
+        if offset:
+            stmt.text(f" OFFSET {offset}")
+
         stmt.text(";")
         results = []
         async with self.database.transaction() as t:
-            async for row in await t.execute(stmt):
-                result = dict(zip(columns, row))
+            async for result in await t.execute(stmt):
+                result = dict(zip(columns, result))
                 for column in columns:
-                    schema = self.columns[column]
-                    if result[column] is not None:
-                        try:
-                            result[column] = self.database.adapters[schema].sql_decode(
-                                result[column], schema
-                            )
-                        except s.SchemaError as se:
-                            se.path = column
-                            raise
+                    result[column] = self.database.sql_decode(
+                        self.columns[column], result[column]
+                    )
                 results.append(result)
         return results
 
-    async def list(self, where=None):
-        """
-        Return a list of primary keys that match the where expression.
-
-        Parameters:
-        • where: Statement containing WHERE expression, or None to list all rows.
-        """
+    async def insert(self, value: Any) -> None:
+        """Insert table row."""
         stmt = Statement()
-        stmt.text(f"SELECT {self.pk} FROM {self.name}")
-        if where:
-            stmt.text(" WHERE ")
-            stmt.statement(where)
-        stmt.text(";")
-        pk_schema = self.columns[self.pk]
-        result = []
+        stmt.text(f"INSERT INTO {self.name} (")
+        stmt.text(", ".join(self.columns))
+        stmt.text(") VALUES (")
+        stmt.params(
+            (
+                Parameter(pytype, getattr(value, name))
+                for name, pytype in self.columns.items()
+            ),
+            ", ",
+        )
+        stmt.text(");")
         async with self.database.transaction() as t:
-            async for row in await t.execute(stmt):
-                result.append(
-                    self.database.adapters[pk_schema].sql_decode(row[0], pk_schema)
-                )
-        return result
+            await t.execute(stmt)
+
+    async def read(self, key: Any) -> Any:
+        """Return a table row, or None if not found."""
+        where = Statement()
+        where.text(f"{self.pk} = ")
+        where.param(Parameter(self.columns[self.pk], key))
+        results = await self.select(where=where)
+        try:
+            kwargs = next(iter(results))
+        except StopIteration:
+            return None
+        return self.schema(**kwargs)
+
+    async def update(self, value: Any) -> None:
+        """Update table row."""
+        key = getattr(value, self.pk)
+        stmt = Statement()
+        stmt.text(f"UPDATE {self.name} SET ")
+        updates = []
+        for name, pytype in self.columns.items():
+            update = Statement()
+            update.text(f"{name} = ")
+            update.param(Parameter(pytype, getattr(value, name)))
+            updates.append(update)
+        stmt.statements(updates, ", ")
+        stmt.text(f" WHERE {self.pk} = ")
+        stmt.param(Parameter(self.columns[self.pk], key))
+        async with self.database.transaction() as t:
+            await t.execute(stmt)
+
+    async def delete(self, key: Any) -> None:
+        """Delete table row."""
+        stmt = Statement()
+        stmt.text(f"DELETE FROM {self.name} WHERE {self.pk} = ")
+        stmt.param(Parameter(self.columns[self.pk], key))
+        stmt.text(";")
+        async with self.database.transaction() as t:
+            await t.execute(stmt)
 
 
 class Index:
@@ -289,29 +304,33 @@ class Index:
     Represents an index on a table in a SQL database.
 
     Parameters:
-    • name: the name of the index.
-    • table: table that the index defined for.
-    • columns: list of column names to index.
-    • unique: are columns unique in table.
+    • name: Name of index.
+    • table: Table that the index defined for.
+    • keys: Index keys (typically column names).
+    • unique: Is index unique.
+    • desc: Are keys to be sorted in descending order.
     """
 
-    def __init__(self, name, table, columns, unique=False):
+    def __init__(
+        self,
+        name: str,
+        table: Table,
+        keys: Iterable[str],
+        unique: bool = False,
+    ):
         self.name = name
         self.table = table
-        for column in columns:
-            if column not in table.columns:
-                raise ValueError(f"column '{column}' not in {table.name} table")
-        self.columns = columns
+        self.keys = keys
         self.unique = unique
 
     async def create(self):
         """Create index in database."""
         stmt = Statement()
         stmt.text("CREATE ")
-        if index.unique:
+        if self.unique:
             stmt.text("UNIQUE ")
         stmt.text(f"INDEX {self.name} on {self.table.name} (")
-        stmt.text(", ".join(self.columns))
+        stmt.text(", ".join(self.keys))
         stmt.text(");")
         async with self.table.database.transaction() as t:
             await t.execute(stmt)
@@ -324,101 +343,19 @@ class Index:
             await t.execute(stmt)
 
 
-def table_resource(table, security=None):
-    """Return a new table resource class."""
+# def row_resource(
+#     table: Table,
+#     security: Iterable[SecurityRequirement] = None
+# ):
+#     """Return a new table resource."""
 
-    @fondat.resource.resource
-    class TableResource:
-        def __init__(self):
-            self.table = table
+#     pk = table.columns[table.pk]
 
-        @fondat.resource.operation(security=security)
-        async def get(self, id: table.columns[table.pk]) -> table.schema:
-            where = Statement()
-            where.text(f"{self.table.pk} = ")
-            where.param(id, self.table.columns[table.pk])
-            results = await self.table.select(where=where)
-            try:
-                kwargs = next(iter(results))
-            except StopIteration:
-                raise fondat.resource.NotFound(
-                    f"row not found: {self.table.columns[self.table.pk].str_encode(id)}"
-                )
-            try:
-                result = self.table.schema.class_(**kwargs)
-                self.table.schema.validate(
-                    result
-                )  # TODO: simplify and just check for required?
-            except (TypeError, s.SchemaError) as e:
-                _logger.error(e)
-                raise fondat.resource.InternalServerError
-            return result
+#     @resource
+#     class RowResource:
+#         @validate
+#         def __init__(self, key: pk):
+#             self.key = key
 
-        async def _update(self, id, old, new):
-            if old == new:
-                return
-            self.table.schema.validate(new)
-            stmt = Statement()
-            stmt.text(f"UPDATE {self.table.name} SET ")
-            columns = self.table.columns
-            updates = []
-            for column, schema in columns.items():
-                if getattr(old, column, None) != getattr(new, column, None):
-                    update = Statement()
-                    update.text(f"{column} = ")
-                    update.param(getattr(new, column, None), self.table.columns[column])
-                    updates.append(update)
-            stmt.statements(updates, ", ")
-            stmt.text(f" WHERE {self.table.pk} = ")
-            stmt.param(id, self.table.columns[self.table.pk])
-            stmt.text(";")
-            async with self.table.database.transaction() as t:
-                await t.execute(stmt)
 
-        @fondat.resource.operation(security=security)
-        async def put(self, id: table.columns[table.pk], data: table.schema):
-            await self._update(id, await self.get(id), data)
-
-        @fondat.resource.operation(security=security)
-        async def post(
-            self, id: table.columns[table.pk], data: table.schema
-        ) -> s.dict({"id": table.columns[table.pk]}):
-            setattr(data, self.table.pk, id)
-            self.table.schema.validate(data)
-            stmt = Statement()
-            stmt.text(f"INSERT INTO {self.table.name} (")
-            stmt.text(", ".join(self.table.columns))
-            stmt.text(") VALUES (")
-            stmt.params(
-                (
-                    (getattr(data, column), schema)
-                    for column, schema in self.table.columns.items()
-                ),
-                ", ",
-            )
-            stmt.text(");")
-            async with self.table.database.transaction() as t:
-                await t.execute(stmt)
-            return dict(id=id)
-
-        @fondat.resource.operation(security=security)
-        async def delete(self, id: table.columns[table.pk]):
-            await self.get(id)
-            stmt = Statement()
-            stmt.text(f"DELETE FROM {self.table.name} WHERE {self.table.pk} = ")
-            stmt.param(id, self.table.columns[self.table.pk])
-            stmt.text(";")
-            async with self.table.database.transaction() as t:
-                await t.execute(stmt)
-
-        @fondat.resource.operation(security=security)
-        async def patch(
-            self, id: table.columns[table.pk], doc: s.dict({}, additional=True)
-        ):
-            old = await self.get(id)
-            new = self.table.schema.json_decode(
-                fondat.patch.merge_patch(self.table.schema.json_encode(old), doc)
-            )
-            await self._update(id, old, new)
-
-    return TableResource
+#     return TableResource()

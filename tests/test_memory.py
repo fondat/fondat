@@ -1,8 +1,7 @@
-import fondat.resource as r
 import pytest
 
 from dataclasses import make_dataclass
-from fondat.memory import mapping_resource, static_resource
+from fondat.memory import memory_resource
 from fondat.resource import BadRequest, Conflict, NotFound, operation
 from time import sleep
 from uuid import uuid4
@@ -13,7 +12,7 @@ pytestmark = pytest.mark.asyncio
 
 async def test_gpdl_dict():
     DC = make_dataclass("DC", [("foo", str), ("bar", int)])
-    resource = mapping_resource(key_type=str, value_type=DC)()
+    resource = memory_resource(key_type=str, value_type=DC)
     id = "id1"
     r1 = DC("hello", 1)
     await resource[id].put(r1)
@@ -28,7 +27,7 @@ async def test_gpdl_dict():
 
 
 async def test_gpdl_str():
-    resource = mapping_resource(key_type=str, value_type=str)()
+    resource = memory_resource(key_type=str, value_type=str)
     data = "你好，世界!"
     id = "hello_world"
     await resource[id].put(data)
@@ -42,7 +41,7 @@ async def test_gpdl_str():
 
 
 async def test_gpdl_bytes():
-    resource = mapping_resource(key_type=str, value_type=bytes)()
+    resource = memory_resource(key_type=str, value_type=bytes)
     data = b"\x00\x0e\0x01\0x01\0x00"
     id = "binary"
     await resource[id].put(data)
@@ -56,19 +55,19 @@ async def test_gpdl_bytes():
 
 
 async def test_get_notfound():
-    resource = mapping_resource(key_type=str, value_type=str)()
+    resource = memory_resource(key_type=str, value_type=str)
     with pytest.raises(NotFound):
         await resource["1"].get()
 
 
 async def test_delete_notfound():
-    resource = mapping_resource(key_type=str, value_type=str)()
+    resource = memory_resource(key_type=str, value_type=str)
     with pytest.raises(NotFound):
         await resource["1"].delete()
 
 
 async def test_clear():
-    resource = mapping_resource(key_type=str, value_type=str)()
+    resource = memory_resource(key_type=str, value_type=str)
     await resource["1"].put("foo")
     await resource["2"].put("bar")
     assert len(await resource.get()) == 2
@@ -77,14 +76,14 @@ async def test_clear():
 
 
 async def test_size_limit():
-    resource = mapping_resource(key_type=str, value_type=str, size=1)()
+    resource = memory_resource(key_type=str, value_type=str, size=1)
     await resource["1"].put("foo")
     with pytest.raises(BadRequest):
         await resource["2"].put("bar")
 
 
 async def test_size_evict():
-    resource = mapping_resource(key_type=str, value_type=str, size=2, evict=True)()
+    resource = memory_resource(key_type=str, value_type=str, size=2, evict=True)
     await resource["1"].put("foo")
     await resource["2"].put("bar")
     await resource["3"].put("qux")
@@ -92,15 +91,9 @@ async def test_size_evict():
 
 
 async def test_ttl():
-    resource = mapping_resource(key_type=str, value_type=str, ttl=0.1)()
+    resource = memory_resource(key_type=str, value_type=str, ttl=0.1)
     await resource["1"].put("foo")
     await resource["1"].get()
     sleep(0.2)
     with pytest.raises(NotFound):
         await resource["1"].get()
-
-
-async def test_static_get():
-    value = b"This is the content that will be returned."
-    resource = static_resource(value)()
-    assert await resource.get() == value

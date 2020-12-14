@@ -1,16 +1,18 @@
 """Module to store resource items in files."""
 
+from __future__ import annotations
+
 import aiofiles
-import dataclasses
-import enum
 import fondat.codec
 import logging
 import os
 import os.path
-import typing
 
+from collections.abc import Iterable
 from fondat.resource import resource, operation, InternalServerError, NotFound, In
 from fondat.typing import affix_type_hints
+from fondat.security import SecurityRequirement
+from typing import Annotated, Any
 
 
 _logger = logging.getLogger(__name__)
@@ -32,32 +34,23 @@ def _unquote(s):
     return s
 
 
-def file_resource(type_, compress=None, security=None):
-    """
-    Return a new resource class that manages content in a file.
+def _file_resource_class(
+    value_type: type,
+    compress: Any = None,
+    security: Iterable[SecurityRequirement] = None,
+):
 
-    Parameters:
-    • type_: Type of value stored in file.
-    • compress: Algorithm to compress and decompress file content.
-    • security: Security requirements to apply to file operations.
-
-    Compression algorithm is any object or module that exposes callable
-    "compress" and "decompress" attributes. Examples: bz2, gzip, lzma, zlib.
-    """
-
-    codec = fondat.codec.get_codec(type_)
+    codec = fondat.codec.get_codec(value_type)
 
     @resource
     class FileResource:
         """..."""
 
-        value_type = type_
-
         def __init__(self, path):
             self.path = path
 
         @operation(security=security)
-        async def get(self) -> type_:
+        async def get(self) -> value_type:
             """Read file."""
             try:
                 async with aiofiles.open(self.path, "rb") as file:
@@ -72,7 +65,7 @@ def file_resource(type_, compress=None, security=None):
                 raise InternalServerError
 
         @operation(security=security)
-        async def put(self, value: typing.Annotated[type_, In.BODY]):
+        async def put(self, value: Annotated[value_type, In.BODY]):
             """Write file."""
             tmp = self.path + ".__tmp"
             content = codec.bytes_encode(value)
@@ -98,11 +91,37 @@ def file_resource(type_, compress=None, security=None):
     return FileResource
 
 
-def directory_resource(
-    path, key_type, value_type, extension=None, compress=None, security=None
-):
+def file_resource(
+    path: str,
+    value_type: type,
+    compress: Any = None,
+    security: Iterable[SecurityRequirement] = None,
+) -> Any:
     """
-    Return a new resource class that manages files in a directory.
+    Return a new resource that manages a file.
+
+    Parameters:
+    • path: Path in filesystem to file.
+    • value_type: Type of value stored in file.
+    • compress: Algorithm to compress and decompress file content.
+    • security: Security requirements to apply to file operations.
+
+    Compression algorithm is any object or module that exposes callable
+    "compress" and "decompress" attributes. Examples: bz2, gzip, lzma, zlib.
+    """
+    return _file_resource_class(value_type, compress, security)(path)
+
+
+def directory_resource(
+    path: str,
+    key_type: type,
+    value_type: type,
+    extension: str = None,
+    compress: Any = None,
+    security: Iterable[SecurityRequirement] = None,
+) -> Any:
+    """
+    Return a new resource that manages files in a directory.
 
     Parameters:
     • path: Path to directory where files are stored.
@@ -125,7 +144,7 @@ def directory_resource(
 
     os.makedirs(_path, exist_ok=True)
 
-    FileResource = file_resource(value_type, compress, security)
+    FileResource = _file_resource_class(value_type, compress, security)
 
     @resource
     class DirectoryResource:
@@ -151,7 +170,8 @@ def directory_resource(
 
     DirectoryResource.key_type = key_type
     DirectoryResource.value_type = value_type
-
     DirectoryResource.__qualname__ = "DirectoryResource"
+
     affix_type_hints(DirectoryResource, localns=locals())
-    return DirectoryResource
+
+    return DirectoryResource()

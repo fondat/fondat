@@ -2,37 +2,37 @@
 
 from __future__ import annotations
 
-import collections
-import collections.abc
 import copy
-import datetime
-import fondat.security
 import threading
-import typing
 
+from collections import namedtuple
+from collections.abc import Iterable
+from datetime import datetime, timedelta, timezone
 from fondat.resource import resource, operation, NotFound, BadRequest, In
+from fondat.security import SecurityRequirement
 from fondat.typing import affix_type_hints
+from typing import Annotated
 
 
-_now = lambda: datetime.datetime.now(tz=datetime.timezone.utc)
+_now = lambda: datetime.now(tz=timezone.utc)
 
-_delta = lambda s: datetime.timedelta(seconds=s)
+_delta = lambda s: timedelta(seconds=s)
 
-_Item = collections.namedtuple("Item", "value,time")
+_Item = namedtuple("Item", "value,time")
 
-_Oldest = collections.namedtuple("Oldest", "key,time")
+_Oldest = namedtuple("Oldest", "key,time")
 
 
-def mapping_resource(
+def memory_resource(
     key_type: type,
     value_type: type,
     size: int = None,
     evict: bool = False,
     ttl: int = None,
-    security: collections.abc.Iterable[fondat.security.SecurityRequirement] = None,
+    security: Iterable[SecurityRequirement] = None,
 ):
     """
-    Return a new resource class that stores items in a dictionary.
+    Return a new resource that stores items in memory.
 
     Parameters:
     • key_type: Type for the key for each item.
@@ -44,7 +44,7 @@ def mapping_resource(
     """
 
     @resource
-    class MappingResource:
+    class MemoryResource:
         def __init__(self):
             self.storage = {}
             self.lock = threading.Lock()
@@ -69,15 +69,15 @@ def mapping_resource(
             with self.lock:
                 self.storage.clear()
 
-    MappingResource.key_type = key_type
-    MappingResource.value_type = value_type
-    MappingResource.size = size
-    MappingResource.evict = evict
-    MappingResource.ttl = ttl
+    MemoryResource.key_type = key_type
+    MemoryResource.value_type = value_type
+    MemoryResource.size = size
+    MemoryResource.evict = evict
+    MemoryResource.ttl = ttl
 
     @resource
     class Item:
-        def __init__(self, container: MappingResource, key: key_type):
+        def __init__(self, container: MemoryResource, key: key_type):
             self.container = container
             self.key = key
 
@@ -92,7 +92,7 @@ def mapping_resource(
             return item.value
 
         @operation(security=security)
-        async def put(self, value: typing.Annotated[value_type, In.BODY]) -> None:
+        async def put(self, value: Annotated[value_type, In.BODY]) -> None:
             """Write item."""
             with self.container.lock:
                 now = _now()
@@ -128,31 +128,9 @@ def mapping_resource(
             with self.container.lock:
                 self.container.storage.pop(self.key, None)
 
-    affix_type_hints(MappingResource, localns=locals())
+    affix_type_hints(MemoryResource, localns=locals())
     affix_type_hints(Item, localns=locals())
-    MappingResource.__qualname__ = "MappingResource"
-    return MappingResource
 
+    MemoryResource.__qualname__ = "MemoryResource"
 
-def static_resource(value, security=None):
-    """
-    Return a new static resource class that serves the supplied value.
-
-    Parameters:
-
-    • value: Value to return in a get operation.
-    • security: Security requirements to access the resource.
-    """
-
-    @resource
-    class StaticResource:
-
-        value_type = type(value)
-
-        @operation(security=security)
-        async def get(self) -> type(value):
-            return value
-
-    affix_type_hints(StaticResource, localns=locals())
-    StaticResource.__qualname__ = "StaticResource"
-    return StaticResource
+    return MemoryResource()

@@ -1,79 +1,95 @@
 """Module to manage resource items in a SQLite database."""
 
+# from __future__ import annotations
+
 import aiosqlite
 import contextlib
 import contextvars
-import fondat.schema as s
+import fondat.codec
 import fondat.sql
+import functools
 import logging
+import typing
+
+from decimal import Decimal
+from datetime import date, datetime
+from fondat.sql import Statement
+from typing import Annotated, Any, Union
+from uuid import UUID
 
 
 _logger = logging.getLogger(__name__)
 
 
 class _CastAdapter:
-    def __init__(self, type, sql_type):
+    """Casts values to/from SQLite to Python type."""
+
+    def __init__(self, pytype: type, sql_type: str):
         self.sql_type = sql_type
-        self.type = type
+        self.pytype = pytype
 
-    def sql_encode(self, value, schema):
-        try:
-            return self.type(value)
-        except ValueError as ve:
-            raise s.SchemaError(str(ve)) from ve
+    def sql_encode(self, value: Any) -> Any:
+        return self.pytype(value)
 
-    def sql_decode(self, value, schema):
-        try:
-            return self.type(value)
-        except ValueError as ve:
-            raise s.SchemaError(str(ve)) from ve
+    def sql_decode(self, value: Any) -> Any:
+        return self.pytype(value)
 
 
 class _PassAdapter:
-    def __init__(self, sql_type):
+    """Passes values to/from SQLite verbatim."""
+
+    def __init__(self, sql_type: str):
         self.sql_type = sql_type
 
-    def sql_encode(self, value, schema):
+    def sql_encode(self, value: Any) -> Any:
         return value
 
-    def sql_decode(self, value, schema):
+    def sql_decode(self, value: Any) -> Any:
         return value
 
 
 class _TextAdapter:
+    """Converts values to/from SQLite to strings."""
 
-    sql_type = "TEXT"
+    def __init__(self, pytype: type):
+        self.sql_type = "TEXT"
+        self.codec = fondat.codec.get_codec(pytype)
 
-    def sql_encode(self, value, schema):
-        return schema.str_encode(value)
+    def sql_encode(self, value: Any) -> Any:
+        return self.codec.str_encode(value)
 
-    def sql_decode(self, value, schema):
-        return schema.str_decode(value)
-
-
-INTEGER = _CastAdapter(int, "INTEGER")
-REAL = _CastAdapter(float, "REAL")
-TEXT = _TextAdapter()
-BLOB = _PassAdapter("BLOB")
+    def sql_decode(self, value: Any) -> Any:
+        return self.codec.str_decode(value)
 
 
 _adapters = {
-    s.dataclass: TEXT,
-    s.dict: TEXT,
-    s.list: TEXT,
-    s.set: TEXT,
-    s.str: TEXT,
-    s.int: INTEGER,
-    s.float: REAL,
-    s.bool: _CastAdapter(bool, "INTEGER"),
-    s.bytes: BLOB,
-    s.date: TEXT,
-    s.datetime: TEXT,
-    s.uuid: TEXT,
+    bool: _CastAdapter(bool, "INTEGER"),
+    bytes: _PassAdapter("BLOB"),
+    Decimal: _CastAdapter(float, "REAL"),
+    float: _CastAdapter(float, "REAL"),
+    int: _CastAdapter(int, "INTEGER"),
 }
 
 
-class Rows:
+NoneType = type(None)
+
+
+@functools.cache
+def _get_adapter(pytype: type) -> Any:
+    stripped = pytype
+    if typing.get_origin(pytype) is Annotated:
+        stripped = typing.get_args(pytype)[0]  # strip annotation
+    if typing.get_origin(stripped) is Union:
+        args = typing.get_args(stripped)
+        if NoneType in args:
+            return _get_adapter(Union[tuple(a for a in args if a is not NoneType)])
+    if adapter := _adapters.get(stripped):
+        return adapter
+    else:
+        return _TextAdapter(pytype)
+
+
+class Results:
     def __init__(self, cursor):
         self.cursor = cursor
 
@@ -93,8 +109,52 @@ class Rows:
         return row
 
 
-class Transaction:
-    def __init__(self, database):
+class Database(fondat.sql.Database):
+    """
+    Manages access to a SQLite database.
+
+    Parameter:
+    • path: Path to SQLite database file.
+    """
+
+    def __init__(self, path):
+        super().__init__()
+        self.path = path
+        self._tx = contextvars.ContextVar("fondat_sqlite_tx")
+
+    @contextlib.asynccontextmanager
+    async def transaction(self):
+        t = self._tx.get(None)
+        token = None
+        if not t:
+            t = Transaction(self)
+            token = self._tx.set(t)
+        try:
+            async with t:
+                yield t
+        finally:
+            if token:
+                self._tx.reset(token)
+
+    async def connect(self):
+        return await aiosqlite.connect(self.path)
+
+    def sql_encode(self, pytype: type, value: Any) -> Any:
+        if value is not None:
+            return _get_adapter(pytype).sql_encode(value)
+
+    def sql_decode(self, pytype: type, value: Any) -> Any:
+        if value is not None:
+            return _get_adapter(pytype).sql_decode(value)
+
+    def sql_type(self, pytype: type):
+        return _get_adapter(pytype).sql_type
+
+
+class Transaction(fondat.sql.Transaction):
+
+    def __init__(self, database: Database):
+        super().__init__()
         self.database = database
         self.connection = None
         self.count = 0
@@ -102,7 +162,7 @@ class Transaction:
     async def __aenter__(self):
         self.count += 1
         if not self.connection:
-            self.connection = await aiosqlite.connect(self.database.file)
+            self.connection = await self.database.connect()
             _logger.debug("%s", "transaction begin")
         return self
 
@@ -119,56 +179,13 @@ class Transaction:
             self.connection = None
             self.count = 0
 
-    def _sql_encode(self, param):
-        value, schema = param
-        if value is None or schema is None:
-            return None
-        return self.database.adapters[schema].sql_encode(value, schema)
-
-    async def execute(self, statement):
-        sql = "".join(
-            ["?" if op is statement.PARAM else op for op in statement.operation]
-        )
-        params = [self._sql_encode(param) for param in statement.parameters]
-        return Rows(await self.connection.execute(sql, params))
-
-
-class Database(fondat.sql.Database):
-    """
-    Manages access to a SQLite database.
-
-    Parameter:
-    • file: Path to SQLite database file.
-    """
-
-    def __init__(self, file):
-        super().__init__(_adapters)
-        self.file = file
-        self._tx = contextvars.ContextVar("fondat_sqlite_tx")
-
-    @contextlib.asynccontextmanager
-    async def transaction(self):
-        """
-        Return an asynchronous context manager that manages a database
-        transaction.
-
-        A transaction provides the means to execute queries and provides
-        transaction semantics (commit/rollback). Upon exit of the context
-        manager, in the event of an exception, the transaction will be
-        rolled back; otherwise, the transaction will be committed. 
-
-        If more than one request for a transaction is made within the same
-        task, the same transaction will be returned; only the outermost
-        yielded transaction will exhibit commit/rollback behavior.
-        """
-        t = self._tx.get(None)
-        token = None
-        if not t:
-            t = Transaction(self)
-            token = self._tx.set(t)
-        try:
-            async with t:
-                yield t
-        finally:
-            if token:
-                self._tx.reset(token)
+    async def execute(self, statement: Statement) -> Results:
+        text = []
+        params = []
+        for fragment in statement:
+            if isinstance(fragment, str):
+                text.append(fragment)
+            else:
+                text.append("?")
+                params.append(self.database.sql_encode(fragment.pytype, fragment.value))
+        return Results(await self.connection.execute("".join(text), params))
