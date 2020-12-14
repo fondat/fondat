@@ -9,12 +9,13 @@ import collections
 import contextlib
 import dataclasses
 import datetime
+import fondat.context as context
+import fondat.validate
 import logging
 import math
 import re
-import fondat.context as context
-import fondat.schema as s
 import time
+import typing
 
 
 _logger = logging.getLogger(__name__)
@@ -23,7 +24,7 @@ _logger = logging.getLogger(__name__)
 _now = lambda: datetime.datetime.now(tz=datetime.timezone.utc)
 
 
-@s.data
+@dataclasses.dataclass
 class Measurement:
     """
     An individual measurement.
@@ -35,13 +36,14 @@ class Measurement:
     • value: Value of measurement (int or float).
     """
 
-    tags: s.dict({}, additional=True)
-    timestamp: s.datetime()
-    type: s.str(enum={"counter", "gauge", "absolute"})
-    value: s.one_of((s.int(), s.float()))
+    tags: dict[str, typing.Any]
+    timestamp: datetime.datetime
+    type: str  # {"counter", "gauge", "absolute"}
+    value: typing.Union[int, float]
+
 
     def __post_init__(self):
-        self._schema.validate(self)
+        fondat.validate.validate(self, self.__class__)
 
 
 class Counter:
@@ -112,7 +114,7 @@ class Absolute:
     • timestamp: Date and time of the data point.
 
     Attributes:
-    • value: Sum of measured values.    
+    • value: Sum of measured values.
     """
 
     name = "absolute"
@@ -161,7 +163,7 @@ class Series:
         return True
 
     def _round_down(self, timestamp):
-        ts = math.ceil(timestamp.timestamp())  # truncate milliseconds
+        ts = int(timestamp.timestamp())  # truncate milliseconds
         ts -= ts % self.interval  # round to beginning of interval
         return datetime.datetime.fromtimestamp(ts, tz=datetime.timezone.utc)
 
@@ -204,10 +206,10 @@ class SimpleMonitor:
     In this monitor, a time series is a set of data points and time intervals
     of fixed duration. A data point records data measured at that exact point
     in time and the subsequent interval.
-    
+
     This monitor handles the following types of recorded measurements in data
     points: "counter", "gauge" and "absolute". For more information on these
-    types, see their class documentation. 
+    types, see their class documentation.
 
     If no measurement is recorded for a given data point, the data point will
     not be stored in the time series. Consumers of the time series should
@@ -233,7 +235,7 @@ class SimpleMonitor:
         • interval: Interval between data points, in seconds.
 
         For patterns parameter, see the Series class initializer documentation.
-       """
+        """
         if name in self.series:
             raise ValueError(f"time series already exists: {name}")
         if type not in _types:

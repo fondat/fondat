@@ -1,14 +1,13 @@
+import fondat.codec
 import fondat.monitor
-import fondat.schema as s
 import pytest
-
 
 from datetime import datetime, timedelta, timezone
 from fondat.monitor import Measurement
 
 _tags = {"name": "test"}
 
-_dt = lambda string: s.datetime().str_decode(string)
+_dt = lambda s: fondat.codec.get_codec(datetime).str_decode(s)
 
 _now = lambda: datetime.now(tz=timezone.utc)
 
@@ -19,10 +18,10 @@ async def test_simple_counter_type():
     _type = "counter"
     simple.track("test", _type, _tags, 60, 60)
     await simple.record(Measurement(_tags, _dt("2018-12-01T00:00:00Z"), _type, 1))
-    await simple.record(Measurement(_tags, _dt("2018-12-01T00:00:10.1Z"), _type, 2))
-    await simple.record(Measurement(_tags, _dt("2018-12-01T00:00:20.2Z"), _type, 3))
-    await simple.record(Measurement(_tags, _dt("2018-12-01T00:00:30.3Z"), _type, 4))
-    await simple.record(Measurement(_tags, _dt("2018-12-01T00:00:59.999Z"), _type, 5))
+    await simple.record(Measurement(_tags, _dt("2018-12-01T00:00:10.100000Z"), _type, 2))
+    await simple.record(Measurement(_tags, _dt("2018-12-01T00:00:20.200000Z"), _type, 3))
+    await simple.record(Measurement(_tags, _dt("2018-12-01T00:00:30.300000Z"), _type, 4))
+    await simple.record(Measurement(_tags, _dt("2018-12-01T00:00:59.999999Z"), _type, 5))
     await simple.record(Measurement(_tags, _dt("2018-12-01T00:01:01Z"), _type, 10))
     await simple.record(Measurement(_tags, _dt("2018-12-01T00:01:02Z"), _type, 20))
     await simple.record(Measurement(_tags, _dt("2018-12-01T00:01:03Z"), _type, 30))
