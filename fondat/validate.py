@@ -11,25 +11,28 @@ import re
 import typing
 import wrapt
 
+from collections.abc import Callable, Iterable, Mapping
+from typing import Annotated, Any, Union
+
 
 class Description:
     """Type annotation to provide a textual description."""
 
-    def __init__(self, value):
+    def __init__(self, value: str):
         self.value = value
 
 
 class Example:
     """Type annotation to provide an example value."""
 
-    def __init__(self, value):
+    def __init__(self, value: Any):
         self.value = value
 
 
 class Validator:
     """Base class for type annotations that perform validation."""
 
-    def validate(self, value: typing.Any) -> None:
+    def validate(self, value: Any) -> None:
         raise NotImplementedError
 
 
@@ -39,7 +42,7 @@ class MinLen(Validator):
     def __init__(self, value: int):
         self.value = value
 
-    def validate(self, value: typing.Any) -> None:
+    def validate(self, value: Any) -> None:
         if len(value) < self.value:
             raise ValueError(f"minimum length: {self.value}")
 
@@ -50,25 +53,25 @@ class MaxLen(Validator):
     def __init__(self, value: int):
         self.value = value
 
-    def validate(self, value: typing.Any) -> None:
+    def validate(self, value: Any) -> None:
         if len(value) > self.value:
             raise ValueError(f"maximum length: {self.value}")
 
 
 class MinValue(Validator):
-    def __init__(self, value: typing.Any):
+    def __init__(self, value: Any):
         self.value = value
 
-    def validate(self, value: typing.Any) -> None:
+    def validate(self, value: Any) -> None:
         if value < self.value:
             raise ValueError(f"minimum value: {self.value}")
 
 
 class MaxValue(Validator):
-    def __init__(self, value: typing.Any):
+    def __init__(self, value: Any):
         self.value = value
 
-    def validate(self, value: typing.Any) -> None:
+    def validate(self, value: Any) -> None:
         if value > self.value:
             raise ValueError(f"maximum value: {self.value}")
 
@@ -76,10 +79,10 @@ class MaxValue(Validator):
 class Pattern(Validator):
     """Type annotation that validates a value matches a pattern."""
 
-    def __init__(self, value: typing.Union[str, re.Pattern]):
+    def __init__(self, value: Union[str, re.Pattern]):
         self.value = re.compile(value) if isinstance(value, str) else value
 
-    def validate(self, value: typing.Any) -> None:
+    def validate(self, value: Any) -> None:
         if not self.value.match(value):
             raise ValueError(f"does not match pattern: '{self.value.pattern}'")
 
@@ -165,7 +168,7 @@ def _isinstance(obj, class_or_tuple):
         return False
 
 
-def validate(value, type_):
+def validate(value: Any, type_: type):
     """Validate a value."""
 
     origin = typing.get_origin(type_)
@@ -173,7 +176,7 @@ def validate(value, type_):
 
     annotations = ()
 
-    if origin is typing.Annotated:
+    if origin is Annotated:
         type_ = args[0]
         annotations = args[1:]
         origin = typing.get_origin(type_)
@@ -185,9 +188,9 @@ def validate(value, type_):
         origin = type_
 
     # basic type validation
-    if origin is typing.Any:
+    if origin is Any:
         pass
-    elif origin is typing.Union:
+    elif origin is Union:
         _validate_union(type_, value)
     elif not _isinstance(value, dict) and not _isinstance(value, origin):
         raise TypeError(
@@ -197,11 +200,11 @@ def validate(value, type_):
     # detailed type validation
     if _issubclass(type_, dict) and getattr(type_, "__annotations__", None):
         _validate_typeddict(type_, value)
-    elif _issubclass(origin, collections.abc.Mapping):
+    elif _issubclass(origin, Mapping):
         _validate_mapping(type_, value)
     elif origin is int and _isinstance(value, bool):  # bool is subclass of int
         raise TypeError(f"expecting int")
-    elif _issubclass(origin, collections.abc.Iterable):
+    elif _issubclass(origin, Iterable):
         _validate_iterable(type_, value)
     elif dataclasses.is_dataclass(type_):
         _validate_dataclass(type_, value)
@@ -212,7 +215,7 @@ def validate(value, type_):
             annotation.validate(value)
 
 
-def validate_arguments(callable):
+def validate_arguments(callable: Callable):
     """
     Decorate a function or coroutine to validate its arguments using type
     annotations.
@@ -259,7 +262,7 @@ def validate_arguments(callable):
     return decorator(callable)
 
 
-def validate_return_value(callable):
+def validate_return_value(callable: Callable):
     """
     Decorate a function or coroutine to validate its return value using type
     annotations.
