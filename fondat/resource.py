@@ -19,6 +19,10 @@ import fondat.validate
 import types
 import wrapt
 
+from collections.abc import Iterable
+from fondat.security import SecurityRequirement
+from typing import Any
+
 
 class ResourceError(Exception):
     """Base class for resource errors."""
@@ -26,7 +30,18 @@ class ResourceError(Exception):
     pass
 
 
-In = fondat.enum.str_enum("In", "query header body")
+class InQuery:
+    """Annotation to indicate a parameter is provided in request body."""
+    def __init__(self, name: str = None):
+        self.name = name
+
+class InBody:
+    """Annotation to indicate a parameter is provided in request body."""
+
+class InHeader:
+    """Annotation to indicate a parameter is provided in request header."""
+    def __init__(self, name: str):
+        self.name = name
 
 
 # generate concrete error classes
@@ -101,44 +116,39 @@ def resource(wrapped=None, *, tag=None):
     return wrapped
 
 
-_methods = {
-    "get": "query",
-    "put": "mutation",
-    "post": "mutation",
-    "delete": "mutation",
-    "patch": "mutation",
-}
+def is_resource(obj_or_type: Any):
+    """Return if object or type represents a resource."""
+    return getattr(obj_or_type, "_fondat_resource", None) is not None
 
 
-_operation_types = {"query", "mutation"}
+def is_operation(obj_or_type: Any):
+    """Return if object represents a resource operation."""
+    return getattr(obj_or_type, "_fondat_operation", None) is not None
 
 
 def operation(
     wrapped=None,
     *,
-    type=None,
-    security=None,
-    publish=True,
-    deprecated=False,
+    security: Iterable[SecurityRequirement] = None,
+    publish: bool = True,
+    deprecated: bool = False,
+    validate: bool = True,
 ):
     """
     Decorate a resource coroutine that performs an operation.
 
     Parameters:
-    • type: Type of operation.  {"query", "mutation"}
     • security: Security requirements for the operation.
     • publish: Publish the operation in documentation.
     • deprecated: Declare the operation as deprecated.
 
-    If method name is "get", then type defaults to "query"; if name is one of
-    {"put", "post", "delete", "patch"} then type defaults to "mutation";
-    otherwise type must be specified.
+    Resource operations correlate with HTTP method names, named in lower case.
+    For example: get, put, post, delete, patch.
     """
 
     if wrapped is None:
         return functools.partial(
             operation,
-            type=type,
             security=security,
             publish=publish,
             deprecated=deprecated,
@@ -151,16 +161,11 @@ def operation(
     description = wrapped.__doc__ or name
     summary = _summary(wrapped)
 
-    _type = type or (_methods.get(name))
-
-    if _type not in _operation_types:
-        raise ValueError(f"operation type must be one of: {_operation_types}")
-
     for p in inspect.signature(wrapped).parameters.values():
         if p.kind is p.VAR_POSITIONAL:
-            raise ValueError("function with *args unsupported")
+            raise TypeError("operation with *args is not supported")
         elif p.kind is p.VAR_KEYWORD:
-            raise ValueError("function with **kwargs unsupported")
+            raise TypeError("operation with **kwargs is not supported")
 
     @wrapt.decorator
     async def wrapper(wrapped, instance, args, kwargs):
@@ -176,7 +181,6 @@ def operation(
                     return await wrapped(*args, **kwargs)
 
     wrapped._fondat_operation = types.SimpleNamespace(
-        type=_type,
         summary=summary,
         description=description,
         security=security,
@@ -184,6 +188,76 @@ def operation(
         deprecated=deprecated,
     )
 
-    wrapped = fondat.validate.validate_arguments(wrapped)
-    #    wrapped = fondat.validate.validate_return_value(wrapped)
+    if validate:
+        wrapped = fondat.validate.validate_arguments(wrapped)
+
     return wrapper(wrapped)
+
+
+def inner(
+    wrapped=None,
+    *,
+    method: str,
+    security: Iterable[SecurityRequirement] = None,
+):
+    """
+    Decorator to define an inner resource operation.
+
+    Parameters:
+    • method: Name of method to implement (e.g "get").
+    • security: Security requirements for the operation.
+
+    This decorator creates a new resource class, with a single operation that
+    implements the decorated method. The decorated method, at time of
+    invocation, is bound to the original outer resource instance. 
+    """
+
+    if wrapped is None:
+        return functools.partial(
+            inner,
+            method=method,
+            security=security,
+        )
+
+    if not asyncio.iscoroutinefunction(wrapped):
+        raise TypeError("inner resource method must be a coroutine")
+
+    if not method:
+        raise TypeError("method name is required")
+
+    _wrapped = fondat.validate.validate_arguments(wrapped)
+
+    @resource
+    class Inner:
+        def __init__(self, outer):
+            self.outer = outer
+
+    Inner.__doc__ = wrapped.__doc__
+    Inner.__name__ = wrapped.__name__.title().replace("_", "")
+    Inner.__qualname__ = Inner.__name__
+    Inner.__module__ = wrapped.__module__
+
+    async def proxy(self, *args, **kwargs):
+        return await types.MethodType(_wrapped, self.outer)(*args, **kwargs)
+
+    functools.update_wrapper(proxy, wrapped)
+    proxy.__name__ = method
+    proxy = operation(proxy, security=security, validate=False)
+    setattr(Inner, method, proxy)
+    setattr(Inner, "__call__", proxy)
+
+    def res(self):
+        return Inner(self)
+
+    res.__doc__ = wrapped.__doc__
+    res.__module__ = wrapped.__module__
+    res.__name__ = wrapped.__name__
+    res.__qualname__ = wrapped.__qualname__
+    res.__annotations__ = {"return": Inner}
+
+    return property(res)
+
+
+query = functools.partial(inner, method="get")
+
+mutation = functools.partial(inner, method="post")
