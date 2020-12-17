@@ -9,7 +9,7 @@ import os
 import os.path
 
 from collections.abc import Iterable
-from fondat.resource import resource, operation, InternalServerError, NotFound, In
+from fondat.resource import resource, operation, InternalServerError, NotFound, InBody
 from fondat.typing import affix_type_hints
 from fondat.security import SecurityRequirement
 from typing import Annotated, Any
@@ -65,7 +65,7 @@ def _file_resource_class(
                 raise InternalServerError
 
         @operation(security=security)
-        async def put(self, value: Annotated[value_type, In.BODY]):
+        async def put(self, value: Annotated[value_type, InBody]):
             """Write file."""
             tmp = self.path + ".__tmp"
             content = codec.bytes_encode(value)

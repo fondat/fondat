@@ -8,7 +8,7 @@ import threading
 from collections import namedtuple
 from collections.abc import Iterable
 from datetime import datetime, timedelta, timezone
-from fondat.resource import resource, operation, NotFound, BadRequest, In
+from fondat.resource import resource, operation, mutation, NotFound, BadRequest, InBody
 from fondat.security import SecurityRequirement
 from fondat.typing import affix_type_hints
 from typing import Annotated
@@ -63,7 +63,7 @@ def memory_resource(
                     if not self.ttl or item.time + _delta(self.ttl) <= now
                 ]
 
-        @operation(type="mutation", security=security)
+        @mutation(security=security)
         async def clear(self) -> None:
             """Remove all items."""
             with self.lock:
@@ -92,7 +92,7 @@ def memory_resource(
             return item.value
 
         @operation(security=security)
-        async def put(self, value: Annotated[value_type, In.BODY]) -> None:
+        async def put(self, value: Annotated[value_type, InBody]) -> None:
             """Write item."""
             with self.container.lock:
                 now = _now()
