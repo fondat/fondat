@@ -13,7 +13,6 @@ import functools
 import http
 import inspect
 import fondat.context as context
-import fondat.enum
 import fondat.monitor as monitor
 import fondat.validate
 import types
@@ -28,20 +27,6 @@ class ResourceError(Exception):
     """Base class for resource errors."""
 
     pass
-
-
-class InQuery:
-    """Annotation to indicate a parameter is provided in request body."""
-    def __init__(self, name: str = None):
-        self.name = name
-
-class InBody:
-    """Annotation to indicate a parameter is provided in request body."""
-
-class InHeader:
-    """Annotation to indicate a parameter is provided in request header."""
-    def __init__(self, name: str):
-        self.name = name
 
 
 # generate concrete error classes
@@ -129,6 +114,7 @@ def is_operation(obj_or_type: Any):
 def operation(
     wrapped=None,
     *,
+    op_type: str = None,
     security: Iterable[SecurityRequirement] = None,
     publish: bool = True,
     deprecated: bool = False,
@@ -138,12 +124,13 @@ def operation(
     Decorate a resource coroutine that performs an operation.
 
     Parameters:
+    • op_type: Operation type.  {"query", "mutation"}
     • security: Security requirements for the operation.
     • publish: Publish the operation in documentation.
     • deprecated: Declare the operation as deprecated.
 
-    Resource operations correlate with HTTP method names, named in lower case.
-    For example: get, put, post, delete, patch.
+    Resource operations should correlate to HTTP method names, named in lower
+    case. For example: get, put, post, delete, patch.
     """
 
     if wrapped is None:
@@ -157,6 +144,7 @@ def operation(
     if not asyncio.iscoroutinefunction(wrapped):
         raise TypeError("operation must be a coroutine")
 
+    op_type = op_type or "query" if wrapped.__name__ == "get" else "mutation"
     name = wrapped.__name__
     description = wrapped.__doc__ or name
     summary = _summary(wrapped)
@@ -181,6 +169,7 @@ def operation(
                     return await wrapped(*args, **kwargs)
 
     wrapped._fondat_operation = types.SimpleNamespace(
+        op_type=op_type,
         summary=summary,
         description=description,
         security=security,
@@ -198,6 +187,7 @@ def inner(
     wrapped=None,
     *,
     method: str,
+    op_type: str = None,
     security: Iterable[SecurityRequirement] = None,
 ):
     """
@@ -209,13 +199,14 @@ def inner(
 
     This decorator creates a new resource class, with a single operation that
     implements the decorated method. The decorated method, at time of
-    invocation, is bound to the original outer resource instance. 
+    invocation, is bound to the original outer resource instance.
     """
 
     if wrapped is None:
         return functools.partial(
             inner,
             method=method,
+            op_type=op_type,
             security=security,
         )
 
@@ -258,6 +249,27 @@ def inner(
     return property(res)
 
 
-query = functools.partial(inner, method="get")
+def query(wrapped, *, method: str = "get", **kwargs):
+    """Decorator to define an inner resource query operation."""
 
-mutation = functools.partial(inner, method="post")
+    if wrapped is None:
+        return functools.partial(
+            query,
+            method=method,
+            **kwargs,
+        )
+
+    return inner(wrapped, op_type="query", method=method, **kwargs)
+
+
+def mutation(wrapped, *, method: str = "post", **kwargs):
+    """Decorator to define an inner resource mutation operation."""
+
+    if wrapped is None:
+        return functools.partial(
+            mutation,
+            method=method,
+            **kwargs,
+        )
+
+    return inner(wrapped, op_type="mutation", method=method, **kwargs)
