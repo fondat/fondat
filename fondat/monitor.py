@@ -7,7 +7,6 @@ class. Your application monitor(s) can be added to/deleted from this object.
 
 import collections
 import contextlib
-import dataclasses
 import datetime
 import fondat.context as context
 import fondat.validate
@@ -18,13 +17,17 @@ import time
 import typing
 
 
+from dataclasses import dataclass
+
+
+
 _logger = logging.getLogger(__name__)
 
 
 _now = lambda: datetime.datetime.now(tz=datetime.timezone.utc)
 
 
-@dataclasses.dataclass
+@dataclass
 class Measurement:
     """
     An individual measurement.
