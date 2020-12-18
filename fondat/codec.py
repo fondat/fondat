@@ -18,7 +18,7 @@ import uuid
 import wrapt
 
 from collections.abc import Iterable
-from fondat.typing import affix_type_hints
+from fondat.types import affix_type_hints
 from fondat.validate import validate_arguments
 from typing import Any, Union
 

@@ -10,7 +10,7 @@ from collections.abc import Iterable
 from datetime import datetime, timedelta, timezone
 from fondat.resource import resource, operation, mutation, NotFound, BadRequest, InBody
 from fondat.security import SecurityRequirement
-from fondat.typing import affix_type_hints
+from fondat.types import affix_type_hints
 from typing import Annotated
 
 
