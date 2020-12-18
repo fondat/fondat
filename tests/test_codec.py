@@ -1,16 +1,16 @@
 import dataclasses
 import datetime
 import decimal
-import fondat.codec
 import enum
 import json
 import pytest
-import typing
 import re
 
 from base64 import b64encode
+from fondat.codec import get_codec
 from dataclasses import make_dataclass, field
 from io import BytesIO
+from typing import Optional, TypedDict, Union
 from uuid import UUID
 
 
@@ -31,119 +31,114 @@ def _test_encodings(codec, value):
 
 # -- dict -----
 
-"""
+
 def test_dict_json_encode_success():
-    _equal(
-        s.dict({"eja": s.str(), "ejb": s.int()}, {"eja", "ejb"}).json_encode,
-        {"eja": "foo", "ejb": 123},
-    )
-
-
-def test_dict_json_encode_optional_success():
-    _equal(
-        s.dict({"ejc": s.float(), "ejd": s.bool()}, {"ejc"}).json_encode,
-        {"ejc": 123.45},
-    )
-
-
-def test_dict_json_encode_optional_absent():
-    _equal(s.dict({"eje": s.bool()}).json_encode, {})
+    T = dict[str, int]
+    value = dict(a=1, b=2, c=3)
+    assert get_codec(T).json_encode(value) == value
 
 
 def test_dict_json_encode_error():
-    _error(s.dict({"ejh": s.int()}, {"ejh"}).json_encode, {"ejh": "not an int"})
+    T = dict[str, int]
+    value = dict(a="not int")
+    with pytest.raises(TypeError):
+        get_codec(T).json_encode(value)
 
 
 def test_dict_json_decode_success():
-    _equal(
-        s.dict({"dja": s.float(), "djb": s.bool()}, {"dja", "djb"}).json_decode,
-        {"dja": 802.11, "djb": True},
-    )
-
-
-def test_dict_json_decode_optional_success():
-    _equal(s.dict({"djc": s.int(), "djd": s.str()}).json_decode, {"djc": 12345})
-
-
-def test_dict_json_decode_additional_property_success():
-    value = {"djf": "baz", "djg": "additional_property"}
-    assert (
-        s.dict({"djf": s.str()}, {"djf"}, additional=True).json_decode(value) == value
-    )
+    T = dict[str, bool]
+    value = dict(a=True, b=False)
+    assert get_codec(T).json_decode(value) == value
 
 
 def test_dict_json_decode_error():
-    _error(s.dict({"djx": s.str()}, {"djx"}).json_decode, {"djx": False})
+    T = dict[str, str]
+    value = dict(a=False)
+    with pytest.raises(TypeError):
+        get_codec(T).json_decode(value)
 
 
-def test_dict_unexpected_property_error():
-    _error(s.dict({}).validate, {"foo": "bar"})
+# -- TypedDict -----
 
 
-def test_dict_disallow_none():
-    _error(s.dict({"foo": s.str()}).json_encode, None)
+def test_typeddict_json_encode_success():
+    TD = TypedDict("TD", dict(eja=str, ejb=int))
+    value = dict(eja="foo", ejb=123)
+    assert get_codec(TD).json_encode(value) == value
 
 
-def test_dict_allow_none():
-    assert s.dict({"foo": s.str()}, nullable=True).json_encode(None) == None
+def test_typeddict_json_encode_optional_success():
+    TD = TypedDict("TD", dict(ejc=float, ejd=bool), total=False)
+    value = dict(ejc=123.45)
+    assert get_codec(TD).json_encode(value) == value
 
 
-def test_dict_required_str():
-    schema = s.dict({"fjx": s.str(), "fjy": s.str()}, "fjx fjy")
-    _error(schema.validate, {})
-    _error(schema.validate, {"fjx": "foo"})
-    _error(schema.validate, {"fjy": "foo"})
-    schema.validate({"fjx": "foo", "fjy": "foo"})
+def test_typeddict_json_encode_optional_absent():
+    TD = TypedDict("TD", dict(eje=bool), total=False)
+    value = dict()
+    assert get_codec(TD).json_encode(value) == value
 
 
-def test_dict_validate_additional_success():
-    schema = s.dict({"foo": s.str()}, additional=s.int())
-    value = {"foo": "bar", "a": 1, "b": 2, "c": 3}
-    schema.validate(value)
+def test_typeddict_json_encode_error():
+    TD = TypedDict("TD", dict(ejh=int))
+    with pytest.raises(TypeError):
+        get_codec(TD).json_encode(dict(ejh="not an int"))
 
 
-def test_dict_validate_additional_success():
-    schema = s.dict({"foo": s.str()}, additional=s.int())
-    value = {"foo": "bar", "a": 1, "b": 2, "c": "three"}
-    _error(schema.validate, value)
-"""
+def test_typeddict_json_decode_success():
+    TD = TypedDict("TD", dict(dja=float, djb=bool))
+    value = dict(dja=802.11, djb=True)
+    assert get_codec(TD).json_decode(value) == value
+
+
+def test_typeddict_json_decode_optional_success():
+    TD = TypedDict("TD", dict(djc=int, djd=str), total=False)
+    value = dict(djc=12345)
+    assert get_codec(TD).json_decode(value) == value
+
+
+def test_typeddict_json_decode_error():
+    TD = TypedDict("TD", dict(djx=str))
+    value = dict(djx=False)
+    with pytest.raises(TypeError):
+        get_codec(TD).json_decode(value)
 
 
 # -- list -----
 
 
 def test_list_encodings():
-    _test_encodings(fondat.codec.get_codec(list[int]), [1, 2, 3])
+    _test_encodings(get_codec(list[int]), [1, 2, 3])
 
 
 def test_list_json_encode_item_type_error():
-    _error(fondat.codec.get_codec(list[str]).json_encode, [1, 2, 3])
+    _error(get_codec(list[str]).json_encode, [1, 2, 3])
 
 
 def test_list_json_decode_success():
-    _equal(fondat.codec.get_codec(list[float]).json_decode, [1.2, 3.4, 5.6])
+    _equal(get_codec(list[float]).json_decode, [1.2, 3.4, 5.6])
 
 
 def test_list_json_decode_error():
-    _error(fondat.codec.get_codec(list[str]).json_decode, "not_a_list")
+    _error(get_codec(list[str]).json_decode, "not_a_list")
 
 
 def test_list_str_encode_success():
-    assert fondat.codec.get_codec(list[str]).str_encode(["a", "b", "c"]) == "a,b,c"
+    assert get_codec(list[str]).str_encode(["a", "b", "c"]) == "a,b,c"
 
 
 def test_list_str_decode_success():
-    assert fondat.codec.get_codec(list[str]).str_decode("a,b,c") == ["a", "b", "c"]
+    assert get_codec(list[str]).str_decode("a,b,c") == ["a", "b", "c"]
 
 
 def test_list_bytes_encode_success():
     assert json.loads(
-        fondat.codec.get_codec(list[str]).bytes_encode(["a", "b", "c"]).decode()
+        get_codec(list[str]).bytes_encode(["a", "b", "c"]).decode()
     ) == json.loads('["a","b","c"]')
 
 
 def test_list_bytes_decode_success():
-    assert fondat.codec.get_codec(list[str]).bytes_decode(b'["a","b","c"]') == [
+    assert get_codec(list[str]).bytes_decode(b'["a","b","c"]') == [
         "a",
         "b",
         "c",
@@ -151,18 +146,18 @@ def test_list_bytes_decode_success():
 
 
 def test_list_str_decode_int_success():
-    assert fondat.codec.get_codec(list[int]).str_decode("12,34,56") == [12, 34, 56]
+    assert get_codec(list[int]).str_decode("12,34,56") == [12, 34, 56]
 
 
 def test_list_str_decode_float_success():
-    assert fondat.codec.get_codec(list[float]).str_decode("12.34,56.78") == [
+    assert get_codec(list[float]).str_decode("12.34,56.78") == [
         12.34,
         56.78,
     ]
 
 
 def test_list_str_decode_crazy_csv_scenario():
-    assert fondat.codec.get_codec(list[str]).str_decode('a,"b,c",d,"""e"""') == [
+    assert get_codec(list[str]).str_decode('a,"b,c",d,"""e"""') == [
         "a",
         "b,c",
         "d",
@@ -171,26 +166,26 @@ def test_list_str_decode_crazy_csv_scenario():
 
 
 def test_list_str_decode_int_error():
-    _error(fondat.codec.get_codec(list[int]).str_decode, "12,a,34,56")
+    _error(get_codec(list[int]).str_decode, "12,a,34,56")
 
 
 # -- set -----
 
 
 def test_set_encodings():
-    _test_encodings(fondat.codec.get_codec(set[int]), {1, 2, 3})
+    _test_encodings(get_codec(set[int]), {1, 2, 3})
 
 
 def test_set_json_encode_type_error():
-    _error(fondat.codec.get_codec(set[str]).json_encode, "i_am_not_a_set")
+    _error(get_codec(set[str]).json_encode, "i_am_not_a_set")
 
 
 def test_set_json_encode_item_type_error():
-    _error(fondat.codec.get_codec(set[str]).json_encode, {1, 2, 3})
+    _error(get_codec(set[str]).json_encode, {1, 2, 3})
 
 
 def test_set_json_decode_success():
-    assert fondat.codec.get_codec(set[float]).json_decode([1.2, 3.4, 5.6]) == {
+    assert get_codec(set[float]).json_decode([1.2, 3.4, 5.6]) == {
         1.2,
         3.4,
         5.6,
@@ -198,32 +193,32 @@ def test_set_json_decode_success():
 
 
 def test_set_json_decode_error():
-    _error(fondat.codec.get_codec(set[str]).json_decode, "not_a_set_either")
+    _error(get_codec(set[str]).json_decode, "not_a_set_either")
 
 
 def test_set_str_decode_str_success():
-    assert fondat.codec.get_codec(set[str]).str_decode("a,b,c") == {"a", "b", "c"}
+    assert get_codec(set[str]).str_decode("a,b,c") == {"a", "b", "c"}
 
 
 def test_set_str_decode_str_encode():
     assert (
-        fondat.codec.get_codec(set[int]).str_encode({2, 3, 1}) == "1,2,3"
+        get_codec(set[int]).str_encode({2, 3, 1}) == "1,2,3"
     )  # sorts result
 
 
 def test_set_str_decode_int_success():
-    assert fondat.codec.get_codec(set[int]).str_decode("12,34,56") == {12, 34, 56}
+    assert get_codec(set[int]).str_decode("12,34,56") == {12, 34, 56}
 
 
 def test_set_str_decode_float_success():
-    assert fondat.codec.get_codec(set[float]).str_decode("12.34,56.78") == {
+    assert get_codec(set[float]).str_decode("12.34,56.78") == {
         12.34,
         56.78,
     }
 
 
 def test_set_str_decode_crazy_csv_scenario():
-    assert fondat.codec.get_codec(set[str]).str_decode('a,"b,c",d,"""e"""') == {
+    assert get_codec(set[str]).str_decode('a,"b,c",d,"""e"""') == {
         "a",
         "b,c",
         "d",
@@ -232,17 +227,17 @@ def test_set_str_decode_crazy_csv_scenario():
 
 
 def test_set_str_decode_int_error():
-    _error(fondat.codec.get_codec(set[int]).str_decode, "12,a,34,56")
+    _error(get_codec(set[int]).str_decode, "12,a,34,56")
 
 
 def test_set_bytes_encode_success():
     assert json.loads(
-        fondat.codec.get_codec(set[str]).bytes_encode({"a", "b", "c"}).decode()
+        get_codec(set[str]).bytes_encode({"a", "b", "c"}).decode()
     ) == json.loads('["a","b","c"]')
 
 
 def test_set_bytes_decode_success():
-    assert fondat.codec.get_codec(set[str]).bytes_decode(b'["a","b","c"]') == {
+    assert get_codec(set[str]).bytes_decode(b'["a","b","c"]') == {
         "a",
         "b",
         "c",
@@ -252,7 +247,7 @@ def test_set_bytes_decode_success():
 # -- str -----
 
 
-str_codec = fondat.codec.get_codec(str)
+str_codec = get_codec(str)
 
 
 def test_str_encodings():
@@ -283,7 +278,7 @@ def test_str_str_decode_success():
 # -- int -----
 
 
-int_codec = fondat.codec.get_codec(int)
+int_codec = get_codec(int)
 
 
 def test_int_encodings():
@@ -321,7 +316,7 @@ def test_int_str_decode_error():
 # -- float -----
 
 
-float_codec = fondat.codec.get_codec(float)
+float_codec = get_codec(float)
 
 
 def test_float_encodings():
@@ -364,7 +359,7 @@ def test_float_str_decode_error():
 
 
 D = decimal.Decimal
-decimal_codec = fondat.codec.get_codec(D)
+decimal_codec = get_codec(D)
 
 
 def test_decimal_encodings():
@@ -406,7 +401,7 @@ def test_decimal_str_decode_error():
 # -- bool -----
 
 
-bool_codec = fondat.codec.get_codec(bool)
+bool_codec = get_codec(bool)
 
 
 def test_bool_encodings():
@@ -460,7 +455,7 @@ def test_bool_str_decode_error():
 # -- date -----
 
 
-date_codec = fondat.codec.get_codec(datetime.date)
+date_codec = get_codec(datetime.date)
 
 
 def test_date_encodings():
@@ -502,7 +497,7 @@ def test_date_str_decode_error():
 # -- datetime -----
 
 
-datetime_codec = fondat.codec.get_codec(datetime.datetime)
+datetime_codec = get_codec(datetime.datetime)
 
 
 def test_datetime_encodings():
@@ -579,7 +574,7 @@ def test_datetime_str_decode_error():
 # -- uuid -----
 
 
-uuid_codec = fondat.codec.get_codec(UUID)
+uuid_codec = get_codec(UUID)
 
 
 def test_uuid_encodings():
@@ -616,7 +611,7 @@ def test_uuid_str_decode_error():
 # -- bytes -----
 
 
-bytes_codec = fondat.codec.get_codec(bytes)
+bytes_codec = get_codec(bytes)
 
 
 def test_bytes_encodings():
@@ -663,7 +658,7 @@ class enum_type(enum.Enum):
     Y_MEMBER = "y"
 
 
-enum_codec = fondat.codec.get_codec(enum_type)
+enum_codec = get_codec(enum_type)
 
 
 def test_enum_encodings():
@@ -679,7 +674,7 @@ def test_enum_mixed_json_types():
         STR_MEMBER = "s"
         INT_MEMBER = 1
 
-    codec = fondat.codec.get_codec(mixed)
+    codec = get_codec(mixed)
     assert codec.json_decode("s") == mixed.STR_MEMBER
     assert codec.json_decode(1) == mixed.INT_MEMBER
 
@@ -688,7 +683,7 @@ def test_enum_mixed_json_types():
 
 
 def test_union_encodings():
-    codec = fondat.codec.get_codec(typing.Union[int, UUID, bool])
+    codec = get_codec(Union[int, UUID, bool])
     values = [123, UUID("06b959d0-65e0-11e7-866d-6be08781d5cb"), False]
     for value in values:
         _test_encodings(codec, value)
@@ -696,12 +691,12 @@ def test_union_encodings():
 
 def test_union_optional_value():
     assert (
-        fondat.codec.get_codec(typing.Optional[str]).json_decode("string") == "string"
+        get_codec(Optional[str]).json_decode("string") == "string"
     )
 
 
 def test_union_optional_none():
-    fondat.codec.get_codec(typing.Optional[str]).json_decode(None) is None
+    get_codec(Optional[str]).json_decode(None) is None
 
 
 # -- dataclass -----
@@ -709,7 +704,7 @@ def test_union_optional_none():
 
 def test_dataclass_json_encode_success():
     DC = make_dataclass("DC", [("eja", str), ("ejb", int)])
-    assert fondat.codec.get_codec(DC).json_encode(DC(eja="foo", ejb=123)) == {
+    assert get_codec(DC).json_encode(DC(eja="foo", ejb=123)) == {
         "eja": "foo",
         "ejb": 123,
     }
@@ -717,23 +712,23 @@ def test_dataclass_json_encode_success():
 
 def test_dataclass_json_encode_error():
     DC = make_dataclass("DC", [("ejh", int)])
-    _error(fondat.codec.get_codec(DC).json_encode, DC(ejh="not an int"))
+    _error(get_codec(DC).json_encode, DC(ejh="not an int"))
 
 
 def test_dataclass_json_decode_success():
     DC = make_dataclass("DC", [("dja", float), ("djb", bool)])
-    assert fondat.codec.get_codec(DC).json_decode({"dja": 802.11, "djb": True}) == DC(
+    assert get_codec(DC).json_decode({"dja": 802.11, "djb": True}) == DC(
         dja=802.11, djb=True
     )
 
 
 def test_dataclass_json_decode_optional_success():
     DC = make_dataclass("DC", [("djc", int), ("djd", str, field(default=None))])
-    assert fondat.codec.get_codec(DC).json_decode({"djc": 12345}) == DC(
+    assert get_codec(DC).json_decode({"djc": 12345}) == DC(
         djc=12345, djd=None
     )
 
 
 def test_dataclass_json_decode_error():
     DC = make_dataclass("DC", [("djx", str)])
-    _error(fondat.codec.get_codec(DC).json_decode, {"djx": False})
+    _error(get_codec(DC).json_decode, {"djx": False})
