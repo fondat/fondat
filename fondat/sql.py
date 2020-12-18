@@ -341,21 +341,3 @@ class Index:
         stmt.text(f"DROP INDEX {self.name};")
         async with self.transaction() as t:
             await t.execute(stmt)
-
-
-# def row_resource(
-#     table: Table,
-#     security: Iterable[SecurityRequirement] = None
-# ):
-#     """Return a new table resource."""
-
-#     pk = table.columns[table.pk]
-
-#     @resource
-#     class RowResource:
-#         @validate
-#         def __init__(self, key: pk):
-#             self.key = key
-
-
-#     return TableResource()
