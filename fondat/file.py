@@ -9,7 +9,8 @@ import os
 import os.path
 
 from collections.abc import Iterable
-from fondat.resource import resource, operation, InternalServerError, NotFound, InBody
+from fondat.error import InternalServerError, NotFoundError
+from fondat.resource import resource, operation, InBody
 from fondat.types import affix_type_hints
 from fondat.security import SecurityRequirement
 from typing import Annotated, Any
@@ -59,7 +60,7 @@ def _file_resource_class(
                     content = compress.decompress(content)
                 return codec.bytes_decode(content)
             except FileNotFoundError:
-                raise NotFound
+                raise NotFoundError
             except (TypeError, ValueError) as e:
                 _logger.error(e)
                 raise InternalServerError
@@ -84,7 +85,7 @@ def _file_resource_class(
             try:
                 os.remove(self.path)
             except FileNotFoundError:
-                raise NotFound
+                raise NotFoundError
 
     affix_type_hints(FileResource, localns=locals())
     FileResource.__qualname__ = "FileResource"

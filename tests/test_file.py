@@ -6,8 +6,9 @@ import uuid
 import zlib
 
 from dataclasses import make_dataclass
+from fondat.error import InternalServerError, NotFoundError
 from fondat.file import directory_resource
-from fondat.resource import Conflict, InternalServerError, NotFound, operation
+from fondat.resource import operation
 from tempfile import TemporaryDirectory
 
 
@@ -108,9 +109,9 @@ async def test_invalid_directory():
     value = b"body"
     with pytest.raises(InternalServerError):
         await dr[key].put(value)
-    with pytest.raises(NotFound):
+    with pytest.raises(NotFoundError):
         await dr[key].get()
-    with pytest.raises(NotFound):
+    with pytest.raises(NotFoundError):
         await dr[key].delete()
     with pytest.raises(InternalServerError):
         await dr.get()

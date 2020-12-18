@@ -46,10 +46,6 @@ async def test_call_invalid_type():
         await R1().post(1)
 
 
-def test_resource_error_str():
-    assert str(ResourceError("foo")) == "foo"
-
-
 async def test_outer_scope():
     assert await R1().qux.get() == R1.i_am_r1
 

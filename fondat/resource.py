@@ -10,7 +10,6 @@ A resource class contains operation methods, each decorated with the
 
 import asyncio
 import functools
-import http
 import inspect
 import fondat.context as context
 import fondat.monitor as monitor
@@ -21,19 +20,6 @@ import wrapt
 from collections.abc import Iterable
 from fondat.security import SecurityRequirement
 from typing import Any
-
-
-class ResourceError(Exception):
-    """Base class for resource errors."""
-
-    pass
-
-
-# generate concrete error classes
-for status in http.HTTPStatus:
-    if 400 <= status <= 599:
-        name = "".join([w.capitalize() for w in status.name.split("_")])
-        globals()[name] = type(name, (ResourceError,), {"status": status})
 
 
 def _summary(function):

@@ -8,7 +8,8 @@ import threading
 from collections import namedtuple
 from collections.abc import Iterable
 from datetime import datetime, timedelta, timezone
-from fondat.resource import resource, operation, mutation, NotFound, BadRequest, InBody
+from fondat.error import BadRequestError, NotFoundError 
+from fondat.resource import resource, operation, mutation, InBody
 from fondat.security import SecurityRequirement
 from fondat.types import affix_type_hints
 from typing import Annotated
@@ -88,7 +89,7 @@ def memory_resource(
             if item is None or (
                 self.container.ttl and _now() > item.time + _delta(self.container.ttl)
             ):
-                raise NotFound
+                raise NotFoundError
             return item.value
 
         @operation(security=security)
@@ -118,7 +119,7 @@ def memory_resource(
                     self.container.size
                     and len(self.container.storage) >= self.container.size
                 ):
-                    raise BadRequest("item size limit reached")
+                    raise BadRequestError("item size limit reached")
                 self.container.storage[self.key] = _Item(copy.deepcopy(value), now)
 
         @operation(security=security)

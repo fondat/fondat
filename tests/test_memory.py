@@ -1,8 +1,9 @@
 import pytest
 
 from dataclasses import make_dataclass
+from fondat.error import BadRequestError, NotFoundError 
 from fondat.memory import memory_resource
-from fondat.resource import BadRequest, Conflict, NotFound, operation
+from fondat.resource import operation
 from time import sleep
 from uuid import uuid4
 
@@ -56,13 +57,13 @@ async def test_gpdl_bytes():
 
 async def test_get_notfound():
     resource = memory_resource(key_type=str, value_type=str)
-    with pytest.raises(NotFound):
+    with pytest.raises(NotFoundError):
         await resource["1"].get()
 
 
 async def test_delete_notfound():
     resource = memory_resource(key_type=str, value_type=str)
-    with pytest.raises(NotFound):
+    with pytest.raises(NotFoundError):
         await resource["1"].delete()
 
 
@@ -78,7 +79,7 @@ async def test_clear():
 async def test_size_limit():
     resource = memory_resource(key_type=str, value_type=str, size=1)
     await resource["1"].put("foo")
-    with pytest.raises(BadRequest):
+    with pytest.raises(BadRequestError):
         await resource["2"].put("bar")
 
 
@@ -95,5 +96,5 @@ async def test_ttl():
     await resource["1"].put("foo")
     await resource["1"].get()
     sleep(0.2)
-    with pytest.raises(NotFound):
+    with pytest.raises(NotFoundError):
         await resource["1"].get()

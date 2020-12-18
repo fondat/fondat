@@ -3,6 +3,8 @@
 import fondat.context
 import fondat.resource
 
+from fondat.error import UnauthorizedError
+
 
 class SecurityRequirement:
     """
@@ -28,11 +30,11 @@ class SecurityRequirement:
         granted.
 
         If no valid context or credentials are established, then the
-        fondat.resource.Unauthorized exception should be raised.
+        UnauthorizedError exception should be raised.
 
         If a valid context or credentials are established, but are
         insufficient to provide authorization for the operation, then
-        the fondat.resource.Forbidden exception should be raised.
+        the ForbiddenError exception should be raised.
         """
         raise NotImplementedError
 
@@ -91,7 +93,7 @@ class ContextSecurityRequirement(SecurityRequirement):
 
     async def authorize(self):
         if not fondat.context.last(self.context):
-            raise fondat.resource.Unauthorized
+            raise UnauthorizedError
 
 
 class CLISecurityRequirement(ContextSecurityRequirement):
@@ -120,7 +122,7 @@ class CallerSecurityRequirement(SecurityRequirement):
     async def authorize(self):
         ctx = fondat.context.last(context="fondat.operation")
         if ctx["resource"] != self.resource or ctx["operation"] != self.operation:
-            raise fondat.resource.Unauthorized
+            raise UnauthorizedError
 
 
 cli = CLISecurityRequirement()
