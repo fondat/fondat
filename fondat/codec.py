@@ -37,6 +37,7 @@ class StrCodec(Codec):
 
     python_type = str
     json_type = str
+    content_type = "text/plain"
 
     @validate_arguments
     def json_encode(self, value: str) -> str:
@@ -73,6 +74,7 @@ class BytesCodec(Codec):
 
     python_type = bytes
     json_type = str
+    content_type = "application/octet-stream"
 
     @validate_arguments
     def json_encode(self, value: bytes) -> str:
@@ -107,6 +109,7 @@ class IntCodec(Codec):
 
     python_type = int
     json_type = Union[int, float]
+    content_type = "text/plain"
 
     @validate_arguments
     def json_encode(self, value: int) -> int:
@@ -143,6 +146,7 @@ class FloatCodec(Codec):
 
     python_type = float
     json_type = Union[int, float]
+    content_type = "text/plain"
 
     @validate_arguments
     def json_encode(self, value: float) -> float:
@@ -174,6 +178,7 @@ class BoolCodec(Codec):
 
     python_type = bool
     json_type = bool
+    content_type = "text/plain"
 
     @validate_arguments
     def json_encode(self, value: bool) -> bool:
@@ -208,6 +213,7 @@ class NoneCodec(Codec):
 
     python_type = NoneType
     json_type = NoneType
+    content_type = "text/plain"
 
     @validate_arguments
     def json_encode(self, value: NoneType) -> NoneType:
@@ -246,6 +252,7 @@ class DecimalCodec(Codec):
 
     python_type = decimal.Decimal
     json_type = str
+    content_type = "text/plain"
 
     @validate_arguments
     def json_encode(self, value: decimal.Decimal) -> str:
@@ -285,6 +292,7 @@ class DateCodec(Codec):
 
     python_type = datetime.date
     json_type = str
+    content_type = "text/plain"
 
     @validate_arguments
     def json_encode(self, value: datetime.date) -> str:
@@ -327,6 +335,7 @@ class DatetimeCodec(Codec):
 
     python_type = datetime.datetime
     json_type = str
+    content_type = "text/plain"
 
     @validate_arguments
     def json_encode(self, value: datetime.datetime) -> str:
@@ -370,6 +379,7 @@ class UUIDCodec(Codec):
 
     python_type = uuid.UUID
     json_type = str
+    content_type = "text/plain"
 
     @validate_arguments
     def json_encode(self, value: uuid.UUID) -> str:
@@ -423,6 +433,7 @@ def _typed_dict_codec(pytype):
 
         python_type = pytype
         json_type = dict[str, typing.Union[tuple(c.json_type for c in codecs.values())]]
+        content_type = "application/json"
 
         @validate_arguments
         def json_encode(self, value: python_type) -> json_type:
@@ -460,6 +471,7 @@ def _mapping_codec(pytype):
 
         python_type = pytype
         json_type = dict[str, value_codec.json_type]
+        content_type = "application/json"
 
         @validate_arguments
         def json_encode(self, value: python_type) -> json_type:
@@ -506,6 +518,7 @@ def _iterable_codec(pytype):
 
         python_type = pytype
         json_type = list[item_codec.json_type]
+        content_type = "application/json"
 
         @validate_arguments
         def json_encode(self, value: python_type) -> json_type:
@@ -547,6 +560,7 @@ def _dataclass_codec(pytype):
 
         python_type = pytype
         json_type = dict[str, typing.Union[tuple(c.json_type for c in codecs.values())]]
+        content_type = "application/json"
 
         @validate_arguments
         def json_encode(self, value: python_type) -> json_type:
@@ -728,5 +742,8 @@ def get_codec(pytype):
         return _enum_codec(pytype)
     if dataclasses.is_dataclass(pytype):
         return _dataclass_codec(pytype)
+    for type_key, codec in _builtins.items():
+        if _issubclass(pytype, type_key):
+            return codec
 
     raise TypeError(f"invalid type: {pytype}")
