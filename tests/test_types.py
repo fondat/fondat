@@ -1,6 +1,7 @@
 import pytest
 
-from fondat.types import str_enum
+from collections.abc import AsyncIterator
+from fondat.types import BytesStream, str_enum
 
 
 def test_str_enum_iterable():
@@ -29,3 +30,16 @@ def test_str_enum_str_mixed():
     assert E.A == "a"
     assert E.B == "b"
     assert E.C == "c"
+
+
+async def _ajoin(stream: AsyncIterator[bytes]) -> bytes:
+    bees = []
+    async for b in stream:
+        bees.append(b)
+    return b"".join(bees)
+
+
+@pytest.mark.asyncio
+async def test_bytes_stream():
+    value = b"hello"
+    assert await _ajoin(BytesStream(value)) == value
