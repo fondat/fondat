@@ -109,19 +109,24 @@ def dataclass(cls, init=True, **kwargs):
     return c
 
 
-class Stream(AsyncIterator[bytes]):
+class Stream(AsyncIterator[Union[bytes, bytearray]]):
     """
-    Abstract base class for an asynchronous stream of bytes.
+    Abstract base class to represent content as an asynchronous stream of bytes.
 
     Parameter and attribute:
     • content_type: The media type of the stream.
+    • content_length: The length of the content, if known.
     """
 
-    def __init__(self, content_type: str = None):
+    def __init__(self, content_type: str = "application/octet-stream", content_length = None):
         self.content_type = content_type
+        self.content_length = content_length
 
     def __aiter__(self):
         return self
+
+    async def __anext__(self) -> Union[bytes, bytearray]:
+        raise NotImplementedError
 
 
 class BytesStream(Stream):
@@ -129,8 +134,8 @@ class BytesStream(Stream):
     Expose a bytes object as an asynchronous byte stream.
     """
 
-    def __init__(self, content: bytes, content_type: str = None):
-        super().__init__(content_type)
+    def __init__(self, content: Union[bytes, bytearray], content_type: str = "application/octet-stream"):
+        super().__init__(content_type, len(content))
         self._content = content
 
     async def __anext__(self) -> bytes:
