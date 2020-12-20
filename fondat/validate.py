@@ -110,7 +110,7 @@ def _validate_typeddict(type_, value):
         try:
             validate(value[item_key], item_type)
         except KeyError:
-            if item_key in type_.__required_keys__:
+            if type_.__total__:
                 raise ValueError(f"missing required item: {item_key}")
         except (TypeError, ValueError) as e:
             _decorate_exception(e, f"in item: {item_key}")
