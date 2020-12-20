@@ -1,7 +1,7 @@
 import pytest
 
 from dataclasses import dataclass
-from fondat.resource import ResourceError, resource, operation, query, mutation
+from fondat.resource import resource, operation, query, mutation
 from typing import Optional
 from uuid import UUID
 
