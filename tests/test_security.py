@@ -2,7 +2,8 @@ import fondat.context as context
 import fondat.security
 import pytest
 
-from fondat.resource import resource, operation
+from fondat.error import UnauthorizedError, ForbiddenError
+from fondat.resource import resource, mutation
 
 
 pytestmark = pytest.mark.asyncio
@@ -10,7 +11,7 @@ pytestmark = pytest.mark.asyncio
 
 class Never(fondat.security.SecurityRequirement):
     def authorized(self):
-        raise Forbidden
+        raise ForbiddenError
 
 
 req1 = fondat.security.ContextSecurityRequirement(req1=True)
@@ -20,11 +21,11 @@ never = Never()
 
 @resource
 class R1:
-    @operation(type="mutation", security=[req1])
+    @mutation(security=[req1])
     async def foo(self) -> str:
         return "foo_success"
 
-    @operation(type="mutation", security=[req1, never])
+    @mutation(security=[req1, never])
     async def bar(self) -> str:
         return "bar_success"
 
@@ -37,5 +38,5 @@ async def test_security_req_success():
 
 async def test_security_req_forbidden():
     r1 = R1()
-    with pytest.raises(fondat.resource.Unauthorized):
+    with pytest.raises(UnauthorizedError):
         await r1.foo()

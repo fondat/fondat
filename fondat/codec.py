@@ -434,9 +434,9 @@ def _csv_decode(value):
     return csv.reader([value]).__next__()
 
 
-def _typed_dict_codec(pytype):
+def _typed_dict_codec(py_type):
 
-    codecs = {k: get_codec(v) for k, v in typing.get_type_hints(pytype).items()}
+    codecs = {k: get_codec(v) for k, v in typing.get_type_hints(py_type).items()}
 
     def _process(value, method):
         result = {}
@@ -449,7 +449,7 @@ def _typed_dict_codec(pytype):
 
     class TypedDictCodec:
 
-        python_type = pytype
+        python_type = py_type
         json_type = dict[str, typing.Union[tuple(c.json_type for c in codecs.values())]]
         content_type = "application/json"
 
@@ -481,13 +481,13 @@ def _typed_dict_codec(pytype):
     return TypedDictCodec()
 
 
-def _mapping_codec(pytype):
+def _mapping_codec(py_type):
 
-    key_codec, value_codec = tuple(get_codec(t) for t in typing.get_args(pytype))
+    key_codec, value_codec = tuple(get_codec(t) for t in typing.get_args(py_type))
 
     class MappingCodec:
 
-        python_type = pytype
+        python_type = py_type
         json_type = dict[str, value_codec.json_type]
         content_type = "application/json"
 
@@ -500,7 +500,7 @@ def _mapping_codec(pytype):
 
         @validate_arguments
         def json_decode(self, value: json_type) -> python_type:
-            return pytype(
+            return py_type(
                 {
                     key_codec.str_decode(k): value_codec.json_decode(v)
                     for k, v in value.items()
@@ -527,14 +527,14 @@ def _mapping_codec(pytype):
     return MappingCodec()
 
 
-def _iterable_codec(pytype):
+def _iterable_codec(py_type):
 
-    (item_codec,) = tuple(get_codec(t) for t in typing.get_args(pytype))
-    is_set = issubclass(typing.get_origin(pytype), collections.abc.Set)
+    (item_codec,) = tuple(get_codec(t) for t in typing.get_args(py_type))
+    is_set = issubclass(typing.get_origin(py_type), collections.abc.Set)
 
     class IterableCodec:
 
-        python_type = pytype
+        python_type = py_type
         json_type = list[item_codec.json_type]
         content_type = "application/json"
 
@@ -546,7 +546,7 @@ def _iterable_codec(pytype):
 
         @validate_arguments
         def json_decode(self, value: json_type) -> python_type:
-            return pytype((item_codec.json_decode(item) for item in value))
+            return py_type((item_codec.json_decode(item) for item in value))
 
         @validate_arguments
         def str_encode(self, value: python_type) -> str:
@@ -556,7 +556,7 @@ def _iterable_codec(pytype):
 
         @validate_arguments
         def str_decode(self, value: str) -> python_type:
-            return pytype((item_codec.str_decode(item) for item in _csv_decode(value)))
+            return py_type((item_codec.str_decode(item) for item in _csv_decode(value)))
 
         @validate_arguments
         def bytes_encode(self, value: python_type) -> bytes:
@@ -564,19 +564,19 @@ def _iterable_codec(pytype):
 
         @validate_arguments
         def bytes_decode(self, value: bytes) -> python_type:
-            return pytype(self.json_decode(json.loads(value.decode())))
+            return py_type(self.json_decode(json.loads(value.decode())))
 
     affix_type_hints(IterableCodec, localns=IterableCodec.__dict__)
     return IterableCodec()
 
 
-def _dataclass_codec(pytype):
+def _dataclass_codec(py_type):
 
-    codecs = {k: get_codec(v) for k, v in typing.get_type_hints(pytype).items()}
+    codecs = {k: get_codec(v) for k, v in typing.get_type_hints(py_type).items()}
 
     class DataclassCodec:
 
-        python_type = pytype
+        python_type = py_type
         json_type = dict[str, typing.Union[tuple(c.json_type for c in codecs.values())]]
         content_type = "application/json"
 
@@ -595,7 +595,7 @@ def _dataclass_codec(pytype):
                     kwargs[key] = codec.json_encode(value[key])
                 except KeyError:
                     continue
-            return pytype(**kwargs)
+            return py_type(**kwargs)
 
         @validate_arguments
         def str_encode(self, value: python_type) -> str:
@@ -617,14 +617,14 @@ def _dataclass_codec(pytype):
     return DataclassCodec()
 
 
-def _union_codec(pytype):
+def _union_codec(py_type):
 
-    types = typing.get_args(pytype)
+    types = typing.get_args(py_type)
     codecs = tuple(get_codec(t) for t in types)
 
     class UnionCodec:
 
-        python_type = pytype
+        python_type = py_type
         json_type = typing.Union[tuple(codec.json_type for codec in codecs)]
 
         def _process(self, method, value):
@@ -663,14 +663,14 @@ def _union_codec(pytype):
     return UnionCodec()
 
 
-def _enum_codec(pytype):
+def _enum_codec(py_type):
 
-    codecs = {member: get_codec(type(member.value)) for member in pytype}
+    codecs = {member: get_codec(type(member.value)) for member in py_type}
     codec_set = set(codecs.values())
 
     class EnumCodec:
 
-        python_type = pytype
+        python_type = py_type
         json_type = typing.Union[tuple(codec.json_type for codec in codecs.values())]
 
         def _decode(self, method, value):
@@ -687,7 +687,7 @@ def _enum_codec(pytype):
 
         @validate_arguments
         def json_decode(self, value: json_type) -> python_type:
-            return pytype(self._decode("json_decode", value))
+            return py_type(self._decode("json_decode", value))
 
         @validate_arguments
         def str_encode(self, value: python_type) -> str:
@@ -695,7 +695,7 @@ def _enum_codec(pytype):
 
         @validate_arguments
         def str_decode(self, value: str) -> python_type:
-            return pytype(self._decode("str_decode", value))
+            return py_type(self._decode("str_decode", value))
 
         @validate_arguments
         def bytes_encode(self, value: python_type) -> bytes:
@@ -703,7 +703,7 @@ def _enum_codec(pytype):
 
         @validate_arguments
         def bytes_decode(self, value: bytes) -> python_type:
-            return pytype(self._decode("bytes_decode", value))
+            return py_type(self._decode("bytes_decode", value))
 
     affix_type_hints(EnumCodec, localns=EnumCodec.__dict__)
     return EnumCodec()
@@ -736,37 +736,37 @@ def _issubclass(cls, cls_or_tuple):
 
 
 @functools.cache
-def get_codec(pytype):
+def get_codec(py_type):
     """Return a codec compatible with the specified type."""
 
-    if typing.get_origin(pytype) is typing.Annotated:
-        args = typing.get_args(pytype)
+    if typing.get_origin(py_type) is typing.Annotated:
+        args = typing.get_args(py_type)
         for annotation in args[1:]:
             if isinstance(annotation, Codec):
                 return annotation
-        pytype = args[0]  # strip annotation
+        py_type = args[0]  # strip annotation
 
-    if result := _builtins.get(pytype):
+    if result := _builtins.get(py_type):
         return result
-    if origin := typing.get_origin(pytype):
-        pytype = origin[typing.get_args(pytype)]
+    if origin := typing.get_origin(py_type):
+        py_type = origin[typing.get_args(py_type)]
     if origin is typing.Union:
-        return _union_codec(pytype)
+        return _union_codec(py_type)
     if (
-        _issubclass(pytype, dict)
-        and getattr(pytype, "__annotations__", None) is not None
+        _issubclass(py_type, dict)
+        and getattr(py_type, "__annotations__", None) is not None
     ):
-        return _typed_dict_codec(pytype)
+        return _typed_dict_codec(py_type)
     if _issubclass(origin, collections.abc.Mapping):
-        return _mapping_codec(pytype)
+        return _mapping_codec(py_type)
     if _issubclass(origin, collections.abc.Iterable):
-        return _iterable_codec(pytype)
-    if _issubclass(pytype, enum.Enum):
-        return _enum_codec(pytype)
-    if dataclasses.is_dataclass(pytype):
-        return _dataclass_codec(pytype)
+        return _iterable_codec(py_type)
+    if _issubclass(py_type, enum.Enum):
+        return _enum_codec(py_type)
+    if dataclasses.is_dataclass(py_type):
+        return _dataclass_codec(py_type)
     for type_key, codec in _builtins.items():
-        if _issubclass(pytype, type_key):
+        if _issubclass(py_type, type_key):
             return codec
 
-    raise TypeError(f"invalid type: {pytype}")
+    raise TypeError(f"invalid type: {py_type}")

@@ -18,6 +18,7 @@ import types
 import wrapt
 
 from collections.abc import Iterable
+from fondat.error import ForbiddenError, UnauthorizedError
 from fondat.security import SecurityRequirement
 from typing import Any
 
@@ -49,20 +50,20 @@ async def authorize(security):
     requirement does not raise an exception then this coroutine passes and
     authorization is granted.
 
-    If one security requirement raises a Forbidden exception, then a Forbidden
-    exception will be raised; otherwise an Unauthorized exception will be
-    raised. If a non-security exception is raised, then it is re-raised.
+    If one security requirement raises a ForbiddenError, then a ForbiddenError
+    will be raised; otherwise an UnauthorizedError will be raised. If a
+    non-security exception is raised, then it is re-raised.
     """
     exception = None
     for requirement in security or []:
         try:
             await requirement.authorize()
             return  # security requirement authorized the operation
-        except Forbidden:
+        except ForbiddenError:
             exception = Forbidden
-        except Unauthorized:
+        except UnauthorizedError:
             if not exception:
-                exception = Unauthorized
+                exception = UnauthorizedError
         except:
             raise
     if exception:
@@ -243,7 +244,7 @@ def inner(
     return property(res)
 
 
-def query(wrapped, *, method: str = "get", **kwargs):
+def query(wrapped=None, *, method: str = "get", **kwargs):
     """Decorator to define an inner resource query operation."""
 
     if wrapped is None:
@@ -256,7 +257,7 @@ def query(wrapped, *, method: str = "get", **kwargs):
     return inner(wrapped, op_type="query", method=method, **kwargs)
 
 
-def mutation(wrapped, *, method: str = "post", **kwargs):
+def mutation(wrapped=None, *, method: str = "post", **kwargs):
     """Decorator to define an inner resource mutation operation."""
 
     if wrapped is None:

@@ -1,7 +1,6 @@
 """Module for authentication and authorization to resource operations."""
 
 import fondat.context
-import fondat.resource
 
 from fondat.error import UnauthorizedError
 
