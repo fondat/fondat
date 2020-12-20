@@ -1,6 +1,7 @@
 """???"""
 
 import asyncio
+import fondat.error as error
 import fondat.resource
 import fondat.security
 import http
@@ -13,12 +14,6 @@ import typing
 
 from collections.abc import Callable, Iterable
 from fondat.codec import get_codec
-from fondat.error import (
-    BadRequestError,
-    InternalServerError,
-    MethodNotAllowedError,
-    NotFoundError,
-)
 from fondat.types import Stream, BytesStream, get_type_hints
 from fondat.validate import validate
 from typing import Annotated, Any
@@ -67,7 +62,6 @@ class Request(Message):
         self.method = "GET"
         self.path = "/"
         self.query = Query()
-        print(f"{self.query=}")
 
 
 class Response(Message):
@@ -315,91 +309,82 @@ class InParam:
     """Base class for parameter annotations."""
 
 
-class InQuery(InParam):
-    """Annotation to indicate a parameter is provided in request body."""
+class _InString(InParam):
+    def __init__(self, attr, key, description):
+        super().__init__()
+        self.attr = attr
+        self.key = key
+        self.description = description
 
-    def __init__(self, name: str = None):
-        self.name = name
-
-    async def get(self, codec, request):
+    async def get(self, hint, request):
+        value = getattr(request, self.attr).get(self.key)
         try:
-            value = request.query.get(self.name)
-            print(f"{value=}")
-            return codec.str_decode(value)
+            if issubclass(hint, Stream):
+                return BytesStream(get_codec(bytes).str_decode(value))
+            return get_codec(hint).str_decode(value)
         except (TypeError, ValueError) as e:
-            raise BadRequestError(f"{e} in {self}")
+            raise error.BadRequestError(f"{e} in {self}")
 
     def __str__(self):
-        return f"query parameter: {self.name}"
+        return f"{self.description}: {self.key}"
 
 
-async def _ajoin(stream) -> bytearray:
-    result = bytearray()
-    if stream is not None:
-        async for b in stream:
-            result.append(b)
-    return result
+class InQuery(_InString):
+    """Annotation to indicate a parameter is provided in request query string."""
+
+    def __init__(self, name: str):
+        super().__init__("query", name, "query parameter")
 
 
-class InBody(InParam):
+class InHeader(_InString):
+    """Annotation to indicate a parameter is provided in request header."""
+
+    def __init__(self, name: str):
+        super().__init__("headers", name, "request header")
+
+
+class InCookie(_InString):
+    """Annotation to indicate a parameter is provided in request cookie."""
+
+    def __init__(self, name: str):
+        super().__init__("cookies", name, "request cookie")
+
+
+class _InBody(InParam):
     """Annotation to indicate a parameter is provided in request body."""
 
-    async def get(self, codec, request):
+    async def get(self, hint, request):
+        if issubclass(hint, Stream):
+            return request.body
         try:
-            value = await _ajoin(request.body)
-            return codec.bytes_decode(value)
+            value = bytearray()
+            if request.body is not None:
+                async for b in request.body:
+                    value.extend(b)
+            return get_codec(hint).bytes_decode(value)
         except (TypeError, ValueError) as e:
-            raise BadRequestError(f"{e} in {self}")
+            raise error.BadRequestError(f"{e} in {self}")
+
+    def __call__(self):
+        return self
 
     def __str__(self):
         return "request body"
 
 
-class InHeader(InParam):
-    """Annotation to indicate a parameter is provided in request header."""
-
-    def __init__(self, name: str):
-        self.name = name
-
-    async def get(self, codec, request):
-        try:
-            value = request.headers.get(self.name)
-            return codec.str_decode(value)
-        except (TypeError, ValueError) as e:
-            raise BadRequestError(f"{e} in {self}")
-
-    def __str__(self):
-        return f"header: {self.name}"
+InBody = _InBody()
 
 
-class InCookie(InParam):
-    """Annotation to indicate a parameter is provided in request cookie."""
-
-    def __init__(self, name: str):
-        self.name = name
-
-    async def get(self, codec, request):
-        try:
-            value = request.cookies.get(self.name)
-            return codec.str_decode(value)
-        except (TypeError, ValueError) as e:
-            raise BadRequestError(f"{e} in {self}")
-
-    def __str__(self):
-        return f"cookie: {self.name}"
-
-
-async def handle_exception(error: fondat.error.Error):
+async def handle_exception(err: fondat.error.Error):
     """Default exception handler."""
 
     response = Response()
-    response.status = error.status
-    print(f"{error=}")
+    response.status = err.status
     response.body = BytesStream(
         json.dumps(
             dict(
-                error=error.status,
-                detail=error.args[0] if error.args else error.__doc__,
+                error=err.status,
+                detail=err.args[0] if err.args else err.__doc__,
             )
         ).encode()
     )
@@ -445,16 +430,16 @@ class Application:
             try:
                 chain = Chain(filters=self.filters, handler=self._handle)
                 return await chain.handle(request)
-            except fondat.error.Error:
+            except error.Error:
                 raise
             except Exception as ex:
-                raise InternalServerError from ex
-        except fondat.error.Error as error:
-            if isinstance(error, InternalServerError):
+                raise error.InternalServerError from ex
+        except error.Error as err:
+            if isinstance(err, error.InternalServerError):
                 _logger.error(
-                    msg=error.__cause__.args[0], exc_info=error.__cause__, stacklevel=3
+                    msg=err.__cause__.args[0], exc_info=err.__cause__, stacklevel=3
                 )
-            return await self.exception_handler(error)
+            return await self.exception_handler(err)
 
     async def _handle(self, request: Request):
         response = Response()
@@ -464,15 +449,13 @@ class Application:
             segments = []  # handle root "/" path
         resource = self.root
         operation = None
-        print(f"{segments=}")
         for segment in segments:
             resource = await _resource(getattr(resource, segment, None))
             if not resource:
-                raise NotFoundError
-        print(f"found {resource=}")
+                raise error.NotFoundError
         operation = getattr(resource, method, None)
         if not fondat.resource.is_operation(operation):
-            raise MethodNotAllowedError
+            raise error.MethodNotAllowedError
         signature = inspect.signature(operation)
         params = {}
         hints = get_type_hints(operation, include_extras=True)
@@ -480,7 +463,6 @@ class Application:
         for name, hint in hints.items():
             if name == "return":
                 continue
-            param_codec = get_codec(hint)
             in_param = None
             if typing.get_origin(hint) is Annotated:
                 args = typing.get_args(hint)
@@ -491,23 +473,24 @@ class Application:
                         break
             if not in_param:
                 in_param = InQuery(name)
-            param = await in_param.get(param_codec, request)
-            print(f"{param=}")
+            param = await in_param.get(hint, request)
             if param is None:
                 if signature.parameters[name].default is inspect.Parameter.empty:
-                    raise BadRequestError(f"expecting value in {in_param}")
+                    raise error.BadRequestError(f"expecting value in {in_param}")
             else:
                 try:
                     validate(param, hint)
                 except (TypeError, ValueError) as tve:
-                    raise BadRequestError(f"{tve} in {in_param}")
+                    raise error.BadRequestError(f"{tve} in {in_param}")
                 params[name] = param
-        response.body = await operation(**params)
-        if not isinstance(response.body, Stream):
+        result = await operation(**params)
+        validate(result, return_hint)
+        if not issubclass(return_hint, Stream):
             return_codec = get_codec(return_hint)
-            response.body = BytesStream(
-                return_codec.bytes_encode(response.body), return_codec.content_type
+            result = BytesStream(
+                return_codec.bytes_encode(result), return_codec.content_type
             )
+        response.body = result
         response.headers["Content-Type"] = response.body.content_type
         if response.body.content_length is not None:
             if response.body.content_length == 0:
