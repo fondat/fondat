@@ -9,7 +9,7 @@ class Error(Exception):
 
     Each error class must expose the following attributes:
     • status: HTTP status code (integer).
-    • phrase: HTTP reason phrase.     
+    • phrase: HTTP reason phrase.
     """
 
 
@@ -28,11 +28,15 @@ def _generate_errors():
             doc = status.description or status.phrase.capitalize()
             if not doc.endswith("."):
                 doc += "."
-            globalns[name] = type(name, (Error,), {
-                "status": status.value,
-                "phrase": status.phrase,
-                "__doc__": doc,
-            })
+            globalns[name] = type(
+                name,
+                (Error,),
+                {
+                    "status": status.value,
+                    "phrase": status.phrase,
+                    "__doc__": doc,
+                },
+            )
 
 
 _generate_errors()

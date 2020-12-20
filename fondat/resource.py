@@ -208,7 +208,7 @@ def inner(
         raise TypeError("method name is required")
 
     _wrapped = wrapped
-    
+
     if validate:
         _wrapped = fondat.validate.validate_arguments(_wrapped)
 

@@ -93,7 +93,9 @@ def dataclass(cls, init=True, **kwargs):
         hints = get_type_hints()
         for key in kwargs:
             if key not in hints:
-                raise TypeError(f"__init__() got an unexpected keyword argument '{key}'")
+                raise TypeError(
+                    f"__init__() got an unexpected keyword argument '{key}'"
+                )
 
         for key in get_type_hints(self):
             setattr(self, key, kwargs.get(key, getattr(cls, key, None)))
@@ -118,7 +120,9 @@ class Stream(AsyncIterator[Union[bytes, bytearray]]):
     • content_length: The length of the content, if known.
     """
 
-    def __init__(self, content_type: str = "application/octet-stream", content_length = None):
+    def __init__(
+        self, content_type: str = "application/octet-stream", content_length=None
+    ):
         self.content_type = content_type
         self.content_length = content_length
 
@@ -134,7 +138,11 @@ class BytesStream(Stream):
     Expose a bytes object as an asynchronous byte stream.
     """
 
-    def __init__(self, content: Union[bytes, bytearray], content_type: str = "application/octet-stream"):
+    def __init__(
+        self,
+        content: Union[bytes, bytearray],
+        content_type: str = "application/octet-stream",
+    ):
         super().__init__(content_type, len(content))
         self._content = content
 

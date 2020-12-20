@@ -73,8 +73,8 @@ async def test_gpppd(table):
         bytes_=b"12345",
         date_=date.fromisoformat("2019-01-01"),
         datetime_=datetime.fromisoformat("2019-01-01T01:01:01+00:00"),
-        str_enum_ = StrEnum.A,
-        int_enum_ = IntEnum.ONE,
+        str_enum_=StrEnum.A,
+        int_enum_=IntEnum.ONE,
     )
     await table.insert(row)
     assert await table.read(row.key) == row
@@ -130,8 +130,8 @@ async def test_rollback(table):
                 bytes_=None,
                 date_=None,
                 datetime_=None,
-                str_enum_ = None,
-                int_enum_ = None,
+                str_enum_=None,
+                int_enum_=None,
             )
             await table.insert(row)
             raise RuntimeError  # force rollback

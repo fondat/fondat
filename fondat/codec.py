@@ -752,7 +752,10 @@ def get_codec(pytype):
         pytype = origin[typing.get_args(pytype)]
     if origin is typing.Union:
         return _union_codec(pytype)
-    if _issubclass(pytype, dict) and getattr(pytype, "__annotations__", None) is not None:
+    if (
+        _issubclass(pytype, dict)
+        and getattr(pytype, "__annotations__", None) is not None
+    ):
         return _typed_dict_codec(pytype)
     if _issubclass(origin, collections.abc.Mapping):
         return _mapping_codec(pytype)

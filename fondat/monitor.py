@@ -20,7 +20,6 @@ import typing
 from dataclasses import dataclass
 
 
-
 _logger = logging.getLogger(__name__)
 
 
@@ -43,7 +42,6 @@ class Measurement:
     timestamp: datetime.datetime
     type: str  # {"counter", "gauge", "absolute"}
     value: typing.Union[int, float]
-
 
     def __post_init__(self):
         fondat.validate.validate(self, self.__class__)

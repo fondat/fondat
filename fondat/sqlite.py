@@ -79,7 +79,7 @@ class _EnumAdapter:
 
     def sql_decode(self, value: Any) -> Any:
         return self._pytype(self._adapter.sql_decode(value))
-    
+
 
 _adapters = {
     bool: _CastAdapter(bool, "INTEGER"),
@@ -112,7 +112,7 @@ def _get_adapter(pytype: type) -> Any:
     if adapter := _adapters.get(stripped):
         return adapter
     elif _issubclass(pytype, enum.Enum):
-        return _EnumAdapter(pytype) 
+        return _EnumAdapter(pytype)
     else:
         return _TextAdapter(pytype)
 
@@ -180,7 +180,6 @@ class Database(fondat.sql.Database):
 
 
 class Transaction(fondat.sql.Transaction):
-
     def __init__(self, database: Database):
         super().__init__()
         self.database = database

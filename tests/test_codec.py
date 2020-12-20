@@ -201,9 +201,7 @@ def test_set_str_decode_str_success():
 
 
 def test_set_str_decode_str_encode():
-    assert (
-        get_codec(set[int]).str_encode({2, 3, 1}) == "1,2,3"
-    )  # sorts result
+    assert get_codec(set[int]).str_encode({2, 3, 1}) == "1,2,3"  # sorts result
 
 
 def test_set_str_decode_int_success():
@@ -690,9 +688,7 @@ def test_union_encodings():
 
 
 def test_union_optional_value():
-    assert (
-        get_codec(Optional[str]).json_decode("string") == "string"
-    )
+    assert get_codec(Optional[str]).json_decode("string") == "string"
 
 
 def test_union_optional_none():
@@ -724,9 +720,7 @@ def test_dataclass_json_decode_success():
 
 def test_dataclass_json_decode_optional_success():
     DC = make_dataclass("DC", [("djc", int), ("djd", str, field(default=None))])
-    assert get_codec(DC).json_decode({"djc": 12345}) == DC(
-        djc=12345, djd=None
-    )
+    assert get_codec(DC).json_decode({"djc": 12345}) == DC(djc=12345, djd=None)
 
 
 def test_dataclass_json_decode_error():

@@ -1,7 +1,7 @@
 import pytest
 
 from dataclasses import make_dataclass
-from fondat.error import BadRequestError, NotFoundError 
+from fondat.error import BadRequestError, NotFoundError
 from fondat.memory import memory_resource
 from fondat.resource import operation
 from time import sleep
