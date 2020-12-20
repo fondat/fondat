@@ -26,10 +26,12 @@ from typing import Any, Union
 NoneType = type(None)
 
 
+_TEXT_PLAIN = "text/plain; charset=UTF-8"
+_APPLICATION_JSON = "application/json"
+
+
 class Codec:
     """Base class for codecs."""
-
-    pass
 
 
 class StrCodec(Codec):
@@ -37,7 +39,7 @@ class StrCodec(Codec):
 
     python_type = str
     json_type = str
-    content_type = "text/plain"
+    content_type = _TEXT_PLAIN
 
     @validate_arguments
     def json_encode(self, value: str) -> str:
@@ -60,7 +62,7 @@ class StrCodec(Codec):
         return value.encode()
 
     @validate_arguments
-    def bytes_decode(self, value: bytes) -> str:
+    def bytes_decode(self, value: Union[bytes, bytearray]) -> str:
         return value.decode()
 
 
@@ -112,7 +114,7 @@ class IntCodec(Codec):
 
     python_type = int
     json_type = Union[int, float]
-    content_type = "text/plain"
+    content_type = _TEXT_PLAIN
 
     @validate_arguments
     def json_encode(self, value: int) -> int:
@@ -143,7 +145,7 @@ class IntCodec(Codec):
         return self.str_encode(value).encode()
 
     @validate_arguments
-    def bytes_decode(self, value: bytes) -> int:
+    def bytes_decode(self, value: Union[bytes, bytearray]) -> int:
         return self.str_decode(value.decode())
 
 
@@ -152,7 +154,7 @@ class FloatCodec(Codec):
 
     python_type = float
     json_type = Union[int, float]
-    content_type = "text/plain"
+    content_type = _TEXT_PLAIN
 
     @validate_arguments
     def json_encode(self, value: float) -> float:
@@ -178,7 +180,7 @@ class FloatCodec(Codec):
         return self.str_encode(value).encode()
 
     @validate_arguments
-    def bytes_decode(self, value: bytes) -> float:
+    def bytes_decode(self, value: Union[bytes, bytearray]) -> float:
         return self.str_decode(value.decode())
 
 
@@ -187,7 +189,7 @@ class BoolCodec(Codec):
 
     python_type = bool
     json_type = bool
-    content_type = "text/plain"
+    content_type = _TEXT_PLAIN
 
     @validate_arguments
     def json_encode(self, value: bool) -> bool:
@@ -213,7 +215,7 @@ class BoolCodec(Codec):
         return self.str_encode(value).encode()
 
     @validate_arguments
-    def bytes_decode(self, value: bytes) -> bool:
+    def bytes_decode(self, value: Union[bytes, bytearray]) -> bool:
         return self.str_decode(value.decode())
 
 
@@ -222,7 +224,7 @@ class NoneCodec(Codec):
 
     python_type = NoneType
     json_type = NoneType
-    content_type = "text/plain"
+    content_type = _TEXT_PLAIN
 
     @validate_arguments
     def json_encode(self, value: NoneType) -> NoneType:
@@ -247,7 +249,7 @@ class NoneCodec(Codec):
         return self.str_encode(value).encode()
 
     @validate_arguments
-    def bytes_decode(self, value: bytes) -> NoneType:
+    def bytes_decode(self, value: Union[bytes, bytearray]) -> NoneType:
         return self.str_decode(value.decode())
 
 
@@ -261,7 +263,7 @@ class DecimalCodec(Codec):
 
     python_type = decimal.Decimal
     json_type = str
-    content_type = "text/plain"
+    content_type = _TEXT_PLAIN
 
     @validate_arguments
     def json_encode(self, value: decimal.Decimal) -> str:
@@ -287,7 +289,7 @@ class DecimalCodec(Codec):
         return self.str_encode(value).encode()
 
     @validate_arguments
-    def bytes_decode(self, value: bytes) -> decimal.Decimal:
+    def bytes_decode(self, value: Union[bytes, bytearray]) -> decimal.Decimal:
         return self.str_decode(value.decode())
 
 
@@ -301,7 +303,7 @@ class DateCodec(Codec):
 
     python_type = datetime.date
     json_type = str
-    content_type = "text/plain"
+    content_type = _TEXT_PLAIN
 
     @validate_arguments
     def json_encode(self, value: datetime.date) -> str:
@@ -327,7 +329,7 @@ class DateCodec(Codec):
         return self.str_encode(value).encode()
 
     @validate_arguments
-    def bytes_decode(self, value: bytes) -> datetime.date:
+    def bytes_decode(self, value: Union[bytes, bytearray]) -> datetime.date:
         return self.str_decode(value.decode())
 
 
@@ -347,7 +349,7 @@ class DatetimeCodec(Codec):
 
     python_type = datetime.datetime
     json_type = str
-    content_type = "text/plain"
+    content_type = _TEXT_PLAIN
 
     @validate_arguments
     def json_encode(self, value: datetime.datetime) -> str:
@@ -380,7 +382,7 @@ class DatetimeCodec(Codec):
         return self.str_encode(value).encode()
 
     @validate_arguments
-    def bytes_decode(self, value: bytes) -> datetime.datetime:
+    def bytes_decode(self, value: Union[bytes, bytearray]) -> datetime.datetime:
         return self.str_decode(value.decode())
 
 
@@ -394,7 +396,7 @@ class UUIDCodec(Codec):
 
     python_type = uuid.UUID
     json_type = str
-    content_type = "text/plain"
+    content_type = _TEXT_PLAIN
 
     @validate_arguments
     def json_encode(self, value: uuid.UUID) -> str:
@@ -420,7 +422,7 @@ class UUIDCodec(Codec):
         return self.str_encode(value).encode()
 
     @validate_arguments
-    def bytes_decode(self, value: bytes) -> uuid.UUID:
+    def bytes_decode(self, value: Union[bytes, bytearray]) -> uuid.UUID:
         return self.str_decode(value.decode())
 
 
@@ -451,7 +453,7 @@ def _typed_dict_codec(py_type):
 
         python_type = py_type
         json_type = dict[str, typing.Union[tuple(c.json_type for c in codecs.values())]]
-        content_type = "application/json"
+        content_type = _APPLICATION_JSON
 
         @validate_arguments
         def json_encode(self, value: python_type) -> json_type:
@@ -474,7 +476,7 @@ def _typed_dict_codec(py_type):
             return self.str_encode(value).encode()
 
         @validate_arguments
-        def bytes_decode(self, value: bytes) -> python_type:
+        def bytes_decode(self, value: Union[bytes, bytearray]) -> python_type:
             return self.str_decode(value.decode())
 
     affix_type_hints(TypedDictCodec, localns=TypedDictCodec.__dict__)
@@ -489,7 +491,7 @@ def _mapping_codec(py_type):
 
         python_type = py_type
         json_type = dict[str, value_codec.json_type]
-        content_type = "application/json"
+        content_type = _APPLICATION_JSON
 
         @validate_arguments
         def json_encode(self, value: python_type) -> json_type:
@@ -520,7 +522,7 @@ def _mapping_codec(py_type):
             return self.str_encode(value).encode()
 
         @validate_arguments
-        def bytes_decode(self, value: bytes) -> python_type:
+        def bytes_decode(self, value: Union[bytes, bytearray]) -> python_type:
             return self.str_decode(value.decode())
 
     affix_type_hints(MappingCodec, localns=MappingCodec.__dict__)
@@ -536,7 +538,7 @@ def _iterable_codec(py_type):
 
         python_type = py_type
         json_type = list[item_codec.json_type]
-        content_type = "application/json"
+        content_type = _APPLICATION_JSON
 
         @validate_arguments
         def json_encode(self, value: python_type) -> json_type:
@@ -563,7 +565,7 @@ def _iterable_codec(py_type):
             return json.dumps(self.json_encode(value)).encode()
 
         @validate_arguments
-        def bytes_decode(self, value: bytes) -> python_type:
+        def bytes_decode(self, value: Union[bytes, bytearray]) -> python_type:
             return py_type(self.json_decode(json.loads(value.decode())))
 
     affix_type_hints(IterableCodec, localns=IterableCodec.__dict__)
@@ -578,7 +580,7 @@ def _dataclass_codec(py_type):
 
         python_type = py_type
         json_type = dict[str, typing.Union[tuple(c.json_type for c in codecs.values())]]
-        content_type = "application/json"
+        content_type = _APPLICATION_JSON
 
         @validate_arguments
         def json_encode(self, value: python_type) -> json_type:
@@ -610,7 +612,7 @@ def _dataclass_codec(py_type):
             return self.str_encode(value).encode()
 
         @validate_arguments
-        def bytes_decode(self, value: bytes) -> python_type:
+        def bytes_decode(self, value: Union[bytes, bytearray]) -> python_type:
             return self.str_decode(value.decode())
 
     affix_type_hints(DataclassCodec, localns=DataclassCodec.__dict__)
@@ -656,7 +658,7 @@ def _union_codec(py_type):
             return self._process("bytes_encode", value)
 
         @validate_arguments
-        def bytes_decode(self, value: bytes) -> python_type:
+        def bytes_decode(self, value: Union[bytes, bytearray]) -> python_type:
             return self._process("bytes_decode", value)
 
     affix_type_hints(UnionCodec, localns=UnionCodec.__dict__)
@@ -702,7 +704,7 @@ def _enum_codec(py_type):
             return codecs[value].bytes_encode(value.value)
 
         @validate_arguments
-        def bytes_decode(self, value: bytes) -> python_type:
+        def bytes_decode(self, value: Union[bytes, bytearray]) -> python_type:
             return py_type(self._decode("bytes_decode", value))
 
     affix_type_hints(EnumCodec, localns=EnumCodec.__dict__)
