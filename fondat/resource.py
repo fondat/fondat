@@ -114,6 +114,7 @@ def operation(
     • security: Security requirements for the operation.
     • publish: Publish the operation in documentation.
     • deprecated: Declare the operation as deprecated.
+    • validate: Validate method arguments.
 
     Resource operations should correlate to HTTP method names, named in lower
     case. For example: get, put, post, delete, patch.
@@ -125,6 +126,7 @@ def operation(
             security=security,
             publish=publish,
             deprecated=deprecated,
+            validate=validate,
         )
 
     if not asyncio.iscoroutinefunction(wrapped):
@@ -175,6 +177,7 @@ def inner(
     method: str,
     op_type: str = None,
     security: Iterable[SecurityRequirement] = None,
+    validate: bool = True,
 ):
     """
     Decorator to define an inner resource operation.
@@ -182,6 +185,7 @@ def inner(
     Parameters:
     • method: Name of method to implement (e.g "get").
     • security: Security requirements for the operation.
+    • validate: Validate method arguments.
 
     This decorator creates a new resource class, with a single operation that
     implements the decorated method. The decorated method, at time of
@@ -194,6 +198,7 @@ def inner(
             method=method,
             op_type=op_type,
             security=security,
+            validate=validate,
         )
 
     if not asyncio.iscoroutinefunction(wrapped):
@@ -202,7 +207,10 @@ def inner(
     if not method:
         raise TypeError("method name is required")
 
-    _wrapped = fondat.validate.validate_arguments(wrapped)
+    _wrapped = wrapped
+    
+    if validate:
+        _wrapped = fondat.validate.validate_arguments(_wrapped)
 
     @resource
     class Inner:
