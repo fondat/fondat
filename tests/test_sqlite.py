@@ -2,7 +2,6 @@ import dataclasses
 import enum
 import pytest
 import fondat.codec
-import fondat.resource as r
 import fondat.sql as sql
 import fondat.sqlite as sqlite
 import tempfile
