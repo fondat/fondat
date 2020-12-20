@@ -66,42 +66,45 @@ class StrCodec(Codec):
 
 class BytesCodec(Codec):
     """
-    Codec for byte sequences.
+    Codec for byte sequences (bytes or bytearray).
 
     A byte sequence is represented in JSON and string values as a
     base64-encoded string. Example: "SGVsbG8gRm9uZGF0".
     """
 
-    python_type = bytes
+    python_type = Union[bytes, bytearray]
     json_type = str
     content_type = "application/octet-stream"
 
     @validate_arguments
-    def json_encode(self, value: bytes) -> str:
+    def json_encode(self, value: python_type) -> str:
         return self.str_encode(value)
 
     @validate_arguments
-    def json_decode(self, value: str) -> bytes:
+    def json_decode(self, value: str) -> python_type:
         return self.str_decode(value)
 
     @validate_arguments
-    def str_encode(self, value: bytes) -> str:
+    def str_encode(self, value: python_type) -> str:
         return base64.b64encode(value).decode()
 
     @validate_arguments
-    def str_decode(self, value: str) -> bytes:
+    def str_decode(self, value: str) -> python_type:
         try:
             return base64.b64decode(value)
         except binascii.Error:
             raise ValueError("expecting a base64-encoded value")
 
     @validate_arguments
-    def bytes_encode(self, value: bytes) -> bytes:
+    def bytes_encode(self, value: python_type) -> python_type:
         return value
 
     @validate_arguments
-    def bytes_decode(self, value: bytes) -> bytes:
+    def bytes_decode(self, value: python_type) -> python_type:
         return value
+
+
+affix_type_hints(BytesCodec, dict(BytesCodec.__dict__))
 
 
 class IntCodec(Codec):
@@ -130,7 +133,10 @@ class IntCodec(Codec):
 
     @validate_arguments
     def str_decode(self, value: str) -> int:
-        return int(value)
+        try:
+            return int(value)
+        except:
+            raise ValueError(f"{value} is not a valid integer")
 
     @validate_arguments
     def bytes_encode(self, value: int) -> bytes:
@@ -158,7 +164,10 @@ class FloatCodec(Codec):
 
     @validate_arguments
     def str_encode(self, value: float) -> str:
-        return str(value)
+        try:
+            return str(value)
+        except:
+            raise ValueError(f"{value} is not a valid floating point number")
 
     @validate_arguments
     def str_decode(self, value: str) -> float:
@@ -197,7 +206,7 @@ class BoolCodec(Codec):
         try:
             return {"true": True, "false": False}[value]
         except KeyError:
-            raise ValueError("expecting true or false")
+            raise ValueError(f"{value} is not true or false")
 
     @validate_arguments
     def bytes_encode(self, value: bool) -> bytes:
@@ -230,7 +239,7 @@ class NoneCodec(Codec):
     @validate_arguments
     def str_decode(self, value: str) -> NoneType:
         if value:
-            raise ValueError("expected empty string")
+            raise ValueError(f"{value} is not an empty value")
         return None
 
     @validate_arguments
@@ -271,7 +280,7 @@ class DecimalCodec(Codec):
         try:
             return decimal.Decimal(value)
         except decimal.InvalidOperation:
-            raise ValueError("expecting a string containing decimal number")
+            raise ValueError(f"{value} is not a valid decimal number")
 
     @validate_arguments
     def bytes_encode(self, value: decimal.Decimal) -> bytes:
@@ -308,7 +317,10 @@ class DateCodec(Codec):
 
     @validate_arguments
     def str_decode(self, value: str) -> datetime.date:
-        return datetime.date.fromisoformat(value)
+        try:
+            return datetime.date.fromisoformat(value)
+        except:
+            raise ValueError(f"{value} is not a valid date value")
 
     @validate_arguments
     def bytes_encode(self, value: datetime.date) -> bytes:
@@ -358,7 +370,10 @@ class DatetimeCodec(Codec):
     def str_decode(self, value: str) -> datetime.datetime:
         if value.endswith("Z"):
             value = value[0:-1]
-        return _to_utc(datetime.datetime.fromisoformat(value))
+        try:
+            return _to_utc(datetime.datetime.fromisoformat(value))
+        except:
+            raise ValueError(f"{value} is not a valid date-time value")
 
     @validate_arguments
     def bytes_encode(self, value: datetime.datetime) -> bytes:
@@ -395,7 +410,10 @@ class UUIDCodec(Codec):
 
     @validate_arguments
     def str_decode(self, value: str) -> uuid.UUID:
-        return uuid.UUID(value)
+        try:
+            return uuid.UUID(value)
+        except:
+            raise ValueError(f"{value} is not a valid UUID value")
 
     @validate_arguments
     def bytes_encode(self, value: uuid.UUID) -> bytes:
@@ -694,7 +712,6 @@ def _enum_codec(pytype):
 _builtins = {}
 for codec in (
     StrCodec,
-    BytesCodec,
     IntCodec,
     FloatCodec,
     BoolCodec,
@@ -706,6 +723,9 @@ for codec in (
 ):
     affix_type_hints(codec)
     _builtins[codec.python_type] = codec()
+
+
+_builtins[bytes] = _builtins[bytearray] = BytesCodec()
 
 
 def _issubclass(cls, cls_or_tuple):
