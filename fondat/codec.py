@@ -106,7 +106,7 @@ class BytesCodec(Codec):
         return value
 
 
-affix_type_hints(BytesCodec, dict(BytesCodec.__dict__))
+affix_type_hints(BytesCodec, localns=vars(BytesCodec))
 
 
 class IntCodec(Codec):
@@ -479,7 +479,7 @@ def _typed_dict_codec(py_type):
         def bytes_decode(self, value: Union[bytes, bytearray]) -> python_type:
             return self.str_decode(value.decode())
 
-    affix_type_hints(TypedDictCodec, localns=TypedDictCodec.__dict__)
+    affix_type_hints(TypedDictCodec, localns=vars(TypedDictCodec))
     return TypedDictCodec()
 
 
@@ -525,7 +525,7 @@ def _mapping_codec(py_type):
         def bytes_decode(self, value: Union[bytes, bytearray]) -> python_type:
             return self.str_decode(value.decode())
 
-    affix_type_hints(MappingCodec, localns=MappingCodec.__dict__)
+    affix_type_hints(MappingCodec, localns=vars(MappingCodec))
     return MappingCodec()
 
 
@@ -568,7 +568,7 @@ def _iterable_codec(py_type):
         def bytes_decode(self, value: Union[bytes, bytearray]) -> python_type:
             return py_type(self.json_decode(json.loads(value.decode())))
 
-    affix_type_hints(IterableCodec, localns=IterableCodec.__dict__)
+    affix_type_hints(IterableCodec, localns=vars(IterableCodec))
     return IterableCodec()
 
 
@@ -615,7 +615,7 @@ def _dataclass_codec(py_type):
         def bytes_decode(self, value: Union[bytes, bytearray]) -> python_type:
             return self.str_decode(value.decode())
 
-    affix_type_hints(DataclassCodec, localns=DataclassCodec.__dict__)
+    affix_type_hints(DataclassCodec, localns=vars(DataclassCodec))
     return DataclassCodec()
 
 
@@ -661,7 +661,7 @@ def _union_codec(py_type):
         def bytes_decode(self, value: Union[bytes, bytearray]) -> python_type:
             return self._process("bytes_decode", value)
 
-    affix_type_hints(UnionCodec, localns=UnionCodec.__dict__)
+    affix_type_hints(UnionCodec, localns=vars(UnionCodec))
     return UnionCodec()
 
 
@@ -707,7 +707,7 @@ def _enum_codec(py_type):
         def bytes_decode(self, value: Union[bytes, bytearray]) -> python_type:
             return py_type(self._decode("bytes_decode", value))
 
-    affix_type_hints(EnumCodec, localns=EnumCodec.__dict__)
+    affix_type_hints(EnumCodec, localns=vars(EnumCodec))
     return EnumCodec()
 
 
@@ -755,7 +755,7 @@ def _literal_codec(py_type):
         def bytes_decode(self, value: Union[bytes, bytearray]) -> python_type:
             return self._decode("bytes_decode", value)
 
-    affix_type_hints(LiteralCodec, localns=LiteralCodec.__dict__)
+    affix_type_hints(LiteralCodec, localns=vars(LiteralCodec))
     return LiteralCodec()
 
 
