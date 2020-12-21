@@ -10,7 +10,8 @@ import os.path
 
 from collections.abc import Iterable
 from fondat.error import InternalServerError, NotFoundError
-from fondat.resource import resource, operation, InBody
+from fondat.http import InBody
+from fondat.resource import resource, operation
 from fondat.types import affix_type_hints
 from fondat.security import SecurityRequirement
 from typing import Annotated, Any

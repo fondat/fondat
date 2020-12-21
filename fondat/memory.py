@@ -9,7 +9,8 @@ from collections import namedtuple
 from collections.abc import Iterable
 from datetime import datetime, timedelta, timezone
 from fondat.error import BadRequestError, NotFoundError
-from fondat.resource import resource, operation, mutation, InBody
+from fondat.http import InBody
+from fondat.resource import resource, operation, mutation
 from fondat.security import SecurityRequirement
 from fondat.types import affix_type_hints
 from typing import Annotated

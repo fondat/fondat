@@ -8,7 +8,6 @@ import tempfile
 
 from dataclasses import dataclass
 from datetime import date, datetime
-from fondat.resource import NotFound
 from typing import Annotated, Optional, TypedDict
 from uuid import UUID, uuid4
 
