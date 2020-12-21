@@ -2,8 +2,8 @@
 
 [![PyPI](https://badge.fury.io/py/fondat.svg)](https://badge.fury.io/py/fondat)
 [![License](https://img.shields.io/github/license/fondat/fondat.svg)](https://github.com/fondat/fondat/blob/main/LICENSE)
-[![GitHub](https://img.shields.io/badge/github-master-blue.svg)](https://github.com/fondat/fondat/)
-[![Test](https://github.com/fondat/fondat/workflows/Test/badge.svg)](https://github.com/fondat/fondat/actions?query=workflow/test)
+[![GitHub](https://img.shields.io/badge/github-main-blue.svg)](https://github.com/fondat/fondat/)
+[![Test](https://github.com/fondat/fondat/workflows/test/badge.svg)](https://github.com/fondat/fondat/actions?query=workflow/test)
 [![Black](https://img.shields.io/badge/code%20style-black-black.svg)](https://github.com/psf/black)
 
 Fon·dat: A foundation for Python resource-oriented applications. 
