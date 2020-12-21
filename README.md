@@ -1,7 +1,7 @@
 # Fondat
 
 [![PyPI](https://badge.fury.io/py/fondat.svg)](https://badge.fury.io/py/fondat)
-[![License](https://img.shields.io/github/license/fondat/fondat.svg)](https://github.com/fondat/fondat/blob/master/LICENSE)
+[![License](https://img.shields.io/github/license/fondat/fondat.svg)](https://github.com/fondat/fondat/blob/main/LICENSE)
 [![GitHub](https://img.shields.io/badge/github-master-blue.svg)](https://github.com/fondat/fondat/)
 [![Test](https://github.com/fondat/fondat/workflows/Test/badge.svg)](https://github.com/fondat/fondat/actions?query=workflow/test)
 [![Black](https://img.shields.io/badge/code%20style-black-black.svg)](https://github.com/psf/black)
@@ -36,7 +36,7 @@ pip install fondat
 
 ## Documentation
 
-See the [docs](https://github.com/fondat/fondat/tree/master/docs) folder for documentation.
+See the [docs](https://github.com/fondat/fondat/tree/main/docs) folder for documentation.
 
 ## Develop
 
