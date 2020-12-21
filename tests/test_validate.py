@@ -18,7 +18,7 @@ from fondat.validate import (
 )
 from io import BytesIO
 from datetime import date, datetime, timezone
-from typing import Annotated, Union, TypedDict
+from typing import Annotated, Literal, TypedDict, Union
 from uuid import UUID
 
 
@@ -324,6 +324,43 @@ def test_union_match():
     u = Union[str, int]
     validate("one", u)
     validate(1, u)
+
+
+# -- literal -----
+
+
+def test_literal_match():
+    l = Literal["a", "b", "c"]
+    validate("a", l)
+    validate("b", l)
+    validate("c", l)
+
+
+def test_literal_not_match():
+    l = Literal["a", "b", "c"]
+    with pytest.raises(ValueError):
+        validate("d", l)
+
+
+def test_literal_bool_int():
+    l = Literal[2, 3, True]
+    validate(2, l)
+    validate(3, l)
+    validate(True, l)
+    with pytest.raises(ValueError):
+        validate(1, l)
+
+
+def test_literal_int_bool():
+    l = Literal[1, 2, 3]
+    with pytest.raises(ValueError):
+        validate(True, l)
+
+
+def test_literal_int_float():
+    l = Literal[1, 2, 3]
+    with pytest.raises(ValueError):
+        validate(1.0, l)
 
 
 # -- dataclass -----

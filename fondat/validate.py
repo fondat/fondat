@@ -106,8 +106,10 @@ def _validate_union(type_, value):
 
 def _validate_literal(py_type, value):
     args = typing.get_args(py_type)
-    if value not in args:
-        raise ValueError(f"expecting one of {args}")
+    for arg in args:
+        if arg == value and type(arg) is type(value):
+            return
+    raise ValueError(f"expecting one of {args}")
 
 
 def _validate_typeddict(type_, value):
