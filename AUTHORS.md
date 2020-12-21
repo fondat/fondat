@@ -1,4 +1,4 @@
-The following authors have contributed to Roax:
+The following authors have contributed to Fondat:
 
 - [Paul Bryan](mailto:pbryan@anode.ca)
 - [Ben Siggers](mailto:ben@siggers.ca)
