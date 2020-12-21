@@ -10,7 +10,7 @@ from base64 import b64encode
 from fondat.codec import get_codec
 from dataclasses import make_dataclass, field
 from io import BytesIO
-from typing import Optional, TypedDict, Union
+from typing import Literal, Optional, TypedDict, Union
 from uuid import UUID
 
 
@@ -693,6 +693,27 @@ def test_union_optional_value():
 
 def test_union_optional_none():
     get_codec(Optional[str]).json_decode(None) is None
+
+
+# -- literal -----
+
+
+def test_literal_encodings():
+    codec = get_codec(Literal["a", 1, True])
+    _test_encodings(codec, "a")
+    _test_encodings(codec, 1)
+    _test_encodings(codec, True)
+
+
+def test_literal_single_json_type():
+    codec = get_codec(Literal["a", "b", "c"])
+    assert codec.json_type == str
+
+
+def test_enum_mixed_str_types():
+    codec = get_codec(Literal["a", 1])
+    assert codec.str_decode("a") == "a"
+    assert codec.str_decode("1") == 1
 
 
 # -- dataclass -----

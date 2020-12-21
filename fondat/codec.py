@@ -20,7 +20,7 @@ import wrapt
 from collections.abc import Iterable
 from fondat.types import affix_type_hints
 from fondat.validate import validate_arguments
-from typing import Any, Union
+from typing import Annotated, Any, Literal, Union
 
 
 NoneType = type(None)
@@ -452,7 +452,7 @@ def _typed_dict_codec(py_type):
     class TypedDictCodec:
 
         python_type = py_type
-        json_type = dict[str, typing.Union[tuple(c.json_type for c in codecs.values())]]
+        json_type = dict[str, Union[tuple(c.json_type for c in codecs.values())]]
         content_type = _APPLICATION_JSON
 
         @validate_arguments
@@ -579,7 +579,7 @@ def _dataclass_codec(py_type):
     class DataclassCodec:
 
         python_type = py_type
-        json_type = dict[str, typing.Union[tuple(c.json_type for c in codecs.values())]]
+        json_type = dict[str, Union[tuple(c.json_type for c in codecs.values())]]
         content_type = _APPLICATION_JSON
 
         @validate_arguments
@@ -627,7 +627,7 @@ def _union_codec(py_type):
     class UnionCodec:
 
         python_type = py_type
-        json_type = typing.Union[tuple(codec.json_type for codec in codecs)]
+        json_type = Union[tuple(codec.json_type for codec in codecs)]
 
         def _process(self, method, value):
             for codec in codecs:
@@ -673,7 +673,7 @@ def _enum_codec(py_type):
     class EnumCodec:
 
         python_type = py_type
-        json_type = typing.Union[tuple(codec.json_type for codec in codecs.values())]
+        json_type = Union[tuple(codec.json_type for codec in codecs.values())]
 
         def _decode(self, method, value):
             for codec in codec_set:
@@ -711,6 +711,54 @@ def _enum_codec(py_type):
     return EnumCodec()
 
 
+def _literal_codec(py_type):
+
+    literals = {(type(l), l) for l in typing.get_args(py_type)}
+    codecs = tuple(get_codec(literal[0]) for literal in literals)
+
+    class LiteralCodec:
+
+        python_type = py_type
+        json_type = Union[tuple(codec.json_type for codec in codecs)]
+
+        def _decode(self, method, value):
+            for codec in codecs:
+                try:
+                    v = getattr(codec, method)(value)
+                    if (type(v), v) in literals:
+                        return v
+                except:
+                    continue
+            raise ValueError
+
+        @validate_arguments
+        def json_encode(self, value: python_type) -> json_type:
+            return get_codec(type(value)).json_encode(value)
+
+        @validate_arguments
+        def json_decode(self, value: json_type) -> python_type:
+            return self._decode("json_decode", value)
+
+        @validate_arguments
+        def str_encode(self, value: python_type) -> str:
+            return get_codec(type(value)).str_encode(value)
+
+        @validate_arguments
+        def str_decode(self, value: str) -> python_type:
+            return self._decode("str_decode", value)
+
+        @validate_arguments
+        def bytes_encode(self, value: python_type) -> bytes:
+            return get_codec(type(value)).bytes_encode(value)
+
+        @validate_arguments
+        def bytes_decode(self, value: Union[bytes, bytearray]) -> python_type:
+            return self._decode("bytes_decode", value)
+
+    affix_type_hints(LiteralCodec, localns=LiteralCodec.__dict__)
+    return LiteralCodec()
+
+
 _builtins = {}
 for codec in (
     StrCodec,
@@ -741,7 +789,7 @@ def _issubclass(cls, cls_or_tuple):
 def get_codec(py_type):
     """Return a codec compatible with the specified type."""
 
-    if typing.get_origin(py_type) is typing.Annotated:
+    if typing.get_origin(py_type) is Annotated:
         args = typing.get_args(py_type)
         for annotation in args[1:]:
             if isinstance(annotation, Codec):
@@ -752,8 +800,10 @@ def get_codec(py_type):
         return result
     if origin := typing.get_origin(py_type):
         py_type = origin[typing.get_args(py_type)]
-    if origin is typing.Union:
+    if origin is Union:
         return _union_codec(py_type)
+    if origin is Literal:
+        return _literal_codec(py_type)
     if (
         _issubclass(py_type, dict)
         and getattr(py_type, "__annotations__", None) is not None

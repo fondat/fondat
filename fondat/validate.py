@@ -12,7 +12,7 @@ import typing
 import wrapt
 
 from collections.abc import Callable, Iterable, Mapping
-from typing import Annotated, Any, Union
+from typing import Annotated, Any, Literal, Union
 
 
 class Description:
@@ -97,10 +97,17 @@ def _decorate_exception(e, addition):
 def _validate_union(type_, value):
     for arg in typing.get_args(type_):
         try:
-            return validate(value, arg)
+            validate(value, arg)
+            return
         except (TypeError, ValueError):
             continue
     raise TypeError
+
+
+def _validate_literal(py_type, value):
+    args = typing.get_args(py_type)
+    if value not in args:
+        raise ValueError(f"expecting one of {args}")
 
 
 def _validate_typeddict(type_, value):
@@ -192,6 +199,10 @@ def validate(value: Any, type_: type):
         pass
     elif origin is Union:
         _validate_union(type_, value)
+        return
+    elif origin is Literal:
+        _validate_literal(type_, value)
+        return
     elif not _isinstance(value, dict) and not _isinstance(value, origin):
         raise TypeError(
             f"expecting {origin.__name__}, received {value.__class__.__name__}"
