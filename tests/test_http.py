@@ -5,7 +5,7 @@ from typing import Annotated
 from fondat.codec import get_codec
 from fondat.resource import resource, operation
 from fondat.http import Application, InBody, Request, Response
-from fondat.types import Stream, BytesStream#, dataclass
+from fondat.types import Stream, BytesStream  # , dataclass
 from dataclasses import dataclass
 
 pytestmark = pytest.mark.asyncio
@@ -23,7 +23,7 @@ async def test_simple():
         async def get(self) -> str:
             return "str"
 
-    application = Application(Resource(), "", "", "", "")
+    application = Application(Resource())
 
     request = Request()
     request.method = "GET"
@@ -46,7 +46,7 @@ async def test_nested():
     class Root:
         nested = Nested()
 
-    application = Application(Root(), "", "", "", "")
+    application = Application(Root())
 
     request = Request()
     request.method = "GET"
@@ -65,7 +65,7 @@ async def test_valid_param():
         async def get(self, foo: int) -> str:
             return str(foo)
 
-    application = Application(Resource(), "", "", "", "")
+    application = Application(Resource())
 
     request = Request()
     request.method = "GET"
@@ -83,7 +83,7 @@ async def test_invalid_param():
         async def get(self, foo: int) -> str:
             return str(foo)
 
-    application = Application(Resource(), "", "", "", "")
+    application = Application(Resource())
 
     request = Request()
     request.method = "GET"
@@ -100,7 +100,7 @@ async def test_missing_param():
         async def get(self, foo: int) -> str:
             return str(foo)
 
-    application = Application(Resource(), "", "", "", "")
+    application = Application(Resource())
 
     request = Request()
     request.method = "GET"
@@ -116,7 +116,7 @@ async def test_stream_response_body():
         async def get(self) -> Stream:
             return BytesStream(b"12345")
 
-    application = Application(Resource(), "", "", "", "")
+    application = Application(Resource())
 
     request = Request()
     request.method = "GET"
@@ -134,7 +134,7 @@ async def test_stream_request_body():
             content = b"".join([b async for b in foo])
             return BytesStream(content)
 
-    application = Application(Resource(), "", "", "", "")
+    application = Application(Resource())
 
     content = b"abcdefg"
     request = Request()
@@ -148,7 +148,6 @@ async def test_stream_request_body():
 
 
 async def test_request_body_dataclass():
-
     @dataclass
     class Model:
         a: int
@@ -160,7 +159,7 @@ async def test_request_body_dataclass():
         async def post(self, val: Annotated[Model, InBody]) -> Model:
             return val
 
-    application = Application(Resource(), "", "", "", "")
+    application = Application(Resource())
 
     m = Model(a=1, b="s")
     codec = get_codec(Model)
@@ -175,14 +174,13 @@ async def test_request_body_dataclass():
 
 
 async def test_invalid_return():
-
     @resource
     class Resource:
         @operation
         async def get(self) -> int:
             return "str"
 
-    application = Application(Resource(), "", "", "", "")
+    application = Application(Resource())
 
     request = Request()
     request.method = "GET"

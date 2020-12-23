@@ -1,7 +1,7 @@
 """???"""
 
 import asyncio
-import fondat.error as error
+import fondat.error
 import fondat.resource
 import fondat.security
 import http
@@ -323,7 +323,7 @@ class _InString(InParam):
                 return BytesStream(get_codec(bytes).str_decode(value))
             return get_codec(hint).str_decode(value)
         except (TypeError, ValueError) as e:
-            raise error.BadRequestError(f"{e} in {self}")
+            raise fondat.error.BadRequestError(f"{e} in {self}")
 
     def __str__(self):
         return f"{self.description}: {self.key}"
@@ -363,7 +363,7 @@ class _InBody(InParam):
                     value.extend(b)
             return get_codec(hint).bytes_decode(value)
         except (TypeError, ValueError) as e:
-            raise error.BadRequestError(f"{e} in {self}")
+            raise fondat.error.BadRequestError(f"{e} in {self}")
 
     def __call__(self):
         return self
@@ -375,8 +375,8 @@ class _InBody(InParam):
 InBody = _InBody()
 
 
-async def handle_exception(err: fondat.error.Error):
-    """Default exception handler."""
+async def handle_error(err: fondat.error.Error):
+    """Default error handler for HTTP application."""
 
     response = Response()
     response.status = err.status
@@ -397,49 +397,40 @@ class Application:
 
     Parameters and attributes:
     • root: Resource to dispatch requests to.
-    • url: URL to access the application.
-    • title: Title of the application.
-    • version: API implementation version.
-    • description: Short description of the application.
     • filters: List of filters to apply during HTTP request processing.
-    • exception_handler: Produces response for caught exception.
+    • error_handler: Produces response for raised fondat.error.
     """
 
     def __init__(
         self,
         root: Any,
-        url: str,
-        title: str,
-        version: str,
-        description: str,
         filters: Iterable[Any] = None,
-        exception_handler: Callable = handle_exception,
+        error_handler: Callable = handle_error,
     ):
         if not fondat.resource.is_resource(root):
             raise TypeError("root is not a resource")
         self.root = root
-        self.url = url
-        self.title = title
-        self.version = version
-        self.description = description
         self.filters = list(filters or [])
-        self.exception_handler = exception_handler
+        self.error_handler = error_handler
+
+    async def __call__(self, *args, **kwargs):
+        return await self.handle(*args, **kwargs)
 
     async def handle(self, request: Request):
         try:
             try:
                 chain = Chain(filters=self.filters, handler=self._handle)
                 return await chain.handle(request)
-            except error.Error:
+            except fondat.error.Error:
                 raise
             except Exception as ex:
-                raise error.InternalServerError from ex
-        except error.Error as err:
-            if isinstance(err, error.InternalServerError):
+                raise fondat.error.InternalServerError from ex
+        except fondat.error.Error as err:
+            if isinstance(err, fondat.error.InternalServerError):
                 _logger.error(
                     msg=err.__cause__.args[0], exc_info=err.__cause__, stacklevel=3
                 )
-            return await self.exception_handler(err)
+            return await self.error_handler(err)
 
     async def _handle(self, request: Request):
         response = Response()
@@ -452,10 +443,10 @@ class Application:
         for segment in segments:
             resource = await _resource(getattr(resource, segment, None))
             if not resource:
-                raise error.NotFoundError
+                raise fondat.error.NotFoundError
         operation = getattr(resource, method, None)
         if not fondat.resource.is_operation(operation):
-            raise error.MethodNotAllowedError
+            raise fondat.error.MethodNotAllowedError
         signature = inspect.signature(operation)
         params = {}
         hints = get_type_hints(operation, include_extras=True)
@@ -476,12 +467,12 @@ class Application:
             param = await in_param.get(hint, request)
             if param is None:
                 if signature.parameters[name].default is inspect.Parameter.empty:
-                    raise error.BadRequestError(f"expecting value in {in_param}")
+                    raise fondat.error.BadRequestError(f"expecting value in {in_param}")
             else:
                 try:
                     validate(param, hint)
                 except (TypeError, ValueError) as tve:
-                    raise error.BadRequestError(f"{tve} in {in_param}")
+                    raise fondat.error.BadRequestError(f"{tve} in {in_param}")
                 params[name] = param
         result = await operation(**params)
         validate(result, return_hint)

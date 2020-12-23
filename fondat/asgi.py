@@ -3,6 +3,7 @@
 import fondat.http
 import urllib.parse
 
+from collections.abc import Awaitable, Mapping
 from fondat.types import Stream
 
 
@@ -20,9 +21,11 @@ class ReceiveStream(Stream):
     """Stream that encapsulates the ASGI receive interface."""
 
     def __init__(self, scope: Mapping, receive: Awaitable):
-        headers = scope.get("headers", {})
-        self.content_type = headers.get("content-type")
-        self.content_length = _int(headers.get("content-length"))
+        for key, value in scope.get("headers"):
+            if key == "content-type":
+                self.content_type = value
+            elif key == "content-length":
+                self.content_length = _int(value)
         self._receive = receive
         self._more = True
 
@@ -39,34 +42,33 @@ class ReceiveStream(Stream):
         return event.get("body", b"")
 
 
-class Application(fondat.http.Application):
+def asgi_app(handler: Awaitable):
+    """Expose a Fondat HTTP request handler as an ASGI application."""
 
-    async def app(self, scope, receive, send):
+    async def app(scope, receive, send):
         """Coroutine that implements ASGI interface."""
         if scope["type"] != "http":
             raise ValueError("expecting http scope")  # TODO: better error type?
         request = fondat.http.Request()
         request.method = scope["method"]
         request.path = scope["path"]
-        headers = fondat.http.Headers(
-            ((k.decode(), v.decode()) for k, v in scope.get("headers") or ())
-        )
-        for header in headers.popall("cookie") or ():
+        request.headers.update(scope["headers"])
+        for header in request.headers.popall("cookie", ()):
             request.cookies.load(header)
-        request.headers = headers
         request.query = fondat.http.Query(
-            urllib.parse.parse_qsl((scope.get("query_string") or b"").decode()), True
+            urllib.parse.parse_qsl((scope.get("query_string") or b"").decode())
         )
         request.body = ReceiveStream(scope, receive)
-        response = await self.handle(request)
+        response = await handler(request)
         await send(
             {
                 "type": "http.response.start",
                 "status": response.status,
                 # FIXME: add cookies
-                "headers": (
-                    (k.encode().lower(), v.encode()) for k, v in headers.items()
-                ),
+                "headers": [
+                    (k.lower().encode(), v.encode())
+                    for k, v in response.headers.items()
+                ],
             }
         )
         if response.body is not None:
@@ -84,3 +86,5 @@ class Application(fondat.http.Application):
                 "more_body": False,
             }
         )
+
+    return app
