@@ -21,6 +21,9 @@ classifiers = [
     "Intended Audience :: Developers",
     "Topic :: Software Development :: Libraries :: Application Frameworks",
 ]
+packages = [
+    { include = "fondat" }
+]
 
 [tool.poetry.dependencies]
 python = "^3.9"
