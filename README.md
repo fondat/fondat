@@ -12,20 +12,16 @@ Fon·dat: A foundation for Python resource-oriented applications.
 
 Fondat is a foundation for building resource-oriented applications in Python.
 By composing your application as a set of resources that expose operations,
-they can be automatically exposed through a HTTP API, GraphQL and/or command
-line interface.
+they can be automatically exposed through an HTTP API.
 
 ## Features
 
-* Resource operations accessed through ASGI-based API.
-* Schema enforcement of resource operation parameters and return values.
+* Resource operations accessed through ASGI-based HTTP API.
+* Type encoding and validation of resource operation parameters and return values.
 * Authorization to resource operations enforced through security policies.
-* Schema-enforced data structure definition using Python data classes. 
-* Python annotations define schema of data classes, operation parameters and return values. 
-* Representation of SQL tables as resources, with SQL query builder.
+* Lightweight abstraction of SQL tables, indexes and queries.
 * Monitoring of resource operations and elapsed time in time series databases.
 * Generates [OpenAPI](https://www.openapis.org/) interface description, compatible with [Swagger UI](https://swagger.io/tools/swagger-ui/).
-* Access to resource operations through command-line interface.
 * Asynchronous uniform resource interface.
 
 ## Install
