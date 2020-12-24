@@ -1,4 +1,4 @@
-# Fondat
+# fondat-core
 
 [![PyPI](https://badge.fury.io/py/fondat-core.svg)](https://badge.fury.io/py/fondat-core)
 [![License](https://img.shields.io/github/license/fondat/fondat-core.svg)](https://github.com/fondat/fondat-core/blob/main/LICENSE)
@@ -6,7 +6,7 @@
 [![Test](https://github.com/fondat/fondat-core/workflows/test/badge.svg)](https://github.com/fondat/fondat-core/actions?query=workflow/test)
 [![Black](https://img.shields.io/badge/code%20style-black-black.svg)](https://github.com/psf/black)
 
-Fon·dat: A foundation for Python resource-oriented applications. 
+A foundation for Python resource-oriented applications. 
 
 ## Introduction
 
@@ -27,7 +27,7 @@ they can be automatically exposed through an HTTP API.
 ## Install
 
 ```
-pip install fondat
+pip install fondat-core
 ```
 
 ## Documentation
