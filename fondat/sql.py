@@ -1,12 +1,12 @@
 """Module to manage resource items in a SQL database."""
 
-# from __future__ import annotations
+from __future__ import annotations
 
 import fondat.patch
 import logging
 import typing
 
-from collections.abc import Iterable
+from collections.abc import AsyncIterable, Iterable, Mapping
 from dataclasses import dataclass, is_dataclass
 from fondat.resource import resource, operation
 from typing import Annotated, Any, Union
@@ -15,16 +15,16 @@ from typing import Annotated, Any, Union
 _logger = logging.getLogger(__name__)
 
 
-def is_nullable(pytype):
+def is_nullable(py_type):
     """Return if Python type allows for None value."""
     NoneType = type(None)
-    if typing.get_origin(pytype) is Annotated:
-        pytype = typing.get_args(pytype)[0]  # strip annotation
-    if pytype is NoneType:
+    if typing.get_origin(py_type) is Annotated:
+        py_type = typing.get_args(py_type)[0]  # strip annotation
+    if py_type is NoneType:
         return True
-    if typing.get_origin(pytype) is not Union:
+    if typing.get_origin(py_type) is not Union:
         return False
-    for arg in typing.get_args(pytype):
+    for arg in typing.get_args(py_type):
         if arg is NoneType:
             return True
     return False
@@ -36,11 +36,11 @@ class Parameter:
     Represents a parameterized value to include in a statement.
 
     Attributes:
-    • pytype: The type of the pameter to be included.
+    • py_type: The type of the pameter to be included.
     • value: The value of the parameter to be included.
     """
 
-    pytype: type
+    py_type: type
     value: Any
 
 
@@ -76,13 +76,13 @@ class Statement(Iterable):
             self.param(param)
             sep = True
 
-    #    def statement(self, statement: Statement) -> None:
-    def statement(self, statement) -> None:
+    def statement(self, statement: Statement) -> None:
         """Append another statement to this statement."""
         self.fragments += statement.fragments
 
-    #    def statements(self, statements: Iterable[Statement], separator: str = None) -> None:
-    def statements(self, statements, separator: str = None) -> None:
+    def statements(
+        self, statements: Iterable[Statement], separator: str = None
+    ) -> None:
         """
         Append statements to this statement, with optional text separator.
 
@@ -98,10 +98,6 @@ class Statement(Iterable):
             sep = True
 
 
-class Results:
-    """Base class for SQL statement execution results."""
-
-
 class Transaction:
     """
     Base class for a SQL transaction.
@@ -115,7 +111,24 @@ class Transaction:
     committed.
     """
 
-    async def execute(self, statement: Statement) -> Results:
+    async def execute(self, statement: Statement) -> None:
+        """
+        Execute a statement with no expected result.
+
+        • statement: Statement to be executed.
+        """
+        raise NotImplementedError
+
+    async def query(self, query: Statement) -> AsyncIterable[Mapping[str, Any]]:
+        """
+        Execute a statement with an expected result.
+
+        • query: Query to be executed.
+
+        The returned value is an asynchronus iterator, which iterates over rows
+        in the query result set; each value yielded is a mapping of column name
+        to value.
+        """
         raise NotImplementedError
 
 
@@ -132,15 +145,15 @@ class Database:
         """
         raise NotImplementedError
 
-    def sql_encode(self, pytype: type, value: Any) -> Any:
+    def sql_encode(self, py_type: type, value: Any) -> Any:
         """Encode a value as a SQL statement parameter."""
         raise NotImplementedError
 
-    def sql_decode(self, pytype: type, value: Any) -> Any:
+    def sql_decode(self, py_type: type, value: Any) -> Any:
         """Decode a value from a SQL query result."""
         raise NotImplementedError
 
-    def sql_type(self, pytype: type) -> str:
+    def sql_type(self, py_type: type) -> str:
         """TODO: Description."""
         raise NotImplementedError
 
@@ -201,10 +214,10 @@ class Table:
         order: str = None,
         limit: int = None,
         offset: int = None,
-    ) -> list[dict[str, Any]]:
+    ) -> Iterable[Mapping[str, Any]]:
         """
         Return a list of rows in table that match the where expression. Each
-        row result is expressed in a dict object.
+        row result is expressed in a dict-like object.
 
         Parameters:
         • columns: Column names to return, or None for all columns.
@@ -234,13 +247,15 @@ class Table:
         stmt.text(";")
         results = []
         async with self.database.transaction() as t:
-            async for result in await t.execute(stmt):
-                result = dict(zip(columns, result))
-                for column in columns:
-                    result[column] = self.database.sql_decode(
-                        self.columns[column], result[column]
-                    )
-                results.append(result)
+            async for row in await t.query(stmt):
+                results.append(
+                    {
+                        column: self.database.sql_decode(
+                            self.columns[column], row[column]
+                        )
+                        for column in columns
+                    }
+                )
         return results
 
     async def insert(self, value: Any) -> None:
@@ -251,8 +266,8 @@ class Table:
         stmt.text(") VALUES (")
         stmt.params(
             (
-                Parameter(pytype, getattr(value, name))
-                for name, pytype in self.columns.items()
+                Parameter(py_type, getattr(value, name))
+                for name, py_type in self.columns.items()
             ),
             ", ",
         )
@@ -278,10 +293,10 @@ class Table:
         stmt = Statement()
         stmt.text(f"UPDATE {self.name} SET ")
         updates = []
-        for name, pytype in self.columns.items():
+        for name, py_type in self.columns.items():
             update = Statement()
             update.text(f"{name} = ")
-            update.param(Parameter(pytype, getattr(value, name)))
+            update.param(Parameter(py_type, getattr(value, name)))
             updates.append(update)
         stmt.statements(updates, ", ")
         stmt.text(f" WHERE {self.pk} = ")

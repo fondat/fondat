@@ -12,9 +12,11 @@ import functools
 import logging
 import typing
 
+from collections.abc import AsyncIterable, Iterable, Mapping
 from decimal import Decimal
 from datetime import date, datetime
 from fondat.sql import Statement
+import sqlite3
 from typing import Annotated, Any, Union
 from uuid import UUID
 
@@ -25,15 +27,15 @@ _logger = logging.getLogger(__name__)
 class _CastAdapter:
     """Casts values to/from SQLite to Python type."""
 
-    def __init__(self, pytype: type, sql_type: str):
+    def __init__(self, py_type: type, sql_type: str):
         self.sql_type = sql_type
-        self.pytype = pytype
+        self.py_type = py_type
 
     def sql_encode(self, value: Any) -> Any:
-        return self.pytype(value)
+        return self.py_type(value)
 
     def sql_decode(self, value: Any) -> Any:
-        return self.pytype(value)
+        return self.py_type(value)
 
 
 class _PassAdapter:
@@ -52,9 +54,9 @@ class _PassAdapter:
 class _TextAdapter:
     """Converts values to/from SQLite to strings."""
 
-    def __init__(self, pytype: type):
+    def __init__(self, py_type: type):
         self.sql_type = "TEXT"
-        self.codec = fondat.codec.get_codec(pytype)
+        self.codec = fondat.codec.get_codec(py_type)
 
     def sql_encode(self, value: Any) -> Any:
         return self.codec.str_encode(value)
@@ -66,9 +68,9 @@ class _TextAdapter:
 class _EnumAdapter:
     """Converts value to/from SQLite to enumerations."""
 
-    def __init__(self, pytype: type):
-        self._pytype = pytype
-        self._utype = Union[tuple(type(member.value) for member in pytype)]
+    def __init__(self, py_type: type):
+        self._py_type = py_type
+        self._utype = Union[tuple(type(member.value) for member in py_type)]
         if typing.get_origin(self._utype) is Union:
             raise TypeError("SQLite does not support mixed-type Enums")
         self._adapter = _get_adapter(self._utype)
@@ -78,7 +80,7 @@ class _EnumAdapter:
         return self._adapter.sql_encode(value.value)
 
     def sql_decode(self, value: Any) -> Any:
-        return self._pytype(self._adapter.sql_decode(value))
+        return self._py_type(self._adapter.sql_decode(value))
 
 
 _adapters = {
@@ -101,40 +103,20 @@ def _issubclass(cls, cls_or_tuple):
 
 
 @functools.cache
-def _get_adapter(pytype: type) -> Any:
-    stripped = pytype
-    if typing.get_origin(pytype) is Annotated:
-        stripped = typing.get_args(pytype)[0]  # strip annotation
+def _get_adapter(py_type: type) -> Any:
+    stripped = py_type
+    if typing.get_origin(py_type) is Annotated:
+        stripped = typing.get_args(py_type)[0]  # strip annotation
     if typing.get_origin(stripped) is Union:
         args = typing.get_args(stripped)
         if NoneType in args:
             return _get_adapter(Union[tuple(a for a in args if a is not NoneType)])
     if adapter := _adapters.get(stripped):
         return adapter
-    elif _issubclass(pytype, enum.Enum):
-        return _EnumAdapter(pytype)
+    elif _issubclass(py_type, enum.Enum):
+        return _EnumAdapter(py_type)
     else:
-        return _TextAdapter(pytype)
-
-
-class Results:
-    def __init__(self, cursor):
-        self.cursor = cursor
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, exc_type, exc, tb):
-        self.cursor.close()
-
-    def __aiter__(self):
-        return self
-
-    async def __anext__(self):
-        row = await self.cursor.fetchone()
-        if row is None:
-            raise StopAsyncIteration
-        return row
+        return _TextAdapter(py_type)
 
 
 class Database(fondat.sql.Database):
@@ -165,18 +147,20 @@ class Database(fondat.sql.Database):
                 self._tx.reset(token)
 
     async def connect(self):
-        return await aiosqlite.connect(self.path)
+        conn = await aiosqlite.connect(self.path)
+        conn.row_factory = sqlite3.Row
+        return conn
 
-    def sql_encode(self, pytype: type, value: Any) -> Any:
+    def sql_encode(self, py_type: type, value: Any) -> Any:
         if value is not None:
-            return _get_adapter(pytype).sql_encode(value)
+            return _get_adapter(py_type).sql_encode(value)
 
-    def sql_decode(self, pytype: type, value: Any) -> Any:
+    def sql_decode(self, py_type: type, value: Any) -> Any:
         if value is not None:
-            return _get_adapter(pytype).sql_decode(value)
+            return _get_adapter(py_type).sql_decode(value)
 
-    def sql_type(self, pytype: type):
-        return _get_adapter(pytype).sql_type
+    def sql_type(self, py_type: type):
+        return _get_adapter(py_type).sql_type
 
 
 class Transaction(fondat.sql.Transaction):
@@ -206,13 +190,21 @@ class Transaction(fondat.sql.Transaction):
             self.connection = None
             self.count = 0
 
-    async def execute(self, statement: Statement) -> Results:
+    def _stmt(self, statement: Statement) -> tuple[str, Iterable[Any]]:
         text = []
-        params = []
+        args = []
         for fragment in statement:
             if isinstance(fragment, str):
                 text.append(fragment)
             else:
                 text.append("?")
-                params.append(self.database.sql_encode(fragment.pytype, fragment.value))
-        return Results(await self.connection.execute("".join(text), params))
+                args.append(self.database.sql_encode(fragment.py_type, fragment.value))
+        return "".join(text), args
+
+    async def execute(self, statement: Statement) -> None:
+        """Execute a statement with no expected result."""
+        await self.connection.execute(*self._stmt(statement))
+
+    async def query(self, query: Statement) -> AsyncIterable[Mapping[str, Any]]:
+        """Execute a statement with an expected result."""
+        return await self.connection.execute(*self._stmt(query))
