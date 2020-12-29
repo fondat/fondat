@@ -2,7 +2,7 @@ import pytest
 import http
 
 from typing import Annotated
-from fondat.codec import get_codec
+from fondat.codec import Binary, get_codec
 from fondat.resource import resource, operation
 from fondat.http import Application, InBody, Request, Response
 from fondat.types import Stream, BytesStream  # , dataclass
@@ -162,15 +162,15 @@ async def test_request_body_dataclass():
     application = Application(Resource())
 
     m = Model(a=1, b="s")
-    codec = get_codec(Model)
+    codec = get_codec(Binary, Model)
 
     request = Request()
     request.method = "POST"
     request.path = "/"
-    request.body = BytesStream(codec.bytes_encode(m))
+    request.body = BytesStream(codec.encode(m))
     response = await application.handle(request)
     assert response.status == http.HTTPStatus.OK.value
-    assert codec.bytes_decode(await body(response)) == m
+    assert codec.decode(await body(response)) == m
 
 
 async def test_invalid_return():

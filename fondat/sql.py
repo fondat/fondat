@@ -145,15 +145,7 @@ class Database:
         """
         raise NotImplementedError
 
-    def sql_encode(self, py_type: type, value: Any) -> Any:
-        """Encode a value as a SQL statement parameter."""
-        raise NotImplementedError
-
-    def sql_decode(self, py_type: type, value: Any) -> Any:
-        """Decode a value from a SQL query result."""
-        raise NotImplementedError
-
-    def sql_type(self, py_type: type) -> str:
+    def get_codec(self, python_type: Any) -> Any:
         """TODO: Description."""
         raise NotImplementedError
 
@@ -189,7 +181,7 @@ class Table:
         stmt.text(f"CREATE TABLE {self.name} (")
         columns = []
         for column_name, column_type in self.columns.items():
-            column = [column_name, self.database.sql_type(column_type)]
+            column = [column_name, self.database.get_codec(column_type).sql_type]
             if column_name == self.pk:
                 column.append("PRIMARY KEY")
             if not is_nullable(column_type):
@@ -250,8 +242,8 @@ class Table:
             async for row in await t.query(stmt):
                 results.append(
                     {
-                        column: self.database.sql_decode(
-                            self.columns[column], row[column]
+                        column: self.database.get_codec(self.columns[column]).decode(
+                            row[column]
                         )
                         for column in columns
                     }

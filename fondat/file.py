@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import aiofiles
-import fondat.codec
 import logging
 import os
 import os.path
 
 from collections.abc import Iterable
+from fondat.codec import Binary, String, get_codec
 from fondat.error import InternalServerError, NotFoundError
 from fondat.http import InBody
 from fondat.resource import resource, operation
@@ -42,7 +42,7 @@ def _file_resource_class(
     security: Iterable[SecurityRequirement] = None,
 ):
 
-    codec = fondat.codec.get_codec(value_type)
+    codec = get_codec(Binary, value_type)
 
     @resource
     class FileResource:
@@ -59,7 +59,7 @@ def _file_resource_class(
                     content = await file.read()
                 if compress:
                     content = compress.decompress(content)
-                return codec.bytes_decode(content)
+                return codec.decode(content)
             except FileNotFoundError:
                 raise NotFoundError
             except (TypeError, ValueError) as e:
@@ -70,7 +70,7 @@ def _file_resource_class(
         async def put(self, value: Annotated[value_type, InBody]):
             """Write file."""
             tmp = self.path + ".__tmp"
-            content = codec.bytes_encode(value)
+            content = codec.encode(value)
             if compress:
                 content = compress.compress(content)
             try:
@@ -137,7 +137,7 @@ def directory_resource(
     "compress" and "decompress" attributes. Examples: bz2, gzip, lzma, zlib.
     """
 
-    codec = fondat.codec.get_codec(key_type)
+    codec = get_codec(String, key_type)
 
     if extension is None:
         extension = ""
@@ -162,13 +162,13 @@ def directory_resource(
                 if extension:
                     name = name[: -len(extension)]
                 try:
-                    keys.append(codec.str_decode(_unquote(name)))
+                    keys.append(codec.decode(_unquote(name)))
                 except ValueError:
                     continue  # ignore name that cannot be decoded
             return keys
 
         def __getitem__(self, key: key_type) -> FileResource:
-            return FileResource(f"{_path}/{_quote(codec.str_encode(key))}{extension}")
+            return FileResource(f"{_path}/{_quote(codec.encode(key))}{extension}")
 
     DirectoryResource.key_type = key_type
     DirectoryResource.value_type = value_type

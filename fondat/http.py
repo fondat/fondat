@@ -13,7 +13,7 @@ import multidict
 import typing
 
 from collections.abc import Callable, Iterable
-from fondat.codec import get_codec
+from fondat.codec import Binary, String, get_codec
 from fondat.types import Stream, BytesStream, get_type_hints
 from fondat.validate import validate
 from typing import Annotated, Any
@@ -320,8 +320,8 @@ class _InString(InParam):
         value = getattr(request, self.attr).get(self.key)
         try:
             if issubclass(hint, Stream):
-                return BytesStream(get_codec(bytes).str_decode(value))
-            return get_codec(hint).str_decode(value)
+                return BytesStream(get_codec(String, bytes).decode(value))
+            return get_codec(String, hint).decode(value)
         except (TypeError, ValueError) as e:
             raise fondat.error.BadRequestError(f"{e} in {self}")
 
@@ -361,7 +361,7 @@ class _InBody(InParam):
             if request.body is not None:
                 async for b in request.body:
                     value.extend(b)
-            return get_codec(hint).bytes_decode(value)
+            return get_codec(Binary, hint).decode(value)
         except (TypeError, ValueError) as e:
             raise fondat.error.BadRequestError(f"{e} in {self}")
 
@@ -477,10 +477,8 @@ class Application:
         result = await operation(**params)
         validate(result, return_hint)
         if not issubclass(return_hint, Stream):
-            return_codec = get_codec(return_hint)
-            result = BytesStream(
-                return_codec.bytes_encode(result), return_codec.content_type
-            )
+            return_codec = get_codec(Binary, return_hint)
+            result = BytesStream(return_codec.encode(result), return_codec.content_type)
         response.body = result
         response.headers["Content-Type"] = response.body.content_type
         if response.body.content_length is not None:

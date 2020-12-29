@@ -3,11 +3,12 @@ import fondat.monitor
 import pytest
 
 from datetime import datetime, timedelta, timezone
+from fondat.codec import String, get_codec
 from fondat.monitor import Measurement
 
 _tags = {"name": "test"}
 
-_dt = lambda s: fondat.codec.get_codec(datetime).str_decode(s)
+_dt = lambda s: get_codec(String, datetime).decode(s)
 
 _now = lambda: datetime.now(tz=timezone.utc)
 
