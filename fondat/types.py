@@ -1,56 +1,18 @@
 """Module to to manage various types."""
 
 import dataclasses
-import enum
+import functools
 import sys
 
 from collections.abc import AsyncIterator, Iterable, Mapping
 from typing import Union, get_type_hints
 
 
-try:
-    from enum import StrEnum
-except ImportError:
-
-    class StrEnum(str, enum.Enum):
-        def __new__(cls, *values):
-            value = str(*values)
-            member = str.__new__(cls, value)
-            member._value_ = value
-            return member
-
-        __str__ = str.__str__
-
-
-def str_enum(typename: str, values: Union[str, Iterable[str]]):
-    """
-    Generate an enumeration for string values.
-
-    • typename: the name of the enumeration class.
-    • values: values with which to compose the enumeration.
-
-    Values can be expressed as an Iterable of str values, or as a single
-    str with values delimited by comma and/or space.
-    """
-
-    def _key(v):
-        if not v.isidentifier():
-            raise ValueError("str_enum only supports identifier values")
-        return v.upper()
-
-    if isinstance(values, str):
-        values = values.replace(",", " ").split()
-
-    e = StrEnum(typename, {_key(v): v for v in values})
-
-    e.__module__ = sys._getframe(1).f_globals["__name__"]  # cough, hack
-
-    return e
-
-
-def affix_type_hints(obj, globalns=None, localns=None, attrs=True):
+def affix_type_hints(obj=None, *, globalns=None, localns=None, attrs=True):
     """
     Affixes an object's type hints to the object.
+
+    This can be applied as a decorator to a class or function.
 
     Parameters:
     • obj: Function, method, module or class object.
@@ -70,13 +32,22 @@ def affix_type_hints(obj, globalns=None, localns=None, attrs=True):
     • annotations are not re-evaluated for every call to typing.get_type_hints
     """
 
+    if obj is None:
+        return functools.partial(
+            affix_type_hints, globalns=globalns, localns=localns, attrs=attrs
+        )
+
     if getattr(obj, "__annotations__", None):
         obj.__annotations__ = get_type_hints(
             obj, globalns, localns, include_extras=True
         )
     if attrs:
         for name in dir(obj):
-            affix_type_hints(getattr(obj, name), globalns, localns, False)
+            affix_type_hints(
+                getattr(obj, name), globalns=globalns, localns=localns, attrs=False
+            )
+
+    return obj
 
 
 def dataclass(cls, init=True, **kwargs):
