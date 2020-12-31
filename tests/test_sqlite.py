@@ -116,6 +116,36 @@ async def test_binary(database):
             await table.drop()
 
 
+async def test_list(table):
+    async with table.database.transaction():
+        count = 10
+        for n in range(0, count):
+            body = DC(
+                key=uuid4(),
+                str_=None,
+                dict_=None,
+                list_=None,
+                set_=None,
+                int_=None,
+                float_=None,
+                bool_=None,
+                bytes_=None,
+                date_=None,
+                datetime_=None,
+                str_enum_=None,
+                int_enum_=None,
+            )
+            await table.insert(body)
+        results = await table.select("key")
+        keys = [result.key async for result in results]
+        assert len(keys) == count
+        for key in keys:
+            await table.delete(key)
+        results = await table.select("key")
+        keys = [result.key async for result in results]
+        assert len(keys) == 0
+
+
 async def test_rollback(table):
     key = uuid4()
     try:

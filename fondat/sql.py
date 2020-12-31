@@ -224,7 +224,7 @@ class Table:
 
         result = (
             make_dataclass(
-                "Columns", {column: self.columns[column] for column in columns}
+                "Columns", [(column, self.columns[column]) for column in columns]
             )
             if columns
             else self.schema

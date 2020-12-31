@@ -233,7 +233,7 @@ class _Results(AsyncIterator[Any]):
             k: get_codec(t) for k, t in statement.result.__annotations__.items()
         }
 
-    async def __aiter__(self):
+    def __aiter__(self):
         return self
 
     async def __anext__(self):
