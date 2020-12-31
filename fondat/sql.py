@@ -213,7 +213,7 @@ class Table:
         • where: Statement containing WHERE expression, or None to match all rows.
         • order: Column names to order by, or None to not order results.
         • limit: Limit the number of results returned, or None to not limit.
-        • offset: Number of rows to skip, or None to skip none.
+        • offset: Number oParameterf rows to skip, or None to skip none.
 
         Columns can be specified as an iterable of column names, or as a string
         containing comma-separated names.
@@ -232,7 +232,7 @@ class Table:
 
         stmt = Statement()
         stmt.text("SELECT ")
-        stmt.text(", ".join(result.keys()))
+        stmt.text(", ".join(result.__annotations__.keys()))
         stmt.text(f" FROM {self.name}")
         if where:
             stmt.text(" WHERE ")
@@ -246,7 +246,7 @@ class Table:
             stmt.text(f" OFFSET {offset}")
         stmt.text(";")
         stmt.result = result
-        return await self.database.query(stmt)
+        return await self.database.execute(stmt)
 
     async def insert(self, value: Any) -> None:
         """Insert table row."""
@@ -256,8 +256,8 @@ class Table:
         stmt.text(") VALUES (")
         stmt.params(
             (
-                Parameter(py_type, getattr(value, name))
-                for name, py_type in self.columns.items()
+                Parameter(python_type, getattr(value, name))
+                for name, python_type in self.columns.items()
             ),
             ", ",
         )
@@ -269,10 +269,10 @@ class Table:
         where = Statement()
         where.text(f"{self.pk} = ")
         where.param(Parameter(self.columns[self.pk], key))
-        results = await self._select(where=where, limit=1)
+        results = await self.select(where=where, limit=1)
         try:
             return await results.__anext__()
-        except StopIteration:
+        except StopAsyncIteration:
             return None
 
     async def update(self, value: Any) -> None:
@@ -281,10 +281,10 @@ class Table:
         stmt = Statement()
         stmt.text(f"UPDATE {self.name} SET ")
         updates = []
-        for name, py_type in self.columns.items():
+        for name, python_type in self.columns.items():
             update = Statement()
             update.text(f"{name} = ")
-            update.param(Parameter(py_type, getattr(value, name)))
+            update.param(Parameter(python_type, getattr(value, name)))
             updates.append(update)
         stmt.statements(updates, ", ")
         stmt.text(f" WHERE {self.pk} = ")

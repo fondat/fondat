@@ -60,7 +60,7 @@ async def table(database):
         await foo.drop()
 
 
-async def test_gpppd(table):
+async def test_crud(table):
     row = DC(
         key=uuid4(),
         str_="string",

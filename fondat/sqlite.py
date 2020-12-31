@@ -127,6 +127,7 @@ def _real_codec_provider(python_type):
     if not _issubclass(python_type, float):
         return
 
+    @affix_type_hints(localns=locals())
     class RealCodec(SQLiteCodec[python_type]):
 
         sql_type = "REAL"
@@ -163,6 +164,7 @@ def _union_codec_provider(python_type):
         else _text_codec_provider(python_type)
     )
 
+    @affix_type_hints(localns=locals())
     class UnionCodec(SQLiteCodec[python_type]):
 
         sql_type = codec.sql_type
@@ -207,6 +209,7 @@ def _text_codec_provider(python_type):
 
     str_codec = fondat.codec.get_codec(String, python_type)
 
+    @affix_type_hints(localns=locals())
     class TextCodec(SQLiteCodec):
 
         sql_type = "TEXT"
@@ -223,17 +226,19 @@ def _text_codec_provider(python_type):
 
 
 class _Results(AsyncIterator[Any]):
-    def __init__(self, results, result_type):
+    def __init__(self, statement, results):
+        self.statement = statement
         self.results = results
-        self.result_type = result_type
-        self.codecs = {k: get_codec(t) for k, t in results.__annotations__}
+        self.codecs = {
+            k: get_codec(t) for k, t in statement.result.__annotations__.items()
+        }
 
     async def __aiter__(self):
         return self
 
     async def __anext__(self):
-        row = await results.__anext__()
-        return self.result_type(
+        row = await self.results.__anext__()
+        return self.statement.result(
             **{k: self.codecs[k].decode(row[k]) for k in self.codecs}
         )
 
@@ -258,9 +263,9 @@ class Database(fondat.sql.Database):
         token = None
 
         if not connection:
+            _logger.debug("%s", "transaction begin")
             connection = await aiosqlite.connect(self.path)
             connection.row_factory = sqlite3.Row
-            _logger.debug("%s", "transaction begin")
             token = self._connection.set(connection)
 
         try:
@@ -268,14 +273,13 @@ class Database(fondat.sql.Database):
 
         except Exception as e:
 
-            # There is an issue in Python 3.9 when an asynchronous context
-            # manager is created within an asynchronous generator: if the
-            # generator is not iterated fully, the context manager will not
-            # exit until the event loop cancels the task by raising a
-            # CancelledError, long after the transaction context is assumed to
-            # be out of scope. PEP 525 proposes a solution, but to date has not
-            # been implemented. Until there is a fix, this warning is an
-            # attempt to surface the problem.
+            # There is an issue in Python when an asynchronous context manager
+            # is created within an asynchronous generator: if the generator is
+            # not iterated fully, the context manager will not exit until the
+            # event loop cancels the task by raising a CancelledError, long
+            # after the context is assumed to be out of scope. PEP 533 proposes
+            # a solution, but to date has not been implemented. Until there is
+            # a fix, this warning is an attempt to surface the problem.
             if type(e) is CancelledError:
                 _logger.warning(
                     "%s",
@@ -290,6 +294,8 @@ class Database(fondat.sql.Database):
             if token and not type(e) is GeneratorExit:
                 _logger.debug("%s", "transaction rollback")
                 await connection.rollback()
+                raise
+
         else:
             if token:
                 _logger.debug("%s", "transaction commit")
@@ -301,7 +307,6 @@ class Database(fondat.sql.Database):
                 await connection.close()
 
     async def execute(self, statement: Statement) -> Optional[AsyncIterator[Any]]:
-        """Execute a SQL statement."""
         if not (connection := self._connection.get(None)):
             raise RuntimeError("transaction context required to execute statement")
         text = []
@@ -314,7 +319,7 @@ class Database(fondat.sql.Database):
                 args.append(get_codec(fragment.python_type).encode(fragment.value))
         results = await connection.execute("".join(text), args)
         if statement.result is not None:  # expecting a result
-            return _Results(results, statement)
+            return _Results(statement, results.__aiter__())
 
     def get_codec(self, python_type: Any) -> SQLiteCodec:
         return get_codec(python_type)
