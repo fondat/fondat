@@ -53,9 +53,11 @@ def database():
 @pytest.fixture(scope="function")  # FIXME: scope to module with event_loop fixture?
 async def table(database):
     foo = sql.Table("foo", database, DC, "key")
-    await foo.create()
+    async with database.transaction():
+        await foo.create()
     yield foo
-    await foo.drop()
+    async with database.transaction():
+        await foo.drop()
 
 
 async def test_gpppd(table):
@@ -74,23 +76,24 @@ async def test_gpppd(table):
         str_enum_=StrEnum.A,
         int_enum_=IntEnum.ONE,
     )
-    await table.insert(row)
-    assert await table.read(row.key) == row
-    row.dict_ = {"a": 2}
-    row.list_ = [2, 3, 4]
-    row.set_ = None
-    row.int_ = 2
-    row.float_ = 1.0
-    row.bool_ = False
-    row.bytes_ = None
-    row.date_ = None
-    row.datetime_ = None
-    row.str_enum_ = StrEnum.B
-    row.int_enum_ = IntEnum.TWO
-    await table.update(row)
-    assert await table.read(row.key) == row
-    await table.delete(row.key)
-    assert await table.read(row.key) is None
+    async with table.database.transaction():
+        await table.insert(row)
+        assert await table.read(row.key) == row
+        row.dict_ = {"a": 2}
+        row.list_ = [2, 3, 4]
+        row.set_ = None
+        row.int_ = 2
+        row.float_ = 1.0
+        row.bool_ = False
+        row.bytes_ = None
+        row.date_ = None
+        row.datetime_ = None
+        row.str_enum_ = StrEnum.B
+        row.int_enum_ = IntEnum.TWO
+        await table.update(row)
+        assert await table.read(row.key) == row
+        await table.delete(row.key)
+        assert await table.read(row.key) is None
 
 
 async def test_binary(database):
@@ -101,21 +104,22 @@ async def test_binary(database):
 
     row = Bin(uuid4(), b"\x01\x02\x03\x04\x05")
     table = sql.Table("bin", database, Bin, "key")
-    await table.create()
-    try:
-        await table.insert(row)
-        assert await table.read(row.key) == row
-        row.bin = b"bacon"
-        await table.update(row)
-        assert (await table.read(row.key)).bin == b"bacon"
-    finally:
-        await table.drop()
+    async with database.transaction():
+        await table.create()
+        try:
+            await table.insert(row)
+            assert await table.read(row.key) == row
+            row.bin = b"bacon"
+            await table.update(row)
+            assert (await table.read(row.key)).bin == b"bacon"
+        finally:
+            await table.drop()
 
 
 async def test_rollback(table):
     key = uuid4()
     try:
-        async with table.database.transaction():  # transaction demarcation
+        async with table.database.transaction():
             row = DC(
                 key=key,
                 str_=None,
@@ -135,4 +139,5 @@ async def test_rollback(table):
             raise RuntimeError  # force rollback
     except RuntimeError:
         pass
-    assert await table.read(key) is None
+    async with table.database.transaction():
+        assert await table.read(key) is None

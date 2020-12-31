@@ -39,11 +39,10 @@ def _issubclass(cls, cls_or_tuple):
 
 
 def _provider(wrapped=None):
-
     if wrapped is None:
         return functools.partial(provider)
-
     providers.append(wrapped)
+    return wrapped
 
 
 # ----- base -----

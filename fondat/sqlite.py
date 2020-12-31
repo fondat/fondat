@@ -1,6 +1,6 @@
 """Module to manage resource items in a SQLite database."""
 
-# from __future__ import annotations
+from __future__ import annotations
 
 import aiosqlite
 import contextlib
@@ -10,37 +10,21 @@ import fondat.codec
 import fondat.sql
 import functools
 import logging
+import sqlite3
 import typing
 
-from collections.abc import AsyncIterable, Iterable, Mapping
-from datetime import date, datetime
+from asyncio.exceptions import CancelledError
+from collections.abc import AsyncIterator
 from fondat.codec import Codec, String
 from fondat.types import affix_type_hints
 from fondat.sql import Statement
 from fondat.validate import validate_arguments
-import sqlite3
-from typing import Annotated, Any, Literal, Union
-from uuid import UUID
+from typing import Annotated, Any, Literal, Optional, Union
 
 
 _logger = logging.getLogger(__name__)
 
 NoneType = type(None)
-
-
-codec_providers = []
-
-
-def get_codec(python_type):
-
-    if typing.get_origin(python_type) is Annotated:
-        python_type = typing.get_args(python_type)[0]  # strip annotation
-
-    for provider in code_providers:
-        if (codec := provider(python_type)) is not None:
-            return codec
-
-    raise TypeError(f"failed to provide {codec_type} for {python_type}")
 
 
 def _issubclass(cls, cls_or_tuple):
@@ -51,13 +35,38 @@ def _issubclass(cls, cls_or_tuple):
 
 
 class SQLiteCodec(Codec[fondat.codec.F, Any]):
-    pass
+    """Base class for SQLite codecs."""
 
 
-# TODO: enum_codec
+codec_providers = []
 
 
-def blob_provider(python_type):
+@functools.cache
+def get_codec(python_type: Any) -> SQLiteCodec:
+    """Return a codec compatible with the specified Python type."""
+
+    if typing.get_origin(python_type) is Annotated:
+        python_type = typing.get_args(python_type)[0]  # strip annotation
+
+    for provider in codec_providers:
+        if (codec := provider(python_type)) is not None:
+            return codec
+
+    raise TypeError(f"failed to provide SQLite codec for {python_type}")
+
+
+def _codec_provider(wrapped=None):
+    if wrapped is None:
+        return functools.partial(provider)
+    codec_providers.append(wrapped)
+    return wrapped
+
+
+# TODO: enum_codec_provider
+
+
+@_codec_provider
+def _blob_codec_provider(python_type):
     """
     Provides a codec that encodes/decodes a value to/from a SQLite BLOB.
     Supports the following types: bytes, bytearray.
@@ -82,7 +91,8 @@ def blob_provider(python_type):
     return BlobCodec()
 
 
-def integer_provider(python_type):
+@_codec_provider
+def _integer_codec_provider(python_type):
     """
     Provides a codec that encodes/decodes a value to/from a SQLite INTEGER.
     Supports the following types: int, bool.
@@ -107,7 +117,8 @@ def integer_provider(python_type):
     return IntegerCodec()
 
 
-def real_provider(python_type):
+@_codec_provider
+def _real_codec_provider(python_type):
     """
     Provides a codec that encodes/decodes a value to/from a SQLite REAL.
     Supports the following type: float.
@@ -131,7 +142,8 @@ def real_provider(python_type):
     return RealCodec()
 
 
-def union_codec(python_type):
+@_codec_provider
+def _union_codec_provider(python_type):
     """
     Provides a codec that encodes/decodes a Union or Optional value to/from a
     compatible SQLite value. For Optional value, will use codec for its type,
@@ -145,7 +157,11 @@ def union_codec(python_type):
     args = typing.get_args(python_type)
     is_nullable = NoneType in args
     args = [a for a in args if a is not NoneType]
-    codec = get_codec(args[0]) if len(args) == 1 else text_provider(python_type)
+    codec = (
+        get_codec(args[0])
+        if len(args) == 1  # Optional[T]
+        else _text_codec_provider(python_type)
+    )
 
     class UnionCodec(SQLiteCodec[python_type]):
 
@@ -166,10 +182,11 @@ def union_codec(python_type):
     return UnionCodec()
 
 
-def literal_provider(python_type):
+@_codec_provider
+def _literal_codec_provider(python_type):
     """
     Provides a codec that encodes/decodes a Literal value to/from a compatible
-    SQLite value. If all literal values share the same type, then a code for
+    SQLite value. If all literal values share the same type, then a codec for
     that type will be used, otherwise it encodes/decodes as TEXT.
     """
 
@@ -180,11 +197,12 @@ def literal_provider(python_type):
     return get_codec(Union[tuple(type(arg) for arg in typing.get_args(python_type))])
 
 
-def text_provider(python_type):
+@_codec_provider
+def _text_codec_provider(python_type):
     """
     Provides a codec that encodes/decodes a value to/from a SQLite TEXT. It
     unconditionally returns the codec, regardless of Python type. It should be
-    the last provider in the list to serve as a catch-all.
+    the last provider in the providers list to serve as a catch-all.
     """
 
     str_codec = fondat.codec.get_codec(String, python_type)
@@ -204,28 +222,20 @@ def text_provider(python_type):
     return TextCodec()
 
 
-providers = [
-    blob_provider,
-    integer_provider,
-    real_provider,
-    union_codec,
-    literal_provider,
-    text_provider,  # intentionally last
-]
+class _Results(AsyncIterator[Any]):
+    def __init__(self, results, result_type):
+        self.results = results
+        self.result_type = result_type
+        self.codecs = {k: get_codec(t) for k, t in results.__annotations__}
 
+    async def __aiter__(self):
+        return self
 
-@functools.cache
-def get_codec(python_type):
-    """Return a codec compatible with the specified Python type."""
-
-    if typing.get_origin(python_type) is Annotated:
-        python_type = typing.get_args(python_type)[0]  # strip annotation
-
-    for provider in providers:
-        if (codec := provider(python_type)) is not None:
-            return codec
-
-    raise TypeError(f"failed to provide SQLite codec for {python_type}")
+    async def __anext__(self):
+        row = await results.__anext__()
+        return self.result_type(
+            **{k: self.codecs[k].decode(row[k]) for k in self.codecs}
+        )
 
 
 class Database(fondat.sql.Database):
@@ -236,62 +246,64 @@ class Database(fondat.sql.Database):
     • path: Path to SQLite database file.
     """
 
-    def __init__(self, path):
+    def __init__(self, path: str):
         super().__init__()
         self.path = path
-        self._tx = contextvars.ContextVar("fondat_sqlite_tx")
+        self._connection = contextvars.ContextVar("fondat_sqlite_connection")
 
     @contextlib.asynccontextmanager
     async def transaction(self):
-        t = self._tx.get(None)
+
+        connection = self._connection.get(None)
         token = None
-        if not t:
-            t = Transaction(self)
-            token = self._tx.set(t)
+
+        if not connection:
+            connection = await aiosqlite.connect(self.path)
+            connection.row_factory = sqlite3.Row
+            _logger.debug("%s", "transaction begin")
+            token = self._connection.set(connection)
+
         try:
-            async with t:
-                yield t
+            yield
+
+        except Exception as e:
+
+            # There is an issue in Python 3.9 when an asynchronous context
+            # manager is created within an asynchronous generator: if the
+            # generator is not iterated fully, the context manager will not
+            # exit until the event loop cancels the task by raising a
+            # CancelledError, long after the transaction context is assumed to
+            # be out of scope. PEP 525 proposes a solution, but to date has not
+            # been implemented. Until there is a fix, this warning is an
+            # attempt to surface the problem.
+            if type(e) is CancelledError:
+                _logger.warning(
+                    "%s",
+                    "transaction failed due to CancelledError; "
+                    "possible transaction context in aborted generator?",
+                )
+
+            # A GeneratorExit exception is raised when an explicit attempt
+            # is made to cleanup an asynchronus generator via the aclose
+            # coroutine method. Therefore, such an exception is not cause to
+            # rollback the transaction.
+            if token and not type(e) is GeneratorExit:
+                _logger.debug("%s", "transaction rollback")
+                await connection.rollback()
+        else:
+            if token:
+                _logger.debug("%s", "transaction commit")
+                await connection.commit()
+
         finally:
             if token:
-                self._tx.reset(token)
+                self._connection.reset(token)
+                await connection.close()
 
-    async def connect(self):
-        conn = await aiosqlite.connect(self.path)
-        conn.row_factory = sqlite3.Row
-        return conn
-
-    def get_codec(self, python_type: Any) -> SQLiteCodec:
-        return get_codec(python_type)
-
-
-class Transaction(fondat.sql.Transaction):
-    def __init__(self, database: Database):
-        super().__init__()
-        self.database = database
-        self.connection = None
-        self.count = 0
-
-    async def __aenter__(self):
-        self.count += 1
-        if not self.connection:
-            self.connection = await self.database.connect()
-            _logger.debug("%s", "transaction begin")
-        return self
-
-    async def __aexit__(self, exc_type, exc, tb):
-        self.count -= 1
-        if self.count <= 0:
-            if not exc_type:
-                await self.connection.commit()
-                _logger.debug("%s", "transaction commit")
-            else:
-                await self.connection.rollback()
-                _logger.debug("%s", "transaction rollback")
-            await self.connection.close()
-            self.connection = None
-            self.count = 0
-
-    def _stmt(self, statement: Statement) -> tuple[str, Iterable[Any]]:
+    async def execute(self, statement: Statement) -> Optional[AsyncIterator[Any]]:
+        """Execute a SQL statement."""
+        if not (connection := self._connection.get(None)):
+            raise RuntimeError("transaction context required to execute statement")
         text = []
         args = []
         for fragment in statement:
@@ -299,15 +311,10 @@ class Transaction(fondat.sql.Transaction):
                 text.append(fragment)
             else:
                 text.append("?")
-                args.append(
-                    self.database.get_codec(fragment.py_type).encode(fragment.value)
-                )
-        return "".join(text), args
+                args.append(get_codec(fragment.python_type).encode(fragment.value))
+        results = await connection.execute("".join(text), args)
+        if statement.result is not None:  # expecting a result
+            return _Results(results, statement)
 
-    async def execute(self, statement: Statement) -> None:
-        """Execute a statement with no expected result."""
-        await self.connection.execute(*self._stmt(statement))
-
-    async def query(self, query: Statement) -> AsyncIterable[Mapping[str, Any]]:
-        """Execute a statement with an expected result."""
-        return await self.connection.execute(*self._stmt(query))
+    def get_codec(self, python_type: Any) -> SQLiteCodec:
+        return get_codec(python_type)

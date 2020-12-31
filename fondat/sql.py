@@ -6,25 +6,26 @@ import fondat.patch
 import logging
 import typing
 
-from collections.abc import AsyncIterable, Iterable, Mapping
-from dataclasses import dataclass, is_dataclass
+from collections.abc import AsyncIterator, Iterable, Mapping
+from contextlib import AbstractAsyncContextManager
+from dataclasses import dataclass, is_dataclass, make_dataclass
 from fondat.resource import resource, operation
-from typing import Annotated, Any, Union
+from typing import Annotated, Any, Optional, Union
 
 
 _logger = logging.getLogger(__name__)
 
 
-def is_nullable(py_type):
+def is_nullable(python_type):
     """Return if Python type allows for None value."""
     NoneType = type(None)
-    if typing.get_origin(py_type) is Annotated:
-        py_type = typing.get_args(py_type)[0]  # strip annotation
-    if py_type is NoneType:
+    if typing.get_origin(python_type) is Annotated:
+        python_type = typing.get_args(python_type)[0]  # strip annotation
+    if python_type is NoneType:
         return True
-    if typing.get_origin(py_type) is not Union:
+    if typing.get_origin(python_type) is not Union:
         return False
-    for arg in typing.get_args(py_type):
+    for arg in typing.get_args(python_type):
         if arg is NoneType:
             return True
     return False
@@ -36,21 +37,28 @@ class Parameter:
     Represents a parameterized value to include in a statement.
 
     Attributes:
-    • py_type: The type of the pameter to be included.
+    • python_type: The type of the pameter to be included.
     • value: The value of the parameter to be included.
     """
 
-    py_type: type
+    python_type: type
     value: Any
 
 
 class Statement(Iterable):
-    """Represents a SQL statement."""
+    """
+    Represents a SQL statement.
+
+    Attributes:
+    • result: The type (dataclass) to return a query result row in.
+    """
 
     def __init__(self):
         self.fragments = []
+        self.result = None
 
     def __iter__(self):
+        """Iterate over fragments of the statement."""
         return iter(self.fragments)
 
     def text(self, value: str) -> None:
@@ -98,55 +106,45 @@ class Statement(Iterable):
             sep = True
 
 
-class Transaction:
-    """
-    Base class for a SQL transaction.
+class Database:
+    """Base class for a SQL database."""
 
-    A transaction object is a context manager that manages a database
-    transaction. A transaction provides the means to execute a SQL
-    statement, and provides transaction semantics (commit/rollback).
-
-    Upon exit of the context manager, in the event of an exception, the
-    transaction will be rolled back; otherwise, the transaction will be
-    committed.
-    """
-
-    async def execute(self, statement: Statement) -> None:
+    async def transaction(self):
         """
-        Execute a statement with no expected result.
+        Return context manager that manages a database transaction.
 
+        A transaction context provides SQL transactional semantics
+        (commit/rollback) for statements executed. Upon exit of the transaction
+        context, if due to exception, the transaction will be rolled back;
+        otherwise the transaction will be committed.
+
+        Creating a nested transaction context within a transaction context has
+        no effect; only the outermost transaction context will exhibit
+        commit/rollback behavior.
+        """
+        raise NotImplementedError
+
+    async def execute(self, statement: Statement) -> Optional[AsyncIterator[Any]]:
+        """
+        Execute a SQL statement.
+
+        A transaction context must first be established in order to execute a
+        statement.
+
+        If the statement is a query that expects results, then the type of each
+        row to be returned is specified in the statement's "result" attribute;
+        rows are accessed via a returned asynchronus iterator.
+
+        Parameter:
         • statement: Statement to be executed.
         """
         raise NotImplementedError
 
-    async def query(self, query: Statement) -> AsyncIterable[Mapping[str, Any]]:
-        """
-        Execute a statement with an expected result.
-
-        • query: Query to be executed.
-
-        The returned value is an asynchronus iterator, which iterates over rows
-        in the query result set; each value yielded is a mapping of column name
-        to value.
-        """
-        raise NotImplementedError
-
-
-class Database:
-    """Base class for a SQL database."""
-
-    async def transaction(self) -> Transaction:
-        """
-        Return context manager that manages a database transaction.
-
-        If more than one request for a transaction is made within the same
-        task, the same transaction will be returned; only the outermost
-        yielded transaction will exhibit commit/rollback behavior.
-        """
-        raise NotImplementedError
-
     def get_codec(self, python_type: Any) -> Any:
-        """TODO: Description."""
+        """
+        Return a codec suitable for encoding/decoding the Python type to a
+        corresponding SQL type.
+        """
         raise NotImplementedError
 
 
@@ -189,15 +187,13 @@ class Table:
             columns.append(" ".join(column))
         stmt.text(", ".join(columns))
         stmt.text(");")
-        async with self.database.transaction() as t:
-            await t.execute(stmt)
+        await self.database.execute(stmt)
 
     async def drop(self):
         """Drop table from database."""
         stmt = Statement()
         stmt.text(f"DROP TABLE {self.name};")
-        async with self.database.transaction() as t:
-            await t.execute(stmt)
+        await self.database.execute(stmt)
 
     async def select(
         self,
@@ -206,24 +202,37 @@ class Table:
         order: str = None,
         limit: int = None,
         offset: int = None,
-    ) -> Iterable[Mapping[str, Any]]:
+    ) -> AsyncIterator[Any]:
         """
-        Return a list of rows in table that match the where expression. Each
-        row result is expressed in a dict-like object.
+        Return an asynchronous iterable for rows in table that match the where
+        expression. Each row result is a dataclass composed of the specified
+        columns.
 
         Parameters:
-        • columns: Column names to return, or None for all columns.
+        • columns: Columns to return, or None for all columns.
         • where: Statement containing WHERE expression, or None to match all rows.
         • order: Column names to order by, or None to not order results.
         • limit: Limit the number of results returned, or None to not limit.
         • offset: Number of rows to skip, or None to skip none.
+
+        Columns can be specified as an iterable of column names, or as a string
+        containing comma-separated names.
         """
+
         if isinstance(columns, str):
             columns = columns.replace(",", " ").split()
-        columns = tuple(columns or self.columns.keys())
+
+        result = (
+            make_dataclass(
+                "Columns", {column: self.columns[column] for column in columns}
+            )
+            if columns
+            else self.schema
+        )
+
         stmt = Statement()
         stmt.text("SELECT ")
-        stmt.text(", ".join(columns))
+        stmt.text(", ".join(result.keys()))
         stmt.text(f" FROM {self.name}")
         if where:
             stmt.text(" WHERE ")
@@ -235,20 +244,9 @@ class Table:
             stmt.text(f" LIMIT {limit}")
         if offset:
             stmt.text(f" OFFSET {offset}")
-
         stmt.text(";")
-        results = []
-        async with self.database.transaction() as t:
-            async for row in await t.query(stmt):
-                results.append(
-                    {
-                        column: self.database.get_codec(self.columns[column]).decode(
-                            row[column]
-                        )
-                        for column in columns
-                    }
-                )
-        return results
+        stmt.result = result
+        return await self.database.query(stmt)
 
     async def insert(self, value: Any) -> None:
         """Insert table row."""
@@ -264,20 +262,18 @@ class Table:
             ", ",
         )
         stmt.text(");")
-        async with self.database.transaction() as t:
-            await t.execute(stmt)
+        await self.database.execute(stmt)
 
     async def read(self, key: Any) -> Any:
         """Return a table row, or None if not found."""
         where = Statement()
         where.text(f"{self.pk} = ")
         where.param(Parameter(self.columns[self.pk], key))
-        results = await self.select(where=where)
+        results = await self._select(where=where, limit=1)
         try:
-            kwargs = next(iter(results))
+            return await results.__anext__()
         except StopIteration:
             return None
-        return self.schema(**kwargs)
 
     async def update(self, value: Any) -> None:
         """Update table row."""
@@ -293,8 +289,7 @@ class Table:
         stmt.statements(updates, ", ")
         stmt.text(f" WHERE {self.pk} = ")
         stmt.param(Parameter(self.columns[self.pk], key))
-        async with self.database.transaction() as t:
-            await t.execute(stmt)
+        await self.database.execute(stmt)
 
     async def delete(self, key: Any) -> None:
         """Delete table row."""
@@ -302,8 +297,7 @@ class Table:
         stmt.text(f"DELETE FROM {self.name} WHERE {self.pk} = ")
         stmt.param(Parameter(self.columns[self.pk], key))
         stmt.text(";")
-        async with self.database.transaction() as t:
-            await t.execute(stmt)
+        await self.database.execute(stmt)
 
 
 class Index:
@@ -339,12 +333,10 @@ class Index:
         stmt.text(f"INDEX {self.name} on {self.table.name} (")
         stmt.text(", ".join(self.keys))
         stmt.text(");")
-        async with self.table.database.transaction() as t:
-            await t.execute(stmt)
+        await self.table.database.execute(stmt)
 
     async def drop(self):
         """Drop index from database."""
         stmt = Statement()
         stmt.text(f"DROP INDEX {self.name};")
-        async with self.transaction() as t:
-            await t.execute(stmt)
+        await self.table.database.execute(stmt)
