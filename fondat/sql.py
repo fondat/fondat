@@ -232,7 +232,7 @@ class Table:
 
         stmt = Statement()
         stmt.text("SELECT ")
-        stmt.text(", ".join(result.__annotations__.keys()))
+        stmt.text(", ".join(typing.get_type_hints(result, include_extras=True).keys()))
         stmt.text(f" FROM {self.name}")
         if where:
             stmt.text(" WHERE ")
