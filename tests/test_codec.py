@@ -11,7 +11,7 @@ from fondat.codec import String, Binary, JSON
 from fondat.codec import get_codec
 from dataclasses import make_dataclass, field
 from io import BytesIO
-from typing import Literal, Optional, TypedDict, Union
+from typing import Any, Literal, Optional, TypedDict, Union
 from uuid import UUID
 
 
@@ -728,3 +728,32 @@ def test_dataclass_json_decode_optional_success():
 def test_dataclass_json_decode_error():
     DC = make_dataclass("DC", [("djx", str)])
     _error(get_codec(JSON, DC).decode, {"djx": False})
+
+
+# ----- any -----
+
+
+def test_any_dataclass_json_codec_success():
+    DC = make_dataclass("DC", [("i", int), ("s", str)])
+    dc = DC(1, "a")
+    encoded = get_codec(JSON, Any).encode(dc)
+    decoded = get_codec(JSON, Any).decode(encoded)
+    assert DC(**decoded) == dc
+
+
+def test_any_dataclass_string_codec_success():
+    DC = make_dataclass("DC", [("i", int), ("s", str)])
+    dc = DC(1, "a")
+    encoded = get_codec(String, Any).encode(dc)
+    decoded = get_codec(JSON, Any).decode(json.loads(encoded))
+    assert DC(**decoded) == dc
+
+
+def test_any_dataclass_binary_codec_success():
+    DC = make_dataclass("DC", [("i", int), ("s", str)])
+    dc = DC(1, "a")
+    encoded = get_codec(Binary, Any).encode(dc)
+    decoded = get_codec(JSON, Any).decode(json.loads(encoded.decode()))
+    assert DC(**decoded) == dc
+
+

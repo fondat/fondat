@@ -1080,6 +1080,8 @@ def _dataclass(codec_type, python_type):
     if not is_dataclass(python_type):
         return
 
+    # FIXME: None results in suppression?
+
     if codec_type is JSON:
         codecs = {k: get_codec(JSON, v) for k, v in get_type_hints(python_type).items()}
         _json_type = dict[str, Union[tuple(c.json_type for c in codecs.values())]]
@@ -1384,6 +1386,72 @@ def _literal(codec_type, python_type):
                 return decode(codecs, value)
 
         return _Literal_JSON()
+
+
+# ----- Any -----
+
+
+@affix_type_hints
+class _Any_String(String[Any]):
+    """String codec for Any."""
+
+    @validate_arguments
+    def encode(self, value: Any) -> str:
+        return get_codec(String, type(value)).encode(value)
+
+    @validate_arguments
+    def decode(self, value: str) -> str:
+        return value
+
+
+_any_stringcodec = _Any_String()
+
+
+@affix_type_hints
+class _Any_Binary(Binary[Any]):
+    """Binary codec for Any."""
+
+    content_type = "application/octet-stream"
+
+    @validate_arguments
+    def encode(self, value: Any) -> bytes:
+        return get_codec(Binary, type(value)).encode(value)
+
+    @validate_arguments
+    def decode(self, value: Union[bytes, bytearray]) -> Union[bytes, bytearray]:
+        return value
+
+
+_any_binarycodec = _Any_Binary()
+
+
+@affix_type_hints
+class _Any_JSON(JSON[Any]):
+    """JSON codec for Any."""
+
+    json_type = Any
+
+    @validate_arguments
+    def encode(self, value: Any) -> Any:
+        return get_codec(JSON, type(value)).encode(value)
+
+    @validate_arguments
+    def decode(self, value: Any) -> Any:
+        return value
+
+
+_any_jsoncodec = _Any_JSON()
+
+
+@_provider
+def _any(codec_type, python_type):
+    if python_type is Any:
+        if codec_type is Binary:
+            return _any_binarycodec
+        if codec_type is String:
+            return _any_stringcodec
+        if codec_type is JSON:
+            return _any_jsoncodec
 
 
 @functools.cache
