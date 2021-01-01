@@ -136,14 +136,10 @@ async def test_list(table):
                 int_enum_=None,
             )
             await table.insert(body)
-        results = await table.select("key")
-        keys = [result.key async for result in results]
-        assert len(keys) == count
-        for key in keys:
-            await table.delete(key)
-        results = await table.select("key")
-        keys = [result.key async for result in results]
-        assert len(keys) == 0
+        assert await table.count() == count
+        async for result in await table.select("key"):
+            await table.delete(result["key"])
+        assert await table.count() == 0
 
 
 async def test_rollback(table):

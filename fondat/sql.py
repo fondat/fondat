@@ -10,7 +10,7 @@ from collections.abc import AsyncIterator, Iterable, Mapping
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass, is_dataclass, make_dataclass
 from fondat.resource import resource, operation
-from typing import Annotated, Any, Optional, Union
+from typing import Annotated, Any, Optional, TypedDict, Union
 
 
 _logger = logging.getLogger(__name__)
@@ -37,12 +37,12 @@ class Parameter:
     Represents a parameterized value to include in a statement.
 
     Attributes:
-    • python_type: The type of the pameter to be included.
     • value: The value of the parameter to be included.
+    • python_type: The type of the pameter to be included.
     """
 
-    python_type: type
     value: Any
+    python_type: Any
 
 
 class Statement(Iterable):
@@ -50,7 +50,10 @@ class Statement(Iterable):
     Represents a SQL statement.
 
     Attributes:
-    • result: The type (dataclass) to return a query result row in.
+    • result: The type to return a query result row in.
+
+    The result can be expressed as a dataclass to be instantiated, or as a
+    TypedDict that results in a populated dict object.
     """
 
     def __init__(self):
@@ -65,27 +68,43 @@ class Statement(Iterable):
         """Append text to the statement."""
         self.fragments.append(value)
 
-    def param(self, value: Parameter) -> None:
-        """Append a parameter to the statement."""
-        self.fragments.append(value)
+    def param(self, value: Any, python_type: Any = None) -> None:
+        """
+        Append a parameter to the statement.
 
-    def params(self, params: Iterable[Parameter], separator: str = None) -> None:
+        Parameters:
+        • value: Parameter value to be appended.
+        • python_type: Parameter type; inferred from value if None.
+        """
+        self.fragments.append(
+            Parameter(value, python_type if python_type else type(value))
+        )
+
+    def parameter(self, parameter: Parameter) -> None:
+        """
+        Append a parameter to the statement.
+        """
+        self.fragments.append(parameter)
+
+    def parameters(self, params: Iterable[Parameter], separator: str = None) -> None:
         """
         Append parameters to this statement, with optional text separator.
 
         Parameters:
-        • params: Parameters to be added.
+        • params: Parameters to be appended.
         • separator: Separator between parameters.
         """
         sep = False
         for param in params:
             if sep and separator is not None:
                 self.text(separator)
-            self.param(param)
+            self.parameter(param)
             sep = True
 
     def statement(self, statement: Statement) -> None:
-        """Append another statement to this statement."""
+        """
+        Append a statement to this statement.
+        """
         self.fragments += statement.fragments
 
     def statements(
@@ -155,7 +174,7 @@ class Table:
     Parameters and attributes:
     • name: Name of database table.
     • database: Database where table is managed.
-    • schema: Data class representing the table schema.
+    • schema: Dataclass or TypedDict representing the table schema.
     • pk: Column name of primary key.
 
     Attributes:
@@ -205,15 +224,14 @@ class Table:
     ) -> AsyncIterator[Any]:
         """
         Return an asynchronous iterable for rows in table that match the where
-        expression. Each row result is a dataclass composed of the specified
-        columns.
+        expression. Each row result a Mapping of column name to value.
 
         Parameters:
         • columns: Columns to return, or None for all columns.
         • where: Statement containing WHERE expression, or None to match all rows.
         • order: Column names to order by, or None to not order results.
         • limit: Limit the number of results returned, or None to not limit.
-        • offset: Number oParameterf rows to skip, or None to skip none.
+        • offset: Number of rows to skip, or None to skip none.
 
         Columns can be specified as an iterable of column names, or as a string
         containing comma-separated names.
@@ -222,12 +240,11 @@ class Table:
         if isinstance(columns, str):
             columns = columns.replace(",", " ").split()
 
-        result = (
-            make_dataclass(
-                "Columns", [(column, self.columns[column]) for column in columns]
-            )
+        result = TypedDict(
+            "Columns",
+            {column: self.columns[column] for column in columns}
             if columns
-            else self.schema
+            else self.columns,
         )
 
         stmt = Statement()
@@ -248,15 +265,34 @@ class Table:
         stmt.result = result
         return await self.database.execute(stmt)
 
+    async def count(self, where: Statement = None) -> int:
+        """
+        Return the number of rows in the table that match an optional
+        expression.
+
+        Parameters:
+        • where: Statement containing expression to match; None to match all rows.
+        """
+
+        stmt = Statement()
+        stmt.text(f"SELECT COUNT(*) AS count FROM {self.name}")
+        if where:
+            stmt.text(" WHERE ")
+            stmt.statement(where)
+        stmt.text(";")
+        stmt.result = TypedDict("Count", {"count": int})
+        result = await self.database.execute(stmt)
+        return (await result.__anext__())["count"]
+
     async def insert(self, value: Any) -> None:
         """Insert table row."""
         stmt = Statement()
         stmt.text(f"INSERT INTO {self.name} (")
         stmt.text(", ".join(self.columns))
         stmt.text(") VALUES (")
-        stmt.params(
+        stmt.parameters(
             (
-                Parameter(python_type, getattr(value, name))
+                Parameter(getattr(value, name), python_type)
                 for name, python_type in self.columns.items()
             ),
             ", ",
@@ -268,10 +304,10 @@ class Table:
         """Return a table row, or None if not found."""
         where = Statement()
         where.text(f"{self.pk} = ")
-        where.param(Parameter(self.columns[self.pk], key))
+        where.param(key, self.columns[self.pk])
         results = await self.select(where=where, limit=1)
         try:
-            return await results.__anext__()
+            return self.schema(**await results.__anext__())
         except StopAsyncIteration:
             return None
 
@@ -284,18 +320,18 @@ class Table:
         for name, python_type in self.columns.items():
             update = Statement()
             update.text(f"{name} = ")
-            update.param(Parameter(python_type, getattr(value, name)))
+            update.param(getattr(value, name), python_type)
             updates.append(update)
         stmt.statements(updates, ", ")
         stmt.text(f" WHERE {self.pk} = ")
-        stmt.param(Parameter(self.columns[self.pk], key))
+        stmt.param(key, self.columns[self.pk])
         await self.database.execute(stmt)
 
     async def delete(self, key: Any) -> None:
         """Delete table row."""
         stmt = Statement()
         stmt.text(f"DELETE FROM {self.name} WHERE {self.pk} = ")
-        stmt.param(Parameter(self.columns[self.pk], key))
+        stmt.param(key, self.columns[self.pk])
         stmt.text(";")
         await self.database.execute(stmt)
 
