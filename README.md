@@ -2,9 +2,9 @@
 
 [![PyPI](https://img.shields.io/pypi/v/fondat-core)](https://pypi.org/project/fondat-core/)
 [![Python](https://img.shields.io/pypi/pyversions/fondat-core)](https://python.org/)
-[![License](https://img.shields.io/github/license/fondat/fondat-core.svg)](https://github.com/fondat/fondat-core/blob/main/LICENSE)
 [![GitHub](https://img.shields.io/badge/github-main-blue.svg)](https://github.com/fondat/fondat-core/)
 [![Test](https://github.com/fondat/fondat-core/workflows/test/badge.svg)](https://github.com/fondat/fondat-core/actions?query=workflow/test)
+[![License](https://img.shields.io/github/license/fondat/fondat-core.svg)](https://github.com/fondat/fondat-core/blob/main/LICENSE)
 [![Black](https://img.shields.io/badge/code%20style-black-black.svg)](https://github.com/psf/black)
 
 A foundation for Python resource-oriented applications. 
