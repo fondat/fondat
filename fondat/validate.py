@@ -15,22 +15,8 @@ from collections.abc import Callable, Iterable, Mapping
 from typing import Annotated, Any, Literal, Union
 
 
-class Description:
-    """Type annotation to provide a textual description."""
-
-    def __init__(self, value: str):
-        self.value = value
-
-
-class Example:
-    """Type annotation to provide an example value."""
-
-    def __init__(self, value: Any):
-        self.value = value
-
-
 class Validator:
-    """Base class for type annotations that perform validation."""
+    """Base class for type annotation that performs validation."""
 
     def validate(self, value: Any) -> None:
         raise NotImplementedError

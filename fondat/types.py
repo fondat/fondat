@@ -119,3 +119,17 @@ class BytesStream(Stream):
         result = self._content
         self._content = None
         return result
+
+
+class Description:
+    """Type annotation to provide a textual description."""
+
+    def __init__(self, value: str):
+        self.value = value
+
+
+class Example:
+    """Type annotation to provide an example value."""
+
+    def __init__(self, value: Any):
+        self.value = value
