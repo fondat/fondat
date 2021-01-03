@@ -294,7 +294,7 @@ async def _resource(attr):
     if not callable(attr):
         return None
     hints = typing.get_type_hints(attr)
-    if not fondat.resource.is_resource(hints.get("returns")):
+    if not fondat.resource.is_resource(hints.get("return")):
         return None
     try:
         if is_coroutine_function(attr):
