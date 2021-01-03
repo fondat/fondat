@@ -1,9 +1,9 @@
 # fondat-core
 
+[![Python](https://img.shields.io/pypi/pyversions/fondat-core)](https://python.org/)
 [![PyPI](https://badge.fury.io/py/fondat-core.svg)](https://badge.fury.io/py/fondat-core)
 [![License](https://img.shields.io/github/license/fondat/fondat-core.svg)](https://github.com/fondat/fondat-core/blob/main/LICENSE)
 [![GitHub](https://img.shields.io/badge/github-main-blue.svg)](https://github.com/fondat/fondat-core/)
-[![Python](https://img.shields.io/pypi/pyversions/fondat-core)](https://python.org/)
 [![Test](https://github.com/fondat/fondat-core/workflows/test/badge.svg)](https://github.com/fondat/fondat-core/actions?query=workflow/test)
 [![Black](https://img.shields.io/badge/code%20style-black-black.svg)](https://github.com/psf/black)
 
