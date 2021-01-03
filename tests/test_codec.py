@@ -99,8 +99,6 @@ def test_typeddict_json_decode_optional_success():
     class TD(TypedDict, total=False):  # https://bugs.python.org/issue42059
         djc: int
         djd: str
-    print(f"{TD.__total__=}")
-    print(f"{TD.__required_keys__=}")
     value = dict(djc=12345)
     assert get_codec(JSON, TD).decode(value) == value
 
