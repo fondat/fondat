@@ -69,13 +69,16 @@ def test_typeddict_json_encode_success():
 
 
 def test_typeddict_json_encode_optional_success():
-    TD = TypedDict("TD", dict(ejc=float, ejd=bool), total=False)
+    class TD(TypedDict, total=False):  # https://bugs.python.org/issue42059
+        ejc: float
+        ejd: bool
     value = dict(ejc=123.45)
     assert get_codec(JSON, TD).encode(value) == value
 
 
 def test_typeddict_json_encode_optional_absent():
-    TD = TypedDict("TD", dict(eje=bool), total=False)
+    class TD(TypedDict, total=False):  # https://bugs.python.org/issue42059
+        eje: bool
     value = dict()
     assert get_codec(JSON, TD).encode(value) == value
 
@@ -93,7 +96,11 @@ def test_typeddict_json_decode_success():
 
 
 def test_typeddict_json_decode_optional_success():
-    TD = TypedDict("TD", dict(djc=int, djd=str), total=False)
+    class TD(TypedDict, total=False):  # https://bugs.python.org/issue42059
+        djc: int
+        djd: str
+    print(f"{TD.__total__=}")
+    print(f"{TD.__required_keys__=}")
     value = dict(djc=12345)
     assert get_codec(JSON, TD).decode(value) == value
 

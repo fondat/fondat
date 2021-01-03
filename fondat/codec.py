@@ -17,8 +17,8 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 from enum import Enum
 from fondat.types import affix_type_hints
-from fondat.validate import validate_arguments
-from typing import Annotated, Any, Generic, Literal, TypeVar, Union
+from fondat.validate import validate, validate_arguments
+from typing import Annotated, Any, Generic, Literal, TypeVar, TypedDict, Union
 from typing import get_origin, get_args, get_type_hints
 from uuid import UUID
 
@@ -28,7 +28,12 @@ providers = []
 
 NoneType = type(None)
 
+
 _TEXT_PLAIN = "text/plain; charset=UTF-8"
+
+
+# tracks types being built to deal with recursion (cyclic graphs)
+_building = {}
 
 
 def _issubclass(cls, cls_or_tuple):
@@ -838,32 +843,59 @@ def _typeddict(codec_type, python_type):
         return  # not a TypedDict
 
     if codec_type is JSON:
-        codecs = {k: get_codec(JSON, v) for k, v in get_type_hints(python_type).items()}
 
-        def process(value, method):
-            result = {}
-            for key, codec in codecs.items():
-                try:
-                    result[key] = getattr(codec, method)(value[key])
-                except KeyError:
-                    continue
-            return result
+        if c := _building.get((codec_type, python_type)):
+            return c  # return the (incomplete) outer one still being built
 
-        _json_type = dict[str, Union[tuple(c.json_type for c in codecs.values())]]
+        hints = get_type_hints(python_type, include_extras=False)
+
+        for key in hints:
+            if type(key) is not str:
+                raise("codec only supports TypedDict with str keys")
 
         @affix_type_hints(localns=locals())
         class _TypedDict_JSON(JSON[python_type]):
-            json_type = _json_type
+
+            json_type = dict[str, Any]  # will be replaced below
+
+            def _process(self, value, method):
+                result = {}
+                for key in hints:
+                    codec = get_codec(JSON, hints[key])
+                    try:
+                        result[key] = getattr(codec, method)(value[key])
+                    except KeyError:
+                        continue
+                return result
 
             @validate_arguments
-            def encode(self, value: python_type) -> _json_type:
-                return process(value, "encode")
+            def encode(self, value: python_type) -> Any:
+                return self._process(value, "encode")
 
-            @validate_arguments
-            def decode(self, value: _json_type) -> python_type:
-                return process(value, "decode")
+            def decode(self, value: Any) -> python_type:
+                validate(value, self.json_type)
+                return self._process(value, "decode")
 
-        return _TypedDict_JSON()
+        result = _TypedDict_JSON()
+        _building[(codec_type, python_type)] = result
+
+        try:
+            json_type = TypedDict(
+                "_TypedDict",
+                {
+                    key: get_codec(JSON, hints[key]).json_type
+                    for key in hints
+                },
+                total = python_type.__total__,
+            )
+            json_type.__required_keys__ = python_type.__required_keys__
+            json_type.__optional_keys__ = python_type.__optional_keys__
+            result.json_type = result.__class__.json_type = json_type
+
+        finally:
+            del _building[(codec_type, python_type)]
+
+        return result
 
     if codec_type is String:
         json_codec = get_codec(JSON, python_type)
@@ -1080,35 +1112,61 @@ def _dataclass(codec_type, python_type):
     if not is_dataclass(python_type):
         return
 
-    # FIXME: None results in suppression?
-
     if codec_type is JSON:
-        codecs = {k: get_codec(JSON, v) for k, v in get_type_hints(python_type).items()}
-        _json_type = dict[str, Union[tuple(c.json_type for c in codecs.values())]]
+
+        if c := _building.get((codec_type, python_type)):
+            return c  # return the (incomplete) outer one still being built
+
+        hints = get_type_hints(python_type, include_extras=False)
 
         @affix_type_hints(localns=locals())
         class _Dataclass_JSON(JSON[python_type]):
 
-            json_type = _json_type
+            json_type = dict[str, Any]  # will be replaced below
 
             @validate_arguments
-            def encode(self, value: python_type) -> _json_type:
-                return {
-                    key: codec.encode(getattr(value, key))
-                    for key, codec in codecs.items()
-                }
+            def encode(self, value: python_type) -> Any:
+                result = {}
+                for key in hints:
+                    v = getattr(value, key)
+                    if v is not None:
+                        result[key] = get_codec(JSON, hints[key]).encode(v)
+                return result
 
-            @validate_arguments
-            def decode(self, value: _json_type) -> python_type:
+            def decode(self, value: Any) -> python_type:
+                validate(value, self.json_type)
                 kwargs = {}
-                for key, codec in codecs.items():
+                for key in hints:
+                    codec = get_codec(JSON, hints[key])
                     try:
-                        kwargs[key] = codec.encode(value[key])
+                        kwargs[key] = codec.decode(value[key])
                     except KeyError:
                         continue
                 return python_type(**kwargs)
 
-        return _Dataclass_JSON()
+        result = _Dataclass_JSON()
+        _building[(codec_type, python_type)] = result
+
+        try:
+            json_type = TypedDict(
+                "_TypedDict",
+                {
+                    key: get_codec(JSON, hints[key]).json_type
+                    for key in hints
+                },
+                total = False,
+            )
+
+            # workaround for https://bugs.python.org/issue42059
+            json_type.__required_keys__ = frozenset()
+            json_type.__optional_keys__ = frozenset(hints)
+
+            result.json_type = result.__class__.json_type = json_type
+
+        finally:
+            del _building[(codec_type, python_type)]
+
+        return result
 
     if codec_type is String:
 
@@ -1190,7 +1248,7 @@ def _union(codec_type, python_type):
         @affix_type_hints(localns=locals())
         class _Union_Binary(Binary[python_type]):
 
-            content_type = "application/octet-stream"  # FIXME
+            content_type = "application/octet-stream"
 
             @validate_arguments
             def encode(self, value: python_type) -> bytes:
@@ -1271,7 +1329,7 @@ def _enum(codec_type, python_type):
         @affix_type_hints(localns=locals())
         class _Enum_Binary(Binary[python_type]):
 
-            content_type = "application/octet-stream"  # FIXME
+            content_type = "application/octet-stream"
 
             @validate_arguments
             def encode(self, value: python_type) -> bytes:
@@ -1337,7 +1395,6 @@ def _literal(codec_type, python_type):
         class _Literal_String(String[python_type]):
             @validate_arguments
             def encode(self, value: python_type) -> str:
-                # FIXME: use codecs we already have
                 return get_codec(String, type(value)).encode(value)
 
             @validate_arguments
@@ -1353,11 +1410,10 @@ def _literal(codec_type, python_type):
         @affix_type_hints(localns=locals())
         class _Literal_Binary(Binary[python_type]):
 
-            content_type = "application/octet-stream"  # FIXME
+            content_type = "application/octet-stream"
 
             @validate_arguments
             def encode(self, value: python_type) -> bytes:
-                # FIXME: use codecs we already have
                 return get_codec(Binary, type(value)).encode(value)
 
             @validate_arguments
@@ -1378,7 +1434,6 @@ def _literal(codec_type, python_type):
 
             @validate_arguments
             def encode(self, value: python_type) -> _json_type:
-                # FIXME: use codecs we already have
                 return get_codec(JSON, type(value)).encode(value)
 
             @validate_arguments

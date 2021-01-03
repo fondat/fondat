@@ -54,30 +54,26 @@ def dataclass(cls, init=True, **kwargs):
     """
     Decorates a class to be a data class.
 
-    This decorator utilizes the Python dataclass decorator, except any added
+    This decorator utilizes the Python dataclass decorator, except the added
     __init__ method only accepts keyword arguments. This allows defaulted and
     required attributes to be declared in any order. Any missing values during
-    initialization will be defaulted to None.
+    initialization are defaulted to None.
     """
 
     def __init__(self, **kwargs):
-        hints = get_type_hints()
+        hints = get_type_hints(cls)
         for key in kwargs:
             if key not in hints:
                 raise TypeError(
                     f"__init__() got an unexpected keyword argument '{key}'"
                 )
-
-        for key in get_type_hints(self):
+        for key in hints:
             setattr(self, key, kwargs.get(key, getattr(cls, key, None)))
 
     c = dataclasses.dataclass(cls, init=False, **kwargs)
 
     if init:
         c.__init__ = __init__
-        c.__init__.__globals__ = c.__globals__
-        c.__init__.__module__ = c.__module__
-        c.__init__.__qualname__ = f"{c.__qualname__}.__init__"
 
     return c
 
