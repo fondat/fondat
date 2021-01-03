@@ -1,7 +1,7 @@
 # fondat-core
 
 [![Python](https://img.shields.io/pypi/pyversions/fondat-core)](https://python.org/)
-[![PyPI](https://badge.fury.io/py/fondat-core.svg)](https://badge.fury.io/py/fondat-core)
+[![PyPI](https://img.shields.io/pypi/v/fondat-core)](https://pypi.org/project/fondat-core/)
 [![License](https://img.shields.io/github/license/fondat/fondat-core.svg)](https://github.com/fondat/fondat-core/blob/main/LICENSE)
 [![GitHub](https://img.shields.io/badge/github-main-blue.svg)](https://github.com/fondat/fondat-core/)
 [![Test](https://github.com/fondat/fondat-core/workflows/test/badge.svg)](https://github.com/fondat/fondat-core/actions?query=workflow/test)
