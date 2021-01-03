@@ -5,7 +5,7 @@ import functools
 import sys
 
 from collections.abc import AsyncIterator, Iterable, Mapping
-from typing import Union, get_type_hints
+from typing import Any, Union, get_type_hints
 
 
 def affix_type_hints(obj=None, *, globalns=None, localns=None, attrs=True):
