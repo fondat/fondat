@@ -72,6 +72,7 @@ def test_typeddict_json_encode_optional_success():
     class TD(TypedDict, total=False):  # https://bugs.python.org/issue42059
         ejc: float
         ejd: bool
+
     value = dict(ejc=123.45)
     assert get_codec(JSON, TD).encode(value) == value
 
@@ -79,6 +80,7 @@ def test_typeddict_json_encode_optional_success():
 def test_typeddict_json_encode_optional_absent():
     class TD(TypedDict, total=False):  # https://bugs.python.org/issue42059
         eje: bool
+
     value = dict()
     assert get_codec(JSON, TD).encode(value) == value
 
@@ -99,6 +101,7 @@ def test_typeddict_json_decode_optional_success():
     class TD(TypedDict, total=False):  # https://bugs.python.org/issue42059
         djc: int
         djd: str
+
     value = dict(djc=12345)
     assert get_codec(JSON, TD).decode(value) == value
 
@@ -760,5 +763,3 @@ def test_any_dataclass_binary_codec_success():
     encoded = get_codec(Binary, Any).encode(dc)
     decoded = get_codec(JSON, Any).decode(json.loads(encoded.decode()))
     assert DC(**decoded) == dc
-
-
