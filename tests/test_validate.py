@@ -7,22 +7,15 @@ import re
 from base64 import b64encode
 from dataclasses import make_dataclass, field
 from decimal import Decimal
-from fondat.validate import (
-    validate,
-    validate_return_value,
-    MinLen,
-    MaxLen,
-    Pattern,
-    MinValue,
-    MaxValue,
-)
+from fondat.validate import validate, validate_return_value
+from fondat.validate import MinLen, MaxLen, Pattern, MinValue, MaxValue
 from io import BytesIO
 from datetime import date, datetime, timezone
-from typing import Annotated, Literal, TypedDict, Union
+from typing import Annotated, Literal, Optional, T, TypedDict, Union
 from uuid import UUID
 
 
-# -- str -----
+# ----- str -----
 
 
 def test_str_type_success():
@@ -61,7 +54,7 @@ def test_str_pattern_error():
         validate("ghi", Annotated[str, Pattern(r"^def$")])
 
 
-# -- int -----
+# ----- int -----
 
 
 def test_int_type_success():
@@ -96,7 +89,7 @@ def test_int_reject_bool():
         validate(True, int)
 
 
-# -- float -----
+# ----- float -----
 
 
 def test_float_type_success():
@@ -126,7 +119,7 @@ def test_float_max_error():
         validate(4.1, Annotated[float, MaxValue(4.0)])
 
 
-# -- decimal -----
+# ----- decimal -----
 
 
 def test_decimal_type_success():
@@ -156,7 +149,7 @@ def test_decimal_max_error():
         validate(Decimal("4.1"), Annotated[Decimal, MaxValue(Decimal("4.0"))])
 
 
-# -- bool -----
+# ----- bool -----
 
 
 def test_bool_type_true():
@@ -172,7 +165,7 @@ def test_bool_type_error():
         validate("foo", bool)
 
 
-# -- date -----
+# ----- date -----
 
 
 def test_date_type_success():
@@ -184,7 +177,7 @@ def test_date_type_error():
         validate("not_a_date", date)
 
 
-# -- datetime -----
+# ----- datetime -----
 
 
 def test_datetime_type_success():
@@ -196,7 +189,7 @@ def test_datetime_type_error():
         validate("not_a_datetime", datetime)
 
 
-# -- uuid -----
+# ----- uuid -----
 
 
 def test_uuid_type_success():
@@ -208,7 +201,7 @@ def test_uuid_type_error():
         validate("not_a_uuid", UUID)
 
 
-# -- bytes -----
+# ----- bytes -----
 
 
 def test_bytes_type_success():
@@ -220,7 +213,7 @@ def test_bytes_type_error():
         validate("not_a_byte_string", bytes)
 
 
-# -- dict -----
+# ----- dict -----
 
 
 def test_dict_success():
@@ -242,7 +235,7 @@ def test_dict_error_value_type():
         validate(dict(this="should_not_validate"), dict[str, int])
 
 
-# -- list -----
+# ----- list -----
 
 
 def test_list_type_str_success():
@@ -286,7 +279,7 @@ def test_list_max_error():
         validate([1, 2, 3, 4, 5, 6, 7], Annotated[list[int], MaxLen(6)])
 
 
-# -- set -----
+# ----- set -----
 
 
 def test_set_type_str_success():
@@ -312,7 +305,7 @@ def test_set_type_error():
         validate("not_a_set", set[bool])
 
 
-# -- union -----
+# ----- union -----
 
 
 def test_union_none_match():
@@ -324,6 +317,31 @@ def test_union_match():
     u = Union[str, int]
     validate("one", u)
     validate(1, u)
+
+
+def test_optional():
+    o = Optional[int]
+    validate(1, o)
+    validate(None, o)
+    with pytest.raises(TypeError):
+        validate("1", o)
+
+
+def test_optional_generic():
+    o = list[Optional[int]]
+    validate([1, 2, 3, None, 4, 5], o)
+
+
+def test_generic_range():
+    Range = Annotated[list[Optional[T]], MinLen(2), MaxLen(2)]
+    IntRange = Range[int]
+    validate([1, 2], IntRange)
+    validate([None, 2], IntRange)
+    validate([1, None], IntRange)
+    with pytest.raises(TypeError):
+        validate(['1', 2], IntRange)
+    with pytest.raises(ValueError):
+        validate([1, 2, 3], IntRange)
 
 
 # -- literal -----
