@@ -851,7 +851,7 @@ def _typeddict(codec_type, python_type):
 
         for key in hints:
             if type(key) is not str:
-                raise("codec only supports TypedDict with str keys")
+                raise TypeError("codec only supports TypedDict with str keys")
 
         @affix_type_hints(localns=locals())
         class _TypedDict_JSON(JSON[python_type]):
@@ -882,11 +882,8 @@ def _typeddict(codec_type, python_type):
         try:
             json_type = TypedDict(
                 "_TypedDict",
-                {
-                    key: get_codec(JSON, hints[key]).json_type
-                    for key in hints
-                },
-                total = python_type.__total__,
+                {key: get_codec(JSON, hints[key]).json_type for key in hints},
+                total=python_type.__total__,
             )
             json_type.__required_keys__ = python_type.__required_keys__
             json_type.__optional_keys__ = python_type.__optional_keys__
@@ -1150,11 +1147,8 @@ def _dataclass(codec_type, python_type):
         try:
             json_type = TypedDict(
                 "_TypedDict",
-                {
-                    key: get_codec(JSON, hints[key]).json_type
-                    for key in hints
-                },
-                total = False,
+                {key: get_codec(JSON, hints[key]).json_type for key in hints},
+                total=False,
             )
 
             # workaround for https://bugs.python.org/issue42059
