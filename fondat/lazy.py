@@ -11,7 +11,7 @@ class LazyMap:
     """
     A map-like object of key-value pairs, in which a value can be lazily
     initialized at the time of first access. This is useful to allow resources
-    to access other resources, preventing circular dependencies. 
+    to access other resources, preventing circular dependencies.
 
     Parameters:
     • init: Mapping of key-value pairs to initialize the lazy map.
@@ -97,14 +97,30 @@ def lazy(function: Callable) -> Callable:
     return function
 
 
-def lazy_attr(module_name: str, attr_name: str) -> Callable:
+def lazy_import(module_name: str) -> Callable:
     """
-    Return a lazy callback function to import a module and return an attribute.
+    Return a lazy callback function that imports a module and returns it.
+
+    Parameters:
+    • module_name: The name of the module to import.
+    """
+
+    def callback():
+        return importlib.import_module(module_name)
+
+    return lazy(callback)
+
+
+def lazy_import_attr(module_name: str, attr_name: str) -> Callable:
+    """
+    Return a lazy callback function that imports a module and returns an
+    attribute from it.
 
     Parameters:
     • module_name: The name of the module to import.
     • attr_name: The name of the attribute in the module to be returned.
     """
+
     def callback():
         return getattr(importlib.import_module(module_name), attr_name)
 

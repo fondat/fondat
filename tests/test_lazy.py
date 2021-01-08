@@ -1,6 +1,6 @@
 import pytest
 
-from fondat.lazy import LazyMap, lazy
+from fondat.lazy import LazyMap, lazy, lazy_import, lazy_import_attr
 
 
 @lazy
@@ -17,8 +17,13 @@ def not_decorated():
     return "bacon"
 
 
-def test_lazy():
-    map = LazyMap({"a": "a_value", "z1": lz1,})
+def test_lazymap():
+    map = LazyMap(
+        {
+            "a": "a_value",
+            "z1": lz1,
+        }
+    )
     assert len(map) == 2
     assert "a" in map
     assert "z1" in map
@@ -52,3 +57,17 @@ def test_lazy():
         map.not_here
     del map.a
     assert len(map) == 0
+
+
+def test_lazy_import():
+    m = lazy_import("csv")
+    m = m()
+    import csv
+    assert m is csv
+
+
+def test_lazy_import_attr():
+    r = lazy_import_attr("csv", "reader")
+    r = r()
+    import csv
+    assert r is csv.reader
