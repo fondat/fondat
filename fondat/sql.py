@@ -60,6 +60,9 @@ class Statement(Iterable):
         self.fragments = []
         self.result = None
 
+    def __repr__(self):
+        return f"Statement(fragments={self.fragments}, result={self.result})"
+
     def __iter__(self):
         """Iterate over fragments of the statement."""
         return iter(self.fragments)
@@ -191,6 +194,9 @@ class Table:
         if pk not in self.columns:
             raise ValueError(f"unknown primary key: {pk}")
         self.pk = pk
+
+    def __repr__(self):
+        return f"Table(name={self.name}, schema={self.schema}, pk={self.pk})"
 
     async def create(self):
         """Create table in database."""
@@ -359,6 +365,9 @@ class Index:
         self.table = table
         self.keys = keys
         self.unique = unique
+
+    def __repr__(self):
+        return f"Index(name={self.name}, table={self.table}, keys={self.keys}, unique={self.unique})"
 
     async def create(self):
         """Create index in database."""
