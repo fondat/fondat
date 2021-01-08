@@ -339,7 +339,7 @@ def test_generic_range():
     validate([None, 2], IntRange)
     validate([1, None], IntRange)
     with pytest.raises(TypeError):
-        validate(['1', 2], IntRange)
+        validate(["1", 2], IntRange)
     with pytest.raises(ValueError):
         validate([1, 2, 3], IntRange)
 
