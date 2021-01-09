@@ -3,13 +3,13 @@
 import importlib
 import threading
 
-from collections.abc import Callable
+from collections.abc import Callable, MutableMapping
 from typing import Any
 
 
-class LazyMap:
+class LazyMap(MutableMapping):
     """
-    A map-like object of key-value pairs, in which a value can be lazily
+    A mapping of key-value pairs, in which a value can be lazily
     initialized at the time of first access. This is useful to allow resources
     to access other resources, preventing circular dependencies.
 
@@ -20,74 +20,42 @@ class LazyMap:
     that has been decorated with the @lazy decorator. When the value is then
     first accessed, the callback will be called to initialize the value.
     The resulting value will then be stored in the mapping.
-
-    All map values can be set, retrieved and deleted as items, like: map["key"]
-    and attributes, like: map.key.
     """
 
     def __init__(self, init=None):
         super().__init__()
-        self._fondat_lock = threading.Lock()
-        self._fondat_map = {}
+        self._lock = threading.Lock()
+        self._store = {}
         if init is not None:
-            for name, value in init.items():
-                self[name] = value
-
-    def __getattr__(self, name):
-        try:
-            return self[name]
-        except KeyError:
-            raise AttributeError(
-                f"{self.__class__.__name__} object has no attribute '{name}'"
-            )
-
-    def __setattr__(self, name, value):
-        if name.startswith("_fondat_") or name in super().__dir__():
-            super().__setattr__(name, value)
-        else:
-            self[name] = value
-
-    def __delattr__(self, name):
-        if name.startswith("_fondat_") or name in super().__dir__():
-            super().__delattr__(name)
-        else:
-            try:
-                del self[name]
-            except KeyError:
-                raise AttributeError(name)
-
-    def __dir__(self):
-        return [*super().__dir__(), *iter(self._fondat_map)]
-
-    def __len__(self):
-        return len(self._fondat_map)
+            for key, value in init.items():
+                self[key] = value
 
     def __getitem__(self, key):
-        return self._fondat_resolve(key)
-
-    def __setitem__(self, key, value):
-        self._fondat_map[key] = value
-
-    def __delitem__(self, key):
-        del self._fondat_map[key]
-
-    def __iter__(self):
-        return iter(self._fondat_map)
-
-    def __contains__(self, item):
-        return item in self._fondat_map
-
-    def _fondat_resolve(self, key):
-        value = self._fondat_map[key]
+        value = self._store[key]
         if is_lazy(value):
-            with self._fondat_lock:
+            with self._lock:
+                value = self._store[key]
                 if is_lazy(value):  # prevent race
-                    self._fondat_map[key] = value()
-            value = self._fondat_map[key]
+                    self._store[key] = value = value()
         return value
 
+    def __setitem__(self, key, value):
+        self._store[key] = value
 
-def lazy(function: Callable) -> Callable:
+    def __delitem__(self, key):
+        del self._store[key]
+
+    def __iter__(self):
+        return iter(self._store)
+
+    def __len__(self):
+        return len(self._store)
+
+    def __contains__(self, item):
+        return item in self._store
+
+
+def lazy(function: Any) -> Any:
     """
     Decorate a function to tag it as a lazy initializer.
     """
