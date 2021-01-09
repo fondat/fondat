@@ -136,13 +136,15 @@ class Database:
         Return context manager that manages a database transaction.
 
         A transaction context provides SQL transactional semantics
-        (commit/rollback) for statements executed. Upon exit of the transaction
-        context, if due to exception, the transaction will be rolled back;
-        otherwise the transaction will be committed.
+        (commit/rollback) around statements executed.
 
-        Creating a nested transaction context within a transaction context has
-        no effect; only the outermost transaction context will exhibit
-        commit/rollback behavior.
+        Creating an inner transaction context within an outer transaction
+        context has no effect; only the outermost transaction context will
+        exhibit commit/rollback behavior.
+
+        Upon exit of the outer transaction context, if an exception was raised,
+        the transaction will be rolled back; otherwise the transaction will be
+        committed.
         """
         raise NotImplementedError
 
@@ -150,7 +152,7 @@ class Database:
         """
         Execute a SQL statement.
 
-        A transaction context must first be established in order to execute a
+        A transaction context must be established in order to execute a
         statement.
 
         If the statement is a query that expects results, then the type of each
@@ -212,13 +214,15 @@ class Table:
             columns.append(" ".join(column))
         stmt.text(", ".join(columns))
         stmt.text(");")
-        await self.database.execute(stmt)
+        async with self.database.transaction():
+            await self.database.execute(stmt)
 
     async def drop(self):
         """Drop table from database."""
         stmt = Statement()
         stmt.text(f"DROP TABLE {self.name};")
-        await self.database.execute(stmt)
+        async with self.database.transaction():
+            await self.database.execute(stmt)
 
     async def select(
         self,
@@ -288,7 +292,8 @@ class Table:
         stmt.text(";")
         stmt.result = TypedDict("Count", {"count": int})
         result = await self.database.execute(stmt)
-        return (await result.__anext__())["count"]
+        async with self.database.transaction():
+            return (await result.__anext__())["count"]
 
     async def insert(self, value: Any) -> None:
         """Insert table row."""
@@ -304,18 +309,20 @@ class Table:
             ", ",
         )
         stmt.text(");")
-        await self.database.execute(stmt)
+        async with self.database.transaction():
+            await self.database.execute(stmt)
 
     async def read(self, key: Any) -> Any:
         """Return a table row, or None if not found."""
         where = Statement()
         where.text(f"{self.pk} = ")
         where.param(key, self.columns[self.pk])
-        results = await self.select(where=where, limit=1)
-        try:
-            return self.schema(**await results.__anext__())
-        except StopAsyncIteration:
-            return None
+        async with self.database.transaction():
+            results = await self.select(where=where, limit=1)
+            try:
+                return self.schema(**await results.__anext__())
+            except StopAsyncIteration:
+                return None
 
     async def update(self, value: Any) -> None:
         """Update table row."""
@@ -331,7 +338,8 @@ class Table:
         stmt.statements(updates, ", ")
         stmt.text(f" WHERE {self.pk} = ")
         stmt.param(key, self.columns[self.pk])
-        await self.database.execute(stmt)
+        async with self.database.transaction():
+            await self.database.execute(stmt)
 
     async def delete(self, key: Any) -> None:
         """Delete table row."""
@@ -339,7 +347,8 @@ class Table:
         stmt.text(f"DELETE FROM {self.name} WHERE {self.pk} = ")
         stmt.param(key, self.columns[self.pk])
         stmt.text(";")
-        await self.database.execute(stmt)
+        async with self.database.transaction():
+            await self.database.execute(stmt)
 
 
 class Index:
@@ -378,10 +387,12 @@ class Index:
         stmt.text(f"INDEX {self.name} on {self.table.name} (")
         stmt.text(", ".join(self.keys))
         stmt.text(");")
-        await self.table.database.execute(stmt)
+        async with self.database.transaction():
+            await self.table.database.execute(stmt)
 
     async def drop(self):
         """Drop index from database."""
         stmt = Statement()
         stmt.text(f"DROP INDEX {self.name};")
-        await self.table.database.execute(stmt)
+        async with self.database.transaction():
+            await self.table.database.execute(stmt)
