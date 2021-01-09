@@ -387,12 +387,12 @@ class Index:
         stmt.text(f"INDEX {self.name} on {self.table.name} (")
         stmt.text(", ".join(self.keys))
         stmt.text(");")
-        async with self.database.transaction():
+        async with self.table.database.transaction():
             await self.table.database.execute(stmt)
 
     async def drop(self):
         """Drop index from database."""
         stmt = Statement()
         stmt.text(f"DROP INDEX {self.name};")
-        async with self.database.transaction():
+        async with self.table.database.transaction():
             await self.table.database.execute(stmt)

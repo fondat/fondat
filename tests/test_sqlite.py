@@ -53,11 +53,9 @@ def database():
 @pytest.fixture(scope="function")  # FIXME: scope to module with event_loop fixture?
 async def table(database):
     foo = sql.Table("foo", database, DC, "key")
-    async with database.transaction():
-        await foo.create()
+    await foo.create()
     yield foo
-    async with database.transaction():
-        await foo.drop()
+    await foo.drop()
 
 
 async def test_crud(table):
@@ -167,3 +165,9 @@ async def test_rollback(table):
         pass
     async with table.database.transaction():
         assert await table.read(key) is None
+
+
+async def test_index(table):
+    index = sql.Index("foo_ix_str", table, ("str_",))
+    await index.create()
+    await index.drop()
