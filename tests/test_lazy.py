@@ -55,6 +55,7 @@ def test_lazy_import():
     m = lazy_import("csv")
     m = m()
     import csv
+
     assert m is csv
 
 
@@ -62,4 +63,5 @@ def test_lazy_import_attr():
     r = lazy_import_attr("csv", "reader")
     r = r()
     import csv
+
     assert r is csv.reader
