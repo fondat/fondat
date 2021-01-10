@@ -8,10 +8,10 @@ target-version = ['py38']
 
 [tool.poetry]
 name = "fondat-core"
-version = "3.0a13"
+version = "3.0a14"
 description = "A foundation for Python resource-oriented applications."
 readme = "README.md"
-authors = ["Fondat authors"]
+authors = ["fondat-core authors"]
 homepage = "https://github.com/fondat/fondat/"
 documentation = "https://github.com/fondat/fondat/tree/main/docs"
 license = "MIT"
