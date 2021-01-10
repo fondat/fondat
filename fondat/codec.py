@@ -162,7 +162,7 @@ def _str(codec_type, python_type):
             return _str_jsoncodec
 
 
-# ----- Union[bytes, bytearray] -----
+# ----- bytes/bytearray -----
 
 
 @affix_type_hints
@@ -1100,7 +1100,7 @@ def _iterable(codec_type, python_type):
         return _Iterable_Binary()
 
 
-# ----- Dataclass -----
+# ----- dataclass -----
 
 
 @_provider
@@ -1115,6 +1115,14 @@ def _dataclass(codec_type, python_type):
             return c  # return the (incomplete) outer one still being built
 
         hints = get_type_hints(python_type, include_extras=False)
+
+        noneables = {
+            name
+            for name, hint in hints.items()
+            if get_origin(hint) is Union
+            and NoneType in get_args(hint)
+            and getattr(python_type, name, None) is None
+        }
 
         @affix_type_hints(localns=locals())
         class _Dataclass_JSON(JSON[python_type]):
@@ -1138,7 +1146,8 @@ def _dataclass(codec_type, python_type):
                     try:
                         kwargs[key] = codec.decode(value[key])
                     except KeyError:
-                        continue
+                        if key in noneables:
+                            kwargs[key] = None
                 return python_type(**kwargs)
 
         result = _Dataclass_JSON()

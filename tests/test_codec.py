@@ -728,9 +728,14 @@ def test_dataclass_json_decode_success():
     )
 
 
-def test_dataclass_json_decode_optional_success():
+def test_dataclass_json_decode_default_success():
     DC = make_dataclass("DC", [("djc", int), ("djd", str, field(default=None))])
     assert get_codec(JSON, DC).decode({"djc": 12345}) == DC(djc=12345, djd=None)
+
+
+def test_dataclass_json_decode_optional_success():
+    DC = make_dataclass("DC", (("x", int), ("y", Optional[str])))
+    assert get_codec(JSON, DC).decode({"x": 1}) == DC(x=1, y=None)
 
 
 def test_dataclass_json_decode_error():
