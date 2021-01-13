@@ -91,10 +91,10 @@ async def test_size_evict():
     assert set(await resource.get()) == {"2", "3"}
 
 
-async def test_ttl():
-    resource = memory_resource(key_type=str, value_type=str, ttl=0.1)
+async def test_expire():
+    resource = memory_resource(key_type=str, value_type=str, expire=0.01)
     await resource["1"].put("foo")
     await resource["1"].get()
-    sleep(0.2)
+    sleep(0.01)
     with pytest.raises(NotFoundError):
         await resource["1"].get()

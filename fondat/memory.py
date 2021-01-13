@@ -13,7 +13,7 @@ from fondat.http import InBody
 from fondat.resource import resource, operation, mutation
 from fondat.security import SecurityRequirement
 from fondat.types import affix_type_hints
-from typing import Annotated
+from typing import Annotated, Union
 
 
 _now = lambda: datetime.now(tz=timezone.utc)
@@ -30,19 +30,19 @@ def memory_resource(
     value_type: type,
     size: int = None,
     evict: bool = False,
-    ttl: int = None,
+    expire: Union[int, float] = None,
     security: Iterable[SecurityRequirement] = None,
 ):
     """
     Return a new resource that stores items in memory.
 
     Parameters:
-    • key_type: Type for the key for each item.
-    • value_type: Type for value stored in each item.
-    • size: Maximum number of items to store.  [unlimited]
-    • evict: Should oldest item be evicted to make room for a new item.
-    • ttl: Maximum item time to live, in seconds.  [unlimited]
-    • security: Security requirements to apply to all operations.
+    • key_type: type for the key for each item
+    • value_type: type for value stored in each item
+    • size: maximum number of items to store  [unlimited]
+    • evict: should oldest item be evicted to make room for a new item
+    • expire: expire time for each value in seconds  [unlimited]
+    • security: security requirements to apply to all operations
     """
 
     @resource
@@ -62,7 +62,7 @@ def memory_resource(
                 return [
                     key
                     for key, item in self.storage.items()
-                    if not self.ttl or item.time + _delta(self.ttl) <= now
+                    if not self.expire or item.time + _delta(self.expire) <= now
                 ]
 
         @mutation(security=security)
@@ -75,7 +75,7 @@ def memory_resource(
     MemoryResource.value_type = value_type
     MemoryResource.size = size
     MemoryResource.evict = evict
-    MemoryResource.ttl = ttl
+    MemoryResource.expire = expire
 
     @resource
     class Item:
@@ -88,7 +88,8 @@ def memory_resource(
             """Read item."""
             item = self.container.storage.get(self.key)
             if item is None or (
-                self.container.ttl and _now() > item.time + _delta(self.container.ttl)
+                self.container.expire
+                and _now() > item.time + _delta(self.container.expire)
             ):
                 raise NotFoundError
             return item.value
@@ -98,11 +99,13 @@ def memory_resource(
             """Write item."""
             with self.container.lock:
                 now = _now()
-                if self.container.ttl:  # purge expired entries; pay the price on puts
+                if (
+                    self.container.expire
+                ):  # purge expired entries; pay the price on puts
                     for key in {
                         k
                         for k, v in self.container.storage.items()
-                        if v.time + _delta(container.ttl) <= now
+                        if v.time + _delta(container.expire) <= now
                     }:
                         del self.container.storage[self.key]
                 while (
