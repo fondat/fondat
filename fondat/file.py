@@ -11,34 +11,21 @@ from collections.abc import Iterable
 from fondat.codec import Binary, String, get_codec
 from fondat.error import InternalServerError, NotFoundError
 from fondat.http import InBody
+from fondat.paging import make_page_dataclass
 from fondat.resource import resource, operation
 from fondat.types import affix_type_hints
 from fondat.security import SecurityRequirement
 from typing import Annotated, Any
+from urllib.parse import quote, unquote
 
 
 _logger = logging.getLogger(__name__)
 
 
-_map = {ord(c): "%{:02x}".format(ord(c)) for c in '.%/\\:*?"<>|'}
-
-
-def _quote(s):
-    """_quote('abc/def') -> 'abc%2fdef'"""
-    return s.translate(_map)
-
-
-def _unquote(s):
-    """_unquote('abc%2fdef') -> 'abc/def'"""
-    if "%" in s:
-        for k, v in _map.items():
-            s = s.replace(v, chr(k))
-    return s
-
-
 def _file_resource_class(
     value_type: type,
     compress: Any = None,
+    read_only: bool = False,
     security: Iterable[SecurityRequirement] = None,
 ):
 
@@ -46,7 +33,6 @@ def _file_resource_class(
 
     @resource
     class FileResource:
-        """..."""
 
         def __init__(self, path):
             self.path = path
@@ -63,30 +49,31 @@ def _file_resource_class(
             except FileNotFoundError:
                 raise NotFoundError
             except (TypeError, ValueError) as e:
-                _logger.error(e)
-                raise InternalServerError
+                raise InternalServerError from e
 
-        @operation(security=security)
-        async def put(self, value: Annotated[value_type, InBody]):
-            """Write file."""
-            tmp = self.path + ".__tmp"
-            content = codec.encode(value)
-            if compress:
-                content = compress.compress(content)
-            try:
-                async with aiofiles.open(tmp, "xb") as file:
-                    await file.write(content)
-                os.replace(tmp, self.path)
-            except Exception as e:
-                raise InternalServerError(f"cannot write file: {self.path}") from e
+        if not read_only:
 
-        @operation(security=security)
-        async def delete(self):
-            """Delete file."""
-            try:
-                os.remove(self.path)
-            except FileNotFoundError:
-                raise NotFoundError
+            @operation(security=security)
+            async def put(self, value: Annotated[value_type, InBody]):
+                """Write file."""
+                tmp = self.path + ".__tmp"
+                content = codec.encode(value)
+                if compress:
+                    content = compress.compress(content)
+                try:
+                    async with aiofiles.open(tmp, "xb") as file:
+                        await file.write(content)
+                    os.replace(tmp, self.path)
+                except Exception as e:
+                    raise InternalServerError(f"cannot write file: {self.path}") from e
+
+            @operation(security=security)
+            async def delete(self):
+                """Delete file."""
+                try:
+                    os.remove(self.path)
+                except FileNotFoundError:
+                    raise NotFoundError
 
     affix_type_hints(FileResource, localns=locals())
     FileResource.__qualname__ = "FileResource"
@@ -97,21 +84,32 @@ def file_resource(
     path: str,
     value_type: type,
     compress: Any = None,
+    read_only: bool = False,
     security: Iterable[SecurityRequirement] = None,
 ) -> Any:
     """
     Return a new resource that manages a file.
 
     Parameters:
-    • path: Path in filesystem to file.
-    • value_type: Type of value stored in file.
-    • compress: Algorithm to compress and decompress file content.
-    • security: Security requirements to apply to file operations.
+    • path: path in filesystem to file
+    • value_type: type of value stored in file
+    • compress: algorithm to compress and decompress file content
+    • read_only: can file only be read
+    • security: security requirements to apply to file operations
 
     Compression algorithm is any object or module that exposes callable
     "compress" and "decompress" attributes. Examples: bz2, gzip, lzma, zlib.
     """
-    return _file_resource_class(value_type, compress, security)(path)
+    return _file_resource_class(
+        value_type=value_type, compress=compress, read_only=read_only, security=security
+    )(path)
+
+
+def _limit(requested):
+    upper = 1000
+    if not requested or requested < 0:
+        return upper
+    return min(requested, upper)
 
 
 def directory_resource(
@@ -138,42 +136,55 @@ def directory_resource(
     """
 
     codec = get_codec(String, key_type)
-
-    if extension is None:
-        extension = ""
-
     _path = os.path.expanduser((path).rstrip("/"))
-
     os.makedirs(_path, exist_ok=True)
 
-    FileResource = _file_resource_class(value_type, compress, security)
+    Page = make_page_dataclass("Page", value_type)
+
+    FileResource = _file_resource_class(
+        value_type=value_type, compress=compress, security=security
+    )
 
     @resource
     class DirectoryResource:
         @operation(security=security)
-        async def get(self) -> list[key_type]:
-            """Return a list of file keys."""
+        async def get(self, limit: int = None, cursor: bytes = None) -> Page:
+            """Return paginated list file keys."""
+            limit = _limit(limit)
+            if cursor is not None:
+                cursor = cursor.decode()
             try:
-                listdir = os.listdir(_path)
+                with os.scandir(_path) as entries:
+                    names = sorted(
+                        entry.name[: -len(extension)] if extension else entry.name
+                        for entry in entries
+                        if entry.is_file()
+                        and (not extension or entry.name.endswith(extension))
+                    )
             except FileNotFoundError:
                 raise InternalServerError(f"directory not found: {_path}")
-            keys = []
-            for name in (n for n in listdir if n.endswith(extension)):
-                if extension:
-                    name = name[: -len(extension)]
+            page = Page([])
+            for (counter, name) in enumerate(names, 1):
+                if cursor is not None:
+                    if name == cursor:
+                        cursor = None
+                    continue  # start with next item
                 try:
-                    keys.append(codec.decode(_unquote(name)))
+                    page.items.append(codec.decode(unquote(name)))
                 except ValueError:
                     continue  # ignore name that cannot be decoded
-            return keys
+                if len(page.items) == limit and counter < len(names):
+                    page.cursor = name.encode()
+                    page.remaining = len(names) - counter
+                    break
+            return page
 
         def __getitem__(self, key: key_type) -> FileResource:
-            return FileResource(f"{_path}/{_quote(codec.encode(key))}{extension}")
-
-    DirectoryResource.key_type = key_type
-    DirectoryResource.value_type = value_type
-    DirectoryResource.__qualname__ = "DirectoryResource"
+            return FileResource(
+                f"{_path}/{quote(codec.encode(key), safe='')}{extension if extension else ''}"
+            )
 
     affix_type_hints(DirectoryResource, localns=locals())
+    DirectoryResource.__qualname__ = "DirectoryResource"
 
     return DirectoryResource()
