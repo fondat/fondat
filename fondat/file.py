@@ -124,12 +124,12 @@ def directory_resource(
     Return a new resource that manages files in a directory.
 
     Parameters:
-    • path: Path to directory where files are stored.
-    • key_type: Type of key to identify file.
-    • value_type: Type of value stored in each file.
-    • extenson: Filename extension to use for each file (including dot).
-    • compress: Algorithm to compress and decompress file content.
-    • security: Security requirements to apply to all operations.
+    • path: path to directory where files are stored
+    • key_type: type of key to identify file
+    • value_type: type of value stored in each file
+    • extenson: filename extension to use for each file (including dot)
+    • compress: algorithm to compress and decompress file content
+    • security: Security requirements to apply to all operations
 
     Compression algorithm is any object or module that exposes callable
     "compress" and "decompress" attributes. Examples: bz2, gzip, lzma, zlib.
@@ -149,7 +149,7 @@ def directory_resource(
     class DirectoryResource:
         @operation(security=security)
         async def get(self, limit: int = None, cursor: bytes = None) -> Page:
-            """Return paginated list file keys."""
+            """Return paginated list of file keys."""
             limit = _limit(limit)
             if cursor is not None:
                 cursor = cursor.decode()
@@ -163,12 +163,12 @@ def directory_resource(
                     )
             except FileNotFoundError:
                 raise InternalServerError(f"directory not found: {_path}")
-            page = Page([])
+            page = Page(items=[], cursor=None, remaining=0)
             for (counter, name) in enumerate(names, 1):
                 if cursor is not None:
-                    if name == cursor:
-                        cursor = None
-                    continue  # start with next item
+                    if name <= cursor:
+                        continue
+                    cursor = None
                 try:
                     page.items.append(codec.decode(unquote(name)))
                 except ValueError:

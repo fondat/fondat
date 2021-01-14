@@ -8,6 +8,7 @@ import zlib
 from dataclasses import make_dataclass
 from fondat.error import InternalServerError, NotFoundError
 from fondat.file import directory_resource, file_resource
+from fondat.paging import paginate
 from fondat.resource import operation
 from tempfile import TemporaryDirectory
 
@@ -148,3 +149,19 @@ async def test_read_only():
             await fr.put(b"nope")
         with pytest.raises(AttributeError):
             await fr.delete()
+
+
+async def test_pagination():
+    with TemporaryDirectory() as dir:
+        count = 1000
+        for n in range(0, count):
+            with open(f"{dir}/{n:04d}.txt", "w") as file:
+                file.write(f"{n:04d}")
+        dr = directory_resource(path=dir, key_type=str, value_type=str, extension=".txt")
+        page = await dr.get(limit=100)
+        assert len(page.items) == 100
+        assert page.remaining == count - 100
+        page = await dr.get(limit=100, cursor=page.cursor)
+        assert len(page.items) == 100
+        assert page.remaining == count - 200
+        assert len([v async for v in paginate(dr.get)]) == count

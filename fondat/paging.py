@@ -18,22 +18,20 @@ class Page:
 @operation
 async def get(self, ..., limit: int = None, cursor: bytes = None) -> Page:
     ...
+    return Page(...)
 
 An operation should establish an upper limit of items to return in each page.
 If appropriate, the operation can also expose an optional "limit" parameter,
-which allows a caller to request a maximum number of items to be returned in
-the page. The operation should return no more items than requested, but can
-always elect to return less. If not specified, the operation should return an
-optimal number of items in a page.
+which allows a caller to suggest the number of items to be returned in the
+page. The operation is free to decide how many items to return.
 
-The "cursor" page dataclass attribute contains an opaque value that the caller
-supplies in a subsequent operation call to get the next page of items. If the
-"cursor" page attribute is None, then there are no more items (or pages) to be
-requested.
+The "cursor" page attribute contains an opaque value that the caller supplies
+in a subsequent operation call to get the next page of items. If the "cursor"
+attribute is None, then there are no more items (or pages) to be requested.
 
-The optional "remaining" page dataclass attribute contains an estimated number
-of items that are remaining after the current page. As this value is optional,
-it may not be returned by the operation.
+The optional "remaining" page attribute contains an estimated number of items
+remaining after the current page. As this value is optional, it may not be
+returned by the operation.
 """
 
 from collections.abc import Callable, Iterable
@@ -60,7 +58,7 @@ def make_page_dataclass(class_name: str, item_type: type):
     )
 
 
-async def paginate(operation: Callable, cursor: bytes = None, /, *args, **kwargs):
+async def paginate(operation: Callable, /, *args, **kwargs):
     """
     Wraps a paginated resource operation with an asynchronous generator that
     iterates through all values.
@@ -70,13 +68,11 @@ async def paginate(operation: Callable, cursor: bytes = None, /, *args, **kwargs
 
     Parameters:
     • operation: resource operation to wrap with generator
-    • cursor: initial cursor position to begin pagination
     • args: positional arguments to pass to resource operation
     • kwargs: keyword arguments to pass to resource operation
     """
 
-    cursor = {"cursor": cursor} if cursor is not None else {}
-
+    cursor = {}
     while cursor is not None:
         page = await operation(**kwargs, **cursor)
         cursor = {"cursor": page.cursor} if page.cursor is not None else None
