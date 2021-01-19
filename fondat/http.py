@@ -43,7 +43,6 @@ class Message:
         self.cookies = Cookies()
         self.body = None
 
-
 class Request(Message):
     """
     HTTP request.
@@ -54,6 +53,7 @@ class Request(Message):
     • body: Stream for request body, or None.
     • method: The HTTP method name, in uppper case.
     • path: HTTP request target excluding query string.
+    • version: Version of the incoming HTTP request.
     • query: Multi-value dictionary to store query string parameters.
     """
 
@@ -61,6 +61,7 @@ class Request(Message):
         super().__init__()
         self.method = "GET"
         self.path = "/"
+        self.version = "1.1"
         self.query = Query()
 
 

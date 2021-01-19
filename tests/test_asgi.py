@@ -53,7 +53,10 @@ async def test_simple():
         scheme="http",
         path="/",
         query_string=b"",
-        headers=(),
+        headers=(
+            (b"host", b"localhost:1234"),
+            (b"user-agent", b"Fonzilla/1.0"),
+        ),
     )
     send = Send()
     await asgi_app(app)(scope, Receive(), send)

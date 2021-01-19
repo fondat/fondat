@@ -37,7 +37,7 @@ class ReceiveStream(Stream):
         if event_type == "http.disconnect":
             raise RuntimeError  # TODO: better error type? CancelException?
         if event_type != "http.request.body":
-            raise TypeError("expecting HTTP request body")  # TODO: better error type?
+            raise InternalSererError("expecting HTTP request body")
         self._more = event.get("more_body", False)
         return event.get("body", b"")
 
@@ -48,11 +48,13 @@ def asgi_app(handler: Awaitable):
     async def app(scope, receive, send):
         """Coroutine that implements ASGI interface."""
         if scope["type"] != "http":
-            raise ValueError("expecting http scope")  # TODO: better error type?
+            raise InternalServerError("expecting http scope")
         request = fondat.http.Request()
         request.method = scope["method"]
         request.path = scope["path"]
-        request.headers.update(scope["headers"])
+        request.version = scope["http_version"]
+        for key, value in scope["headers"]:
+            request.headers.add(key.decode(), value.decode())
         for header in request.headers.popall("cookie", ()):
             request.cookies.load(header)
         request.query = fondat.http.Query(
