@@ -1,7 +1,7 @@
 # Hello World
 
-Here is a minimal Roax application that responds with `"Hello world!"` when
-the user-agent accesses [http://localhost:8000/hello](http://localhost:8000/hello).
+Here is a minimal Fondat application that responds with `"Hello world!"` when
+the user-agent accesses [http://localhost:8000/](http://localhost:8000/).
 
 ## example.py
 
@@ -20,12 +20,17 @@ class Hello:
 app = asgi_app(Application(Hello()))
 ```
 
+## Testing with Uvicorn
+
+```
+uvicorn example:app
+```
+
 ## Breaking it down
 
 Fondat organizes an application into resources, each containing a set of
-operations. A resource is defined by decorating a class with `@resource`.
+operations. A resource is defined by decorating a class with `@resource`:
 
-:
 ```python
 @resource
 class Hello:
@@ -33,6 +38,7 @@ class Hello:
 
 Each resource operation is decorated with `@operation`. In the `Hello`
 resource, a single `get` operation is defined: 
+
 ```python
     @operation
     async def get(self) -> str:
