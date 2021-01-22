@@ -276,13 +276,12 @@ class Database(fondat.sql.Database):
 
         except Exception as e:
 
-            # There is an issue in Python when an asynchronous context manager
-            # is created within an asynchronous generator: if the generator is
-            # not iterated fully, the context manager will not exit until the
-            # event loop cancels the task by raising a CancelledError, long
-            # after the context is assumed to be out of scope. PEP 533 proposes
-            # a solution, but to date has not been implemented. Until there is
-            # a fix, this warning is an attempt to surface the problem.
+            # There is an issue in Python when a context manager is created
+            # within a generator: if the generator is not iterated fully, the
+            # context manager will not exit until the event loop cancels the
+            # task by raising a CancelledError, long after the context is
+            # assumed to be out of scope. Until there is some kind of fix,
+            # this warning is an attempt to surface the problem.
             if type(e) is CancelledError:
                 _logger.warning(
                     "%s",
