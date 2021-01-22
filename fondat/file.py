@@ -33,7 +33,6 @@ def _file_resource_class(
 
     @resource
     class FileResource:
-
         def __init__(self, path):
             self.path = path
 

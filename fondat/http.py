@@ -43,6 +43,7 @@ class Message:
         self.cookies = Cookies()
         self.body = None
 
+
 class Request(Message):
     """
     HTTP request.
