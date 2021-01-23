@@ -9,6 +9,7 @@ import decimal
 import functools
 import io
 import json
+import keyword
 import wrapt
 
 from collections.abc import Iterable, Mapping, Set
@@ -1103,6 +1104,10 @@ def _iterable(codec_type, python_type):
 # ----- dataclass -----
 
 
+# keywords have _ suffix in dataclass fields (e.g. "in_", "for_", ...)
+_dc_kw = {k + "_": k for k in keyword.kwlist}
+
+
 @_provider
 def _dataclass(codec_type, python_type):
 
@@ -1110,6 +1115,13 @@ def _dataclass(codec_type, python_type):
         return
 
     if codec_type is JSON:
+
+        def dict_key(key):
+            if key.endswith("_"):
+                truncated = key[:-1]
+                if keyword.iskeyword(trunc):
+                    return truncated
+            return key
 
         if c := _building.get((codec_type, python_type)):
             return c  # return the (incomplete) outer one still being built
@@ -1135,7 +1147,7 @@ def _dataclass(codec_type, python_type):
                 for key in hints:
                     v = getattr(value, key)
                     if v is not None:
-                        result[key] = get_codec(JSON, hints[key]).encode(v)
+                        result[_dc_kw.get(key, key)] = get_codec(JSON, hints[key]).encode(v)
                 return result
 
             def decode(self, value: Any) -> python_type:
@@ -1144,7 +1156,7 @@ def _dataclass(codec_type, python_type):
                 for key in hints:
                     codec = get_codec(JSON, hints[key])
                     try:
-                        kwargs[key] = codec.decode(value[key])
+                        kwargs[key] = codec.decode(value[_dc_kw.get(key, key)])
                     except KeyError:
                         if key in noneables:
                             kwargs[key] = None

@@ -743,6 +743,15 @@ def test_dataclass_json_decode_error():
     _error(get_codec(JSON, DC).decode, {"djx": False})
 
 
+def test_dataclass_json_encode_decode_keyword():
+    DC = make_dataclass("DC", [("in_", str),("inn", str)])
+    codec = get_codec(JSON, DC)
+    dc = DC(in_="a", inn="b")
+    encoded = codec.encode(dc) 
+    assert encoded == {"in": "a", "inn": "b"}
+    assert codec.decode(encoded) == dc
+
+
 # ----- any -----
 
 
