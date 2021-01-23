@@ -5,7 +5,6 @@ from __future__ import annotations
 import aiosqlite
 import contextlib
 import contextvars
-import enum
 import fondat.codec
 import fondat.sql
 import functools
@@ -60,9 +59,6 @@ def _codec_provider(wrapped=None):
         return functools.partial(provider)
     codec_providers.append(wrapped)
     return wrapped
-
-
-# TODO: enum_codec_provider
 
 
 @_codec_provider
