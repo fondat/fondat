@@ -1147,7 +1147,9 @@ def _dataclass(codec_type, python_type):
                 for key in hints:
                     v = getattr(value, key)
                     if v is not None:
-                        result[_dc_kw.get(key, key)] = get_codec(JSON, hints[key]).encode(v)
+                        result[_dc_kw.get(key, key)] = get_codec(
+                            JSON, hints[key]
+                        ).encode(v)
                 return result
 
             def decode(self, value: Any) -> python_type:

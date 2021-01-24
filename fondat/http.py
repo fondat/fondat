@@ -14,7 +14,7 @@ import typing
 
 from collections.abc import Callable, Iterable
 from fondat.codec import Binary, String, get_codec
-from fondat.types import Stream, BytesStream, get_type_hints
+from fondat.types import Stream, BytesStream
 from fondat.validate import validate
 from typing import Annotated, Any
 
@@ -451,7 +451,7 @@ class Application:
             raise fondat.error.MethodNotAllowedError
         signature = inspect.signature(operation)
         params = {}
-        hints = get_type_hints(operation, include_extras=True)
+        hints = typing.get_type_hints(operation, include_extras=True)
         return_hint = hints.get("return", type(None))
         for name, hint in hints.items():
             if name == "return":
