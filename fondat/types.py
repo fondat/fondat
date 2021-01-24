@@ -3,9 +3,10 @@
 import dataclasses
 import functools
 import sys
+import typing
 
 from collections.abc import AsyncIterator, Iterable, Mapping
-from typing import Any, Union, get_type_hints
+from typing import Any, Union
 
 
 def affix_type_hints(obj=None, *, globalns=None, localns=None, attrs=True):
@@ -43,7 +44,7 @@ def affix_type_hints(obj=None, *, globalns=None, localns=None, attrs=True):
         )
 
     if getattr(obj, "__annotations__", None):
-        obj.__annotations__ = get_type_hints(
+        obj.__annotations__ = typing.get_type_hints(
             obj, globalns, localns, include_extras=True
         )
     if attrs:
@@ -55,29 +56,63 @@ def affix_type_hints(obj=None, *, globalns=None, localns=None, attrs=True):
     return obj
 
 
+def _is_optional(hint):
+    return typing.get_origin(hint) is Union and type(None) in typing.get_args(hint)
+
+
+class _MISSING:
+    pass
+
+
 def dataclass(cls, init=True, **kwargs):
     """
-    Decorates a class to be a data class.
+    Decorate a class to be a data class.
 
-    This decorator utilizes the Python dataclass decorator, except the added
-    __init__ method only accepts keyword arguments. This allows defaulted and
-    required attributes to be declared in any order. Any missing values during
-    initialization are defaulted to None.
+    This decorator uses the Python dataclass decorator, except:
+
+    • the __init__ method only accepts keyword arguments, and
+    • Optional values default to None if no default specified.
+
+    Attributes (defaulted or not) can be declared in any order.
     """
-
-    def __init__(self, **kwargs):
-        hints = get_type_hints(cls)
-        for key in kwargs:
-            if key not in hints:
-                raise TypeError(
-                    f"__init__() got an unexpected keyword argument '{key}'"
-                )
-        for key in hints:
-            setattr(self, key, kwargs.get(key, getattr(cls, key, None)))
 
     c = dataclasses.dataclass(cls, init=False, **kwargs)
 
     if init:
+
+        fields = {field.name: field for field in dataclasses.fields(c)}
+        hints = typing.get_type_hints(c)
+
+        def __init__(self, **kwargs):
+            for key in kwargs:
+                if key not in fields:
+                    raise TypeError(
+                        f"__init__() got an unexpected keyword argument '{key}'"
+                    )
+            missing = [
+                f"'{key}'"
+                for key, hint in hints.items()
+                if not _is_optional(hint)
+                and key not in kwargs
+                and fields[key].default is dataclasses.MISSING
+                and fields[key].default_factory is dataclasses.MISSING
+            ]
+            if missing:
+                raise TypeError(
+                    f"__init__() missing {len(missing)} required keyword-only "
+                    f"arguments: {', '.join(missing[0:-1])} and {missing[-1]}"
+                )
+            for key, field in fields.items():
+                value = kwargs.get(key, _MISSING)
+                if value is _MISSING:
+                    if field.default is not dataclasses.MISSING:
+                        value = field.default
+                    elif field.default_factory is not dataclasses.MISSING:
+                        value = field.default_factory()
+                    else:
+                        value = None
+                setattr(self, key, value)
+
         c.__init__ = __init__
 
     return c
