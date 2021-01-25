@@ -641,32 +641,6 @@ def test_bytes_str_decode_error():
     _error(get_codec(String, bytes).decode, 123)
 
 
-# ----- enum -----
-
-
-class enum_type(enum.Enum):
-    X_MEMBER = "x"
-    Y_MEMBER = "y"
-
-
-def test_enum_encodings():
-    _test_encoding(enum_type, enum_type.X_MEMBER)
-
-
-def test_enum_single_json_type():
-    assert get_codec(JSON, enum_type).json_type == str
-
-
-def test_enum_mixed_json_types():
-    class mixed(enum.Enum):
-        STR_MEMBER = "s"
-        INT_MEMBER = 1
-
-    codec = get_codec(JSON, mixed)
-    assert codec.decode("s") == mixed.STR_MEMBER
-    assert codec.decode(1) == mixed.INT_MEMBER
-
-
 # ----- union -----
 
 
@@ -744,10 +718,10 @@ def test_dataclass_json_decode_error():
 
 
 def test_dataclass_json_encode_decode_keyword():
-    DC = make_dataclass("DC", [("in_", str),("inn", str)])
+    DC = make_dataclass("DC", [("in_", str), ("inn", str)])
     codec = get_codec(JSON, DC)
     dc = DC(in_="a", inn="b")
-    encoded = codec.encode(dc) 
+    encoded = codec.encode(dc)
     assert encoded == {"in": "a", "inn": "b"}
     assert codec.decode(encoded) == dc
 

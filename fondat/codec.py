@@ -17,7 +17,7 @@ from dataclasses import dataclass, is_dataclass
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from enum import Enum
-from fondat.types import affix_type_hints
+from fondat.types import NoneType, affix_type_hints
 from fondat.validate import validate, validate_arguments
 from typing import Annotated, Any, Generic, Literal, TypeVar, TypedDict, Union
 from typing import get_origin, get_args, get_type_hints
@@ -25,9 +25,6 @@ from uuid import UUID
 
 
 providers = []
-
-
-NoneType = type(None)
 
 
 _TEXT_PLAIN = "text/plain; charset=UTF-8"
@@ -1298,89 +1295,6 @@ def _union(codec_type, python_type):
         return _Union_JSON()
 
 
-# ----- Enum -----
-
-
-@_provider
-def _enum(codec_type, python_type):
-
-    if not _issubclass(python_type, Enum):
-        return
-
-    def decode(codec_set, value):
-        for codec in codec_set:
-            try:
-                return getattr(codec, "decode")(value)
-            except:
-                continue
-        raise ValueError
-
-    if codec_type is String:
-
-        codecs = {
-            member: get_codec(String, type(member.value)) for member in python_type
-        }
-
-        codec_set = set(codecs.values())
-
-        @affix_type_hints(localns=locals())
-        class _Enum_String(String[python_type]):
-            @validate_arguments
-            def encode(self, value: python_type) -> str:
-                return codecs[value].encode(value.value)
-
-            @validate_arguments
-            def decode(self, value: str) -> python_type:
-                return python_type(decode(codec_set, value))
-
-        return _Enum_String()
-
-    if codec_type is Binary:
-
-        codecs = {
-            member: get_codec(Binary, type(member.value)) for member in python_type
-        }
-
-        codec_set = set(codecs.values())
-
-        @affix_type_hints(localns=locals())
-        class _Enum_Binary(Binary[python_type]):
-
-            content_type = "application/octet-stream"
-
-            @validate_arguments
-            def encode(self, value: python_type) -> bytes:
-                return codecs[value].encode(value.value)
-
-            @validate_arguments
-            def decode(self, value: Union[bytes, bytearray]) -> python_type:
-                return python_type(decode(codec_set, value))
-
-        return _Enum_Binary()
-
-    if codec_type is JSON:
-
-        codecs = {member: get_codec(JSON, type(member.value)) for member in python_type}
-
-        codec_set = set(codecs.values())
-        _json_type = Union[tuple(codec.json_type for codec in codecs.values())]
-
-        @affix_type_hints(localns=locals())
-        class _Enum_JSON(JSON[python_type]):
-
-            json_type = _json_type
-
-            @validate_arguments
-            def encode(self, value: python_type) -> _json_type:
-                return codecs[value].encode(value.value)
-
-            @validate_arguments
-            def decode(self, value: _json_type) -> python_type:
-                return python_type(decode(codec_set, value))
-
-        return _Enum_JSON()
-
-
 # ----- Literal -----
 
 
@@ -1528,7 +1442,7 @@ def _any(codec_type, python_type):
 
 @functools.cache
 def get_codec(codec_type, python_type):
-    """Return a specified codec type compatible with the specified Python type."""
+    """Return a codec compatible with the specified Python type."""
 
     if get_origin(python_type) is Annotated:
         python_type = get_args(python_type)[0]  # strip annotation
