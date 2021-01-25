@@ -1,5 +1,4 @@
 import dataclasses
-import enum
 import pytest
 import fondat.sql as sql
 import fondat.sqlite as sqlite
@@ -12,18 +11,6 @@ from uuid import UUID, uuid4
 
 
 pytestmark = pytest.mark.asyncio
-
-
-class StrEnum(enum.Enum):
-    A = "a"
-    B = "b"
-    C = "c"
-
-
-class IntEnum(enum.Enum):
-    ONE = 1
-    TWO = 2
-    THREE = 3
 
 
 @dataclass
@@ -39,8 +26,6 @@ class DC:
     bytes_: Optional[bytes]
     date_: Optional[date]
     datetime_: Optional[datetime]
-    str_enum_: Optional[StrEnum]
-    int_enum_: Optional[IntEnum]
 
 
 @pytest.fixture(scope="function")  # FIXME: scope to module with event_loop fixture?
@@ -71,8 +56,6 @@ async def test_crud(table):
         bytes_=b"12345",
         date_=date.fromisoformat("2019-01-01"),
         datetime_=datetime.fromisoformat("2019-01-01T01:01:01+00:00"),
-        str_enum_=StrEnum.A,
-        int_enum_=IntEnum.ONE,
     )
     async with table.database.transaction():
         await table.insert(row)
@@ -86,8 +69,6 @@ async def test_crud(table):
         row.bytes_ = None
         row.date_ = None
         row.datetime_ = None
-        row.str_enum_ = StrEnum.B
-        row.int_enum_ = IntEnum.TWO
         await table.update(row)
         assert await table.read(row.key) == row
         await table.delete(row.key)
@@ -130,8 +111,6 @@ async def test_list(table):
                 bytes_=None,
                 date_=None,
                 datetime_=None,
-                str_enum_=None,
-                int_enum_=None,
             )
             await table.insert(body)
         assert await table.count() == count
@@ -156,8 +135,6 @@ async def test_rollback(table):
                 bytes_=None,
                 date_=None,
                 datetime_=None,
-                str_enum_=None,
-                int_enum_=None,
             )
             await table.insert(row)
             raise RuntimeError  # force rollback
