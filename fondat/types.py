@@ -9,6 +9,9 @@ from collections.abc import AsyncIterator, Iterable, Mapping
 from typing import Any, Union
 
 
+NoneType = type(None)
+
+
 def affix_type_hints(obj=None, *, globalns=None, localns=None, attrs=True):
     """
     Affixes an object's type hints to the object by materializing evaluated
@@ -56,10 +59,6 @@ def affix_type_hints(obj=None, *, globalns=None, localns=None, attrs=True):
     return obj
 
 
-def _is_optional(hint):
-    return typing.get_origin(hint) is Union and type(None) in typing.get_args(hint)
-
-
 class _MISSING:
     pass
 
@@ -77,13 +76,14 @@ def dataclass(cls, init=True, **kwargs):
     """
 
     c = dataclasses.dataclass(cls, init=False, **kwargs)
+    fields = {field.name: field for field in dataclasses.fields(c)}
 
     if init:
 
-        fields = {field.name: field for field in dataclasses.fields(c)}
-        hints = typing.get_type_hints(c)
-
         def __init__(self, **kwargs):
+
+            hints = typing.get_type_hints(c)
+
             for key in kwargs:
                 if key not in fields:
                     raise TypeError(
@@ -92,7 +92,7 @@ def dataclass(cls, init=True, **kwargs):
             missing = [
                 f"'{key}'"
                 for key, hint in hints.items()
-                if not _is_optional(hint)
+                if not is_optional(hint)
                 and key not in kwargs
                 and fields[key].default is dataclasses.MISSING
                 and fields[key].default_factory is dataclasses.MISSING
@@ -161,6 +161,19 @@ class BytesStream(Stream):
         return result
 
 
+class Title:
+    """Type annotation to provide a textual title."""
+
+    def __init__(self, value: str):
+        self.value = value
+
+    def __repr__(self):
+        return f"Title({self.value!r})"
+
+    def __str__(self):
+        return str(self.value)
+
+
 class Description:
     """Type annotation to provide a textual description."""
 
@@ -185,3 +198,35 @@ class Example:
 
     def __str__(self):
         return str(self.value)
+
+
+def split_annotated(hint):
+    """Return a tuple containing the python type and annotations."""
+    if typing.get_origin(hint) is typing.Annotated:
+        args = typing.get_args(hint)
+        return args[0], args[1:]
+    return hint, ()
+
+
+def is_optional(hint):
+    """Return if the specified type is optional (i.e. is Union[..., None])."""
+    python_type, _ = split_annotated(hint)
+    return typing.get_origin(python_type) is Union and NoneType in typing.get_args(
+        python_type
+    )
+
+
+def is_subclass(cls, cls_or_tuple):
+    """A more forgiving issubclass."""
+    try:
+        return issubclass(cls, cls_or_tuple)
+    except:
+        return False
+
+
+def is_instance(obj, class_or_tuple):
+    """A more forgiving isinstance."""
+    try:
+        return isinstance(obj, class_or_tuple)
+    except:
+        return False
