@@ -17,13 +17,13 @@ they can be automatically exposed through an HTTP API.
 
 ## Features
 
-* Resource operations accessed through ASGI-based HTTP API.
+* Asynchronous uniform resource interface.
+* Resource operations accessed through HTTP API.
 * Type encoding and validation of resource operation parameters and return values.
 * Authorization to resource operations enforced through security policies.
 * Lightweight abstraction of SQL tables, indexes and queries.
 * Monitoring of resource operations and elapsed time in time series databases.
-* Generates [OpenAPI](https://www.openapis.org/) interface description, compatible with [Swagger UI](https://swagger.io/tools/swagger-ui/).
-* Asynchronous uniform resource interface.
+* Generates [OpenAPI](https://www.openapis.org/) documents, compatible with [Swagger UI](https://swagger.io/tools/swagger-ui/).
 
 ## Install
 

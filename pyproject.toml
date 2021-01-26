@@ -8,7 +8,7 @@ target-version = ['py38']
 
 [tool.poetry]
 name = "fondat-core"
-version = "3.0a16"
+version = "3.0b1"
 description = "A foundation for Python resource-oriented applications."
 readme = "README.md"
 authors = ["fondat-core authors"]
@@ -17,7 +17,7 @@ documentation = "https://github.com/fondat/fondat/tree/main/docs"
 license = "MIT"
 keywords = ["asgi", "framework", "resource", "openapi"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Topic :: Software Development :: Libraries :: Application Frameworks",
 ]
