@@ -1,5 +1,9 @@
 """OpenAPI module for Fondat."""
 
+# TODO: tags
+# TODO: components for dataclasses
+
+
 from __future__ import annotations
 
 import dataclasses
@@ -17,6 +21,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from fondat.resource import resource, operation
 from fondat.types import dataclass, is_instance, is_optional, is_subclass
+from fondat.types import NoneType
 from typing import Any, Literal, Optional, TypedDict, Union
 from uuid import UUID
 
@@ -438,6 +443,11 @@ def _operation(method):
                 )
             )
 
+    if "return" not in hints:
+        op.responses[str(http.HTTPStatus.NO_CONTENT.value)] = Response(
+            description="No content.",
+        )
+
     if not op.parameters:
         op.parameters = None
 
@@ -592,7 +602,6 @@ def _mapping_schema(python_type, annotated, origin, args):
         return Schema(
             type="object",
             properties={},
-            required=[],
             additionalProperties=get_schema(args[1]),
         )
 
@@ -630,20 +639,21 @@ _dc_kw = {k + "_": k for k in keyword.kwlist}
 def _dataclass_schema(python_type, annotated, origin, args):
     if dataclasses.is_dataclass(python_type):
         hints = typing.get_type_hints(python_type, include_extras=True)
-        return Schema(
-            type="object",
-            properties={
-                _dc_kw.get(key, key): get_schema(pytype)
-                for key, pytype in hints.items()
-            },
-            required=[
-                f.name
-                for f in dataclasses.fields(python_type)
-                if f.default is dataclasses.MISSING
-                and f.default_factory is dataclasses.MISSING
-            ],
-            additionalProperties=False,
-        )
+        required = {
+            f.name
+            for f in dataclasses.fields(python_type)
+            if f.default is dataclasses.MISSING
+            and f.default_factory is dataclasses.MISSING
+            and not is_optional(hints[f.name])
+        }
+        properties = {
+            _dc_kw.get(key, key): get_schema(pytype)
+            for key, pytype in hints.items()
+        }
+        for key, schema in properties.items():
+            if key not in required:
+                schema.nullable = None
+        return Schema(type="object", properties=properties, required=required, additionalProperties=False)
 
 
 # ----- Union -----
