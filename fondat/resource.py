@@ -189,8 +189,8 @@ def inner(
     • validate: Validate method arguments.
 
     This decorator creates a new resource class, with a single operation that
-    implements the decorated method. The decorated method, at time of
-    invocation, is bound to the original outer resource instance.
+    implements the decorated method. The decorated method is bound to the
+    original outer resource instance where it was defined.
     """
 
     if wrapped is None:
@@ -232,7 +232,7 @@ def inner(
     setattr(Inner, method, proxy)
     setattr(Inner, "__call__", proxy)
 
-    def res(self):
+    def res(self) -> Inner:
         return Inner(self)
 
     res.__doc__ = wrapped.__doc__

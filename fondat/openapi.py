@@ -3,15 +3,19 @@
 from __future__ import annotations
 
 import dataclasses
+import fondat.codec
 import fondat.http
 import fondat.types
 import functools
+import http
+import inspect
 import keyword
 import typing
 
 from collections.abc import Iterable, Mapping
 from datetime import date, datetime
 from decimal import Decimal
+from fondat.resource import resource, operation
 from fondat.types import dataclass, is_instance, is_optional, is_subclass
 from typing import Any, Literal, Optional, TypedDict, Union
 from uuid import UUID
@@ -108,7 +112,7 @@ class PathItem:
     patch: Optional[Operation]
     trace: Optional[Operation]
     servers: Optional[Iterable[Server]]
-    parameters: Optional[Union[Parameter, Reference]]
+    parameters: Optional[Iterable[Union[Parameter, Reference]]]
 
 
 Reference = TypedDict("Reference", {"$ref": str})
@@ -274,7 +278,7 @@ class Schema:
     anyOf: Optional[Iterable[Schema]]
     not_: Optional[Schema]
     items: Optional[Schema]
-    properties: Optional[Iterable[Schema]]
+    properties: Optional[Mapping[str, Schema]]
     additionalProperties: Optional[Union[bool, Schema]]
     description: Optional[str]
     format: Optional[str]
@@ -341,29 +345,33 @@ SecurityRequirement = Mapping[str, Iterable[str]]
 _affix(SecurityRequirement)
 
 
-# graph complete; now affix all type hints to avoid overhead
-for a in _to_affix:
-    fondat.types.affix_type_hints(a)
+# OpenAPI document graph complete; affix all type hints to avoid overhead
+for dc in _to_affix:
+    fondat.types.affix_type_hints(dc)
 
 
-async def _resource(attr):
+def _resource(attr):
+
+    # property not yet bound as descriptor; use its underlying function
+    if is_instance(attr, property):
+        attr = attr.fget
 
     # instance of a resource class
-    if getattr(attr, "_fondat_resource", None) and type(attr) is not type:
+    if hasattr(attr, "_fondat_resource") and type(attr) is not type:
         return type(attr)
 
     # callable that returns a resource
-    if callable(attr):
-        returns = typing.get_type_hints(attr).get("returns", None)
-        if getattr(returns, "_fondat_resource", None):
-            return attr
+    if callable(attr) and hasattr(attr, "__annotations__"):
+        try:
+            hints = typing.get_type_hints(attr)
+        except:
+            return
+        returns = hints.get("return", None)
+        if hasattr(returns, "_fondat_resource"):
+            return returns
 
 
 _ops = {"get", "put", "post", "delete", "options", "head", "patch", "trace"}
-
-
-def _params(params, in_):
-    return []
 
 
 def _description(annotated):
@@ -390,17 +398,17 @@ def _operation(method):
         op.deprecated = True
 
     hints = typing.get_type_hints(method, include_extras=True)
-    parameters = inspect.signature().parameters
+    parameters = inspect.signature(method).parameters
 
     for name, hint in hints.items():
 
-        python_type, annotated = split_annotated(hint)
+        python_type, annotated = fondat.types.split_annotated(hint)
 
         if name == "return":
             op.responses[str(http.HTTPStatus.OK.value)] = Response(
-                description=_description(annotated),
+                description=_description(annotated) or "Response.",
                 content={
-                    get_codec(Binary, hint).content_type: MediaType(
+                    fondat.codec.get_codec(fondat.codec.Binary, hint).content_type: MediaType(
                         schema=get_schema(hint)
                     )
                 },
@@ -411,7 +419,7 @@ def _operation(method):
             op.requestBody = RequestBody(
                 description=_description(annotated),
                 content={
-                    get_codec(Binary, hint).content_type: MediaType(
+                    fondat.codec.get_codec(fondat.codec.Binary, hint).content_type: MediaType(
                         schema=get_schema(hint)
                     )
                 },
@@ -430,25 +438,26 @@ def _operation(method):
                 )
             )
 
+    if not op.parameters:
+        op.parameters = None
+
     return op
 
 
 def _process(doc, resource, path, params={}):
-
     path_item = PathItem(
         parameters=[
             Parameter(
                 name=key,
                 in_="path",
-                required=not is_optional(hint),
+                required=True,
                 schema=get_schema(hint),
             )
             for key, hint in params.items()
-        ]
+        ] or None
     )
-
-    for name, attr in vars(resource):
-
+    for name in dir(resource):
+        attr = getattr(resource, name)
         if res := _resource(attr):
             if name == "__getitem__":
                 param_name, param_type = next(iter(get_type_hints(attr).items()))
@@ -461,7 +470,6 @@ def _process(doc, resource, path, params={}):
                 )
             else:
                 _process(doc, res, f"{path}/{name}", params)
-
         elif name in _ops and callable(attr):
             setattr(path_item, name, _operation(attr))
             doc.paths[path] = path_item
@@ -566,7 +574,7 @@ def _int_schema(python_type, annotated, *_):
 @_schema_provider
 def _typeddict_schema(python_type, annotated, origin, args):
     if is_subclass(python_type, dict) and hasattr(python_type, "__annotations__"):
-        hints = typing.get_type_hints(python_type, include_extra=True)
+        hints = typing.get_type_hints(python_type, include_extras=True)
         return Schema(
             type="object",
             properties={key: get_schema(pytype) for key, pytype in hints.items()},
@@ -597,9 +605,10 @@ def _iterable_schema(python_type, annotated, origin, args):
     if (
         is_subclass(origin, Iterable)
         and not is_subclass(origin, Mapping)
-        and len(args) == 0
+        and len(args) == 1
     ):
-        is_set = issubclass(origin, Set)
+        kwargs = {}
+        is_set = issubclass(origin, set)
         for annotation in annotated:
             if is_instance(annotation, typing.MinLen):
                 kwargs["minItems"] = annotation.value
@@ -620,7 +629,7 @@ _dc_kw = {k + "_": k for k in keyword.kwlist}
 @_schema_provider
 def _dataclass_schema(python_type, annotated, origin, args):
     if dataclasses.is_dataclass(python_type):
-        hints = typing.get_type_hints(python_type, include_extra=True)
+        hints = typing.get_type_hints(python_type, include_extras=True)
         return Schema(
             type="object",
             properties={
@@ -683,3 +692,35 @@ def get_schema(type_hint):
             return schema
 
     raise TypeError(f"failed to determine JSON Schema for {python_type}")
+
+
+def generate_openapi(root: Any, info: Info) -> OpenAPI:
+    """
+    Generate an OpenAPI document.
+
+    Parameters:
+    • root: Root resource to generate OpenAPI document on.
+    • info: Provides metadata about the API.
+    """
+    doc = OpenAPI(openapi="3.0.2", info=info, paths={})
+    _process(doc, root, "")
+    return doc
+
+
+def openapi_resource(root: Any, info: Info):
+    """
+    Generate a resource that exposes an OpenAPI document.
+
+    Parameters:
+    • root: Root resource to generate OpenAPI document on.
+    • info: Provides metadata about the API.
+    """
+    doc = generate_openapi(root, info)
+
+    @resource
+    class OpenAPIResource:
+        @operation
+        async def get(self) -> OpenAPI:
+            return doc
+
+    return OpenAPIResource()
