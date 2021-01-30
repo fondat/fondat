@@ -100,7 +100,11 @@ def dataclass(cls, init=True, **kwargs):
             if missing:
                 raise TypeError(
                     f"__init__() missing {len(missing)} required keyword-only "
-                    f"arguments: {', '.join(missing[0:-1])} and {missing[-1]}"
+                    + (
+                        f"arguments: {', '.join(missing[0:-1])} and {missing[-1]}"
+                        if len(missing) > 1
+                        else f"argument: {missing[0]}"
+                    )
                 )
             for key, field in fields.items():
                 value = kwargs.get(key, _MISSING)

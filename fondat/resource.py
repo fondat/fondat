@@ -213,7 +213,7 @@ def inner(
     if validate:
         _wrapped = fondat.validate.validate_arguments(_wrapped)
 
-    @resource
+    @resource(tag="__inner__")
     class Inner:
         def __init__(self, outer):
             self.outer = outer
