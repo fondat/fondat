@@ -276,7 +276,7 @@ def mutation(wrapped=None, *, method: str = "post", **kwargs):
 @resource
 class Container:
     """
-    A resource to contain subordinate resources.
+    A resource to contain subordinate resources. 
 
     Parameters:
     • resources: mapping of attribute names to resources
