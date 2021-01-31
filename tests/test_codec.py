@@ -451,15 +451,11 @@ def test_date_encodings():
 
 
 def test_date_json_encode_success_naive():
-    assert (
-        get_codec(JSON, datetime.date).encode(datetime.date(2016, 7, 8)) == "2016-07-08"
-    )
+    assert get_codec(JSON, datetime.date).encode(datetime.date(2016, 7, 8)) == "2016-07-08"
 
 
 def test_date_json_encode_success_aware():
-    assert (
-        get_codec(JSON, datetime.date).encode(datetime.date(2017, 6, 7)) == "2017-06-07"
-    )
+    assert get_codec(JSON, datetime.date).encode(datetime.date(2017, 6, 7)) == "2017-06-07"
 
 
 def test_date_json_encode_error():
@@ -467,21 +463,15 @@ def test_date_json_encode_error():
 
 
 def test_date_json_decode_z():
-    assert get_codec(JSON, datetime.date).decode("2018-08-09") == datetime.date(
-        2018, 8, 9
-    )
+    assert get_codec(JSON, datetime.date).decode("2018-08-09") == datetime.date(2018, 8, 9)
 
 
 def test_date_json_decode_offset():
-    assert get_codec(JSON, datetime.date).decode("2019-09-10") == datetime.date(
-        2019, 9, 10
-    )
+    assert get_codec(JSON, datetime.date).decode("2019-09-10") == datetime.date(2019, 9, 10)
 
 
 def test_date_json_decode_missing_tz():
-    assert get_codec(JSON, datetime.date).decode("2020-10-11") == datetime.date(
-        2020, 10, 11
-    )
+    assert get_codec(JSON, datetime.date).decode("2020-10-11") == datetime.date(2020, 10, 11)
 
 
 def test_date_json_decode_error():
@@ -504,9 +494,7 @@ def test_datetime_encodings():
 
 def test_datetime_json_encode_success_naive():
     assert (
-        get_codec(JSON, datetime.datetime).encode(
-            datetime.datetime(2016, 7, 8, 9, 10, 11)
-        )
+        get_codec(JSON, datetime.datetime).encode(datetime.datetime(2016, 7, 8, 9, 10, 11))
         == "2016-07-08T09:10:11Z"
     )
 
@@ -697,9 +685,7 @@ def test_dataclass_json_encode_error():
 
 def test_dataclass_json_decode_success():
     DC = make_dataclass("DC", [("dja", float), ("djb", bool)])
-    assert get_codec(JSON, DC).decode({"dja": 802.11, "djb": True}) == DC(
-        dja=802.11, djb=True
-    )
+    assert get_codec(JSON, DC).decode({"dja": 802.11, "djb": True}) == DC(dja=802.11, djb=True)
 
 
 def test_dataclass_json_decode_default_success():

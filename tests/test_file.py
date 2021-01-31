@@ -157,9 +157,7 @@ async def test_pagination():
         for n in range(0, count):
             with open(f"{dir}/{n:04d}.txt", "w") as file:
                 file.write(f"{n:04d}")
-        dr = directory_resource(
-            path=dir, key_type=str, value_type=str, extension=".txt"
-        )
+        dr = directory_resource(path=dir, key_type=str, value_type=str, extension=".txt")
         page = await dr.get(limit=100)
         assert len(page.items) == 100
         assert page.remaining == count - 100

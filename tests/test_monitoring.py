@@ -19,18 +19,10 @@ async def test_simple_counter_type():
     _type = "counter"
     simple.track("test", _type, _tags, 60, 60)
     await simple.record(Measurement(_tags, _dt("2018-12-01T00:00:00Z"), _type, 1))
-    await simple.record(
-        Measurement(_tags, _dt("2018-12-01T00:00:10.100000Z"), _type, 2)
-    )
-    await simple.record(
-        Measurement(_tags, _dt("2018-12-01T00:00:20.200000Z"), _type, 3)
-    )
-    await simple.record(
-        Measurement(_tags, _dt("2018-12-01T00:00:30.300000Z"), _type, 4)
-    )
-    await simple.record(
-        Measurement(_tags, _dt("2018-12-01T00:00:59.999999Z"), _type, 5)
-    )
+    await simple.record(Measurement(_tags, _dt("2018-12-01T00:00:10.100000Z"), _type, 2))
+    await simple.record(Measurement(_tags, _dt("2018-12-01T00:00:20.200000Z"), _type, 3))
+    await simple.record(Measurement(_tags, _dt("2018-12-01T00:00:30.300000Z"), _type, 4))
+    await simple.record(Measurement(_tags, _dt("2018-12-01T00:00:59.999999Z"), _type, 5))
     await simple.record(Measurement(_tags, _dt("2018-12-01T00:01:01Z"), _type, 10))
     await simple.record(Measurement(_tags, _dt("2018-12-01T00:01:02Z"), _type, 20))
     await simple.record(Measurement(_tags, _dt("2018-12-01T00:01:03Z"), _type, 30))
@@ -128,9 +120,7 @@ async def test_simple_untracked_tag_ignore():
     simple = fondat.monitoring.SimpleMonitor()
     _type = "absolute"
     simple.track("test", _type, _tags, 60, 60)
-    await simple.record(
-        Measurement({"another": "tag"}, _dt("2018-12-01T00:00:00Z"), _type, 1)
-    )
+    await simple.record(Measurement({"another": "tag"}, _dt("2018-12-01T00:00:00Z"), _type, 1))
     assert len(simple.series["test"].data) == 0
 
 
@@ -153,18 +143,10 @@ async def test_simple_pattern_match():
     simple = fondat.monitoring.SimpleMonitor()
     _type = "absolute"
     simple.track("test", _type, {"name": "foo\\..+"}, 60, 60)
-    await simple.record(
-        Measurement({"name": "foo.bar"}, _dt("2018-12-01T00:01:00Z"), _type, 1)
-    )
-    await simple.record(
-        Measurement({"name": "foo"}, _dt("2018-12-01T00:02:00Z"), _type, 1)
-    )
-    await simple.record(
-        Measurement({"name": "foo."}, _dt("2018-12-01T00:03:00Z"), _type, 1)
-    )
-    await simple.record(
-        Measurement({"name": "qux.bar"}, _dt("2018-12-01T00:04:00Z"), _type, 2)
-    )
+    await simple.record(Measurement({"name": "foo.bar"}, _dt("2018-12-01T00:01:00Z"), _type, 1))
+    await simple.record(Measurement({"name": "foo"}, _dt("2018-12-01T00:02:00Z"), _type, 1))
+    await simple.record(Measurement({"name": "foo."}, _dt("2018-12-01T00:03:00Z"), _type, 1))
+    await simple.record(Measurement({"name": "qux.bar"}, _dt("2018-12-01T00:04:00Z"), _type, 2))
     data = simple.series["test"].data
     assert len(data) == 1
 
@@ -182,9 +164,7 @@ async def test_simple_type_future_error():
     simple = fondat.monitoring.SimpleMonitor()
     simple.track("test", "absolute", _tags, 60, 60)
     with pytest.raises(ValueError):
-        await simple.record(
-            Measurement(_tags, _now() + timedelta(seconds=1), "absolute", 1)
-        )
+        await simple.record(Measurement(_tags, _now() + timedelta(seconds=1), "absolute", 1))
 
 
 def test_simple_duplicate_series_error():
@@ -252,8 +232,6 @@ async def test_monitors():
     m2 = fondat.monitoring.DequeMonitor()
     monitors["m1"] = m1
     monitors["m2"] = m2
-    await monitors.record(
-        Measurement(_tags, _dt("2018-12-01T00:00:01Z"), "absolute", 1)
-    )
+    await monitors.record(Measurement(_tags, _dt("2018-12-01T00:00:01Z"), "absolute", 1))
     assert len(m1.deque) == 1
     assert len(m2.deque) == 1
