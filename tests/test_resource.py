@@ -1,5 +1,7 @@
 import pytest
 
+import fondat.resource
+
 from dataclasses import dataclass
 from fondat.resource import resource, operation, query, mutation
 from typing import Optional
@@ -62,3 +64,21 @@ async def test_valid_args():
 async def test_invalid_args():
     with pytest.raises(TypeError):
         await R1().baz(1, "hello")
+
+
+@resource
+class R2:
+    @operation
+    async def get(self) -> str:
+        return "str"
+
+
+def test_container():
+    root = fondat.resource.Container(
+        {
+            "r1": R1(),
+            "r2": R2(),
+        }
+    )
+    assert root.r1.__class__ is R1
+    assert root.r2.__class__ is R2

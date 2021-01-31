@@ -15,12 +15,14 @@ import asyncio
 import functools
 import inspect
 import fondat.context as context
+import fondat.lazy
 import fondat.monitoring as monitoring
 import fondat.validation
+import threading
 import types
 import wrapt
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from fondat.error import ForbiddenError, UnauthorizedError
 from fondat.security import SecurityRequirement
 from typing import Any
@@ -269,3 +271,28 @@ def mutation(wrapped=None, *, method: str = "post", **kwargs):
         )
 
     return inner(wrapped, op_type="mutation", method=method, **kwargs)
+
+
+@resource
+class Container:
+    """
+    A resource to contain subordinate resources.
+
+    Parameters:
+    • resources: mapping of attribute names to resources
+    """
+
+    def __init__(self, resources: Mapping[str, type]):
+        self._resources = resources
+        self._lock = threading.Lock()
+
+    def __getattr__(self, name: str) -> type:
+        with self._lock:
+            try:
+                resource = self._resources[name]
+            except KeyError:
+                raise AttributeError(
+                    f"'{self.__class__.__name__}' object has no attribute '{name}'"
+                )
+            setattr(self, name, resource)  # retrieve as attribute next time
+            return resource
