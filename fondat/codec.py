@@ -1,4 +1,4 @@
-"""Module to encode and decode values."""
+"""Module to support encoding and decoding of values."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 from enum import Enum
 from fondat.types import NoneType, affix_type_hints
-from fondat.validate import validate, validate_arguments
+from fondat.validation import validate, validate_arguments
 from typing import Annotated, Any, Generic, Literal, TypeVar, TypedDict, Union
 from typing import get_origin, get_args, get_type_hints
 from uuid import UUID
@@ -954,17 +954,12 @@ def _mapping(codec_type, python_type):
 
             @validate_arguments
             def encode(self, value: python_type) -> _json_type:
-                return {
-                    key_codec.encode(k): value_codec.encode(v) for k, v in value.items()
-                }
+                return {key_codec.encode(k): value_codec.encode(v) for k, v in value.items()}
 
             @validate_arguments
             def decode(self, value: _json_type) -> python_type:
                 return python_type(
-                    {
-                        key_codec.decode(k): value_codec.decode(v)
-                        for k, v in value.items()
-                    }
+                    {key_codec.decode(k): value_codec.decode(v) for k, v in value.items()}
                 )
 
         return _Mapping_JSON()
@@ -1073,9 +1068,7 @@ def _iterable(codec_type, python_type):
 
             @validate_arguments
             def decode(self, value: str) -> python_type:
-                return python_type(
-                    (item_codec.decode(item) for item in _csv_decode(value))
-                )
+                return python_type((item_codec.decode(item) for item in _csv_decode(value)))
 
         return _Iterable_String()
 
@@ -1144,9 +1137,7 @@ def _dataclass(codec_type, python_type):
                 for key in hints:
                     v = getattr(value, key)
                     if v is not None:
-                        result[_dc_kw.get(key, key)] = get_codec(
-                            JSON, hints[key]
-                        ).encode(v)
+                        result[_dc_kw.get(key, key)] = get_codec(JSON, hints[key]).encode(v)
                 return result
 
             def decode(self, value: Any) -> python_type:

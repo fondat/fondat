@@ -3,7 +3,7 @@ requires = ["poetry>=1.1"]
 build-backend = "poetry.masonry.api"
 
 [tool.black]
-line-length = 88
+line-length = 96
 target-version = ['py38']
 
 [tool.poetry]

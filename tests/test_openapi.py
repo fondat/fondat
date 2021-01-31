@@ -6,7 +6,7 @@ import json
 from dataclasses import dataclass
 from fondat.codec import get_codec, JSON, String
 from fondat.resource import resource, operation, query, mutation
-from fondat.validate import validate
+from fondat.validation import validate
 from typing import Annotated as A, Optional
 from uuid import UUID
 

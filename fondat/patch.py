@@ -1,4 +1,4 @@
-"""Document patch module."""
+"""Document partial modification (patch) module."""
 
 import collections.abc
 import copy

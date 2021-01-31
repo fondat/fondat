@@ -1,10 +1,10 @@
 import fondat.codec
-import fondat.monitor
+import fondat.monitoring
 import pytest
 
 from datetime import datetime, timedelta, timezone
 from fondat.codec import String, get_codec
-from fondat.monitor import Measurement
+from fondat.monitoring import Measurement
 
 _tags = {"name": "test"}
 
@@ -15,7 +15,7 @@ _now = lambda: datetime.now(tz=timezone.utc)
 
 @pytest.mark.asyncio
 async def test_simple_counter_type():
-    simple = fondat.monitor.SimpleMonitor()
+    simple = fondat.monitoring.SimpleMonitor()
     _type = "counter"
     simple.track("test", _type, _tags, 60, 60)
     await simple.record(Measurement(_tags, _dt("2018-12-01T00:00:00Z"), _type, 1))
@@ -50,7 +50,7 @@ async def test_simple_counter_type():
 
 @pytest.mark.asyncio
 async def test_simple_gauge_type():
-    simple = fondat.monitor.SimpleMonitor()
+    simple = fondat.monitoring.SimpleMonitor()
     _type = "gauge"
     simple.track("test", _type, _tags, 60, 60)
     await simple.record(Measurement(_tags, _dt("2018-12-01T00:00:00Z"), _type, 1))
@@ -83,7 +83,7 @@ async def test_simple_gauge_type():
 
 @pytest.mark.asyncio
 async def test_simple_absolute_type():
-    simple = fondat.monitor.SimpleMonitor()
+    simple = fondat.monitoring.SimpleMonitor()
     _type = "absolute"
     simple.track("test", _type, _tags, 60, 60)
     await simple.record(Measurement(_tags, _dt("2018-12-01T00:00:00Z"), _type, 1))
@@ -110,7 +110,7 @@ async def test_simple_absolute_type():
 
 @pytest.mark.asyncio
 async def test_simple_truncation():
-    simple = fondat.monitor.SimpleMonitor()
+    simple = fondat.monitoring.SimpleMonitor()
     _type = "absolute"
     simple.track("test", _type, _tags, 3, 60)
     start = _dt("2018-12-01T00:00:00Z")
@@ -125,7 +125,7 @@ async def test_simple_truncation():
 
 @pytest.mark.asyncio
 async def test_simple_untracked_tag_ignore():
-    simple = fondat.monitor.SimpleMonitor()
+    simple = fondat.monitoring.SimpleMonitor()
     _type = "absolute"
     simple.track("test", _type, _tags, 60, 60)
     await simple.record(
@@ -136,7 +136,7 @@ async def test_simple_untracked_tag_ignore():
 
 @pytest.mark.asyncio
 async def test_simple_backdate_preserve_order():
-    simple = fondat.monitor.SimpleMonitor()
+    simple = fondat.monitoring.SimpleMonitor()
     _type = "absolute"
     simple.track("test", _type, _tags, 60, 60)
     await simple.record(Measurement(_tags, _dt("2018-12-01T00:01:00Z"), _type, 1))
@@ -150,7 +150,7 @@ async def test_simple_backdate_preserve_order():
 
 @pytest.mark.asyncio
 async def test_simple_pattern_match():
-    simple = fondat.monitor.SimpleMonitor()
+    simple = fondat.monitoring.SimpleMonitor()
     _type = "absolute"
     simple.track("test", _type, {"name": "foo\\..+"}, 60, 60)
     await simple.record(
@@ -171,7 +171,7 @@ async def test_simple_pattern_match():
 
 @pytest.mark.asyncio
 async def test_simple_type_mismatch_error():
-    simple = fondat.monitor.SimpleMonitor()
+    simple = fondat.monitoring.SimpleMonitor()
     simple.track("test", "absolute", _tags, 60, 60)
     with pytest.raises(ValueError):
         await simple.record(Measurement(_tags, _dt("2018-12-01T00:01:00Z"), "gauge", 1))
@@ -179,7 +179,7 @@ async def test_simple_type_mismatch_error():
 
 @pytest.mark.asyncio
 async def test_simple_type_future_error():
-    simple = fondat.monitor.SimpleMonitor()
+    simple = fondat.monitoring.SimpleMonitor()
     simple.track("test", "absolute", _tags, 60, 60)
     with pytest.raises(ValueError):
         await simple.record(
@@ -188,21 +188,21 @@ async def test_simple_type_future_error():
 
 
 def test_simple_duplicate_series_error():
-    simple = fondat.monitor.SimpleMonitor()
+    simple = fondat.monitoring.SimpleMonitor()
     simple.track("test", "absolute", _tags, 60, 60)
     with pytest.raises(ValueError):
         simple.track("test", "absolute", _tags, 60, 60)
 
 
 def test_simple_invalid_data_series_type():
-    simple = fondat.monitor.SimpleMonitor()
+    simple = fondat.monitoring.SimpleMonitor()
     with pytest.raises(ValueError):
         simple.track("test", "foobar", _tags, 60, 60)
 
 
 @pytest.mark.asyncio
 async def test_deque_truncate():
-    monitor = fondat.monitor.DequeMonitor(size=2)
+    monitor = fondat.monitoring.DequeMonitor(size=2)
     # should be truncated
     await monitor.record(Measurement(_tags, _dt("2018-12-01T00:00:00Z"), "absolute", 1))
     await monitor.record(Measurement(_tags, _dt("2018-12-01T00:00:01Z"), "absolute", 2))
@@ -215,8 +215,8 @@ async def test_deque_truncate():
 
 @pytest.mark.asyncio
 async def test_deque_pop_all():
-    m1 = fondat.monitor.DequeMonitor()
-    m2 = fondat.monitor.DequeMonitor()
+    m1 = fondat.monitoring.DequeMonitor()
+    m2 = fondat.monitoring.DequeMonitor()
     await m1.record(Measurement(_tags, _dt("2018-12-01T00:00:01Z"), "absolute", 1))
     await m1.record(Measurement(_tags, _dt("2018-12-01T00:00:02Z"), "absolute", 2))
     await m1.pop(m2)
@@ -228,8 +228,8 @@ async def test_deque_pop_all():
 
 @pytest.mark.asyncio
 async def test_deque_pop_cap():
-    m1 = fondat.monitor.DequeMonitor()
-    m2 = fondat.monitor.DequeMonitor()
+    m1 = fondat.monitoring.DequeMonitor()
+    m2 = fondat.monitoring.DequeMonitor()
     await m1.record(Measurement(_tags, _dt("2018-12-01T00:00:01Z"), "absolute", 1))
     await m1.record(Measurement(_tags, _dt("2018-12-01T00:00:02Z"), "absolute", 2))
     await m1.record(Measurement(_tags, _dt("2018-12-01T00:00:03Z"), "absolute", 3))
@@ -247,9 +247,9 @@ async def test_deque_pop_cap():
 
 @pytest.mark.asyncio
 async def test_monitors():
-    monitors = fondat.monitor.Monitors()
-    m1 = fondat.monitor.DequeMonitor()
-    m2 = fondat.monitor.DequeMonitor()
+    monitors = fondat.monitoring.Monitors()
+    m1 = fondat.monitoring.DequeMonitor()
+    m2 = fondat.monitoring.DequeMonitor()
     monitors["m1"] = m1
     monitors["m2"] = m2
     await monitors.record(

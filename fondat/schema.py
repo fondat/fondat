@@ -5,7 +5,7 @@ from __future__ import annotations
 import dataclasses
 import fondat.http
 import fondat.types
-import fondat.validate
+import fondat.validation
 import functools
 import keyword
 import typing
@@ -156,11 +156,11 @@ def _str_schema(python_type, annotated, *_):
     if is_subclass(python_type, str):
         kwargs = {}
         for annotation in annotated:
-            if is_instance(annotation, fondat.validate.MinLen):
+            if is_instance(annotation, fondat.validation.MinLen):
                 kwargs["minLength"] = annotation.value
-            elif is_instance(annotation, fondat.validate.MaxLen):
+            elif is_instance(annotation, fondat.validation.MaxLen):
                 kwargs["maxLength"] = annotation.value
-            elif is_instance(annotation, fondat.validate.Pattern):
+            elif is_instance(annotation, fondat.validation.Pattern):
                 kwargs["pattern"] = annotation.value.pattern
         return Schema(type="string", **_kwargs(annotated), **kwargs)
 
@@ -173,9 +173,9 @@ def _bytes_schema(python_type, annotated, *_):
     if is_subclass(python_type, (bytes, bytearray)):
         kwargs = {}
         for annotation in annotated:
-            if Is_instance(annotation, fondat.validate.MinLen):
+            if Is_instance(annotation, fondat.validation.MinLen):
                 kwargs["minLength"] = annotation.value
-            elif is_instance(annotation, fondat.validate.MaxLen):
+            elif is_instance(annotation, fondat.validation.MaxLen):
                 kwargs["maxLength"] = annotation.value
         return Schema(
             type="string",
@@ -193,9 +193,9 @@ def _int_schema(python_type, annotated, *_):
     if is_subclass(python_type, int) and not is_subclass(python_type, bool):
         kwargs = {}
         for annotation in annotated:
-            if is_instance(annotation, fondat.validate.MinValue):
+            if is_instance(annotation, fondat.validation.MinValue):
                 kwargs["minimum"] = annotation.value
-            elif is_instance(annotation, fondat.validate.MaxValue):
+            elif is_instance(annotation, fondat.validation.MaxValue):
                 kwargs["maximum"] = annotation.value
         return Schema(type="integer", format="int64", **_kwargs(annotated), **kwargs)
 
@@ -208,9 +208,9 @@ def _int_schema(python_type, annotated, *_):
     if is_subclass(python_type, float):
         kwargs = {}
         for annotation in annotated:
-            if is_instance(annotation, fondat.validate.MinValue):
+            if is_instance(annotation, fondat.validation.MinValue):
                 kwargs["minimum"] = annotation.value
-            elif is_instance(annotation, fondat.validate.MaxValue):
+            elif is_instance(annotation, fondat.validation.MaxValue):
                 kwargs["maximum"] = annotations.value
         return Schema(type="number", format="double", **_kwargs(annotated), **kwargs)
 
@@ -250,11 +250,7 @@ def _mapping_schema(python_type, annotated, origin, args):
 
 @_provider
 def _iterable_schema(python_type, annotated, origin, args):
-    if (
-        is_subclass(origin, Iterable)
-        and not is_subclass(origin, Mapping)
-        and len(args) == 1
-    ):
+    if is_subclass(origin, Iterable) and not is_subclass(origin, Mapping) and len(args) == 1:
         kwargs = {}
         is_set = issubclass(origin, set)
         for annotation in annotated:
@@ -290,9 +286,7 @@ def _dataclass_schema(python_type, annotated, origin, args):
             and f.default_factory is dataclasses.MISSING
             and not is_optional(hints[f.name])
         }
-        properties = {
-            _dc_kw.get(key, key): get_schema(pytype) for key, pytype in hints.items()
-        }
+        properties = {_dc_kw.get(key, key): get_schema(pytype) for key, pytype in hints.items()}
         for key, schema in properties.items():
             if key not in required:
                 schema.nullable = None

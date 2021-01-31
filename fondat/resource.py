@@ -1,19 +1,22 @@
 """
-Module to implement resources.
+Module to implement resources composed of operations.
 
 A resource is an addressible object that exposes operations through a uniform
 set of methods.
 
 A resource class contains operation methods, each decorated with the
 @operation decorator.
+
+A resource can expose inner (subordinate) resources through an attribute,
+method or property that is decorated as a resource.
 """
 
 import asyncio
 import functools
 import inspect
 import fondat.context as context
-import fondat.monitor as monitor
-import fondat.validate
+import fondat.monitoring as monitoring
+import fondat.validation
 import types
 import wrapt
 
@@ -81,9 +84,7 @@ def resource(wrapped=None, *, tag=None):
     if wrapped is None:
         return functools.partial(resource, tag=tag)
 
-    wrapped._fondat_resource = types.SimpleNamespace(
-        tag=tag or wrapped.__name__.lower()
-    )
+    wrapped._fondat_resource = types.SimpleNamespace(tag=tag or wrapped.__name__.lower())
 
     return wrapped
 
@@ -152,8 +153,8 @@ def operation(
             "operation": wrapped.__name__,
         }
         with context.push({"context": "fondat.operation", **tags}):
-            async with monitor.timer({"name": "operation_duration_seconds", **tags}):
-                async with monitor.counter({"name": "operation_calls_total", **tags}):
+            async with monitoring.timer({"name": "operation_duration_seconds", **tags}):
+                async with monitoring.counter({"name": "operation_calls_total", **tags}):
                     await authorize(operation.security)
                     return await wrapped(*args, **kwargs)
 
@@ -167,7 +168,7 @@ def operation(
     )
 
     if validate:
-        wrapped = fondat.validate.validate_arguments(wrapped)
+        wrapped = fondat.validation.validate_arguments(wrapped)
 
     return wrapper(wrapped)
 
@@ -211,7 +212,7 @@ def inner(
     _wrapped = wrapped
 
     if validate:
-        _wrapped = fondat.validate.validate_arguments(_wrapped)
+        _wrapped = fondat.validation.validate_arguments(_wrapped)
 
     @resource(tag="__inner__")
     class Inner:

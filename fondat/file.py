@@ -11,7 +11,7 @@ from collections.abc import Iterable
 from fondat.codec import Binary, String, get_codec
 from fondat.error import InternalServerError, NotFoundError
 from fondat.http import InBody
-from fondat.paging import make_page_dataclass
+from fondat.pagination import make_page_dataclass
 from fondat.resource import resource, operation
 from fondat.types import affix_type_hints
 from fondat.security import SecurityRequirement
@@ -157,8 +157,7 @@ def directory_resource(
                     names = sorted(
                         entry.name[: -len(extension)] if extension else entry.name
                         for entry in entries
-                        if entry.is_file()
-                        and (not extension or entry.name.endswith(extension))
+                        if entry.is_file() and (not extension or entry.name.endswith(extension))
                     )
             except FileNotFoundError:
                 raise InternalServerError(f"directory not found: {_path}")

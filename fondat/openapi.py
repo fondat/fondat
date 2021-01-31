@@ -1,4 +1,4 @@
-"""OpenAPI module for Fondat."""
+"""Module to generate OpenAPI documents and resources."""
 
 
 # TODO: components for dataclasses
@@ -347,9 +347,9 @@ def _operation(tag, method):
             op.responses[str(http.HTTPStatus.OK.value)] = Response(
                 description=_description(annotated) or "Response.",
                 content={
-                    fondat.codec.get_codec(
-                        fondat.codec.Binary, hint
-                    ).content_type: MediaType(schema=get_schema(hint))
+                    fondat.codec.get_codec(fondat.codec.Binary, hint).content_type: MediaType(
+                        schema=get_schema(hint)
+                    )
                 },
             )
 
@@ -358,9 +358,9 @@ def _operation(tag, method):
             op.requestBody = RequestBody(
                 description=_description(annotated),
                 content={
-                    fondat.codec.get_codec(
-                        fondat.codec.Binary, hint
-                    ).content_type: MediaType(schema=get_schema(hint))
+                    fondat.codec.get_codec(fondat.codec.Binary, hint).content_type: MediaType(
+                        schema=get_schema(hint)
+                    )
                 },
                 required=param.default is param.empty,
             )
@@ -410,7 +410,7 @@ def _process(doc, resource, path, params={}, tag=None):
                 res,
                 f"{path}/{name}",
                 params,
-                tag if res._fondat_resource.tag == "__inner__" else None
+                tag if res._fondat_resource.tag == "__inner__" else None,
             )
         elif name in _ops and callable(attr):
             setattr(path_item, name, _operation(tag, attr))
@@ -427,7 +427,7 @@ def _process(doc, resource, path, params={}, tag=None):
             doc,
             res,
             f"{path}/{{{param_name}}}",
-            {**params, param_name: param_type}
+            {**params, param_name: param_type},
         )
 
 

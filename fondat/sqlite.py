@@ -1,4 +1,4 @@
-"""Module to manage resource items in a SQLite database."""
+"""Module to manage data in a SQLite database."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from collections.abc import AsyncIterator
 from fondat.codec import Codec, String
 from fondat.types import affix_type_hints
 from fondat.sql import Statement
-from fondat.validate import validate_arguments
+from fondat.validation import validate_arguments
 from typing import Annotated, Any, Literal, Optional, Union
 
 
@@ -227,9 +227,7 @@ class _Results(AsyncIterator[Any]):
         self.results = results
         self.codecs = {
             k: get_codec(t)
-            for k, t in typing.get_type_hints(
-                statement.result, include_extras=True
-            ).items()
+            for k, t in typing.get_type_hints(statement.result, include_extras=True).items()
         }
 
     def __aiter__(self):
@@ -237,9 +235,7 @@ class _Results(AsyncIterator[Any]):
 
     async def __anext__(self):
         row = await self.results.__anext__()
-        return self.statement.result(
-            **{k: self.codecs[k].decode(row[k]) for k in self.codecs}
-        )
+        return self.statement.result(**{k: self.codecs[k].decode(row[k]) for k in self.codecs})
 
 
 class Database(fondat.sql.Database):

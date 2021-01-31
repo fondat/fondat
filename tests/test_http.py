@@ -8,6 +8,7 @@ from fondat.http import Application, InBody, Request, Response
 from fondat.types import Stream, BytesStream  # , dataclass
 from dataclasses import dataclass
 
+
 pytestmark = pytest.mark.asyncio
 
 

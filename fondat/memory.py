@@ -88,8 +88,7 @@ def memory_resource(
             """Read item."""
             item = self.container.storage.get(self.key)
             if item is None or (
-                self.container.expire
-                and _now() > item.time + _delta(self.container.expire)
+                self.container.expire and _now() > item.time + _delta(self.container.expire)
             ):
                 raise NotFoundError
             return item.value
@@ -99,9 +98,7 @@ def memory_resource(
             """Write item."""
             with self.container.lock:
                 now = _now()
-                if (
-                    self.container.expire
-                ):  # purge expired entries; pay the price on puts
+                if self.container.expire:  # purge expired entries; pay the price on puts
                     for key in {
                         k
                         for k, v in self.container.storage.items()
@@ -119,10 +116,7 @@ def memory_resource(
                             oldest = _Oldest(_key, _item.time)
                     if oldest:
                         del self.container.storage[oldest.key]
-                if (
-                    self.container.size
-                    and len(self.container.storage) >= self.container.size
-                ):
+                if self.container.size and len(self.container.storage) >= self.container.size:
                     raise BadRequestError("item size limit reached")
                 self.container.storage[self.key] = _Item(copy.deepcopy(value), now)
 

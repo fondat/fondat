@@ -1,4 +1,4 @@
-"""Fondat lazy evaluation module."""
+"""Module to support lazy evaluation of values."""
 
 import importlib
 import threading

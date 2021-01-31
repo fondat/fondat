@@ -1,4 +1,4 @@
-"""???"""
+"""Module to expose resources through HTTP."""
 
 import asyncio
 import fondat.error
@@ -15,7 +15,7 @@ import typing
 from collections.abc import Callable, Iterable
 from fondat.codec import Binary, String, get_codec
 from fondat.types import Stream, BytesStream
-from fondat.validate import validate
+from fondat.validation import validate
 from typing import Annotated, Any
 
 
@@ -429,9 +429,7 @@ class Application:
                 raise fondat.error.InternalServerError from ex
         except fondat.error.Error as err:
             if isinstance(err, fondat.error.InternalServerError):
-                _logger.error(
-                    msg=err.__cause__.args[0], exc_info=err.__cause__, stacklevel=3
-                )
+                _logger.error(msg=err.__cause__.args[0], exc_info=err.__cause__, stacklevel=3)
             return await self.error_handler(err)
 
     async def _handle(self, request: Request):

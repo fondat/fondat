@@ -9,7 +9,7 @@ import collections
 import contextlib
 import datetime
 import fondat.context as context
-import fondat.validate
+import fondat.validation
 import logging
 import math
 import re
@@ -44,7 +44,7 @@ class Measurement:
     value: typing.Union[int, float]
 
     def __post_init__(self):
-        fondat.validate.validate(self, self.__class__)
+        fondat.validation.validate(self, self.__class__)
 
 
 class Counter:

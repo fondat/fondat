@@ -1,7 +1,7 @@
 """
-Fondat paging module.
+Module to support pagination of results.
 
-This module provides helpers to implement cursor-based pagination.
+Results of operations can be returned in cursor-based pages.
 
 An operation returns a paginated result, if it:
   • accepts an optional "cursor" parameter,

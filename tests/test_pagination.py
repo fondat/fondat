@@ -2,7 +2,7 @@ import pytest
 
 from base64 import b64decode, b64encode
 from dataclasses import dataclass
-from fondat.paging import make_page_dataclass, paginate
+from fondat.pagination import make_page_dataclass, paginate
 from fondat.resource import resource, operation
 
 

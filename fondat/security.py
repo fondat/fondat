@@ -1,4 +1,4 @@
-"""Module for authentication and authorization to resource operations."""
+"""Module for authentication and authorization of resource operations."""
 
 import fondat.context
 

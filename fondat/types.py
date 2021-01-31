@@ -47,9 +47,7 @@ def affix_type_hints(obj=None, *, globalns=None, localns=None, attrs=True):
         )
 
     if getattr(obj, "__annotations__", None):
-        obj.__annotations__ = typing.get_type_hints(
-            obj, globalns, localns, include_extras=True
-        )
+        obj.__annotations__ = typing.get_type_hints(obj, globalns, localns, include_extras=True)
     if attrs:
         for name in dir(obj):
             affix_type_hints(
@@ -86,9 +84,7 @@ def dataclass(cls, init=True, **kwargs):
 
             for key in kwargs:
                 if key not in fields:
-                    raise TypeError(
-                        f"__init__() got an unexpected keyword argument '{key}'"
-                    )
+                    raise TypeError(f"__init__() got an unexpected keyword argument '{key}'")
             missing = [
                 f"'{key}'"
                 for key, hint in hints.items()
@@ -131,9 +127,7 @@ class Stream(AsyncIterator[Union[bytes, bytearray]]):
     • content_length: The length of the content, if known.
     """
 
-    def __init__(
-        self, content_type: str = "application/octet-stream", content_length=None
-    ):
+    def __init__(self, content_type: str = "application/octet-stream", content_length=None):
         self.content_type = content_type
         self.content_length = content_length
 
@@ -215,9 +209,7 @@ def split_annotated(hint):
 def is_optional(hint):
     """Return if the specified type is optional (i.e. is Union[..., None])."""
     python_type, _ = split_annotated(hint)
-    return typing.get_origin(python_type) is Union and NoneType in typing.get_args(
-        python_type
-    )
+    return typing.get_origin(python_type) is Union and NoneType in typing.get_args(python_type)
 
 
 def is_subclass(cls, cls_or_tuple):

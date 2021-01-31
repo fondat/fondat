@@ -1,4 +1,4 @@
-"""Module to manage resource items in a SQL database."""
+"""Module to manage data in a SQL database."""
 
 from __future__ import annotations
 
@@ -79,9 +79,7 @@ class Statement(Iterable):
         • value: Parameter value to be appended.
         • python_type: Parameter type; inferred from value if None.
         """
-        self.fragments.append(
-            Parameter(value, python_type if python_type else type(value))
-        )
+        self.fragments.append(Parameter(value, python_type if python_type else type(value)))
 
     def parameter(self, parameter: Parameter) -> None:
         """
@@ -110,9 +108,7 @@ class Statement(Iterable):
         """
         self.fragments += statement.fragments
 
-    def statements(
-        self, statements: Iterable[Statement], separator: str = None
-    ) -> None:
+    def statements(self, statements: Iterable[Statement], separator: str = None) -> None:
         """
         Append statements to this statement, with optional text separator.
 
@@ -252,9 +248,7 @@ class Table:
 
         result = TypedDict(
             "Columns",
-            {column: self.columns[column] for column in columns}
-            if columns
-            else self.columns,
+            {column: self.columns[column] for column in columns} if columns else self.columns,
         )
 
         stmt = Statement()

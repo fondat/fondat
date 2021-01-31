@@ -1,4 +1,4 @@
-"""Module that provides type annotations."""
+"""Module that support validation of data."""
 
 from __future__ import annotations
 
@@ -99,9 +99,7 @@ def _validate_literal(py_type, value):
 
 
 def _validate_typeddict(type_, value):
-    for item_key, item_type in typing.get_type_hints(
-        type_, include_extras=True
-    ).items():
+    for item_key, item_type in typing.get_type_hints(type_, include_extras=True).items():
         try:
             validate(value[item_key], item_type)
         except KeyError:
@@ -137,9 +135,7 @@ def _validate_iterable(type_, value):
 
 def _validate_dataclass(type_, value):
 
-    for attr_name, attr_type in typing.get_type_hints(
-        type_, include_extras=True
-    ).items():
+    for attr_name, attr_type in typing.get_type_hints(type_, include_extras=True).items():
         try:
             validate(getattr(value, attr_name), attr_type)
         except (TypeError, ValueError) as e:
@@ -192,9 +188,7 @@ def validate(value: Any, type_: type):
         _validate_literal(type_, value)
         return
     elif not _isinstance(value, dict) and not _isinstance(value, origin):
-        raise TypeError(
-            f"expecting {origin.__name__}, received {value.__class__.__name__}"
-        )
+        raise TypeError(f"expecting {origin.__name__}, received {value.__class__.__name__}")
 
     # detailed type validation
     if _issubclass(type_, dict) and getattr(type_, "__annotations__", None):

@@ -7,8 +7,8 @@ import re
 from base64 import b64encode
 from dataclasses import make_dataclass, field
 from decimal import Decimal
-from fondat.validate import validate, validate_return_value
-from fondat.validate import MinLen, MaxLen, Pattern, MinValue, MaxValue
+from fondat.validation import MinLen, MaxLen, Pattern, MinValue, MaxValue
+from fondat.validation import validate, validate_return_value
 from io import BytesIO
 from datetime import date, datetime, timezone
 from typing import Annotated, Literal, Optional, T, TypedDict, Union

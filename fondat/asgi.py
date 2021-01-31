@@ -1,4 +1,4 @@
-"""Fondat ASGI module."""
+"""Module to expose resources through ASGI."""
 
 import fondat.http
 import urllib.parse
@@ -68,8 +68,7 @@ def asgi_app(handler: Awaitable):
                 "status": response.status,
                 # FIXME: add cookies
                 "headers": [
-                    (k.lower().encode(), v.encode())
-                    for k, v in response.headers.items()
+                    (k.lower().encode(), v.encode()) for k, v in response.headers.items()
                 ],
             }
         )

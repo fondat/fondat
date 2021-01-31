@@ -8,7 +8,7 @@ import zlib
 from dataclasses import make_dataclass
 from fondat.error import InternalServerError, NotFoundError
 from fondat.file import directory_resource, file_resource
-from fondat.paging import paginate
+from fondat.pagination import paginate
 from fondat.resource import operation
 from tempfile import TemporaryDirectory
 
