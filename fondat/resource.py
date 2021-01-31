@@ -276,23 +276,22 @@ def mutation(wrapped=None, *, method: str = "post", **kwargs):
 @resource
 class Container:
     """
-    A resource to contain subordinate resources. 
+    A resource to contain subordinate resources.
 
     Parameters:
-    • resources: mapping of attribute names to resources
+    • resources: mapping of names to resources
+
+    Suborindates are accessed as attributes by name.
     """
 
     def __init__(self, resources: Mapping[str, type]):
         self._resources = resources
-        self._lock = threading.Lock()
 
-    def __getattr__(self, name: str) -> type:
-        with self._lock:
+    def __getattr__(self, name):
             try:
-                resource = self._resources[name]
+                return self._resources[name]
             except KeyError:
-                raise AttributeError(
-                    f"'{self.__class__.__name__}' object has no attribute '{name}'"
-                )
-            setattr(self, name, resource)  # retrieve as attribute next time
-            return resource
+                raise AttributeError(f"no such resource: {name}")
+
+    def __dir__(self):
+        return [*super().__dir__(), *self._resources.keys()]
