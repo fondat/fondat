@@ -8,7 +8,7 @@ target-version = ['py38']
 
 [tool.poetry]
 name = "fondat-core"
-version = "3.0b1"
+version = "3.0b2"
 description = "A foundation for Python resource-oriented applications."
 readme = "README.md"
 authors = ["fondat-core authors"]
@@ -34,7 +34,7 @@ wrapt = "^1.12"
 
 [tool.poetry.dev-dependencies]
 black = "^20.8b1"
-pre-commit = "^2.9"
+pre-commit = "^2.10"
 pytest = "^6.2"
 pytest-asyncio = "^0.14"
 pytest-cov = "^2.11"
