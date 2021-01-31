@@ -6,6 +6,7 @@ import json
 from dataclasses import dataclass
 from fondat.codec import get_codec, JSON, String
 from fondat.resource import resource, operation, query, mutation
+from fondat.types import Description
 from fondat.validation import validate
 from typing import Annotated as A, Optional
 from uuid import UUID
@@ -19,7 +20,7 @@ class DB:
 @dataclass
 class DC:
     a: A[str, "this is a description"]
-    b: int
+    b: A[int, Description("this is also a description")]
     c: DB
     d: list[str]
     e: dict[str, str]

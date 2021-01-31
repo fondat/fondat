@@ -313,7 +313,7 @@ def _description(annotated):
     for annotation in annotated:
         if is_instance(annotation, str):
             return annotation
-        elif is_istance(annotation, fondat.types.Description):
+        elif is_instance(annotation, fondat.types.Description):
             return annotation.value
 
 
