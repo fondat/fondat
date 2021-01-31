@@ -8,7 +8,7 @@ target-version = ['py38']
 
 [tool.poetry]
 name = "fondat-core"
-version = "3.0b3"
+version = "3.0b4"
 description = "A foundation for Python resource-oriented applications."
 readme = "README.md"
 authors = ["fondat-core authors"]
