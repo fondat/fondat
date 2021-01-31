@@ -254,9 +254,9 @@ def _iterable_schema(python_type, annotated, origin, args):
         kwargs = {}
         is_set = issubclass(origin, set)
         for annotation in annotated:
-            if is_instance(annotation, typing.MinLen):
+            if is_instance(annotation, fondat.validation.MinLen):
                 kwargs["minItems"] = annotation.value
-            elif is_instance(annotation, typing.MaxLen):
+            elif is_instance(annotation, fondat.validation.MaxLen):
                 kwargs["maxItems"] = annotation.value
             if is_set:
                 kwargs["uniqueItems"] = True
