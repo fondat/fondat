@@ -20,7 +20,7 @@ async def test_compression():
     DC = make_dataclass("DC", (("key", str), ("foo", str), ("bar", int)))
     for algorithm in (None, bz2, gzip, lzma, zlib):
         with TemporaryDirectory() as dir:
-            dr = directory_resource(dir, str, DC, compress=algorithm)
+            dr = directory_resource(dir, str, DC, compress=algorithm, writeable=True)
             r1 = DC(key="id1", foo="hello", bar=1)
             await dr["id1"].put(r1)
             r2 = await dr["id1"].get()
@@ -30,7 +30,7 @@ async def test_compression():
 async def test_crud_dict():
     DC = make_dataclass("DC", (("key", str), ("foo", str), ("bar", int)))
     with TemporaryDirectory() as dir:
-        dr = directory_resource(dir, str, DC)
+        dr = directory_resource(dir, str, DC, writeable=True)
         key = "id1"
         r1 = DC(key=key, foo="hello", bar=1)
         await dr[key].put(r1)
@@ -47,7 +47,7 @@ async def test_crud_dict():
 
 async def test_crud_str():
     with TemporaryDirectory() as dir:
-        dr = directory_resource(dir, str, str)
+        dr = directory_resource(dir, str, str, writeable=True)
         key = "hello_world"
         value = "你好，世界!"
         await dr[key].put(value)
@@ -62,7 +62,7 @@ async def test_crud_str():
 
 async def test_crud_bytes():
     with TemporaryDirectory() as dir:
-        dr = directory_resource(dir, str, bytes, extension=".bin")
+        dr = directory_resource(dir, str, bytes, extension=".bin", writeable=True)
         key = "binary"
         value = b"\x00\x0e\x01\x01\x00"
         await dr[key].put(value)
@@ -77,7 +77,7 @@ async def test_crud_bytes():
 
 async def test_crud_uuid_key():
     with TemporaryDirectory() as dir:
-        dr = directory_resource(dir, uuid.UUID, bytes, extension=".bin")
+        dr = directory_resource(dir, uuid.UUID, bytes, extension=".bin", writeable=True)
         key = uuid.UUID("74e47a84-183c-43d3-b934-3568504a7459")
         value = b"\x00\x0e\x01\x01\x00"
         await dr[key].put(value)
@@ -94,7 +94,7 @@ async def test_crud_uuid_key():
 
 async def test_quote_unquote():
     with TemporaryDirectory() as dir:
-        dr = directory_resource(dir, str, bytes, extension=".bin")
+        dr = directory_resource(dir, str, bytes, extension=".bin", writeable=True)
         key = "resource%identifier"
         value = b"body"
         await dr[key].put(value)
@@ -104,7 +104,7 @@ async def test_quote_unquote():
 
 async def test_invalid_directory():
     with TemporaryDirectory() as dir:
-        dr = directory_resource(dir, str, bytes, extension=".bin")
+        dr = directory_resource(dir, str, bytes, extension=".bin", writeable=True)
     # directory should now be deleted underneath the resource
     key = "resource%identifier"
     value = b"body"
@@ -120,7 +120,7 @@ async def test_invalid_directory():
 
 async def test_decode_error():
     with TemporaryDirectory() as dir:
-        dr = directory_resource(dir, str, int, extension=".int")
+        dr = directory_resource(dir, str, int, extension=".int", writeable=True)
         await dr["1"].put(1)
         with open(f"{dir}/1.int", "w") as f:
             f.write("a")
@@ -130,7 +130,7 @@ async def test_decode_error():
 
 async def test_quotable():
     with TemporaryDirectory() as dir:
-        dr = directory_resource(dir, str, str)
+        dr = directory_resource(dir, str, str, writeable=True)
         key = "1%2F2"
         value = "Value"
         await dr[key].put(value)
@@ -143,7 +143,7 @@ async def test_read_only():
         content = b"content"
         with open(path, "wb") as file:
             file.write(content)
-        fr = file_resource(path, value_type=bytes, read_only=True)
+        fr = file_resource(path, value_type=bytes)
         assert await fr.get() == content
         with pytest.raises(AttributeError):
             await fr.put(b"nope")
@@ -157,7 +157,9 @@ async def test_pagination():
         for n in range(0, count):
             with open(f"{dir}/{n:04d}.txt", "w") as file:
                 file.write(f"{n:04d}")
-        dr = directory_resource(path=dir, key_type=str, value_type=str, extension=".txt")
+        dr = directory_resource(
+            path=dir, key_type=str, value_type=str, extension=".txt", writeable=True
+        )
         page = await dr.get(limit=100)
         assert len(page.items) == 100
         assert page.remaining == count - 100
