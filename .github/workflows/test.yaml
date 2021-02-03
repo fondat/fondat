@@ -26,4 +26,4 @@ jobs:
       run: poetry install -v
 
     - name: Test project
-      run: poetry run pytest --cov=roax tests/
+      run: poetry run pytest --cov=fondat-core tests/
