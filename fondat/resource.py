@@ -25,7 +25,7 @@ import wrapt
 from collections.abc import Iterable, Mapping
 from fondat.error import ForbiddenError, UnauthorizedError
 from fondat.security import SecurityRequirement
-from typing import Any
+from typing import Any, Literal
 
 
 def _summary(function):
@@ -91,12 +91,12 @@ def resource(wrapped=None, *, tag=None):
     return wrapped
 
 
-def is_resource(obj_or_type: Any):
+def is_resource(obj_or_type: Any) -> bool:
     """Return if object or type represents a resource."""
     return getattr(obj_or_type, "_fondat_resource", None) is not None
 
 
-def is_operation(obj_or_type: Any):
+def is_operation(obj_or_type: Any) -> bool:
     """Return if object represents a resource operation."""
     return getattr(obj_or_type, "_fondat_operation", None) is not None
 
@@ -104,7 +104,7 @@ def is_operation(obj_or_type: Any):
 def operation(
     wrapped=None,
     *,
-    op_type: str = None,
+    op_type: Literal["query", "mutation"] = None,
     security: Iterable[SecurityRequirement] = None,
     publish: bool = True,
     deprecated: bool = False,
@@ -114,14 +114,15 @@ def operation(
     Decorate a resource coroutine that performs an operation.
 
     Parameters:
-    • op_type: Operation type.  {"query", "mutation"}
+    • op_type: Operation type.
     • security: Security requirements for the operation.
     • publish: Publish the operation in documentation.
     • deprecated: Declare the operation as deprecated.
     • validate: Validate method arguments.
 
     Resource operations should correlate to HTTP method names, named in lower
-    case. For example: get, put, post, delete, patch.
+    case. For example: get, put, post, delete, patch. Operation type is
+    inferred from method name.
     """
 
     if wrapped is None:
@@ -288,10 +289,10 @@ class Container:
         self._resources = resources
 
     def __getattr__(self, name):
-        try:
-            return self._resources[name]
-        except KeyError:
-            raise AttributeError(f"no such resource: {name}")
+            try:
+                return self._resources[name]
+            except KeyError:
+                raise AttributeError(f"no such resource: {name}")
 
     def __dir__(self):
         return [*super().__dir__(), *self._resources.keys()]
