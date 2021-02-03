@@ -139,9 +139,7 @@ class Stream(AsyncIterator[Union[bytes, bytearray]]):
 
 
 class BytesStream(Stream):
-    """
-    Expose a bytes object as an asynchronous byte stream.
-    """
+    """Expose a bytes object as an asynchronous byte stream."""
 
     def __init__(
         self,
