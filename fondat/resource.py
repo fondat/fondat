@@ -288,10 +288,10 @@ class Container:
         self._resources = resources
 
     def __getattr__(self, name):
-            try:
-                return self._resources[name]
-            except KeyError:
-                raise AttributeError(f"no such resource: {name}")
+        try:
+            return self._resources[name]
+        except KeyError:
+            raise AttributeError(f"no such resource: {name}")
 
     def __dir__(self):
         return [*super().__dir__(), *self._resources.keys()]
