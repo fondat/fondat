@@ -12,6 +12,7 @@ import typing
 import wrapt
 
 from collections.abc import Callable, Iterable, Mapping
+from fondat.types import is_instance, is_subclass
 from typing import Annotated, Any, Literal, Union
 
 
@@ -143,22 +144,6 @@ def _validate_dataclass(type_, value):
             raise
 
 
-def _issubclass(cls, cls_or_tuple):
-    """A more forgiving issubclass."""
-    try:
-        return issubclass(cls, cls_or_tuple)
-    except:
-        return False
-
-
-def _isinstance(obj, class_or_tuple):
-    """A more forgiving isinstance."""
-    try:
-        return isinstance(obj, class_or_tuple)
-    except:
-        return False
-
-
 def validate(value: Any, type_: type):
     """Validate a value."""
 
@@ -187,17 +172,17 @@ def validate(value: Any, type_: type):
     elif origin is Literal:
         _validate_literal(type_, value)
         return
-    elif not _isinstance(value, dict) and not _isinstance(value, origin):
+    elif not is_instance(value, dict) and not is_instance(value, origin):
         raise TypeError(f"expecting {origin.__name__}, received {value.__class__.__name__}")
 
     # detailed type validation
-    if _issubclass(type_, dict) and getattr(type_, "__annotations__", None):
+    if is_subclass(type_, dict) and getattr(type_, "__annotations__", None):
         _validate_typeddict(type_, value)
-    elif _issubclass(origin, Mapping):
+    elif is_subclass(origin, Mapping):
         _validate_mapping(type_, value)
-    elif origin is int and _isinstance(value, bool):  # bool is subclass of int
+    elif origin is int and is_instance(value, bool):  # bool is subclass of int
         raise TypeError(f"expecting int")
-    elif _issubclass(origin, Iterable):
+    elif is_subclass(origin, Iterable):
         _validate_iterable(type_, value)
     elif dataclasses.is_dataclass(type_):
         _validate_dataclass(type_, value)
@@ -223,7 +208,7 @@ def validate_arguments(callable: Callable):
     ]
 
     def _validate(instance, args, kwargs):
-        hints = typing.get_type_hints(callable)
+        hints = typing.get_type_hints(callable, include_extras=True)
         if instance:
             args = (instance, *args)
         params = {

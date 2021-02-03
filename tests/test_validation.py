@@ -8,7 +8,7 @@ from base64 import b64encode
 from dataclasses import make_dataclass, field
 from decimal import Decimal
 from fondat.validation import MinLen, MaxLen, Pattern, MinValue, MaxValue
-from fondat.validation import validate, validate_return_value
+from fondat.validation import validate, validate_arguments, validate_return_value
 from io import BytesIO
 from datetime import date, datetime, timezone
 from typing import Annotated, Literal, Optional, T, TypedDict, Union
@@ -430,7 +430,39 @@ def test_typeddict_optional_success():
 # -- decorators -----
 
 
-def test_sync_decorator_success():
+def test_sync_decorator_arguments_success():
+    @validate_arguments
+    def fn(s: Annotated[str, MinLen(2), MaxLen(2)]):
+        pass
+    fn("12")
+
+
+def test_sync_decorator_arguments_error():
+    @validate_arguments
+    def fn(s: Annotated[str, MinLen(2), MaxLen(2)]):
+        pass
+    with pytest.raises(ValueError):
+        fn("1")
+
+
+@pytest.mark.asyncio
+async def test_async_decorator_arguments_success():
+    @validate_arguments
+    async def fn(s: Annotated[str, MinLen(2), MaxLen(2)]):
+        pass
+    await fn("12")
+
+
+@pytest.mark.asyncio
+async def test_async_decorator_arguments_error():
+    @validate_arguments
+    async def fn(s: Annotated[str, MinLen(2), MaxLen(2)]):
+        pass
+    with pytest.raises(ValueError):
+        await fn("1")
+
+
+def test_sync_decorator_return_success():
     @validate_return_value
     def fn() -> str:
         return "str_ftw"
@@ -438,7 +470,7 @@ def test_sync_decorator_success():
     fn()
 
 
-def test_sync_decorator_error():
+def test_sync_decorator_return_error():
     @validate_return_value
     def fn() -> str:
         return 1
@@ -447,18 +479,18 @@ def test_sync_decorator_error():
         fn()
 
 
-def test_async_decorator_success():
+@pytest.mark.asyncio
+async def test_async_decorator_return_success():
     @validate_return_value
     async def coro() -> str:
         return "str_ftw"
+    assert await coro() == "str_ftw"
 
-    assert asyncio.run(coro()) == "str_ftw"
 
-
-def test_async_decorator_error():
+@pytest.mark.asyncio
+async def test_async_decorator_return_error():
     @validate_return_value
     def coro() -> str:
         return 1
-
     with pytest.raises(TypeError):
-        asyncio.run(coro())
+        await coro()
