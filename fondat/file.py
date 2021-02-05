@@ -62,14 +62,15 @@ class _ReadFileStream(Stream):
 
 def _stream_resource_class(
     writeable: bool,
-    security: Iterable[SecurityRequirement] = None,
+    publish: bool,
+    security: Iterable[SecurityRequirement],
 ):
     @resource
     class StreamResource:
         def __init__(self, path):
             self.path = path
 
-        @operation(security=security)
+        @operation(publish=publish, security=security)
         async def get(self) -> Stream:
             """Read resource."""
             if not os.path.isfile(self.path):
@@ -78,7 +79,7 @@ def _stream_resource_class(
 
         if writeable:
 
-            @operation(security=security)
+            @operation(publish=publish, security=security)
             async def put(self, value: Annotated[Stream, InBody]):
                 """Write resource."""
                 tmp = self.path + ".__tmp"
@@ -90,7 +91,7 @@ def _stream_resource_class(
                 except Exception as e:
                     raise InternalServerError(f"cannot write file: {self.path}") from e
 
-            @operation(security=security)
+            @operation(publish=publish, security=security)
             async def delete(self):
                 """Delete resource."""
                 try:
@@ -105,9 +106,10 @@ def _stream_resource_class(
 
 def _file_resource_class(
     value_type: type,
-    compress: Any = None,
-    writeable: bool = False,
-    security: Iterable[SecurityRequirement] = None,
+    compress: Any,
+    writeable: bool,
+    publish: bool,
+    security: Iterable[SecurityRequirement],
 ):
 
     if value_type is Stream:
@@ -122,7 +124,7 @@ def _file_resource_class(
         def __init__(self, path):
             self.path = path
 
-        @operation(security=security)
+        @operation(publish=publish, security=security)
         async def get(self) -> value_type:
             """Read resource."""
             try:
@@ -138,7 +140,7 @@ def _file_resource_class(
 
         if writeable:
 
-            @operation(security=security)
+            @operation(publish=publish, security=security)
             async def put(self, value: Annotated[value_type, InBody]):
                 """Write resource."""
                 tmp = self.path + ".__tmp"
@@ -152,7 +154,7 @@ def _file_resource_class(
                 except Exception as e:
                     raise InternalServerError(f"cannot write file: {self.path}") from e
 
-            @operation(security=security)
+            @operation(publish=publish, security=security)
             async def delete(self):
                 """Delete resource."""
                 try:
@@ -170,6 +172,7 @@ def file_resource(
     value_type: type,
     compress: Any = None,
     writeable: bool = False,
+    publish: bool = True,
     security: Iterable[SecurityRequirement] = None,
 ) -> type:
     """
@@ -180,12 +183,13 @@ def file_resource(
     • value_type: type of value stored in file
     • compress: algorithm to compress and decompress file content
     • writeable: can file be written or deleted
+    • publish: publish the operation in documentation
     • security: security requirements to apply to file operations
 
     Compression algorithm is any object or module that exposes callable
     "compress" and "decompress" attributes. Examples: bz2, gzip, lzma, zlib.
     """
-    return _file_resource_class(value_type, compress, writeable, security)(path)
+    return _file_resource_class(value_type, compress, writeable, publish, security)(path)
 
 
 def _limit(requested):
@@ -203,6 +207,7 @@ def directory_resource(
     compress: Any = None,
     writeable: bool = False,
     index: Union[type, str] = None,
+    publish: bool = True,
     security: Iterable[SecurityRequirement] = None,
 ) -> type:
     """
@@ -216,6 +221,7 @@ def directory_resource(
     • compress: algorithm to compress and decompress file content
     • writeable: can files be written or deleted
     • index: index file key to represent directory
+    • publish: publish the operation in documentation
     • security: Security requirements to apply to all operations
 
     Compression algorithm is any object or module that exposes callable
@@ -233,14 +239,14 @@ def directory_resource(
 
     Page = make_page_dataclass("Page", value_type)
 
-    FileResource = _file_resource_class(value_type, compress, writeable, security)
+    FileResource = _file_resource_class(value_type, compress, writeable, publish, security)
 
     @resource
     class DirectoryResource:
 
         if index is None:
 
-            @operation(security=security)
+            @operation(publish=publish, security=security)
             async def get(self, limit: int = None, cursor: bytes = None) -> Page:
                 """Return paginated list of file keys."""
                 limit = _limit(limit)
@@ -274,7 +280,7 @@ def directory_resource(
 
         elif isinstance(index, key_type):
 
-            @operation(security=security)
+            @operation(publish=publish, security=security)
             async def get(self) -> value_type:
                 return await self[index].get()
 

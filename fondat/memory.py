@@ -31,6 +31,7 @@ def memory_resource(
     size: int = None,
     evict: bool = False,
     expire: Union[int, float] = None,
+    publish: bool = True,
     security: Iterable[SecurityRequirement] = None,
 ):
     """
@@ -42,6 +43,7 @@ def memory_resource(
     • size: maximum number of items to store  [unlimited]
     • evict: should oldest item be evicted to make room for a new item
     • expire: expire time for each value in seconds  [unlimited]
+    • publish: publish the operation in documentation
     • security: security requirements to apply to all operations
     """
 
@@ -54,7 +56,7 @@ def memory_resource(
         def __getitem__(self, key: key_type) -> Item:
             return Item(self, key)
 
-        @operation(security=security)
+        @operation(publish=publish, security=security)
         async def get(self) -> list[key_type]:
             """Return list of item keys."""
             now = _now()
@@ -65,7 +67,7 @@ def memory_resource(
                     if not self.expire or item.time + _delta(self.expire) <= now
                 ]
 
-        @mutation(security=security)
+        @mutation(publish=publish, security=security)
         async def clear(self) -> None:
             """Remove all items."""
             with self.lock:
@@ -83,7 +85,7 @@ def memory_resource(
             self.container = container
             self.key = key
 
-        @operation(security=security)
+        @operation(publish=publish, security=security)
         async def get(self) -> value_type:
             """Read item."""
             item = self.container.storage.get(self.key)
@@ -93,7 +95,7 @@ def memory_resource(
                 raise NotFoundError
             return item.value
 
-        @operation(security=security)
+        @operation(publish=publish, security=security)
         async def put(self, value: Annotated[value_type, InBody]) -> None:
             """Write item."""
             with self.container.lock:
@@ -120,7 +122,7 @@ def memory_resource(
                     raise BadRequestError("item size limit reached")
                 self.container.storage[self.key] = _Item(copy.deepcopy(value), now)
 
-        @operation(security=security)
+        @operation(publish=publish, security=security)
         async def delete(self):
             """Delete item."""
             await self.get()  # ensure item exists and has not expired

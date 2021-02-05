@@ -49,7 +49,7 @@ async def authorize(security):
     Peform authorization of an operation.
 
     Parameters:
-    • security: Iterable of security requirements.
+    • security: iterable of security requirements
 
     This coroutine executes the security requirements. If any security
     requirement does not raise an exception then this coroutine passes and
@@ -80,7 +80,7 @@ def resource(wrapped=None, *, tag=None):
     Decorate a class to be a resource containing operations.
 
     Parameters:
-    • tag: Tag to group resources.  [resource class name in lower case]
+    • tag: tag to group resources  [resource class name in lower case]
     """
 
     if wrapped is None:
@@ -114,11 +114,11 @@ def operation(
     Decorate a resource coroutine that performs an operation.
 
     Parameters:
-    • op_type: Operation type.
-    • security: Security requirements for the operation.
-    • publish: Publish the operation in documentation.
-    • deprecated: Declare the operation as deprecated.
-    • validate: Validate method arguments.
+    • op_type: operation type
+    • security: security requirements for the operation
+    • publish: publish the operation in documentation
+    • deprecated: declare the operation as deprecated
+    • validate: validate method arguments
 
     Resource operations should correlate to HTTP method names, named in lower
     case. For example: get, put, post, delete, patch. Operation type is
@@ -128,8 +128,8 @@ def operation(
     if wrapped is None:
         return functools.partial(
             operation,
-            security=security,
             publish=publish,
+            security=security,
             deprecated=deprecated,
             validate=validate,
         )
@@ -165,8 +165,8 @@ def operation(
         op_type=op_type,
         summary=summary,
         description=description,
-        security=security,
         publish=publish,
+        security=security,
         deprecated=deprecated,
     )
 
@@ -181,6 +181,7 @@ def inner(
     *,
     method: str,
     op_type: str = None,
+    publish: bool = True,
     security: Iterable[SecurityRequirement] = None,
     validate: bool = True,
 ):
@@ -188,9 +189,10 @@ def inner(
     Decorator to define an inner resource operation.
 
     Parameters:
-    • method: Name of method to implement (e.g "get").
-    • security: Security requirements for the operation.
-    • validate: Validate method arguments.
+    • method: name of method to implement (e.g "get")
+    • publish: publish the operation in documentation
+    • security: security requirements for the operation
+    • validate: validate method arguments
 
     This decorator creates a new resource class, with a single operation that
     implements the decorated method. The decorated method is bound to the
@@ -202,6 +204,7 @@ def inner(
             inner,
             method=method,
             op_type=op_type,
+            publish=publish,
             security=security,
             validate=validate,
         )
@@ -232,7 +235,7 @@ def inner(
 
     functools.update_wrapper(proxy, wrapped)
     proxy.__name__ = method
-    proxy = operation(proxy, security=security, validate=False)
+    proxy = operation(proxy, publish=publish, security=security, validate=False)
     setattr(Inner, method, proxy)
     setattr(Inner, "__call__", proxy)
 
@@ -289,10 +292,10 @@ class Container:
         self._resources = resources
 
     def __getattr__(self, name):
-            try:
-                return self._resources[name]
-            except KeyError:
-                raise AttributeError(f"no such resource: {name}")
+        try:
+            return self._resources[name]
+        except KeyError:
+            raise AttributeError(f"no such resource: {name}")
 
     def __dir__(self):
         return [*super().__dir__(), *self._resources.keys()]
