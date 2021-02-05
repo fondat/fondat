@@ -434,6 +434,7 @@ def test_sync_decorator_arguments_success():
     @validate_arguments
     def fn(s: Annotated[str, MinLen(2), MaxLen(2)]):
         pass
+
     fn("12")
 
 
@@ -441,6 +442,7 @@ def test_sync_decorator_arguments_error():
     @validate_arguments
     def fn(s: Annotated[str, MinLen(2), MaxLen(2)]):
         pass
+
     with pytest.raises(ValueError):
         fn("1")
 
@@ -450,6 +452,7 @@ async def test_async_decorator_arguments_success():
     @validate_arguments
     async def fn(s: Annotated[str, MinLen(2), MaxLen(2)]):
         pass
+
     await fn("12")
 
 
@@ -458,6 +461,7 @@ async def test_async_decorator_arguments_error():
     @validate_arguments
     async def fn(s: Annotated[str, MinLen(2), MaxLen(2)]):
         pass
+
     with pytest.raises(ValueError):
         await fn("1")
 
@@ -484,6 +488,7 @@ async def test_async_decorator_return_success():
     @validate_return_value
     async def coro() -> str:
         return "str_ftw"
+
     assert await coro() == "str_ftw"
 
 
@@ -492,5 +497,6 @@ async def test_async_decorator_return_error():
     @validate_return_value
     def coro() -> str:
         return 1
+
     with pytest.raises(TypeError):
         await coro()
