@@ -452,12 +452,16 @@ def openapi_resource(root: type, info: Info):
     • root: resource to generate OpenAPI document for
     • info: metadata about the API
     """
-    doc = generate_openapi(root, info)
 
     @resource
     class OpenAPIResource:
+        def __init__(self):
+            self.doc = None
+
         @operation
         async def get(self) -> OpenAPI:
-            return doc
+            if not self.doc:
+                self.doc = generate_openapi(root, info)
+            return self.doc
 
     return OpenAPIResource()
