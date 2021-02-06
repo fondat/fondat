@@ -2,6 +2,7 @@
 
 
 # TODO: components for dataclasses
+# TODO: deal with cyclic graphs?
 
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ import typing
 from collections.abc import Iterable, Mapping
 from fondat.resource import resource, operation
 from fondat.schema import ExternalDocumentation, Schema, get_schema
+from fondat.security import SecurityRequirement
 from fondat.types import dataclass, is_instance
 from typing import Any, Literal, Optional, TypedDict, Union
 
@@ -413,8 +415,10 @@ def _process(doc, resource, path, params={}, tag=None):
                 tag if res._fondat_resource.tag == "__inner__" else None,
             )
         elif name in _ops and callable(attr):
-            setattr(path_item, name, _operation(tag, attr))
-            doc.paths[path] = path_item
+            operation = _operation(tag, attr)
+            if operation:
+                setattr(path_item, name, operation)
+                doc.paths[path] = path_item
 
     attr = getattr(resource, "__getitem__", None)
     if res := _resource(attr):
@@ -444,13 +448,21 @@ def generate_openapi(root: type, info: Info) -> OpenAPI:
     return doc
 
 
-def openapi_resource(root: type, info: Info):
+def openapi_resource(
+    root: type,
+    info: Info,
+    security: Iterable[SecurityRequirement] = None,
+):
     """
     Generate a resource that exposes an OpenAPI document for a given resource.
 
     Parameters:
     • root: resource to generate OpenAPI document for
-    • info: metadata about the API
+    • info: provides metadata about the API
+    • security: security requirements to apply to all operations
+
+    An OpenAPI resource is never published in an OpenAPI document, as OpenAPI data structure
+    graphs are cyclic.
     """
 
     @resource
@@ -458,7 +470,7 @@ def openapi_resource(root: type, info: Info):
         def __init__(self):
             self.doc = None
 
-        @operation
+        @operation(publish=False, security=security)
         async def get(self) -> OpenAPI:
             if not self.doc:
                 self.doc = generate_openapi(root, info)

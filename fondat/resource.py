@@ -1,14 +1,12 @@
 """
 Module to implement resources composed of operations.
 
-A resource is an addressible object that exposes operations through a uniform
-set of methods.
+A resource is an addressible object that exposes operations through a uniform set of methods.
 
-A resource class contains operation methods, each decorated with the
-@operation decorator.
+A resource class contains operation methods, each decorated with the @operation decorator.
 
-A resource can expose inner (subordinate) resources through an attribute,
-method or property that is decorated as a resource.
+A resource can expose inner (subordinate) resources through an attribute, method or property
+that is decorated as a resource.
 """
 
 import asyncio
@@ -30,9 +28,9 @@ from typing import Any, Literal
 
 def _summary(function):
     """
-    Derive summary information from a function's docstring or name. The summary is
-    the first sentence of the docstring, ending in a period, or if no dostring is
-    present, the function's name capitalized.
+    Derive summary information from a function's docstring or name. The summary is the first
+    sentence of the docstring, ending in a period, or if no dostring is present, the
+    function's name capitalized.
     """
     if not function.__doc__:
         return f"{function.__name__.capitalize()}."
@@ -51,13 +49,12 @@ async def authorize(security):
     Parameters:
     • security: iterable of security requirements
 
-    This coroutine executes the security requirements. If any security
-    requirement does not raise an exception then this coroutine passes and
-    authorization is granted.
+    This coroutine function executes the security requirements. If any security requirement
+    does not raise an exception then this coroutine passes and authorization is granted.
 
-    If one security requirement raises a ForbiddenError, then a ForbiddenError
-    will be raised; otherwise an UnauthorizedError will be raised. If a
-    non-security exception is raised, then it is re-raised.
+    If one security requirement raises a ForbiddenError, then ForbiddenError will be raised;
+    otherwise UnauthorizedError will be raised. If a non-security exception is raised, then it
+    is re-raised.
     """
     exception = None
     for requirement in security or []:
@@ -120,9 +117,8 @@ def operation(
     • deprecated: declare the operation as deprecated
     • validate: validate method arguments
 
-    Resource operations should correlate to HTTP method names, named in lower
-    case. For example: get, put, post, delete, patch. Operation type is
-    inferred from method name.
+    Resource operations should correlate to HTTP method names, named in lower case. For
+    example: get, put, post, delete, patch. Operation type is inferred from method name.
     """
 
     if wrapped is None:
@@ -194,9 +190,9 @@ def inner(
     • security: security requirements for the operation
     • validate: validate method arguments
 
-    This decorator creates a new resource class, with a single operation that
-    implements the decorated method. The decorated method is bound to the
-    original outer resource instance where it was defined.
+    This decorator creates a new resource class, with a single operation that implements the
+    decorated method. The decorated method is bound to the original outer resource instance
+    where it was defined.
     """
 
     if wrapped is None:

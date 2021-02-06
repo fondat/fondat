@@ -12,11 +12,11 @@ import logging
 import multidict
 import typing
 
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, MutableSequence
 from fondat.codec import Binary, String, get_codec
 from fondat.types import Stream, BytesStream
 from fondat.validation import validate
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 
 _logger = logging.getLogger(__name__)
@@ -32,9 +32,9 @@ class Message:
     Base class for HTTP request and response.
 
     Attributes:
-    • headers: Multi-value dictionary to store headers; excludes cookies.
-    • cookies: Dictionary containing message cookies.
-    • body: Stream message body, or None if no body.
+    • headers: multi-value dictionary to store headers; excludes cookies
+    • cookies: dictionary containing message cookies
+    • body: stream message body, or None if no body
     """
 
     def __init__(self):
@@ -49,13 +49,13 @@ class Request(Message):
     HTTP request.
 
     Attributes:
-    • headers: Multi-value dictionary to store headers; excludes cookies.
-    • cookies: Simple cookie object to store request cookies.
-    • body: Stream for request body, or None.
-    • method: The HTTP method name, in uppper case.
-    • path: HTTP request target excluding query string.
-    • version: Version of the incoming HTTP request.
-    • query: Multi-value dictionary to store query string parameters.
+    • headers: multi-value dictionary to store headers; excludes cookies
+    • cookies: simple cookie object to store request cookies
+    • body: stream for request body, or None
+    • method: the HTTP method name, in uppper case
+    • path: HTTP request target excluding query string
+    • version: version of the incoming HTTP request
+    • query: multi-value dictionary to store query string parameters
     """
 
     def __init__(self):
@@ -71,30 +71,29 @@ class Response(Message):
     HTTP response.
 
     Attributes:
-    • headers: Multi-value dictionary to store headers; excludes cookies.
-    • cookies: Dictionary containing response cookies.
-    • body: Stream for response body, or None.
-    • status: HTTP status code.
+    • headers: multi-value dictionary to store headers; excludes cookies
+    • cookies: dictionary containing response cookies
+    • body: stream for response body, or None
+    • status: HTTP status code
     """
 
     def __init__(self):
         super().__init__()
-        self.status: int = http.HTTPStatus.OK.value
+        self.status = http.HTTPStatus.OK.value
 
 
 class Chain:
     """
     A chain of zero or more filters, terminated by a single handler.
 
-    A filter is a coroutine function or asynchronous generator that can
-    inspect and/or modify a request and optionally inspect, modify and/or
-    yield a new response.
+    A filter is a coroutine function or asynchronous generator function that can inspect and/or
+    modify a request and optionally inspect, modify and/or yield a new response.
 
-    A handler is a coroutine function that inspects a request and returns a
-    response. A chain is itself a request handler.
+    A handler is a coroutine function that inspects a request and returns a response. A chain
+    is itself a request handler.
     """
 
-    def __init__(self, *, filters=None, handler):
+    def __init__(self, *, filters: MutableSequence[Callable] = None, handler: Callable):
         """Initialize a filter chain."""
         self.filters = filters  # concrete and mutable
         self.handler = handler
@@ -133,15 +132,16 @@ class HTTPSecurityScheme(fondat.security.SecurityScheme):
     Base class for HTTP authentication security scheme.
 
     Parameters:
-    • name: Name of the security scheme.
-    • scheme: Name of the HTTP authorization scheme.
-    • description: A short description for the security scheme.
+    • name: name of the security scheme
+    • scheme: name of the HTTP authorization scheme
+    • description: a short description for the security scheme
     """
 
-    def __init__(self, name, scheme, **kwargs):
+    def __init__(self, name: str, scheme: str, **kwargs):
         super().__init__(name, "http", **kwargs)
         self.scheme = scheme
 
+    # TODO: move to OpenAPI
     @property
     def json(self):
         """JSON representation of the security scheme."""
@@ -152,24 +152,24 @@ class HTTPSecurityScheme(fondat.security.SecurityScheme):
 
 class HTTPBasicSecurityScheme(HTTPSecurityScheme):
     """
-    Base class for HTTP basic authentication security scheme. Subclass must
-    implement the authenticate method.
+    Base class for HTTP basic authentication security scheme. Subclass must implement the
+    authenticate method.
 
     Parameters:
-    • name: Name of the security scheme.
-    • realm: Realm to include in the challenge.  [name]
-    • description: A short description for the security scheme.
+    • name: name of the security scheme
+    • realm: realm to include in the challenge  [name]
+    • description: a short description for the security scheme
     """
 
-    def __init__(self, name, realm=None, **kwargs):
+    def __init__(self, name: str, realm: str = None, **kwargs):
         super().__init__(name, "basic", **kwargs)
         self.realm = realm or name
 
     async def filter(self, request):
         """
-        Filters the incoming HTTP request. If the request contains credentials in the
-        HTTP Basic authentication scheme, they are passed to the authenticate method.
-        If authentication is successful, a context is added to the context stack.
+        Filters the incoming HTTP request. If the request contains credentials in the HTTP
+        Basic authentication scheme, they are passed to the authenticate method. If
+        authentication is successful, a context is added to the context stack.
         """
         auth = None
         header = request.headers.get("Authorization")
@@ -187,32 +187,32 @@ class HTTPBasicSecurityScheme(HTTPSecurityScheme):
 
     async def authenticate(user_id, password):
         """
-        Perform authentication of credentials supplied in the HTTP request. If
-        authentication is successful, a context is returned to be pushed on
-        the context stack. If authentication fails, None is returned. This
-        method should not raise an exception unless an unrecoverable error
-        occurs.
+        Perform authentication of credentials supplied in the HTTP request. If authentication
+        is successful, a context is returned to be pushed on the context stack. If
+        authentication fails, None is returned. This method should not raise an exception
+        unless an unrecoverable error occurs.
         """
         raise NotImplementedError
 
 
 class APIKeySecurityScheme(fondat.security.SecurityScheme):
     """
-    Base class for API key authentication security scheme. Subclass must
-    implement the authenticate method.
+    Base class for API key authentication security scheme. Subclass must implement the
+    authenticate method.
 
     Parameters:
-    • name: Name of the security scheme.
-    • key: Name of API key to be used.
-    • location: Location of API key.  {"header", "cookie"}
-    • description: A short description for the security scheme.
+    • name: name of the security scheme
+    • key: name of API key to be used
+    • location: location of API key
+    • description: a short description for the security scheme
     """
 
-    def __init__(self, name, key, location, **kwargs):
+    def __init__(self, name: str, key: str, location: Literal["header", "cookie"], **kwargs):
         super().__init__(name, "apiKey", **kwargs)
         self.key = key
         self.location = location
 
+    # TODO: move to OpenAPI
     @property
     def json(self):
         """JSON representation of the security scheme."""
@@ -223,34 +223,33 @@ class APIKeySecurityScheme(fondat.security.SecurityScheme):
 
     async def authenticate(value):
         """
-        Perform authentication of API key value supplied in the HTTP request.
-        If authentication is successful, a context is returned to be pushed on
-        the context stack. If authentication fails, None is returned. This
-        method should not raise an exception unless an unrecoverable error
-        occurs.
+        Perform authentication of API key value supplied in the HTTP request. If
+        authentication is successful, a context is returned to be pushed on the context stack.
+        If authentication fails, None is returned. This method should not raise an exception
+        unless an unrecoverable error occurs.
         """
         raise NotImplementedError
 
 
 class HeaderSecurityScheme(APIKeySecurityScheme):
     """
-    Base class for header authentication security scheme. Subclass must
-    implement the authenticate method.
+    Base class for header authentication security scheme. Subclass must implement the
+    authenticate method.
 
     Parameters:
-    • name: Name of the security scheme.
-    • header: Name of the header to be used.
-    • description: A short description for the security scheme.
+    • name: name of the security scheme
+    • header: name of the header to be used
+    • description: a short description for the security scheme
     """
 
-    def __init__(self, name, header, **kwargs):
+    def __init__(self, name: str, header: str, **kwargs):
         super().__init__(name, location="header", key=header, **kwargs)
 
     async def filter(self, request):
         """
-        Filters the incoming HTTP request. If the request contains the header,
-        it is passed to the authenticate method. If authentication is
-        successful, a context is added to the context stack.
+        Filters the incoming HTTP request. If the request contains the header, it is passed to
+        the authenticate method. If authentication is successful, a context is added to the
+        context stack.
         """
         header = request.headers.get(self.key)
         auth = await self.authenticate(header) if header is not None else None
@@ -263,23 +262,23 @@ class HeaderSecurityScheme(APIKeySecurityScheme):
 
 class CookieSecurityScheme(APIKeySecurityScheme):
     """
-    Base class for cookie authentication security scheme. Subclass must
-    implement the authenticate method.
+    Base class for cookie authentication security scheme. Subclass must implement the
+    authenticate method.
 
     Parameters:
-    • name: Name of the security scheme.
-    • cookie: Name of cookie to be used.
-    • description: A short description for the security scheme.
+    • name: name of the security scheme
+    • cookie: name of cookie to be used
+    • description: a short description for the security scheme
     """
 
-    def __init__(self, name, cookie, **kwargs):
+    def __init__(self, name: str, cookie: str, **kwargs):
         super().__init__(name, location="cookie", key=cookie, **kwargs)
 
     async def filter(self, request):
         """
-        Filters the incoming HTTP request. If the request contains the cookie,
-        it is passed to the authenticate method. If authentication is
-        successful, a context is added to the context stack.
+        Filters the incoming HTTP request. If the request contains the cookie, it is passed to
+        the authenticate method. If authentication is successful, a context is added to the
+        context stack.
         """
         cookie = request.cookies.get(self.key)
         auth = await self.authenticate(cookie) if cookie is not None else None
@@ -382,6 +381,7 @@ async def handle_error(err: fondat.error.Error):
 
     response = Response()
     response.status = err.status
+    response.headers["content-type"] = "application/json"
     response.body = BytesStream(
         json.dumps(
             dict(
@@ -398,14 +398,14 @@ class Application:
     An HTTP application.
 
     Parameters and attributes:
-    • root: Resource to dispatch requests to.
-    • filters: List of filters to apply during HTTP request processing.
-    • error_handler: Produces response for raised fondat.error.
+    • root: resource to dispatch requests to
+    • filters: filters to apply during HTTP request processing
+    • error_handler: produces response for raised fondat.error exception
     """
 
     def __init__(
         self,
-        root: Any,
+        root: type,
         filters: Iterable[Any] = None,
         error_handler: Callable = handle_error,
     ):

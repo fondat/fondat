@@ -8,8 +8,8 @@ class Error(Exception):
     Base class for errors.
 
     Each error class must expose the following attributes:
-    • status: HTTP status code (integer).
-    • phrase: HTTP reason phrase.
+    • status: HTTP status code (integer)
+    • phrase: HTTP reason phrase
     """
 
 

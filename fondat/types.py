@@ -12,29 +12,29 @@ from typing import Any, Union
 NoneType = type(None)
 
 
-def affix_type_hints(obj=None, *, globalns=None, localns=None, attrs=True):
+def affix_type_hints(obj=None, *, globalns=None, localns=None, attrs: bool = True):
     """
-    Affixes an object's type hints to the object by materializing evaluated
-    string type hints into the type's __annotations__ attribute.
+    Affixes an object's type hints to the object by materializing evaluated string type hints
+    into the type's __annotations__ attribute.
 
-    This function exists due to PEP 563, in which annotations are stored as
-    strings, are only evaluated when typing.get_type_hints is called; this will
-    be the default behavior of annotations in Python 3.10. The work in PEP 649,
-    if accepted, will likely eliminate the need to affix type hints.
+    This function exists due to PEP 563, in which annotations are stored as strings, are only
+    evaluated when typing.get_type_hints is called; this will be the default behavior of
+    annotations in Python 3.10. The work in PEP 649, if accepted, will likely eliminate the
+    need to affix type hints.
 
     This function can be applied as a decorator to a class or function.
 
     Parameters:
-    • obj: Function, method, module or class object.
-    • globalns: Global namespace to evaluate type hints.
-    • localns: Local namespace to evaluate type hints.
-    • attrs: Affix all of object's attribute type hints.
+    • obj: function, method, module or class object
+    • globalns: global namespace to evaluate type hints
+    • localns: local namespace to evaluate type hints
+    • attrs: affix all of object's attribute type hints
 
-    Type hints are affixed by first resolving through typing.get_type_hints,
-    then by storing the result in the object's __annotations__ attribute.
+    Type hints are affixed by first resolving through typing.get_type_hints, then by storing
+    the result in the object's __annotations__ attribute.
 
-    If the object is a class, this function will affix annotations from all
-    superclasses into the object annotations.
+    If the object is a class, this function will affix annotations from all superclasses into
+    the object annotations.
 
     Affixation provides the following benefits (under PEP 563):
     • time and scope of annotation evaluation is under the control of the caller
@@ -61,7 +61,7 @@ class _MISSING:
     pass
 
 
-def dataclass(cls, init=True, **kwargs):
+def dataclass(cls, init: bool = True, **kwargs):
     """
     Decorate a class to be a data class.
 
@@ -123,8 +123,8 @@ class Stream(AsyncIterator[Union[bytes, bytearray]]):
     Abstract base class to represent content as an asynchronous stream of bytes.
 
     Parameter and attribute:
-    • content_type: The media type of the stream.
-    • content_length: The length of the content, if known.
+    • content_type: the media type of the stream
+    • content_length: the length of the content, if known
     """
 
     def __init__(self, content_type: str = "application/octet-stream", content_length=None):

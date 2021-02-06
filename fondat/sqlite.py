@@ -64,8 +64,8 @@ def _codec_provider(wrapped=None):
 @_codec_provider
 def _blob_codec_provider(python_type):
     """
-    Provides a codec that encodes/decodes a value to/from a SQLite BLOB.
-    Supports the following types: bytes, bytearray.
+    Provides a codec that encodes/decodes a value to/from a SQLite BLOB. Supports the
+    following types: bytes, bytearray.
     """
 
     if not _issubclass(python_type, (bytes, bytearray)):
@@ -90,8 +90,8 @@ def _blob_codec_provider(python_type):
 @_codec_provider
 def _integer_codec_provider(python_type):
     """
-    Provides a codec that encodes/decodes a value to/from a SQLite INTEGER.
-    Supports the following types: int, bool.
+    Provides a codec that encodes/decodes a value to/from a SQLite INTEGER. Supports the
+    following types: int, bool.
     """
 
     if not _issubclass(python_type, int):  # includes bool
@@ -116,8 +116,8 @@ def _integer_codec_provider(python_type):
 @_codec_provider
 def _real_codec_provider(python_type):
     """
-    Provides a codec that encodes/decodes a value to/from a SQLite REAL.
-    Supports the following type: float.
+    Provides a codec that encodes/decodes a value to/from a SQLite REAL. Supports the
+    following type: float.
     """
 
     if not _issubclass(python_type, float):
@@ -142,9 +142,9 @@ def _real_codec_provider(python_type):
 @_codec_provider
 def _union_codec_provider(python_type):
     """
-    Provides a codec that encodes/decodes a Union or Optional value to/from a
-    compatible SQLite value. For Optional value, will use codec for its type,
-    otherwise it encodes/decodes as TEXT.
+    Provides a codec that encodes/decodes a Union or Optional value to/from a compatible
+    SQLite value. For Optional value, will use codec for its type, otherwise it
+    encodes/decodes as TEXT.
     """
 
     origin = typing.get_origin(python_type)
@@ -183,9 +183,9 @@ def _union_codec_provider(python_type):
 @_codec_provider
 def _literal_codec_provider(python_type):
     """
-    Provides a codec that encodes/decodes a Literal value to/from a compatible
-    SQLite value. If all literal values share the same type, then a codec for
-    that type will be used, otherwise it encodes/decodes as TEXT.
+    Provides a codec that encodes/decodes a Literal value to/from a compatible SQLite value.
+    If all literal values share the same type, then a codec for that type will be used,
+    otherwise it encodes/decodes as TEXT.
     """
 
     origin = typing.get_origin(python_type)
@@ -198,9 +198,9 @@ def _literal_codec_provider(python_type):
 @_codec_provider
 def _text_codec_provider(python_type):
     """
-    Provides a codec that encodes/decodes a value to/from a SQLite TEXT. It
-    unconditionally returns the codec, regardless of Python type. It should be
-    the last provider in the providers list to serve as a catch-all.
+    Provides a codec that encodes/decodes a value to/from a SQLite TEXT. It unconditionally
+    returns the codec, regardless of Python type. It should be the last provider in the
+    providers list to serve as a catch-all.
     """
 
     str_codec = fondat.codec.get_codec(String, python_type)
@@ -243,7 +243,7 @@ class Database(fondat.sql.Database):
     Manages access to a SQLite database.
 
     Parameter:
-    • path: Path to SQLite database file.
+    • path: path to SQLite database file
     """
 
     def __init__(self, path: str):

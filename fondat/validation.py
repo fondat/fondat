@@ -194,10 +194,7 @@ def validate(value: Any, type_: type):
 
 
 def validate_arguments(callable: Callable):
-    """
-    Decorate a function or coroutine to validate its arguments using type
-    annotations.
-    """
+    """Decorate a function or coroutine to validate its arguments using type annotations."""
 
     sig = inspect.signature(callable)
 
@@ -241,10 +238,7 @@ def validate_arguments(callable: Callable):
 
 
 def validate_return_value(callable: Callable):
-    """
-    Decorate a function or coroutine to validate its return value using type
-    annotations.
-    """
+    """Decorate a function or coroutine to validate its return value using type annotations."""
 
     type_ = typing.get_type_hints(callable, include_extras=True).get("return")
 

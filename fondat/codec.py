@@ -68,9 +68,7 @@ class Codec(Generic[F, T]):
 
 
 class String(Codec[F, str]):
-    """
-    Encodes Python types to/from Unicode string objects.
-    """
+    """Encodes Python types to/from Unicode string objects."""
 
 
 class Binary(Codec[F, Union[bytes, bytearray]]):
@@ -78,7 +76,7 @@ class Binary(Codec[F, Union[bytes, bytearray]]):
     Encodes Python types to/from binary objects.
 
     Attribute:
-    • content_type: string containing the media type of the binary object representation.
+    • content_type: string containing the media type of the binary object representation
     """
 
 
@@ -86,11 +84,11 @@ class JSON(Codec[F, Any]):
     """
     Encodes Python types to/from the JSON object model.
 
-    The JSON object model is strictly composed of the following types:
-    dict, list, str, int, float, bool, NoneType.
+    The JSON object model is strictly composed of the following types: dict, list, str, int,
+    float, bool, NoneType.
 
     Attribute:
-    • json_type: the JSON object model type encoded/decoded by the codec.
+    • json_type: the JSON object model type encoded/decoded by the codec
     """
 
 
@@ -184,8 +182,8 @@ _bytes_binarycodec = _Bytes_Binary()
 @affix_type_hints
 class _Bytes_String(String[Union[bytes, bytearray]]):
     """
-    String codec for byte sequences. A byte sequence is represented in string
-    values as a base64-encoded string. Example: "SGVsbG8gRm9uZGF0".
+    String codec for byte sequences. A byte sequence is represented in string values as a
+    base64-encoded string. Example: "SGVsbG8gRm9uZGF0".
     """
 
     @validate_arguments
@@ -206,8 +204,8 @@ _bytes_stringcodec = _Bytes_String()
 @affix_type_hints
 class _Bytes_JSON(JSON[Union[bytes, bytearray]]):
     """
-    JSON codec for byte sequences. A byte sequence is represented in JSON
-    values as a base64-encoded string. Example: "SGVsbG8gRm9uZGF0".
+    JSON codec for byte sequences. A byte sequence is represented in JSON values as a
+    base64-encoded string. Example: "SGVsbG8gRm9uZGF0".
     """
 
     json_type = str
@@ -561,8 +559,8 @@ _decimal_binary = _Decimal_Binary()
 @affix_type_hints
 class _Decimal_JSON(JSON[Decimal]):
     """
-    JSON codec for Decimal numbers. Decimal numbers are represented in JSON as
-    strings, due to the imprecision of floating point numbers.
+    JSON codec for Decimal numbers. Decimal numbers are represented in JSON as strings, due to
+    the imprecision of floating point numbers.
     """
 
     json_type = str
@@ -596,8 +594,8 @@ def _Decimal(codec_type, python_type):
 @affix_type_hints
 class _Date_String(String[date]):
     """
-    String codec for dates. A date is represented in a string in RFC 3339
-    format. Example: "2018-06-16".
+    String codec for dates. A date is represented in a string in RFC 3339 format.
+    Example: "2018-06-16".
     """
 
     @validate_arguments
@@ -618,8 +616,8 @@ _date_stringcodec = _Date_String()
 @affix_type_hints
 class _Date_Binary(Binary[date]):
     """
-    Binary codec for dates. A date is represented in a binary format as an
-    RFC 3339 UTF-8 encoded string. Example: "2018-06-16".
+    Binary codec for dates. A date is represented in a binary format as an RFC 3339 UTF-8 or
+    ASCII encoded string. Example: "2018-06-16".
     """
 
     content_type = _TEXT_PLAIN
@@ -639,8 +637,8 @@ _date_binarycodec = _Date_Binary()
 @affix_type_hints
 class _Date_JSON(JSON[date]):
     """
-    JSON codec for dates. A date is represented in JSON as an RFC 3339
-    formatted string. Example: "2018-06-16".
+    JSON codec for dates. A date is represented in JSON as an RFC 3339 formatted string.
+    Example: "2018-06-16".
     """
 
     json_type = str
@@ -680,8 +678,8 @@ def _to_utc(value):
 @affix_type_hints
 class _Datetime_String(String[datetime]):
     """
-    String codec for datetime. A datetime is represented in a string in
-    RFC 3339 format. Example: "2018-06-16T12:34:56.789012Z".
+    String codec for datetime. A datetime is represented in a string in RFC 3339 format.
+    Example: "2018-06-16T12:34:56.789012Z".
     """
 
     @validate_arguments
@@ -709,8 +707,8 @@ _datetime_stringcodec = _Datetime_String()
 @affix_type_hints
 class _Datetime_Binary(Binary[datetime]):
     """
-    Binary codec for datetimes. A datetime is represented in a binary format as
-    an RFC 3339 UTF-8 encoded string. Example: "2018-06-16T12:34:56.789012Z".
+    Binary codec for datetimes. A datetime is represented in a binary format as an RFC 3339
+    UTF-8 or ASCII encoded string. Example: "2018-06-16T12:34:56.789012Z".
     """
 
     content_type = _TEXT_PLAIN
@@ -730,8 +728,8 @@ _datetime_binarycodec = _Datetime_Binary()
 @affix_type_hints
 class _Datetime_JSON(JSON[datetime]):
     """
-    JSON codec for datetimes. A datetime is represented in JSON as an RFC 3339
-    formatted string. Example: "2018-06-16T12:34:56.789012Z".
+    JSON codec for datetimes. A datetime is represented in JSON as an RFC 3339 formatted
+    string. Example: "2018-06-16T12:34:56.789012Z".
     """
 
     json_type = str

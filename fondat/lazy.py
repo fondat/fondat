@@ -9,17 +9,17 @@ from typing import Any
 
 class LazyMap(MutableMapping):
     """
-    A mapping of key-value pairs, in which a value can be lazily
-    initialized at the time of first access. This is useful to allow resources
-    to access other resources, preventing circular dependencies.
+    A mapping of key-value pairs, in which a value can be lazily initialized at the time of
+    first access. This is useful to allow resources to access other resources, preventing
+    circular dependencies.
 
     Parameters:
-    • init: Mapping of key-value pairs to initialize the lazy map.
+    • init: mapping of key-value pairs to initialize the lazy map
 
-    To lazily initialize a value, set it to a no-argument function callback
-    that has been decorated with the @lazy decorator. When the value is then
-    first accessed, the callback will be called to initialize the value.
-    The resulting value will then be stored in the mapping.
+    To lazily initialize a value, set it to a no-argument function callback that has been
+    decorated with the @lazy decorator. When the value is then first accessed, the callback
+    will be called to initialize the value. The resulting value will then be stored in the
+    mapping.
     """
 
     def __init__(self, init=None):
@@ -56,9 +56,7 @@ class LazyMap(MutableMapping):
 
 
 def lazy(function: Any) -> Any:
-    """
-    Decorate a function to tag it as a lazy initializer.
-    """
+    """Decorate a function to tag it as a lazy initializer."""
     if not callable(function):
         raise TypeError("function must be callable")
     setattr(function, "_fondat_lazy", True)
@@ -70,7 +68,7 @@ def lazy_import(module_name: str) -> Callable:
     Return a lazy callback function that imports a module and returns it.
 
     Parameters:
-    • module_name: The name of the module to import.
+    • module_name: the name of the module to import
     """
 
     def callback():
@@ -81,12 +79,11 @@ def lazy_import(module_name: str) -> Callable:
 
 def lazy_import_attr(module_name: str, attr_name: str) -> Callable:
     """
-    Return a lazy callback function that imports a module and returns an
-    attribute from it.
+    Return a lazy callback function that imports a module and returns an attribute from it.
 
     Parameters:
-    • module_name: The name of the module to import.
-    • attr_name: The name of the attribute in the module to be returned.
+    • module_name: the name of the module to import
+    • attr_name: the name of the attribute in the module to be returned
     """
 
     def callback():
@@ -96,7 +93,5 @@ def lazy_import_attr(module_name: str, attr_name: str) -> Callable:
 
 
 def is_lazy(obj: Any) -> bool:
-    """
-    Return True if an object is a callable is tagged as a lazy callback function.
-    """
+    """Return True if an object is a callable is tagged as a lazy callback function."""
     return callable(obj) and getattr(obj, "_fondat_lazy", None)

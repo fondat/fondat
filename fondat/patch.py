@@ -9,8 +9,8 @@ def merge_patch(target, patch):
     Apply JSON Merge Patch document, per RFC 7386.
 
     Parameters:
-    • target: JSON value to mutate.
-    • patch: Patch document to apply.
+    • target: JSON value to mutate
+    • patch: patch document to apply
     """
     if isinstance(patch, collections.abc.Mapping):
         if not isinstance(target, collections.abc.Mapping):

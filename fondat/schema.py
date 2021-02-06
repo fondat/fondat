@@ -89,8 +89,8 @@ def get_schema(type_hint):
     """
     Return a JSON schema for the specified Python type hint.
 
-    A type hint contains not only the Python type, but also optional Annotated
-    arguments to include validation, description, example values.
+    A type hint contains not only the Python type, but also optional Annotated arguments to
+    include validation, description, example values.
     """
 
     python_type, annotated = fondat.types.split_annotated(type_hint)
@@ -159,7 +159,7 @@ def _str_schema(python_type, annotated, *_):
             if is_instance(annotation, fondat.validation.MinLen):
                 kwargs["minLength"] = annotation.value
             elif is_instance(annotation, fondat.validation.MaxLen):
-                kwargs["maxLength"] = annotation.value
+                kwargs["maxLan ength"] = annotation.value
             elif is_instance(annotation, fondat.validation.Pattern):
                 kwargs["pattern"] = annotation.value.pattern
         return Schema(type="string", **_kwargs(annotated), **kwargs)

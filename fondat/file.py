@@ -115,7 +115,7 @@ def _file_resource_class(
     if value_type is Stream:
         if compress is not None:
             raise TypeError("file resources does not support compression of streams")
-        return _stream_resource_class(writeable, security)
+        return _stream_resource_class(writeable, publish, security)
 
     codec = get_codec(Binary, value_type)
 
@@ -186,8 +186,8 @@ def file_resource(
     • publish: publish the operation in documentation
     • security: security requirements to apply to file operations
 
-    Compression algorithm is any object or module that exposes callable
-    "compress" and "decompress" attributes. Examples: bz2, gzip, lzma, zlib.
+    Compression algorithm is any object or module that exposes callable "compress" and
+    "decompress" attributes. Examples: bz2, gzip, lzma, zlib.
     """
     return _file_resource_class(value_type, compress, writeable, publish, security)(path)
 
@@ -224,9 +224,9 @@ def directory_resource(
     • publish: publish the operation in documentation
     • security: Security requirements to apply to all operations
 
-    Compression algorithm is any object or module that exposes callable
-    "compress" and "decompress" attributes. Examples: bz2, gzip, lzma, zlib.
-    Compression is not supported for value_type of Stream.
+    Compression algorithm is any object or module that exposes callable "compress" and
+    "decompress" attributes. Examples: bz2, gzip, lzma, zlib. Compression is not supported for
+    value_type of Stream.
 
     The index parameter can be one of the following:
     • key_type: identifies a file in the directory to provide as the index

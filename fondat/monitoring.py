@@ -1,29 +1,29 @@
 """
 Module for monitoring measurements.
 
-This module defines a "monitors" variable, which is an instance of the Monitors
-class. Your application monitor(s) can be added to/deleted from this object.
+This module defines a "monitors" variable, which is an instance of the Monitors class. Your
+application monitor(s) can be added to/deleted from this object.
 """
 
 import collections
 import contextlib
-import datetime
 import fondat.context as context
 import fondat.validation
 import logging
 import math
 import re
 import time
-import typing
 
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
+from typing import Any, Literal, Union
 
 
 _logger = logging.getLogger(__name__)
 
 
-_now = lambda: datetime.datetime.now(tz=datetime.timezone.utc)
+_now = lambda: datetime.now(tz=timezone.utc)
 
 
 @dataclass
@@ -32,16 +32,16 @@ class Measurement:
     An individual measurement.
 
     Attributes:
-    • tags: Tags associated with the measurement. Should contain a "name" key.
-    • timestamp: Date and time of the measurement to record.
-    • type: Type of measurement to record.  {"counter", "gauge", "absolute"}
-    • value: Value of measurement (int or float).
+    • tags: tags associated with the measurement; should contain a "name" key
+    • timestamp: date and time of the measurement to record
+    • type: type of measurement to record
+    • value: value of measurement
     """
 
-    tags: dict[str, typing.Any]
-    timestamp: datetime.datetime
-    type: str  # {"counter", "gauge", "absolute"}
-    value: typing.Union[int, float]
+    tags: dict[str, str]
+    timestamp: datetime
+    type: Literal["counter", "gauge", "absolute"]
+    value: Union[int, float]
 
     def __post_init__(self):
         fondat.validation.validate(self, self.__class__)
@@ -49,47 +49,46 @@ class Measurement:
 
 class Counter:
     """
-    A counter data point. A counter measurement is an integer value that should
-    monotonicaly increase (unless being reset). The counter data point stores the
-    highest counter value measured.
+    A counter data point. A counter measurement is an integer value that should monotonicaly
+    increase (unless being reset). The counter data point stores the highest counter value
+    measured.
 
     Parameter and attribute:
-    • timestamp: Time of the data point, in seconds since Epoch.
+    • timestamp: time of the data point
 
     Attributes:
-    • value: Highest counter value measured.
+    • value: highest counter value measured
     """
 
     name = "counter"
 
-    def __init__(self, timestamp):
+    def __init__(self, timestamp: datetime):
         super().__init__()
         self.timestamp = timestamp
         self.value = 0
 
-    def record(self, value):
+    def record(self, value: Union[int, float]):
         self.value = max(self.value, value)
 
 
 class Gauge:
     """
-    A gauge data point. A gauge measurement is an integer or floating point
-    value. The gauge data point stores the minimum, maximum, sum and count of
-    measured values.
+    A gauge data point. A gauge measurement is an integer or floating point value. The gauge
+    data point stores the minimum, maximum, sum and count of measured values.
 
     Parameter and attribute:
-    • timestamp: Date and time of the data point.
+    • timestamp: date and time of the data point
 
     Attributes:
-    • min: Minimum measured value.
-    • max: Maximum measured value.
-    • sum: Sum of all measured values
-    • count: Count of measured values.
+    • min: minimum measured value
+    • max: maximum measured value
+    • sum: sum of all measured values
+    • count: count of measured values
     """
 
     name = "gauge"
 
-    def __init__(self, timestamp):
+    def __init__(self, timestamp: int):
         super().__init__()
         self.timestamp = timestamp
         self.min = None
@@ -97,7 +96,7 @@ class Gauge:
         self.count = 0
         self.sum = 0
 
-    def record(self, value):
+    def record(self, value: Union[int, float]):
         if self.min is None or value < self.min:
             self.min = value
         if self.max is None or value > self.max:
@@ -108,24 +107,24 @@ class Gauge:
 
 class Absolute:
     """
-    An absolute data point. An absolute measurement is an integer value. The
-    absolute data point stores the sum of measured values.
+    An absolute data point. An absolute measurement is an integer value. The absolute data
+    point stores the sum of measured values.
 
     Parameter and attribute:
-    • timestamp: Date and time of the data point.
+    • timestamp: date and time of the data point
 
     Attributes:
-    • value: Sum of measured values.
+    • value: sum of measured values
     """
 
     name = "absolute"
 
-    def __init__(self, timestamp):
+    def __init__(self, timestamp: datetime):
         super().__init__()
         self.timestamp = timestamp
         self.value = 0
 
-    def record(self, value):
+    def record(self, value: Union[int, float]):
         self.value += value
 
 
@@ -135,22 +134,27 @@ _types = {t.name: t for t in {Counter, Gauge, Absolute}}
 class Series:
     """
     Parameters and attributes:
-    • type: Type of the data point being tracked.
-    • patterns: Dictionary of tag names to regular expression patterns to match.
-    • points: Number of data points to maintain in the time series.
-    • interval: Interval between data points, in seconds.
+    • type: type of the data point being tracked
+    • patterns: dictionary of tag names to regular expression patterns to match
+    • points: number of data points to maintain in the time series
+    • interval: interval between data points, in seconds
 
     Attributes:
-    • data: Deque of timestamp-ordered data points.
+    • data: deque of timestamp-ordered data points
 
-    The patterns parameter is a dictionary that maps tag names to regular
-    expressions (compiled or strings) to match against recorded measurement tags.
-    For example, {"name": "foo"} would track data where a tag includes
-    {"name": "foo"}, while {"name": "foo\\..+"} would track measurements with
-    tags that include {"name": "foo.bar"} and {"name": "foo.qux"}.
+    The patterns parameter is a dictionary that maps tag names to regular expression
+    strings to match against recorded measurement tags. For example, {"name": "foo"} would
+    track data where a tag includes {"name": "foo"}, while {"name": "foo\\..+"} would track
+    measurements with tags that include {"name": "foo.bar"} and {"name": "foo.qux"}.
     """
 
-    def __init__(self, type, patterns, points, interval):
+    def __init__(
+        self,
+        type: Literal["counter", "gauge", "absolute"],
+        patterns: dict[str, str],
+        points: int,
+        interval: int,
+    ):
         self.type = type
         self.patterns = {k: re.compile(v) for k, v in patterns.items()}
         self.points = points
@@ -166,7 +170,7 @@ class Series:
     def _round_down(self, timestamp):
         ts = int(timestamp.timestamp())  # truncate milliseconds
         ts -= ts % self.interval  # round to beginning of interval
-        return datetime.datetime.fromtimestamp(ts, tz=datetime.timezone.utc)
+        return datetime.fromtimestamp(ts, tz=timezone.utc)
 
     def _get_data_point(self, timestamp):
         timestamp = self._round_down(timestamp)
@@ -185,9 +189,7 @@ class Series:
         return result
 
     def record(self, measurement):
-        """
-        Record a measurement.
-        """
+        """Record a measurement."""
         if not self._tags_match(measurement.tags):
             return  # ignore submission
         if measurement.type != self.type:
@@ -199,41 +201,47 @@ class Series:
 
 class SimpleMonitor:
     """
-    A simple in-memory round-robin monitor, capable of maintaining multiple
-    time series. This class is appropriate for collecting thousands of data
-    points; beyond that, it’s probably advisable to use an external time
-    series database.
+    A simple in-memory round-robin monitor, capable of maintaining multiple time series. This
+    class is appropriate for collecting thousands of data points (e.g. unit testing). Beyond
+    that, it’s advisable to use an external, real time series database.
 
-    In this monitor, a time series is a set of data points and time intervals
-    of fixed duration. A data point records data measured at that exact point
-    in time and the subsequent interval.
+    In this monitor, a time series is a set of data points and time intervals of fixed
+    duration. A data point records data measured at that exact point in time and the
+    subsequent interval.
 
-    This monitor handles the following types of recorded measurements in data
-    points: "counter", "gauge" and "absolute". For more information on these
-    types, see their class documentation.
+    This monitor handles the following types of recorded measurements in data points:
+    "counter", "gauge" and "absolute". For more information on these types, see their class
+    documentation.
 
-    If no measurement is recorded for a given data point, the data point will
-    not be stored in the time series. Consumers of the time series should
-    perform interpolation if required (e.g. for graphic representation).
+    If no measurement is recorded for a given data point, the data point will not be stored in
+    the time series. Consumers of the time series should perform interpolation if required
+    (e.g. for graphic representation).
 
-    The simple monitor contains a series attribute, which is a dictionary
-    mapping time series names to associated Series objects.
+    The simple monitor contains a series attribute, which is a dictionary mapping time series
+    names to associated Series objects.
     """
 
     def __init__(self):
         super().__init__()
         self.series = {}
 
-    def track(self, name, type, patterns, points, interval):
+    def track(
+        self,
+        name: str,
+        type: Literal["counter", "gauge", "absolute"],
+        patterns: dict[str, str],
+        points: int,
+        interval: int,
+    ):
         """
         Track data points for a specfied set of tags in a new time series.
 
         Parameters:
-        • name: Name of the new time series.
-        • type: Type of data point to track.  {"counter", "gauge", "absolute"}
-        • patterns: Measurements with tags matching regular expressions are tracked.
-        • points: Number of data points to maintain in the time series.
-        • interval: Interval between data points, in seconds.
+        • name: name of the new time series
+        • type: type of data point to track  {"counter", "gauge", "absolute"}
+        • patterns: measurements with tags matching regular expressions are tracked
+        • points: number of data points to maintain in the time series
+        • interval: interval between data points, in seconds
 
         For patterns parameter, see the Series class initializer documentation.
         """
@@ -243,7 +251,7 @@ class SimpleMonitor:
             raise ValueError(f"unsupported data point type: {type}")
         self.series[name] = Series(type, patterns, points, interval)
 
-    async def record(self, measurement):
+    async def record(self, measurement: Measurement):
         """Record a measurement."""
         for series in self.series.values():
             series.record(measurement)
@@ -251,36 +259,35 @@ class SimpleMonitor:
 
 class DequeMonitor:
     """
-    A monitor that stores all recorded measurements in a deque object.
+        A monitor that stores all recorded measurements in a deque object.
 
-    Parameters:
-    • size: Maximum number of recorded measurements to enqueue.  [unlimited]
-    • deque: Deque to store measurements in.  [new deque]
-
-    When a measurement is recorded, if the maximum queue size is reached, the
-    oldest measurement is expunged.
+        Parameters:
+        • size: maximum number of recorded measurements to enqueue  [unlimited]
+        • deque: deque to store measurements in  [new deque]
+    dict[str, str]
+        When a measurement is recorded, if the maximum queue size is reached, the oldest
+        measurement is expunged.
     """
 
-    def __init__(self, size=None, deque=None):
+    def __init__(self, size: int = None, deque: collections.deque = None):
         super().__init__()
         self.deque = deque if deque is not None else collections.deque()
         self.size = size
 
-    async def record(self, measurement):
+    async def record(self, measurement: Measurement):
         """Record a measurement."""
         if self.size is not None:
             while len(self.deque) >= self.size:
                 self.deque.popleft()
         self.deque.append(measurement)
 
-    async def pop(self, monitor, cap=None):
+    async def pop(self, monitor, cap: int = None):
         """
-        Remove oldest measurements from the deque and record them into another
-        monitor.
+        Remove oldest measurements from the deque and record them into another monitor.
 
         Parameters:
-        • monitor: Monitor to record measurements into.
-        • cap: Maximum number of measurements to pop from deque.
+        • monitor: monitor to record measurements into
+        • cap: maximum number of measurements to pop from deque
 
         If no cap is specified, all queued items will be popped.
         """
@@ -296,12 +303,12 @@ class DequeMonitor:
 
 class Monitors(dict):
     """
-    A monitor that is a dict of key-monitor pairs. A call to the record method
-    in this monitor records the measurement in all contained monitors. The key
-    to associate with a monitor is at the discretion of its creator.
+    A monitor that is a dict of key-monitor pairs. A call to the record method in this monitor
+    records the measurement in all contained monitors. The key to associate with a monitor is
+    at the discretion of its creator.
     """
 
-    async def record(self, measurement):
+    async def record(self, measurement: Measurement):
         """Record a measurement."""
         exception = None
         for monitor in self.values():
@@ -316,19 +323,19 @@ class Monitors(dict):
 
 class timer:
     """
-    A context manager that times the execution of work and records its
-    duration in seconds as a gauge measurement in the monitor.
+    A context manager that times the execution of work and records its duration in seconds as
+    a gauge measurement in the monitor.
 
     Parameters:
-    • tags: Tags to record upon completion of the timer.
-    • monitors: Monitors to record measurement in.  [context monitors]
-    • status: Name of tag to record status in measurement; None excludes status.
+    • tags: tags to record upon completion of the timer
+    • monitors: monitors to record measurement in  [context monitors]
+    • status: name of tag to record status in measurement; None excludes status
 
-    If no exception is encounted during execution, recorded status is
-    "success", otherwise "failure".
+    If no exception is encounted during execution, recorded status is "success", otherwise
+    "failure".
     """
 
-    def __init__(self, tags, *, monitors=None, status="status"):
+    def __init__(self, tags: dict[str, str], *, monitors=None, status: str = "status"):
         self.tags = tags
         self.monitors = monitors
         self.status = status
@@ -350,19 +357,19 @@ class timer:
 
 class counter:
     """
-    A context manager that records the excecution of work as a counter
-    measurement in the monitor.
+    A context manager that records the excecution of work as a counter measurement in the
+    monitor.
 
     Parameters:
-    • tags: Tags to record upon completion of the timer.
-    • monitors: Monitors to record measurement in.  [context monitors]
-    • status: Name of tag to record status in measurement; None excludes status.
+    • tags: tags to record upon completion of the timer
+    • monitors: monitors to record measurement in  [context monitors]
+    • status: name of tag to record status in measurement; None excludes status
 
-    If no exception is encounted during execution, recorded status is
-    "success", otherwise "failure".
+    If no exception is encounted during execution, recorded status is "success", otherwise
+    "failure".
     """
 
-    def __init__(self, tags, *, monitors=None, status="status"):
+    def __init__(self, tags: dict[str, str], *, monitors=None, status: str = "status"):
         self.tags = tags
         self.monitors = monitors
         self.status = status
@@ -392,14 +399,14 @@ def get_monitors():
     return (c["monitor"] for c in context.find(context="fondat.monitor"))
 
 
-async def record(measurement, monitors=None):
+async def record(measurement: Measurement, monitors=None):
     """
-    Record a measurement in the specified monitors. If no monitors are
-    specified, then measurement is recorded in all context monitors.
+    Record a measurement in the specified monitors. If no monitors are specified, then
+    measurement is recorded in all context monitors.
 
     Parameters:
-    • measurement: Measurement to record.
-    • monitors: Monitors to record in.
+    • measurement: measurement to record
+    • monitors: monitors to record measurement in
     """
     for monitor in monitors or get_monitors():
         await monitor.record(measurement)

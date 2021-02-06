@@ -20,18 +20,17 @@ async def get(self, ..., limit: int = None, cursor: bytes = None) -> Page:
     ...
     return Page(...)
 
-An operation should establish an upper limit of items to return in each page.
-If appropriate, the operation can also expose an optional "limit" parameter,
-which allows a caller to suggest the number of items to be returned in the
-page. The operation is free to decide how many items to return.
+An operation should establish an upper limit of items to return in each page. If appropriate,
+the operation can also expose an optional "limit" parameter, which allows a caller to suggest
+the number of items to be returned in the page. The operation is free to decide how many items
+to return.
 
-The "cursor" page attribute contains an opaque value that the caller supplies
-in a subsequent operation call to get the next page of items. If the "cursor"
-attribute is None, then there are no more items (or pages) to be requested.
+The "cursor" page attribute contains an opaque value that the caller supplies in a subsequent
+operation call to get the next page of items. If the "cursor" attribute is None, then there are
+no more items (or pages) to be requested.
 
-The optional "remaining" page attribute contains an estimated number of items
-remaining after the current page. As this value is optional, it may not be
-returned by the operation.
+The optional "remaining" page attribute contains an estimated number of items remaining after
+the current page. As this value is optional, it may not be returned by the operation.
 """
 
 from collections.abc import Callable, Iterable
@@ -60,11 +59,11 @@ def make_page_dataclass(class_name: str, item_type: type):
 
 async def paginate(operation: Callable, /, *args, **kwargs):
     """
-    Wraps a paginated resource operation with an asynchronous generator that
-    iterates through all values.
+    Wraps a paginated resource operation with an asynchronous generator that iterates through
+    all values.
 
-    The wrapped resource operation must return a page dataclass and accept a
-    "cursor" parameter that takes an optional bytes value.
+    The wrapped resource operation must return a page dataclass and accept a "cursor"
+    parameter that takes an optional bytes value.
 
     Parameters:
     • operation: resource operation to wrap with generator

@@ -37,8 +37,8 @@ class Parameter:
     Represents a parameterized value to include in a statement.
 
     Attributes:
-    • value: The value of the parameter to be included.
-    • python_type: The type of the pameter to be included.
+    • value: the value of the parameter to be included
+    • python_type: the type of the pameter to be included
     """
 
     value: Any
@@ -50,10 +50,10 @@ class Statement(Iterable):
     Represents a SQL statement.
 
     Attributes:
-    • result: The type to return a query result row in.
+    • result: the type to return a query result row in
 
-    The result can be expressed as a dataclass to be instantiated, or as a
-    TypedDict that results in a populated dict object.
+    The result can be expressed as a dataclass to be instantiated, or as a TypedDict that
+    results in a populated dict object.
     """
 
     def __init__(self):
@@ -76,15 +76,13 @@ class Statement(Iterable):
         Append a parameter to the statement.
 
         Parameters:
-        • value: Parameter value to be appended.
-        • python_type: Parameter type; inferred from value if None.
+        • value: parameter value to be appended
+        • python_type: parameter type; inferred from value if None
         """
         self.fragments.append(Parameter(value, python_type if python_type else type(value)))
 
     def parameter(self, parameter: Parameter) -> None:
-        """
-        Append a parameter to the statement.
-        """
+        """Append a parameter to the statement."""
         self.fragments.append(parameter)
 
     def parameters(self, params: Iterable[Parameter], separator: str = None) -> None:
@@ -92,8 +90,8 @@ class Statement(Iterable):
         Append parameters to this statement, with optional text separator.
 
         Parameters:
-        • params: Parameters to be appended.
-        • separator: Separator between parameters.
+        • params: parameters to be appended
+        • separator: separator between parameters
         """
         sep = False
         for param in params:
@@ -103,9 +101,7 @@ class Statement(Iterable):
             sep = True
 
     def statement(self, statement: Statement) -> None:
-        """
-        Append a statement to this statement.
-        """
+        """Append a statement to this statement."""
         self.fragments += statement.fragments
 
     def statements(self, statements: Iterable[Statement], separator: str = None) -> None:
@@ -113,8 +109,8 @@ class Statement(Iterable):
         Append statements to this statement, with optional text separator.
 
         Parameters:
-        • statements: Statements to be added to the statement.
-        • separator: Separator between statements.
+        • statements: statements to be added to the statement
+        • separator: separator between statements
         """
         sep = False
         for statement in statements:
@@ -131,16 +127,14 @@ class Database:
         """
         Return context manager that manages a database transaction.
 
-        A transaction context provides SQL transactional semantics
-        (commit/rollback) around statements executed.
+        A transaction context provides SQL transactional semantics (commit/rollback) around
+        statements executed.
 
-        Creating an inner transaction context within an outer transaction
-        context has no effect; only the outermost transaction context will
-        exhibit commit/rollback behavior.
+        Creating an inner transaction context within an outer transaction context has no
+        effect; only the outermost transaction context will exhibit commit/rollback behavior.
 
-        Upon exit of the outer transaction context, if an exception was raised,
-        the transaction will be rolled back; otherwise the transaction will be
-        committed.
+        Upon exit of the outer transaction context, if an exception was raised, the
+        transaction will be rolled back; otherwise the transaction will be committed.
         """
         raise NotImplementedError
 
@@ -148,22 +142,21 @@ class Database:
         """
         Execute a SQL statement.
 
-        A transaction context must be established in order to execute a
-        statement.
+        A transaction context must be established in order to execute a statement.
 
-        If the statement is a query that expects results, then the type of each
-        row to be returned is specified in the statement's "result" attribute;
-        rows are accessed via a returned asynchronus iterator.
+        If the statement is a query that expects results, then the type of each row to be
+        returned is specified in the statement's "result" attribute; rows are accessed via a
+        returned asynchronus iterator.
 
         Parameter:
-        • statement: Statement to be executed.
+        • statement: statement to excute
         """
         raise NotImplementedError
 
     def get_codec(self, python_type: Any) -> Any:
         """
-        Return a codec suitable for encoding/decoding the Python type to a
-        corresponding SQL type.
+        Return a codec suitable for encoding/decoding the Python type to a corresponding SQL
+        type.
         """
         raise NotImplementedError
 
@@ -173,13 +166,13 @@ class Table:
     Represents a table in a SQL database.
 
     Parameters and attributes:
-    • name: Name of database table.
-    • database: Database where table is managed.
-    • schema: Dataclass or TypedDict representing the table schema.
-    • pk: Column name of primary key.
+    • name: name of database table
+    • database: database where table is managed
+    • schema: dataclass or TypedDict representing the table schema
+    • pk: column name of primary key
 
     Attributes:
-    • columns: Mapping of column names to ther associated types.
+    • columns: mapping of column names to ther associated types
     """
 
     def __init__(self, name: str, database: Database, schema: type, pk: str):
@@ -229,18 +222,18 @@ class Table:
         offset: int = None,
     ) -> AsyncIterator[Any]:
         """
-        Return an asynchronous iterable for rows in table that match the where
-        expression. Each row result a Mapping of column name to value.
+        Return an asynchronous iterable for rows in table that match the where expression.
+        Each row result a Mapping of column name to value.
 
         Parameters:
-        • columns: Columns to return, or None for all columns.
-        • where: Statement containing WHERE expression, or None to match all rows.
-        • order: Column names to order by, or None to not order results.
-        • limit: Limit the number of results returned, or None to not limit.
-        • offset: Number of rows to skip, or None to skip none.
+        • columns: columns to return, or None for all columns
+        • where: statement containing WHERE expression, or None to match all rows
+        • order: column names to order by, or None to not order results
+        • limit: limit the number of results returned, or None to not limit
+        • offset: number of rows to skip, or None to skip none
 
-        Columns can be specified as an iterable of column names, or as a string
-        containing comma-separated names.
+        Columns can be specified as an iterable of column names, or as a string containing
+        comma-separated names.
         """
 
         if isinstance(columns, str):
@@ -271,11 +264,10 @@ class Table:
 
     async def count(self, where: Statement = None) -> int:
         """
-        Return the number of rows in the table that match an optional
-        expression.
+        Return the number of rows in the table that match an optional expression.
 
         Parameters:
-        • where: Statement containing expression to match; None to match all rows.
+        • where: statement containing expression to match; None to match all rows
         """
 
         stmt = Statement()
@@ -350,11 +342,9 @@ class Index:
     Represents an index on a table in a SQL database.
 
     Parameters:
-    • name: Name of index.
-    • table: Table that the index defined for.
-    • keys: Index keys (typically column names).
-    • unique: Is index unique.
-    • desc: Are keys to be sorted in descending order.
+    • name: name of index
+    • table: table that the index defined for
+    • keys: index keys (typically column names with optional order)
     """
 
     def __init__(
