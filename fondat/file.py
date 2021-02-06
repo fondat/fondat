@@ -237,8 +237,7 @@ def directory_resource(
     _path = os.path.expanduser((path).rstrip("/"))
     os.makedirs(_path, exist_ok=True)
 
-    Page = make_page_dataclass("Page", value_type)
-
+    Page = make_page_dataclass("Page", key_type)
     FileResource = _file_resource_class(value_type, compress, writeable, publish, security)
 
     @resource
