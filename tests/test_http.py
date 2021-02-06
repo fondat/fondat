@@ -35,7 +35,7 @@ async def test_simple():
     assert await body(response) == b"str"
 
 
-async def test_nested():
+async def test_nested_attr():
     @resource
     class Nested:
         @operation
@@ -55,6 +55,30 @@ async def test_nested():
     assert response.headers["Content-Type"] == "text/plain; charset=UTF-8"
     assert response.headers["Content-Length"] == "6"
     assert await body(response) == b"nested"
+
+
+async def test_nested_item():
+    @resource
+    class Inner:
+        def __init__(self, key: str):
+            self.key = key
+        @operation
+        async def get(self) -> str:
+            return self.key
+
+    @resource
+    class Outer:
+        def __getitem__(self, key: str) -> Inner:
+            return Inner(key)
+
+    app = Application(Outer())
+    request = Request()
+    request.method = "GET"
+    request.path = "/abc"
+    response = await app.handle(request)
+    assert response.status == http.HTTPStatus.OK.value
+    assert response.headers["Content-Type"] == "text/plain; charset=UTF-8"
+    assert await body(response) == b"abc"
 
 
 async def test_valid_param():

@@ -289,21 +289,30 @@ class CookieSecurityScheme(APIKeySecurityScheme):
         raise NotImplementedError
 
 
-async def _resource(attr):
-    if fondat.resource.is_resource(attr):
-        return attr
-    if not callable(attr):
-        return None
-    hints = typing.get_type_hints(attr)
-    if not fondat.resource.is_resource(hints.get("return")):
-        return None
-    try:
+async def _subordinate(resource, segment):
+
+    # resource.attr
+    if (attr := getattr(resource, segment, None)) is not None:
+        if fondat.resource.is_resource(attr):
+            return attr
+        if not callable(attr):
+            raise NotFoundError
+        hints = typing.get_type_hints(attr)
+        if not fondat.resource.is_resource(hints.get("return")):
+            raise NotFoundError
         if is_coroutine_function(attr):
             return await attr()
         else:
             return attr()
-    except:
-        return None
+
+    # resource[item]
+    try:
+        item = resource[segment]
+    except TypeError:
+        raise NotFoundError
+    if not fondat.resource.is_resource(item):
+        raise NotFoundError
+    return item
 
 
 class ParamIn:
@@ -443,14 +452,12 @@ class Application:
         response = Response()
         method = request.method.lower()
         segments = request.path.split("/")[1:]
-        if segments == [""]:
-            segments = []  # handle root "/" path
+        if segments == [""]:  # handle root "/" path
+            segments = []
         resource = self.root
         operation = None
         for segment in segments:
-            resource = await _resource(getattr(resource, segment, None))
-            if not resource:
-                raise fondat.error.NotFoundError
+            resource = await _subordinate(resource, segment)
         operation = getattr(resource, method, None)
         if not fondat.resource.is_operation(operation):
             raise fondat.error.MethodNotAllowedError
