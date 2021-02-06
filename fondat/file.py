@@ -206,7 +206,7 @@ def directory_resource(
     extension: str = None,
     compress: Any = None,
     writeable: bool = False,
-    index: Union[type, str] = None,
+    index: bool = True,
     publish: bool = True,
     security: Iterable[SecurityRequirement] = None,
 ) -> type:
@@ -220,7 +220,7 @@ def directory_resource(
     • extenson: filename extension to append (including dot)
     • compress: algorithm to compress and decompress file content
     • writeable: can files be written or deleted
-    • index: index file key to represent directory
+    • index: provide index of files with get method
     • publish: publish the operation in documentation
     • security: Security requirements to apply to all operations
 
@@ -243,8 +243,12 @@ def directory_resource(
     @resource
     class DirectoryResource:
 
-        if index is None:
+        def __getitem__(self, key: key_type) -> FileResource:
+            return FileResource(
+                f"{_path}/{quote(codec.encode(key), safe='')}{extension if extension else ''}"
+            )
 
+        if index:
             @operation(publish=publish, security=security)
             async def get(self, limit: int = None, cursor: bytes = None) -> Page:
                 """Return paginated list of file keys."""
@@ -276,20 +280,6 @@ def directory_resource(
                         page.remaining = len(names) - counter
                         break
                 return page
-
-        elif isinstance(index, key_type):
-
-            @operation(publish=publish, security=security)
-            async def get(self) -> value_type:
-                return await self[index].get()
-
-        else:
-            raise TypeError("unsupported index type")
-
-        def __getitem__(self, key: key_type) -> FileResource:
-            return FileResource(
-                f"{_path}/{quote(codec.encode(key), safe='')}{extension if extension else ''}"
-            )
 
     affix_type_hints(DirectoryResource, localns=locals())
     DirectoryResource.__qualname__ = "DirectoryResource"
