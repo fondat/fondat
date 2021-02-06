@@ -16,6 +16,7 @@ import fondat.context as context
 import fondat.lazy
 import fondat.monitoring as monitoring
 import fondat.validation
+import logging
 import threading
 import types
 import wrapt
@@ -24,6 +25,9 @@ from collections.abc import Iterable, Mapping
 from fondat.error import ForbiddenError, UnauthorizedError
 from fondat.security import SecurityRequirement
 from typing import Any, Literal
+
+
+_logger = logging.getLogger(__name__)
 
 
 def _summary(function):
@@ -147,10 +151,10 @@ def operation(
     @wrapt.decorator
     async def wrapper(wrapped, instance, args, kwargs):
         operation = getattr(wrapped, "_fondat_operation")
-        tags = {
-            "resource": f"{instance.__class__.__module__}.{instance.__class__.__qualname__}",
-            "operation": wrapped.__name__,
-        }
+        res_name = f"{instance.__class__.__module__}.{instance.__class__.__qualname__}"
+        op_name = wrapped.__name__
+        tags = {"resource": res_name, "operation": op_name}
+        _logger.debug("%s.%s(args=%s, kwargs=%s)", res_name, op_name, args, kwargs)
         with context.push({"context": "fondat.operation", **tags}):
             async with monitoring.timer({"name": "operation_duration_seconds", **tags}):
                 async with monitoring.counter({"name": "operation_calls_total", **tags}):
