@@ -252,7 +252,7 @@ def _mapping_schema(python_type, annotated, origin, args):
 def _iterable_schema(python_type, annotated, origin, args):
     if is_subclass(origin, Iterable) and not is_subclass(origin, Mapping) and len(args) == 1:
         kwargs = {}
-        is_set = issubclass(origin, set)
+        is_set = is_subclass(origin, set)
         for annotation in annotated:
             if is_instance(annotation, fondat.validation.MinLen):
                 kwargs["minItems"] = annotation.value

@@ -14,7 +14,7 @@ import typing
 
 from collections.abc import Callable, Iterable, MutableSequence
 from fondat.codec import Binary, String, get_codec
-from fondat.types import Stream, BytesStream
+from fondat.types import Stream, BytesStream, is_subclass
 from fondat.validation import validate
 from typing import Annotated, Any, Literal
 
@@ -320,7 +320,7 @@ class _InString(InParam):
     async def get(self, hint, request):
         value = getattr(request, self.attr).get(self.key)
         try:
-            if issubclass(hint, Stream):
+            if is_subclass(hint, Stream):
                 return BytesStream(get_codec(String, bytes).decode(value))
             return get_codec(String, hint).decode(value)
         except (TypeError, ValueError) as e:
@@ -355,7 +355,7 @@ class _InBody(InParam):
     """Annotation to indicate a parameter is provided in request body."""
 
     async def get(self, hint, request):
-        if issubclass(hint, Stream):
+        if is_subclass(hint, Stream):
             return request.body
         try:
             value = bytearray()
@@ -476,7 +476,7 @@ class Application:
                 params[name] = param
         result = await operation(**params)
         validate(result, return_hint)
-        if not issubclass(return_hint, Stream):
+        if not is_subclass(return_hint, Stream):
             return_codec = get_codec(Binary, return_hint)
             result = BytesStream(return_codec.encode(result), return_codec.content_type)
         response.body = result

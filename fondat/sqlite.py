@@ -15,7 +15,7 @@ import typing
 from asyncio.exceptions import CancelledError
 from collections.abc import AsyncIterator
 from fondat.codec import Codec, String
-from fondat.types import affix_type_hints
+from fondat.types import affix_type_hints, is_subclass
 from fondat.sql import Statement
 from fondat.validation import validate_arguments
 from typing import Annotated, Any, Literal, Optional, Union
@@ -24,13 +24,6 @@ from typing import Annotated, Any, Literal, Optional, Union
 _logger = logging.getLogger(__name__)
 
 NoneType = type(None)
-
-
-def _issubclass(cls, cls_or_tuple):
-    try:
-        return issubclass(cls, cls_or_tuple)
-    except TypeError:
-        return False
 
 
 class SQLiteCodec(Codec[fondat.codec.F, Any]):
@@ -68,7 +61,7 @@ def _blob_codec_provider(python_type):
     following types: bytes, bytearray.
     """
 
-    if not _issubclass(python_type, (bytes, bytearray)):
+    if not is_subclass(python_type, (bytes, bytearray)):
         return
 
     @affix_type_hints(localns=locals())
@@ -94,7 +87,7 @@ def _integer_codec_provider(python_type):
     following types: int, bool.
     """
 
-    if not _issubclass(python_type, int):  # includes bool
+    if not is_subclass(python_type, int):  # includes bool
         return
 
     @affix_type_hints(localns=locals())
@@ -120,7 +113,7 @@ def _real_codec_provider(python_type):
     following type: float.
     """
 
-    if not _issubclass(python_type, float):
+    if not is_subclass(python_type, float):
         return
 
     @affix_type_hints(localns=locals())
