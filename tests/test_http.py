@@ -62,6 +62,7 @@ async def test_nested_item():
     class Inner:
         def __init__(self, key: str):
             self.key = key
+
         @operation
         async def get(self) -> str:
             return self.key

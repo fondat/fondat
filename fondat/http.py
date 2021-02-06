@@ -321,10 +321,7 @@ class ParamIn:
 
 class _InString(ParamIn):
     def __init__(
-        self,
-        attr: Literal["query", "headers", "cookies"],
-        key: str,
-        description: str
+        self, attr: Literal["query", "headers", "cookies"], key: str, description: str
     ):
         super().__init__()
         self.attr = attr
