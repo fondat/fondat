@@ -306,12 +306,17 @@ async def _resource(attr):
         return None
 
 
-class InParam:
+class ParamIn:
     """Base class for parameter annotations."""
 
 
-class _InString(InParam):
-    def __init__(self, attr, key, description):
+class _InString(ParamIn):
+    def __init__(
+        self,
+        attr: Literal["query", "headers", "cookies"],
+        key: str,
+        description: str
+    ):
         super().__init__()
         self.attr = attr
         self.key = key
@@ -319,6 +324,8 @@ class _InString(InParam):
 
     async def get(self, hint, request):
         value = getattr(request, self.attr).get(self.key)
+        if value is None:
+            return None
         try:
             if is_subclass(hint, Stream):
                 return BytesStream(get_codec(String, bytes).decode(value))
@@ -351,7 +358,7 @@ class InCookie(_InString):
         super().__init__("cookies", name, "request cookie")
 
 
-class _InBody(InParam):
+class _InBody(ParamIn):
     """Annotation to indicate a parameter is provided in request body."""
 
     async def get(self, hint, request):
@@ -459,7 +466,7 @@ class Application:
                 args = typing.get_args(hint)
                 hint = args[0]
                 for ann in args[1:]:
-                    if isinstance(ann, InParam):
+                    if isinstance(ann, ParamIn):
                         in_param = ann
                         break
             if not in_param:

@@ -5,7 +5,7 @@ from typing import Annotated
 from fondat.codec import Binary, get_codec
 from fondat.resource import resource, operation
 from fondat.http import Application, InBody, Request, Response
-from fondat.types import Stream, BytesStream  # , dataclass
+from fondat.types import Stream, BytesStream
 from dataclasses import dataclass
 
 
@@ -25,7 +25,6 @@ async def test_simple():
             return "str"
 
     application = Application(Resource())
-
     request = Request()
     request.method = "GET"
     request.path = "/"
@@ -48,7 +47,6 @@ async def test_nested():
         nested = Nested()
 
     application = Application(Root())
-
     request = Request()
     request.method = "GET"
     request.path = "/nested"
@@ -67,7 +65,6 @@ async def test_valid_param():
             return str(foo)
 
     application = Application(Resource())
-
     request = Request()
     request.method = "GET"
     request.path = "/"
@@ -85,7 +82,6 @@ async def test_invalid_param():
             return str(foo)
 
     application = Application(Resource())
-
     request = Request()
     request.method = "GET"
     request.path = "/"
@@ -94,7 +90,7 @@ async def test_invalid_param():
     assert response.status == http.HTTPStatus.BAD_REQUEST.value
 
 
-async def test_missing_param():
+async def test_missing_required_param():
     @resource
     class Resource:
         @operation
@@ -102,12 +98,27 @@ async def test_missing_param():
             return str(foo)
 
     application = Application(Resource())
-
     request = Request()
     request.method = "GET"
     request.path = "/"
     response = await application.handle(request)
     assert response.status == http.HTTPStatus.BAD_REQUEST.value
+
+
+async def test_missing_optional_param():
+    @resource
+    class Resource:
+        @operation
+        async def get(self, foo: int = None) -> str:
+            return str(foo)
+
+    application = Application(Resource())
+    request = Request()
+    request.method = "GET"
+    request.path = "/"
+    response = await application.handle(request)
+    assert response.status == http.HTTPStatus.OK.value
+    assert await body(response) == b"None"
 
 
 async def test_stream_response_body():
