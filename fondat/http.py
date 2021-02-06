@@ -296,10 +296,10 @@ async def _subordinate(resource, segment):
         if fondat.resource.is_resource(attr):
             return attr
         if not callable(attr):
-            raise NotFoundError
+            raise fondat.error.NotFoundError
         hints = typing.get_type_hints(attr)
         if not fondat.resource.is_resource(hints.get("return")):
-            raise NotFoundError
+            raise fondat.error.NotFoundError
         if is_coroutine_function(attr):
             return await attr()
         else:
@@ -309,9 +309,9 @@ async def _subordinate(resource, segment):
     try:
         item = resource[segment]
     except TypeError:
-        raise NotFoundError
+        raise fondat.error.NotFoundError
     if not fondat.resource.is_resource(item):
-        raise NotFoundError
+        raise fondat.error.NotFoundError
     return item
 
 
