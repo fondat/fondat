@@ -9,13 +9,13 @@ from __future__ import annotations
 
 import fondat.codec
 import fondat.http
+import fondat.resource
 import fondat.types
 import http
 import inspect
 import typing
 
 from collections.abc import Iterable, Mapping
-from fondat.resource import resource, operation
 from fondat.schema import ExternalDocumentation, Schema, get_schema
 from fondat.security import SecurityRequirement
 from fondat.types import dataclass, is_instance
@@ -435,21 +435,24 @@ def _process(doc, resource, path, params={}, tag=None):
         )
 
 
-def generate_openapi(root: type, info: Info) -> OpenAPI:
+def generate_openapi_doc(*, resource: type, path: str = None, info: Info) -> OpenAPI:
     """
     Generate an OpenAPI document for a resource.
 
     Parameters:
-    • root: resource to generate OpenAPI document for
+    • resource: resource to generate OpenAPI document for
+    • path: URI path to resource
     • info: metadata about the API
     """
     doc = OpenAPI(openapi="3.0.2", info=info, paths={})
-    _process(doc, root, "")
+    _process(doc, resource, path or "")
     return doc
 
 
 def openapi_resource(
-    root: type,
+    *,
+    resource: type,
+    path: str = None,
     info: Info,
     security: Iterable[SecurityRequirement] = None,
 ):
@@ -457,23 +460,21 @@ def openapi_resource(
     Generate a resource that exposes an OpenAPI document for a given resource.
 
     Parameters:
-    • root: resource to generate OpenAPI document for
+    • resource: resource to generate OpenAPI document for
+    • path: URI path to resource
     • info: provides metadata about the API
     • security: security requirements to apply to all operations
-
-    An OpenAPI resource is never published in an OpenAPI document, as OpenAPI data structure
-    graphs are cyclic.
     """
 
-    @resource
+    @fondat.resource.resource
     class OpenAPIResource:
         def __init__(self):
             self.doc = None
 
-        @operation(publish=False, security=security)
+        @fondat.resource.operation(publish=False, security=security)
         async def get(self) -> OpenAPI:
             if not self.doc:
-                self.doc = generate_openapi(root, info)
+                self.doc = generate_openapi_doc(resource=resource, path=path, info=info)
             return self.doc
 
     return OpenAPIResource()

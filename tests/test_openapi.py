@@ -5,7 +5,7 @@ import json
 
 from dataclasses import dataclass
 from fondat.codec import get_codec, JSON, String
-from fondat.openapi import generate_openapi, openapi_resource
+from fondat.openapi import generate_openapi_doc, openapi_resource
 from fondat.resource import resource, operation, query, mutation
 from fondat.types import Description
 from fondat.validation import validate
@@ -92,8 +92,8 @@ class ResourceB:
 
 
 def test_generate():
-    doc = generate_openapi(
-        info=fondat.openapi.Info(title="title", version="version"), root=Root()
+    doc = generate_openapi_doc(
+        resource=Root(), info=fondat.openapi.Info(title="title", version="version")
     )
     validate(doc, fondat.openapi.OpenAPI)
     print(json.dumps(get_codec(JSON, fondat.openapi.OpenAPI).encode(doc)))
@@ -103,7 +103,7 @@ def test_generate():
 async def test_resource():
     info = fondat.openapi.Info(title="title", version="version")
     root = Root()
-    resource = openapi_resource(info=info, root=root)
+    resource = openapi_resource(resource=root, info=info)
     result = await resource.get()
     validate(result, fondat.openapi.OpenAPI)
-    assert generate_openapi(info=info, root=root) == result
+    assert generate_openapi_doc(resource=root, info=info) == result

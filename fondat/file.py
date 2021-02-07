@@ -242,13 +242,13 @@ def directory_resource(
 
     @resource
     class DirectoryResource:
-
         def __getitem__(self, key: key_type) -> FileResource:
             return FileResource(
                 f"{_path}/{quote(codec.encode(key), safe='')}{extension if extension else ''}"
             )
 
         if index:
+
             @operation(publish=publish, security=security)
             async def get(self, limit: int = None, cursor: bytes = None) -> Page:
                 """Return paginated list of file keys."""
