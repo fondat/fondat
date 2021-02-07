@@ -30,7 +30,7 @@ class ReceiveStream(Stream):
         self._more = True
 
     async def __anext__(self) -> bytes:
-        if not self.more:
+        if not self._more:
             raise StopAsyncIteration
         event = await self._receive()
         event_type = event["type"]
