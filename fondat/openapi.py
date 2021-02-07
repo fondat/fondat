@@ -446,6 +446,7 @@ def generate_openapi_doc(*, resource: type, path: str = None, info: Info) -> Ope
     """
     doc = OpenAPI(openapi="3.0.2", info=info, paths={})
     _process(doc, resource, path or "")
+    doc.paths = {k: doc.paths[k] for k in sorted(doc.paths.keys())}
     return doc
 
 
