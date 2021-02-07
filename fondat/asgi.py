@@ -4,6 +4,7 @@ import fondat.http
 import urllib.parse
 
 from collections.abc import Awaitable, Mapping
+from fondat.error import InternalServerError
 from fondat.types import Stream
 
 
@@ -37,7 +38,7 @@ class ReceiveStream(Stream):
         if event_type == "http.disconnect":
             raise RuntimeError  # TODO: better error type? CancelException?
         if event_type != "http.request.body":
-            raise InternalSererError("expecting HTTP request body")
+            raise InternalServerError(f"expecting http.request.body event type; received {event_type}")
         self._more = event.get("more_body", False)
         return event.get("body", b"")
 
