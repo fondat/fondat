@@ -35,6 +35,8 @@ class _Element:
     • next: next element below this elemment, or None if this is the first element
     """
 
+    __slots__ = ("_value", "_next")
+
     def __init__(self, value, next=None):
         self._value = value
         self._next = next
@@ -43,16 +45,16 @@ class _Element:
     def __iter__(self):
         class _iter:
             def __init__(self, next):
-                self.next = next
+                self._next = next
 
             def __iter__(self):
                 return self
 
             def __next__(self):
-                if self.next is None:
+                if self._next is None:
                     raise StopIteration
-                result = self.next._value
-                self.next = self.next._next
+                result = self._next._value
+                self._next = self._next._next
                 return result
 
         return _iter(self)
@@ -79,6 +81,8 @@ class push:
     • push(mapping): element is initialized from a mapping object's key-value pairs
     • push(**kwargs): element is initialized with name-value pairs in keyword arguments
     """
+
+    __slots__ = ("_value", "_token")
 
     def __init__(self, *args, **kwargs):
         self._value = dict(*args, **kwargs)

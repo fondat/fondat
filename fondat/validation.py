@@ -26,6 +26,8 @@ class Validator:
 class MinLen(Validator):
     """Type annotation that validates a value has a minimum length."""
 
+    __slots__ = ("value",)
+
     def __init__(self, value: int):
         self.value = value
 
@@ -37,6 +39,8 @@ class MinLen(Validator):
 class MaxLen(Validator):
     """Type annotation that validates a value has a maximum length."""
 
+    __slots__ = ("value",)
+
     def __init__(self, value: int):
         self.value = value
 
@@ -46,6 +50,10 @@ class MaxLen(Validator):
 
 
 class MinValue(Validator):
+    """Type annotation that validates a value has a minimum value."""
+
+    __slots__ = ("value",)
+
     def __init__(self, value: Any):
         self.value = value
 
@@ -55,6 +63,10 @@ class MinValue(Validator):
 
 
 class MaxValue(Validator):
+    """Type annotation that validates a value has a maximum value."""
+
+    __slots__ = ("value",)
+
     def __init__(self, value: Any):
         self.value = value
 
@@ -65,6 +77,8 @@ class MaxValue(Validator):
 
 class Pattern(Validator):
     """Type annotation that validates a value matches a pattern."""
+
+    __slots__ = ("value",)
 
     def __init__(self, value: Union[str, re.Pattern]):
         self.value = re.compile(value) if isinstance(value, str) else value

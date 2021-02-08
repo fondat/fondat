@@ -14,7 +14,7 @@ import typing
 
 from collections.abc import Callable, Iterable, MutableSequence
 from fondat.codec import Binary, String, get_codec
-from fondat.types import Stream, BytesStream, is_subclass
+from fondat.types import Stream, BytesStream, is_optional, is_subclass
 from fondat.validation import validate
 from typing import Annotated, Any, Literal
 
@@ -375,6 +375,8 @@ class _InBody(ParamIn):
             if request.body is not None:
                 async for b in request.body:
                     value.extend(b)
+            if len(value) == 0:  # empty body is no body
+                return None
             return get_codec(Binary, hint).decode(value)
         except (TypeError, ValueError) as e:
             raise fondat.error.BadRequestError(f"{e} in {self}")
@@ -477,8 +479,11 @@ class Application:
                 in_param = InQuery(name)
             param = await in_param.get(hint, request)
             if param is None:
-                if signature.parameters[name].default is inspect.Parameter.empty:
+                if signature.parameters[
+                    name
+                ].default is inspect.Parameter.empty and not is_optional(hint):
                     raise fondat.error.BadRequestError(f"expecting value in {in_param}")
+                params[name] = None
             else:
                 try:
                     validate(param, hint)

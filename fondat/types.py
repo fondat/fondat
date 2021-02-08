@@ -160,6 +160,8 @@ class BytesStream(Stream):
 class Title:
     """Type annotation to provide a textual title."""
 
+    __slots__ = ("value",)
+
     def __init__(self, value: str):
         self.value = value
 
@@ -173,6 +175,8 @@ class Title:
 class Description:
     """Type annotation to provide a textual description."""
 
+    __slots__ = ("value",)
+
     def __init__(self, value: str):
         self.value = value
 
@@ -185,6 +189,8 @@ class Description:
 
 class Example:
     """Type annotation to provide an example value."""
+
+    __slots__ = ("value",)
 
     def __init__(self, value: Any):
         self.value = value

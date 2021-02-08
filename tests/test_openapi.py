@@ -96,7 +96,7 @@ def test_generate():
         resource=Root(), info=fondat.openapi.Info(title="title", version="version")
     )
     validate(doc, fondat.openapi.OpenAPI)
-    print(json.dumps(get_codec(JSON, fondat.openapi.OpenAPI).encode(doc)))
+    # print(json.dumps(get_codec(JSON, fondat.openapi.OpenAPI).encode(doc)))
 
 
 @pytest.mark.asyncio

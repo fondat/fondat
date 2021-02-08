@@ -37,8 +37,10 @@ class ReceiveStream(Stream):
         event_type = event["type"]
         if event_type == "http.disconnect":
             raise RuntimeError  # TODO: better error type? CancelException?
-        if event_type != "http.request.body":
-            raise InternalServerError(f"expecting http.request.body event type; received {event_type}")
+        if event_type != "http.request":
+            raise InternalServerError(
+                f"expecting http.request event type; received {event_type}"
+            )
         self._more = event.get("more_body", False)
         return event.get("body", b"")
 

@@ -49,16 +49,18 @@ class Statement(Iterable):
     """
     Represents a SQL statement.
 
-    Attributes:
+    Parameter and attribute:
     • result: the type to return a query result row in
 
     The result can be expressed as a dataclass to be instantiated, or as a TypedDict that
     results in a populated dict object.
     """
 
-    def __init__(self):
+    slots = ("fragments", "result")
+
+    def __init__(self, result=None):
         self.fragments = []
-        self.result = None
+        self.result = result
 
     def __repr__(self):
         return f"Statement(fragments={self.fragments}, result={self.result})"
@@ -174,6 +176,8 @@ class Table:
     Attributes:
     • columns: mapping of column names to ther associated types
     """
+
+    __slots__ = ("name", "database", "schema", "columns", "pk")
 
     def __init__(self, name: str, database: Database, schema: type, pk: str):
         self.name = name
@@ -346,6 +350,8 @@ class Index:
     • table: table that the index defined for
     • keys: index keys (typically column names with optional order)
     """
+
+    __slots__ = ("name", "table", "keys", "unique")
 
     def __init__(
         self,

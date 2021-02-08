@@ -17,7 +17,7 @@ from dataclasses import dataclass, is_dataclass
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from enum import Enum
-from fondat.types import NoneType, affix_type_hints
+from fondat.types import NoneType, affix_type_hints, is_subclass
 from fondat.validation import validate, validate_arguments
 from typing import Annotated, Any, Generic, Literal, TypeVar, TypedDict, Union
 from typing import get_origin, get_args, get_type_hints
@@ -32,13 +32,6 @@ _TEXT_PLAIN = "text/plain; charset=UTF-8"
 
 # tracks types being built to deal with recursion (cyclic graphs)
 _building = {}
-
-
-def _issubclass(cls, cls_or_tuple):
-    try:
-        return issubclass(cls, cls_or_tuple)
-    except:
-        return False
 
 
 def _provider(wrapped=None):
@@ -149,7 +142,7 @@ _str_jsoncodec = _Str_JSON()
 
 @_provider
 def _str(codec_type, python_type):
-    if _issubclass(python_type, str):
+    if is_subclass(python_type, str):
         if codec_type is Binary:
             return _str_binarycodec
         if codec_type is String:
@@ -224,7 +217,7 @@ _bytes_jsoncodec = _Bytes_JSON()
 
 @_provider
 def _bytes(codec_type, python_type):
-    if _issubclass(python_type, (bytes, bytearray)):
+    if is_subclass(python_type, (bytes, bytearray)):
         if codec_type is Binary:
             return _bytes_binarycodec
         if codec_type is String:
@@ -298,7 +291,7 @@ _int_jsoncodec = _Int_JSON()
 
 @_provider
 def _int(codec_type, python_type):
-    if _issubclass(python_type, int) and not _issubclass(python_type, bool):
+    if is_subclass(python_type, int) and not is_subclass(python_type, bool):
         if codec_type is Binary:
             return _int_binarycodec
         if codec_type is String:
@@ -367,7 +360,7 @@ _float_jsoncodec = _Float_JSON()
 
 @_provider
 def _float(codec_type, python_type):
-    if _issubclass(python_type, float):
+    if is_subclass(python_type, float):
         if codec_type is Binary:
             return _float_binarycodec
         if codec_type is String:
@@ -436,7 +429,7 @@ _bool_jsoncodec = _Bool_JSON()
 
 @_provider
 def _bool(codec_type, python_type):
-    if _issubclass(python_type, bool):
+    if is_subclass(python_type, bool):
         if codec_type is Binary:
             return _bool_binarycodec
         if codec_type is String:
@@ -579,7 +572,7 @@ _decimal_json = _Decimal_JSON()
 
 @_provider
 def _Decimal(codec_type, python_type):
-    if _issubclass(python_type, Decimal):
+    if is_subclass(python_type, Decimal):
         if codec_type is Binary:
             return _decimal_binary
         if codec_type is String:
@@ -657,7 +650,7 @@ _date_jsoncodec = _Date_JSON()
 
 @_provider
 def _date(codec_type, python_type):
-    if _issubclass(python_type, date) and not _issubclass(python_type, datetime):
+    if is_subclass(python_type, date) and not is_subclass(python_type, datetime):
         if codec_type is Binary:
             return _date_binarycodec
         if codec_type is String:
@@ -748,7 +741,7 @@ _datetime_jsoncodec = _Datetime_JSON()
 
 @_provider
 def _datetime(codec_type, python_type):
-    if _issubclass(python_type, datetime):
+    if is_subclass(python_type, datetime):
         if codec_type is Binary:
             return _datetime_binarycodec
         if codec_type is String:
@@ -817,7 +810,7 @@ _uuid_jsoncodec = _UUID_JSON()
 
 @_provider
 def _uuid(codec_type, python_type):
-    if _issubclass(python_type, UUID):
+    if is_subclass(python_type, UUID):
         if codec_type is Binary:
             return _uuid_binarycodec
         if codec_type is String:
@@ -833,7 +826,7 @@ def _uuid(codec_type, python_type):
 def _typeddict(codec_type, python_type):
 
     if (
-        not _issubclass(python_type, dict)
+        not is_subclass(python_type, dict)
         or getattr(python_type, "__annotations__", None) is None
     ):
         return  # not a TypedDict
@@ -932,7 +925,7 @@ def _mapping(codec_type, python_type):
     origin = get_origin(python_type)
 
     if (
-        not _issubclass(origin, Mapping)
+        not is_subclass(origin, Mapping)
         or getattr(python_type, "__annotations__", None) is not None
     ):
         return  # not a Mapping
@@ -1016,9 +1009,9 @@ def _iterable(codec_type, python_type):
     origin = get_origin(python_type)
 
     if (
-        not _issubclass(origin, Iterable)
-        or _issubclass(python_type, (str, bytes, bytearray))
-        or _issubclass(origin, Mapping)
+        not is_subclass(origin, Iterable)
+        or is_subclass(python_type, (str, bytes, bytearray))
+        or is_subclass(origin, Mapping)
     ):
         return
 
@@ -1028,7 +1021,7 @@ def _iterable(codec_type, python_type):
         raise TypeError("expecting Iterable[T]")
 
     item_type = args[0]
-    is_set = issubclass(origin, Set)
+    is_set = is_subclass(origin, set)
 
     if codec_type is JSON:
 

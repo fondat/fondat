@@ -9,7 +9,7 @@ from fondat.codec import get_codec
 from fondat.resource import resource, operation
 from fondat.http import InBody, Request, Response
 from fondat.types import Stream, BytesStream  # , dataclass
-from typing import Annotated, Any
+from typing import Annotated, Any, Optional
 
 
 pytestmark = pytest.mark.asyncio
@@ -20,7 +20,7 @@ class Receive:
         self.body = body
 
     async def __call__(self):
-        body = dict(type=http.request, body=self.body, more_body=False)
+        body = dict(type="http.request", body=self.body, more_body=False)
         self.body = b""
         return body
 
@@ -37,6 +37,18 @@ class Send:
             self.body.extend(msg.get("body", b""))
 
 
+def _scope(*, method: str, path: str = "/"):
+    return dict(
+        type="http",
+        asgi=dict(version="3.0", spec_version="2.2"),
+        http_version="1.1",
+        method=method,
+        scheme="http",
+        path=path,
+        headers=(),
+    )
+
+
 async def test_simple():
     @resource
     class Resource:
@@ -45,19 +57,13 @@ async def test_simple():
             return "str"
 
     app = fondat.http.Application(Resource())
-    scope = dict(
-        type="http",
-        asgi=dict(version="3.0", spec_version="2.2"),
-        http_version="1.1",
-        method="GET",
-        scheme="http",
-        path="/",
-        query_string=b"",
-        headers=(
+    scope = {
+        **_scope(method="GET", path="/"),
+        "headers": (
             (b"host", b"localhost:1234"),
             (b"user-agent", b"Fonzilla/1.0"),
         ),
-    )
+    }
     send = Send()
     await asgi_app(app)(scope, Receive(), send)
     response = send.response
@@ -76,16 +82,7 @@ async def test_valid_param():
             return str(foo)
 
     app = fondat.http.Application(Resource())
-    scope = dict(
-        type="http",
-        asgi=dict(version="3.0", spec_version="2.2"),
-        http_version="1.1",
-        method="GET",
-        scheme="http",
-        path="/",
-        query_string=b"foo=123",
-        headers=(),
-    )
+    scope = {**_scope(method="GET", path="/"), "query_string": b"foo=123"}
     send = Send()
     await asgi_app(app)(scope, Receive(), send)
     assert send.response["status"] == http.HTTPStatus.OK.value
@@ -100,16 +97,7 @@ async def test_invalid_param():
             return str(foo)
 
     app = fondat.http.Application(Resource())
-    scope = dict(
-        type="http",
-        asgi=dict(version="3.0", spec_version="2.2"),
-        http_version="1.1",
-        method="GET",
-        scheme="http",
-        path="/",
-        query_string=b"foo=abc",
-        headers=(),
-    )
+    scope = {**_scope(method="GET", path="/"), "query_string": b"foo=abc"}
     send = Send()
     await asgi_app(app)(scope, Receive(), send)
     assert send.response["status"] == http.HTTPStatus.BAD_REQUEST.value
@@ -123,19 +111,96 @@ async def test_missing_param():
             return str(foo)
 
     app = fondat.http.Application(Resource())
-    scope = dict(
-        type="http",
-        asgi=dict(version="3.0", spec_version="2.2"),
-        http_version="1.1",
-        method="GET",
-        scheme="http",
-        path="/",
-        query_string=b"",
-        headers=(),
-    )
+    scope = _scope(method="GET", path="/")
     send = Send()
     await asgi_app(app)(scope, Receive(), send)
     assert send.response["status"] == http.HTTPStatus.BAD_REQUEST.value
 
 
-# TODO: request with body
+async def test_valid_body_param():
+    @resource
+    class Resource:
+        @operation
+        async def post(self, foo: Annotated[str, InBody]) -> str:
+            return foo
+
+    app = fondat.http.Application(Resource())
+    scope = _scope(method="POST", path="/")
+    send = Send()
+    body = b"I am the body of this message."
+    await asgi_app(app)(scope, Receive(body), send)
+    assert send.response["status"] == http.HTTPStatus.OK.value
+    assert send.body == body
+
+
+async def test_invalid_body_param():
+    @resource
+    class Resource:
+        @operation
+        async def post(self, foo: Annotated[int, InBody]) -> str:
+            return "str"
+
+    app = fondat.http.Application(Resource())
+    scope = _scope(method="POST", path="/")
+    send = Send()
+    body = b"This is not an int."
+    await asgi_app(app)(scope, Receive(body), send)
+    assert send.response["status"] == http.HTTPStatus.BAD_REQUEST.value
+
+
+async def test_empty_required_str_body_param():
+    @resource
+    class Resource:
+        @operation
+        async def post(self, foo: Annotated[str, InBody]) -> str:
+            return foo
+
+    app = fondat.http.Application(Resource())
+    scope = _scope(method="POST", path="/")
+    send = Send()
+    await asgi_app(app)(scope, Receive(), send)
+    assert send.response["status"] == http.HTTPStatus.BAD_REQUEST.value
+
+
+async def test_empty_required_int_body_param():
+    @resource
+    class Resource:
+        @operation
+        async def post(self, foo: Annotated[int, InBody]) -> str:
+            return "str"
+
+    app = fondat.http.Application(Resource())
+    scope = _scope(method="POST", path="/")
+    send = Send()
+    await asgi_app(app)(scope, Receive(), send)
+    assert send.response["status"] == http.HTTPStatus.BAD_REQUEST.value
+
+
+async def test_empty_default_optional_str_body_param():
+    @resource
+    class Resource:
+        @operation
+        async def post(self, foo: Annotated[str, InBody] = None) -> str:
+            return str(foo)
+
+    app = fondat.http.Application(Resource())
+    scope = _scope(method="POST", path="/")
+    send = Send()
+    await asgi_app(app)(scope, Receive(), send)
+    assert send.response["status"] == http.HTTPStatus.OK.value
+    assert send.body == b"None"
+
+
+async def test_empty_optional_int_body_param():
+    @resource
+    class Resource:
+        @operation
+        async def post(self, foo: Annotated[Optional[int], InBody]) -> str:
+            return str(foo)
+
+    app = fondat.http.Application(Resource())
+    scope = _scope(method="POST", path="/")
+    send = Send()
+    await asgi_app(app)(scope, Receive(), send)
+    assert send.response["status"] == http.HTTPStatus.OK.value
+    assert send.body == b"None"
