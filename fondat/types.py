@@ -157,21 +157,6 @@ class BytesStream(Stream):
         return result
 
 
-class Title:
-    """Type annotation to provide a textual title."""
-
-    __slots__ = ("value",)
-
-    def __init__(self, value: str):
-        self.value = value
-
-    def __repr__(self):
-        return f"Title({self.value!r})"
-
-    def __str__(self):
-        return str(self.value)
-
-
 class Description:
     """Type annotation to provide a textual description."""
 
