@@ -3,6 +3,7 @@
 
 # TODO: components for dataclasses
 # TODO: deal with cyclic graphs?
+# TODO: header and cookie parameters
 
 
 from __future__ import annotations
@@ -375,7 +376,11 @@ def _operation(tag, method):
                     in_="query",
                     description=_description(annotated),
                     required=param.default is param.empty,
-                    schema=get_schema(hint),
+                    schema=get_schema(
+                        hint, param.default if param.default is not param.empty else None
+                    ),
+                    style="form",
+                    explode=False,
                 )
             )
 
@@ -412,7 +417,7 @@ def _process(doc, resource, path, params={}, tag=None):
                 res,
                 f"{path}/{name}",
                 params,
-                tag if res._fondat_resource.tag == "__inner__" else None,
+                tag if res._fondat_resource.tag == fondat.resource.TAG_INNER else None,
             )
         elif name in _ops and callable(attr):
             operation = _operation(tag, attr)

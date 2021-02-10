@@ -13,7 +13,8 @@ import typing
 from collections.abc import Iterable, Mapping
 from datetime import date, datetime
 from decimal import Decimal
-from fondat.types import NoneType, dataclass, is_instance, is_optional, is_subclass
+from fondat.types import Description, Example, NoneType
+from fondat.types import dataclass, is_instance, is_optional, is_subclass
 from typing import Any, Literal, Optional, Union
 from uuid import UUID
 
@@ -85,9 +86,13 @@ for dc in (Discriminator, ExternalDocumentation, Schema, XML):
     fondat.types.affix_type_hints(dc)
 
 
-def get_schema(type_hint):
+def get_schema(type_hint, default=None):
     """
     Return a JSON schema for the specified Python type hint.
+
+    Parameters:
+    • type_hint: Python type optionally wrapped with Annotated arguments
+    • default: default value to provide in schema
 
     A type hint contains not only the Python type, but also optional Annotated arguments to
     include validation, description, example values.
@@ -99,6 +104,12 @@ def get_schema(type_hint):
 
     for provider in providers:
         if (schema := provider(python_type, annotated, origin, args)) is not None:
+            schema.default = default
+            for annotation in annotated:
+                if is_instance(annotation, Description):
+                    schema.description = annotation.value
+                elif is_instance(annotation, Example):
+                    schema.example = annotation.value
             return schema
 
     raise TypeError(f"failed to determine JSON Schema for {python_type}")
@@ -124,8 +135,6 @@ def _kwargs(annotated):
             kwargs["description"] = annotation
         elif is_instance(annotation, fondat.types.Description):
             kwargs["description"] = annotation.value
-        elif is_instance(annotation, fondat.types.Title):
-            kwargs["title"] = annotation.value
         elif is_instance(annotation, fondat.types.Example):
             kwargs["example"] = annotation.value
     return kwargs

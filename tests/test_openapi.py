@@ -3,11 +3,10 @@ import pytest
 import fondat.openapi
 import json
 
-from dataclasses import dataclass
 from fondat.codec import get_codec, JSON, String
 from fondat.openapi import generate_openapi_doc, openapi_resource
 from fondat.resource import resource, operation, query, mutation
-from fondat.types import Description
+from fondat.types import Description, Example, dataclass
 from fondat.validation import validate
 from typing import Annotated as A, Optional
 from uuid import UUID
@@ -28,6 +27,7 @@ class DC:
     f: Optional[str]
     g: str = None
     h: Optional[str] = None
+    i: A[str, Example("aaa")]
 
 
 @resource
@@ -81,7 +81,7 @@ class ResourceB:
         return DC("text", 1)
 
     @query
-    async def query(self) -> list[str]:
+    async def query(self, param2: str = "this is a default value") -> list[str]:
         """Perform some query."""
         return ["a", "b", "c"]
 
@@ -96,7 +96,7 @@ def test_generate():
         resource=Root(), info=fondat.openapi.Info(title="title", version="version")
     )
     validate(doc, fondat.openapi.OpenAPI)
-    # print(json.dumps(get_codec(JSON, fondat.openapi.OpenAPI).encode(doc)))
+    print(json.dumps(get_codec(JSON, fondat.openapi.OpenAPI).encode(doc)))
 
 
 @pytest.mark.asyncio
