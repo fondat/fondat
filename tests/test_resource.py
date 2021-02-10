@@ -74,7 +74,7 @@ class R2:
 
 
 def test_container():
-    root = fondat.resource.Container(
+    root = fondat.resource.container_resource(
         {
             "r1": R1(),
             "r2": R2(),

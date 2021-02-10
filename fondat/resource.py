@@ -176,6 +176,10 @@ def operation(
     return wrapper(wrapped)
 
 
+# A resource tagged with TAG_INNER shall inherit the tag from its outer (superior) resource.
+TAG_INNER = "__inner__"
+
+
 def inner(
     wrapped=None,
     *,
@@ -220,7 +224,7 @@ def inner(
     if validate:
         _wrapped = fondat.validation.validate_arguments(_wrapped)
 
-    @resource(tag="__inner__")
+    @resource(tag=TAG_INNER)
     class Inner:
         def __init__(self, outer):
             self.outer = outer
@@ -277,25 +281,26 @@ def mutation(wrapped=None, *, method: str = "post", **kwargs):
     return inner(wrapped, op_type="mutation", method=method, **kwargs)
 
 
-@resource
-class Container:
+def container_resource(resources: Mapping[str, type], tag: str = None):
     """
-    A resource to contain subordinate resources.
+    Create a resource to contain subordinate resources.
 
     Parameters:
-    • resources: mapping of names to resources
+    • resources: mapping of resource names to resource objects
+    • tag: tag to group the resource
 
     Suborindates are accessed as attributes by name.
     """
 
-    def __init__(self, resources: Mapping[str, type]):
-        self._resources = resources
+    @resource(tag=tag)
+    class Container:
+        def __getattr__(self, name):
+            try:
+                return resources[name]
+            except KeyError:
+                raise AttributeError(f"no such resource: {name}")
 
-    def __getattr__(self, name):
-        try:
-            return self._resources[name]
-        except KeyError:
-            raise AttributeError(f"no such resource: {name}")
+        def __dir__(self):
+            return [*super().__dir__(), *resources.keys()]
 
-    def __dir__(self):
-        return [*super().__dir__(), *self._resources.keys()]
+    return Container()
