@@ -295,18 +295,19 @@ def _resource(obj):
         return obj
 
     # property not yet bound as descriptor; use its underlying function
-    elif is_instance(obj, property):
-        return obj.fget
+    if is_instance(obj, property):
+        obj = _resource(obj.fget)
 
     # callable that returns a resource
-    elif callable(obj) and hasattr(obj, "__annotations__"):
+    if callable(obj):
         try:
-            hints = typing.get_type_hints(obj)
+            returns = typing.get_type_hints(obj)["return"]
         except:
-            return
-        returns = hints.get("return", None)
+            return None
         if fondat.resource.is_resource(returns):
             return returns
+
+    return None
 
 
 _ops = {"get", "put", "post", "delete", "options", "head", "patch", "trace"}
@@ -324,7 +325,7 @@ def _operation(tag, method):
 
     fondat_op = getattr(method, "_fondat_operation", None)
     if not fondat_op or not fondat_op.publish:
-        return
+        return None
 
     op = Operation(parameters=[], responses={})
 
