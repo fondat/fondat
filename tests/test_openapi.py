@@ -5,7 +5,7 @@ import json
 
 from fondat.codec import get_codec, JSON, String
 from fondat.openapi import generate_openapi_doc, openapi_resource
-from fondat.resource import resource, operation, query, mutation
+from fondat.resource import resource, operation, query, mutation, container_resource
 from fondat.types import Description, Example, dataclass
 from fondat.validation import validate
 from typing import Annotated as A, Optional
@@ -96,7 +96,6 @@ def test_generate():
         resource=Root(), info=fondat.openapi.Info(title="title", version="version")
     )
     validate(doc, fondat.openapi.OpenAPI)
-    print(json.dumps(get_codec(JSON, fondat.openapi.OpenAPI).encode(doc)))
 
 
 @pytest.mark.asyncio
@@ -107,3 +106,21 @@ async def test_resource():
     result = await resource.get()
     validate(result, fondat.openapi.OpenAPI)
     assert generate_openapi_doc(resource=root, info=info) == result
+
+
+@pytest.mark.asyncio
+async def test_nested_containers():
+    @resource
+    class R1:
+        @operation
+        async def get(self) -> str:
+            return "str"
+
+    c1 = container_resource({"r1": R1()})
+    c2 = container_resource({"c1": c1})
+    info = fondat.openapi.Info(title="title", version="version")
+    doc = generate_openapi_doc(resource=c2, info=info)
+    validate(doc, fondat.openapi.OpenAPI)
+    c1_r1 = doc.paths.get("/c1/r1")
+    assert c1_r1 is not None
+    assert c1_r1.get is not None

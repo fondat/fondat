@@ -288,24 +288,24 @@ for dc in _to_affix:
     fondat.types.affix_type_hints(dc)
 
 
-def _resource(attr):
+def _resource(obj):
+
+    # resource class or resource class instance
+    if fondat.resource.is_resource(obj):
+        return obj
 
     # property not yet bound as descriptor; use its underlying function
-    if is_instance(attr, property):
-        attr = attr.fget
-
-    # instance of a resource class
-    if hasattr(attr, "_fondat_resource") and type(attr) is not type:
-        return type(attr)
+    elif is_instance(obj, property):
+        return obj.fget
 
     # callable that returns a resource
-    if callable(attr) and hasattr(attr, "__annotations__"):
+    elif callable(obj) and hasattr(obj, "__annotations__"):
         try:
-            hints = typing.get_type_hints(attr)
+            hints = typing.get_type_hints(obj)
         except:
             return
         returns = hints.get("return", None)
-        if hasattr(returns, "_fondat_resource"):
+        if fondat.resource.is_resource(returns):
             return returns
 
 

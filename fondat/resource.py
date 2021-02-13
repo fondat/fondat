@@ -227,7 +227,7 @@ def inner(
     @resource(tag=TAG_INNER)
     class Inner:
         def __init__(self, outer):
-            self.outer = outer
+            self._outer = outer
 
     Inner.__doc__ = wrapped.__doc__
     Inner.__name__ = wrapped.__name__.title().replace("_", "")
@@ -235,7 +235,7 @@ def inner(
     Inner.__module__ = wrapped.__module__
 
     async def proxy(self, *args, **kwargs):
-        return await types.MethodType(_wrapped, self.outer)(*args, **kwargs)
+        return await types.MethodType(_wrapped, self._outer)(*args, **kwargs)
 
     functools.update_wrapper(proxy, wrapped)
     proxy.__name__ = method
