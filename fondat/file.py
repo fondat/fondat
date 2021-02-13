@@ -26,7 +26,7 @@ _content_encoding_map = {
     "bzip2": "application/x-bzip2",
     "compress": "application/x-compress",
     "gzip": "application/gzip",
-    ".xz": "application/x-xz",
+    "xz": "application/x-xz",
 }
 
 
@@ -171,7 +171,7 @@ def _file_resource_class(
 
 def file_resource(
     path: Union[Path, str],
-    value_type: type,
+    value_type: type = Stream,
     compress: Any = None,
     writeable: bool = False,
     publish: bool = True,
@@ -205,7 +205,7 @@ def _limit(requested):
 
 def directory_resource(
     path: Union[Path, str],
-    key_type: type,
+    key_type: type = str,
     value_type: type = Stream,
     extension: str = None,
     compress: Any = None,
@@ -238,8 +238,9 @@ def directory_resource(
     """
 
     _path = (Path(path) if isinstance(path, str) else path).expanduser()
+
     if not _path.is_dir():
-        _path.mkdir(exist_ok=True)
+        raise FileNotFoundError(f"directory not found: {_path}")
 
     codec = get_codec(String, key_type)
 
