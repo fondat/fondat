@@ -81,13 +81,13 @@ def resource(wrapped=None, *, tag=None):
     Decorate a class to be a resource containing operations.
 
     Parameters:
-    • tag: tag to group resources  [resource class name in lower case]
+    • tag: tag to group resources  [resource class name]
     """
 
     if wrapped is None:
         return functools.partial(resource, tag=tag)
 
-    wrapped._fondat_resource = types.SimpleNamespace(tag=tag or wrapped.__name__.lower())
+    wrapped._fondat_resource = types.SimpleNamespace(tag=tag or wrapped.__name__)
 
     return wrapped
 
