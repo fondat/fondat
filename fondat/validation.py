@@ -12,7 +12,7 @@ import typing
 import wrapt
 
 from collections.abc import Callable, Iterable, Mapping
-from fondat.types import is_instance, is_subclass
+from fondat.types import is_instance, is_subclass, split_annotated
 from typing import Annotated, Any, Literal, Union
 
 
@@ -95,38 +95,36 @@ def _decorate_exception(e, addition):
         e.args = (f"{e.args[0]} {addition}", *e.args[1:])
 
 
-def _validate_union(type_, value):
-    for arg in typing.get_args(type_):
+def _validate_union(value, args):
+    for arg in args:
         try:
-            validate(value, arg)
-            return
-        except (TypeError, ValueError):
+            return validate(value, arg)
+        except (TypeError, ValueError) as e:
             continue
-    raise TypeError
+    raise TypeError(f"Union[{args}]: {value}")
 
 
-def _validate_literal(py_type, value):
-    args = typing.get_args(py_type)
+def _validate_literal(value, args):
     for arg in args:
         if arg == value and type(arg) is type(value):
             return
-    raise ValueError(f"expecting one of {args}")
+    raise ValueError(f"expecting one of: {args}; got: {value}")
 
 
-def _validate_typeddict(type_, value):
-    for item_key, item_type in typing.get_type_hints(type_, include_extras=True).items():
+def _validate_typeddict(value, python_type):
+    for item_key, item_type in typing.get_type_hints(python_type, include_extras=True).items():
         try:
             validate(value[item_key], item_type)
         except KeyError:
-            if item_key in type_.__required_keys__:
+            if item_key in python_type.__required_keys__:
                 raise ValueError(f"missing required item: {item_key}")
         except (TypeError, ValueError) as e:
             _decorate_exception(e, f"in item: {item_key}")
             raise
 
 
-def _validate_mapping(type_, value):
-    key_type, value_type = typing.get_args(type_)
+def _validate_mapping(value, python_type, args):
+    key_type, value_type = args
     for key, value in value.items():
         try:
             validate(key, key_type)
@@ -140,17 +138,14 @@ def _validate_mapping(type_, value):
             raise
 
 
-def _validate_iterable(type_, value):
-    if isinstance(value, str) or isinstance(value, collections.abc.ByteString):
-        return  # these are not the iterables we are looking for
-    item_type = typing.get_args(type_)[0]
+def _validate_iterable(value, python_type, args):
+    item_type = args[0]
     for item_value in value:
         validate(item_value, item_type)
 
 
-def _validate_dataclass(type_, value):
-
-    for attr_name, attr_type in typing.get_type_hints(type_, include_extras=True).items():
+def _validate_dataclass(value, python_type):
+    for attr_name, attr_type in typing.get_type_hints(python_type, include_extras=True).items():
         try:
             validate(getattr(value, attr_name), attr_type)
         except (TypeError, ValueError) as e:
@@ -158,53 +153,49 @@ def _validate_dataclass(type_, value):
             raise
 
 
-def validate(value: Any, type_: type):
+def validate(value: Any, type_hint: Any) -> NoneType:
     """Validate a value."""
 
-    origin = typing.get_origin(type_)
-    args = typing.get_args(type_)
+    python_type, annotations = split_annotated(type_hint)
 
-    annotations = ()
+    origin = typing.get_origin(python_type)
+    args = typing.get_args(python_type)
 
-    if origin is Annotated:
-        type_ = args[0]
-        annotations = args[1:]
-        origin = typing.get_origin(type_)
-        args = typing.get_args(type_)
-
-    if origin:
-        type_ = origin[args]
-    else:
-        origin = type_
-
-    # basic type validation
-    if origin is Any:
-        pass
-    elif origin is Union:
-        _validate_union(type_, value)
-        return
-    elif origin is Literal:
-        _validate_literal(type_, value)
-        return
-    elif not is_instance(value, dict) and not is_instance(value, origin):
-        raise TypeError(f"expecting {origin.__name__}, received {value.__class__.__name__}")
-
-    # detailed type validation
-    if is_subclass(type_, dict) and getattr(type_, "__annotations__", None):
-        _validate_typeddict(type_, value)
-    elif is_subclass(origin, Mapping):
-        _validate_mapping(type_, value)
-    elif origin is int and is_instance(value, bool):  # bool is subclass of int
-        raise TypeError(f"expecting int")
-    elif is_subclass(origin, Iterable):
-        _validate_iterable(type_, value)
-    elif dataclasses.is_dataclass(type_):
-        _validate_dataclass(type_, value)
-
-    # validate using validator type annotations
+    # validate using specified validator type annotations
     for annotation in annotations:
         if isinstance(annotation, Validator):
             annotation.validate(value)
+
+    # aggregate type validation
+    if python_type is Any:
+        return
+    elif origin is Union:
+        return _validate_union(value, args)
+    elif origin is Literal:
+        return _validate_literal(value, args)
+
+    if is_subclass(python_type, dict) and hasattr(python_type, "__annotations__"):
+        origin = dict
+
+    # basic type validation
+    if origin and not is_instance(value, origin):
+        raise TypeError(f"expecting {origin.__name__}; got {value}")
+    elif not origin and not is_instance(value, python_type):
+        raise TypeError(f"expecting {python_type}; got {value}")
+    elif python_type is int and is_instance(value, bool):  # bool is subclass of int
+        raise TypeError("expecting int; got bool")
+    elif is_subclass(origin, Iterable) and is_instance(value, (str, bytes, bytearray)):
+        raise TypeError(f"expecting Iterable; got {value}")
+
+    # structured type validation
+    if is_subclass(python_type, dict) and hasattr(python_type, "__annotations__"):
+        return _validate_typeddict(value, python_type)
+    elif is_subclass(origin, Mapping):
+        return _validate_mapping(value, python_type, args)
+    elif is_subclass(origin, Iterable):
+        return _validate_iterable(value, python_type, args)
+    elif dataclasses.is_dataclass(python_type):
+        return _validate_dataclass(value, python_type)
 
 
 def validate_arguments(callable: Callable):
@@ -281,3 +272,13 @@ def validate_return_value(callable: Callable):
             return result
 
     return decorator(callable)
+
+
+def is_valid(value: Any, type_hint: Any) -> bool:
+    """Return if a value is valid for specified type."""
+
+    try:
+        validate(value, type_hint)
+    except (TypeError, ValueError):
+        return False
+    return True
