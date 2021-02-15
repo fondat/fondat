@@ -8,7 +8,7 @@ from fondat.openapi import generate_openapi, openapi_resource
 from fondat.resource import resource, operation, query, mutation, container_resource
 from fondat.types import Description, Example, dataclass
 from fondat.validation import validate
-from typing import Annotated as A, Optional
+from typing import Annotated, Optional
 from uuid import UUID
 
 
@@ -19,15 +19,15 @@ class DB:
 
 @dataclass
 class DC:
-    a: A[str, "this is a description"]
-    b: A[int, Description("this is also a description")]
+    a: Annotated[str, "this is a description"]
+    b: Annotated[int, Description("this is also a description")]
     c: DB
     d: list[str]
     e: dict[str, str]
     f: Optional[str]
     g: str = None
     h: Optional[str] = None
-    i: A[str, Example("aaa")]
+    i: Annotated[str, Example("aaa")]
 
 
 @resource
@@ -75,15 +75,24 @@ class ResourceA:
 
 @resource(tag="b")
 class ResourceB:
+
     @operation
     async def get(self, param1: str) -> DC:
         """Get the B resource."""
         return DC("text", 1)
 
     @query
-    async def query(self, param2: str = "this is a default value") -> list[str]:
+    async def query1(self, param2: str = "this is a default value") -> list[str]:
         """Perform some query."""
         return ["a", "b", "c"]
+
+    @query
+    async def query2(
+        self,
+        p1: Annotated[str, "the p1 parameter"],
+        p2: Annotated[str, Description("the p2 parameter")],
+    ) -> str:
+        return f"{p1}+{p2}"
 
     @mutation
     async def mutate(self, DC):
@@ -131,4 +140,4 @@ def test_openapi_generate_openapi_specification():
     root = openapi_resource(resource=None, info=info, publish=True)
     result = generate_openapi(resource=root, info=info)
     validate(result, fondat.openapi.OpenAPI)
-    #print(json.dumps(get_codec(JSON, fondat.openapi.OpenAPI).encode(result)))
+    # print(json.dumps(get_codec(JSON, fondat.openapi.OpenAPI).encode(result)))

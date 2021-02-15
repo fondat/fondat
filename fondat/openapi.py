@@ -353,7 +353,6 @@ SecurityRequirement = Mapping[str, Iterable[str]]
 _affix(SecurityRequirement)
 
 
-
 # OpenAPI document graph complete; affix all type hints to avoid overhead
 for dc in _to_affix:
     fondat.types.affix_type_hints(dc)
@@ -526,7 +525,9 @@ def _dataclass_schema(*, python_type, annotated, origin, args, processor, **_):
             and f.default_factory is dataclasses.MISSING
             and not is_optional(hints[f.name])
         }
-        properties = {_dc_kw.get(key, key): processor.schema(pytype) for key, pytype in hints.items()}
+        properties = {
+            _dc_kw.get(key, key): processor.schema(pytype) for key, pytype in hints.items()
+        }
         for key, schema in properties.items():
             if key not in required and not fondat.validation.is_valid(schema, Reference):
                 schema.nullable = None
@@ -539,6 +540,7 @@ def _dataclass_schema(*, python_type, annotated, origin, args, processor, **_):
         )
         processor.openapi.components.schemas[name] = result
         return ref
+
 
 @_provider
 def _union_schema(*, python_type, annotated, origin, args, processor, **_):
@@ -667,9 +669,9 @@ class Processor:
                 op.responses[str(http.HTTPStatus.OK.value)] = Response(
                     description=self.description(annotated) or "Response.",
                     content={
-                        fondat.codec.get_codec(fondat.codec.Binary, hint).content_type: MediaType(
-                            schema=self.schema(hint)
-                        )
+                        fondat.codec.get_codec(
+                            fondat.codec.Binary, hint
+                        ).content_type: MediaType(schema=self.schema(hint))
                     },
                 )
             elif fondat.http.InBody in annotated:
@@ -677,9 +679,9 @@ class Processor:
                 op.requestBody = RequestBody(
                     description=self.description(annotated),
                     content={
-                        fondat.codec.get_codec(fondat.codec.Binary, hint).content_type: MediaType(
-                            schema=self.schema(hint)
-                        )
+                        fondat.codec.get_codec(
+                            fondat.codec.Binary, hint
+                        ).content_type: MediaType(schema=self.schema(hint))
                     },
                     required=param.default is param.empty,
                 )
@@ -710,6 +712,8 @@ class Processor:
     def description(annotated):
         for annotation in annotated:
             if is_instance(annotation, str):
+                return annotation
+            elif is_instance(annotation, Description):
                 return annotation.value
 
     def schema(self, type_hint, default=None):
@@ -717,7 +721,15 @@ class Processor:
         origin = typing.get_origin(python_type)
         args = typing.get_args(python_type)
         for provider in providers:
-            if (schema := provider(python_type=python_type, annotated=annotated, origin=origin, args=args, processor=self)) is not None:
+            if (
+                schema := provider(
+                    python_type=python_type,
+                    annotated=annotated,
+                    origin=origin,
+                    args=args,
+                    processor=self,
+                )
+            ) is not None:
                 return schema
         raise TypeError(f"failed to determine JSON Schema for {python_type}")
 
@@ -730,7 +742,7 @@ class Processor:
             name = f"{name}_"
         self.openapi.components.schemas[name] = "__reserved__"
         return name
-        
+
 
 def generate_openapi(*, resource: type, path: str = "/", info: Info) -> OpenAPI:
     """
@@ -744,9 +756,14 @@ def generate_openapi(*, resource: type, path: str = "/", info: Info) -> OpenAPI:
     openapi = OpenAPI(openapi="3.0.3", info=info, paths={})
     Processor(openapi).process(resource=resource, path=path)
     if openapi.paths:
-        openapi.paths = {k: openapi.paths[k] for k in sorted(openapi.paths.keys(), key=str.lower)}
+        openapi.paths = {
+            k: openapi.paths[k] for k in sorted(openapi.paths.keys(), key=str.lower)
+        }
     if openapi.components and openapi.components.schemas:
-        openapi.components.schemas = {k: openapi.components.schemas[k] for k in sorted(openapi.components.schemas.keys(), key=str.lower)}
+        openapi.components.schemas = {
+            k: openapi.components.schemas[k]
+            for k in sorted(openapi.components.schemas.keys(), key=str.lower)
+        }
     return openapi
 
 
@@ -756,7 +773,7 @@ def openapi_resource(
     path: str = "/",
     info: Info,
     security: Iterable[SecurityRequirement] = None,
-    publish: bool = False
+    publish: bool = False,
 ):
     """
     Generate a resource that exposes an OpenAPI document for a given resource.

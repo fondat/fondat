@@ -4,7 +4,8 @@ import fondat.resource
 
 from dataclasses import dataclass
 from fondat.resource import resource, operation, query, mutation
-from typing import Optional
+from fondat.types import Description
+from typing import Annotated, Optional
 from uuid import UUID
 
 
@@ -31,7 +32,11 @@ class R1:
         pass
 
     @query
-    async def qux(self) -> str:
+    async def q1(self) -> str:
+        return self.i_am_r1
+
+    @query
+    async def q2(self, p1: Annotated[str, "p1"], p2: Annotated[str, Description("p2")]) -> str:
         return self.i_am_r1
 
     @mutation
@@ -49,12 +54,12 @@ async def test_call_invalid_type():
 
 
 async def test_outer_scope():
-    assert await R1().qux.get() == R1.i_am_r1
+    assert await R1().q1.get() == R1.i_am_r1
 
 
 async def test_inner_call():
     r1 = R1()
-    assert await r1.qux.get() == await r1.qux()
+    assert await r1.q1.get() == await r1.q1()
 
 
 async def test_valid_args():
