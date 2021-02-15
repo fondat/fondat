@@ -29,6 +29,20 @@ class Default:
         self.value = value
 
 
+class ComponentSchema:
+    """
+    Annotation to request schema be stored in the OpenAPI component schema section.
+
+    Parameter:
+    • name: component schema name
+    """
+
+    name = None  # can use class if name not required
+
+    def __init__(self, name=None):
+        self.name = name
+
+
 _to_affix = []
 
 
@@ -37,12 +51,15 @@ def _affix(wrapped):
     return wrapped
 
 
+def _dataclass(wrapped):
+    return _affix(Annotated[dataclass(wrapped), ComponentSchema])
+
+
 Reference = TypedDict("Reference", {"$ref": str})
 _affix(Reference)
 
 
-@_affix
-@dataclass
+@_dataclass
 class OpenAPI:
     openapi: str
     info: Info
@@ -54,8 +71,7 @@ class OpenAPI:
     externalDocs: Optional[ExternalDocumentation]
 
 
-@_affix
-@dataclass
+@_dataclass
 class Info:
     title: str
     description: Optional[str]
@@ -65,39 +81,34 @@ class Info:
     version: str
 
 
-@_affix
-@dataclass
+@_dataclass
 class Contact:
     name: Optional[str]
     url: Optional[str]
     email: Optional[str]
 
 
-@_affix
-@dataclass
+@_dataclass
 class License:
     name: str
     url: Optional[str]
 
 
-@_affix
-@dataclass
+@_dataclass
 class Server:
     url: str
     description: Optional[str]
     variables: Mapping[str, ServerVariable]
 
 
-@_affix
-@dataclass
+@_dataclass
 class ServerVariable:
     enum: Optional[Iterable[str]]
     default: str = ""
     description: Optional[str] = ""
 
 
-@_affix
-@dataclass
+@_dataclass
 class Components:
     schemas: Optional[Mapping[str, Union[Schema, Reference]]]
     responses: Optional[Mapping[str, Union[Response, Reference]]]
@@ -110,8 +121,7 @@ class Components:
     callbacks: Optional[Mapping[str, Union[Callback, Reference]]]
 
 
-@_affix
-@dataclass
+@_dataclass
 class PathItem:
     summary: Optional[str]
     description: Optional[str]
@@ -131,8 +141,7 @@ Paths = Mapping[str, Union[PathItem, Reference]]
 _affix(Paths)
 
 
-@_affix
-@dataclass
+@_dataclass
 class Operation:
     tags: Optional[Iterable[str]]
     summary: Optional[str]
@@ -148,15 +157,13 @@ class Operation:
     servers: Optional[Iterable[Server]]
 
 
-@_affix
-@dataclass
+@_dataclass
 class ExternalDocumentation:
     description: Optional[str]
     url: str
 
 
-@_affix
-@dataclass
+@_dataclass
 class Parameter:
     name: str
     in_: Literal["query", "header", "path", "cookie"]
@@ -173,16 +180,14 @@ class Parameter:
     content: Optional[Mapping[str, MediaType]]
 
 
-@_affix
-@dataclass
+@_dataclass
 class RequestBody:
     description: Optional[str]
     content: Mapping[str, MediaType]
     required: Optional[bool]
 
 
-@_affix
-@dataclass
+@_dataclass
 class MediaType:
     schema: Optional[Union[Schema, Reference]]
     example: Optional[Any]
@@ -190,8 +195,7 @@ class MediaType:
     encoding: Optional[Mapping[str, Encoding]]
 
 
-@_affix
-@dataclass
+@_dataclass
 class Encoding:
     contentType: Optional[str]
     headers: Optional[Mapping[str, Union[Header, Reference]]]
@@ -200,8 +204,7 @@ class Encoding:
     allowReserved: Optional[bool]
 
 
-@_affix
-@dataclass
+@_dataclass
 class Response:
     description: str
     headers: Optional[Mapping[str, Union[Header, Reference]]]
@@ -217,8 +220,7 @@ Callback = Mapping[str, PathItem]
 _affix(Callback)
 
 
-@_affix
-@dataclass
+@_dataclass
 class Example:
     summary: Optional[str]
     description: Optional[str]
@@ -226,8 +228,7 @@ class Example:
     externalValue: Optional[str]
 
 
-@_affix
-@dataclass
+@_dataclass
 class Link:
     operationRef: Optional[str]
     operationId: Optional[str]
@@ -237,8 +238,7 @@ class Link:
     server: Optional[Server]
 
 
-@_affix
-@dataclass
+@_dataclass
 class Header:
     description: Optional[str]
     required: Optional[bool]
@@ -253,16 +253,14 @@ class Header:
     content: Optional[Mapping[str, MediaType]]
 
 
-@_affix
-@dataclass
+@_dataclass
 class Tag:
     name: str
     description: Optional[str]
     externalDocs: Optional[ExternalDocumentation]
 
 
-@_affix
-@dataclass
+@_dataclass
 class Schema:
     title: Optional[str]
     multipleOf: Optional[Union[int, float]]
@@ -301,15 +299,13 @@ class Schema:
     deprecated: Optional[bool]
 
 
-@_affix
-@dataclass
+@_dataclass
 class Discriminator:
     propertyName: str
     mapping: Optional[Mapping[str, str]]
 
 
-@_affix
-@dataclass
+@_dataclass
 class XML:
     name: Optional[str]
     namespace: Optional[str]
@@ -318,8 +314,7 @@ class XML:
     wrapped: Optional[bool]
 
 
-@_affix
-@dataclass
+@_dataclass
 class SecurityScheme:
     type_: str
     description: Optional[str]
@@ -331,8 +326,7 @@ class SecurityScheme:
     openIdConnectUrl: Optional[str]
 
 
-@_affix
-@dataclass
+@_dataclass
 class OAuthFlows:
     implicit: Optional[OAuthFlow]
     password: Optional[OAuthFlow]
@@ -340,8 +334,7 @@ class OAuthFlows:
     authorizationCode: Optional[OAuthFlow]
 
 
-@_affix
-@dataclass
+@_dataclass
 class OAuthFlow:
     authorizationUrl: Optional[str]
     tokenUrl: Optional[str]
@@ -454,29 +447,42 @@ def _float_schema(*, python_type, annotated, **_):
         return Schema(type="number", format="double", **_kwargs(annotated), **kwargs)
 
 
+def _get_component_schema(annotated):
+    for annotation in annotated:
+        if annotation is ComponentSchema or is_instance(annotation, ComponentSchema):
+            return annotation
+
+
 @_provider
 def _typeddict_schema(*, python_type, annotated, origin, args, processor, **_):
     if is_subclass(python_type, dict) and hasattr(python_type, "__annotations__"):
         if ref := processor.references.get(python_type):
             return ref
-        name = processor.component_schema_name(python_type.__name__)
-        ref = {"$ref": f"#/components/schemas/{name}"}
-        processor.references[python_type] = ref
+        component_schema = _get_component_schema(annotated)
+        if component_schema:
+            name = component_schema.name or processor.component_schema_name(python_type.__name__)
+            ref = {"$ref": f"#/components/schemas/{name}"}
+            processor.references[python_type] = ref
         hints = typing.get_type_hints(python_type, include_extras=True)
         required = list(python_type.__required_keys__) or None
-        processor.openapi.components.schemas[name] = Schema(
+        schema = Schema(
             type="object",
             properties={key: processor.schema(pytype) for key, pytype in hints.items()},
             required=required,
             additionalProperties=False,
             **_kwargs(annotated),
         )
-        return ref
+        if component_schema:
+            processor.openapi.components.schemas[name] = schema
+            return ref
+        return schema
 
 
 @_provider
 def _mapping_schema(*, python_type, annotated, origin, args, processor, **_):
     if is_subclass(origin, Mapping) and len(args) == 2:
+        if args[0] is not str:
+            raise TypeError("Mapping[k, v] only supports str keys")
         return Schema(
             type="object",
             properties={},
@@ -514,9 +520,11 @@ def _dataclass_schema(*, python_type, annotated, origin, args, processor, **_):
     if dataclasses.is_dataclass(python_type):
         if ref := processor.references.get(python_type):
             return ref
-        name = processor.component_schema_name(python_type.__name__)
-        ref = {"$ref": f"#/components/schemas/{name}"}
-        processor.references[python_type] = ref
+        component_schema = _get_component_schema(annotated)
+        if component_schema:
+            name = component_schema.name or processor.component_schema_name(python_type.__name__)
+            ref = {"$ref": f"#/components/schemas/{name}"}
+            processor.references[python_type] = ref
         hints = typing.get_type_hints(python_type, include_extras=True)
         required = {
             f.name
@@ -531,15 +539,17 @@ def _dataclass_schema(*, python_type, annotated, origin, args, processor, **_):
         for key, schema in properties.items():
             if key not in required and not fondat.validation.is_valid(schema, Reference):
                 schema.nullable = None
-        result = Schema(
+        schema = Schema(
             type="object",
             properties=properties,
             required=required or None,
             additionalProperties=False,
             **_kwargs(annotated),
         )
-        processor.openapi.components.schemas[name] = result
-        return ref
+        if component_schema:
+            processor.openapi.components.schemas[name] = schema
+            return ref
+        return schema
 
 
 @_provider
@@ -564,18 +574,19 @@ def _literal_schema(*, python_type, annotated, origin, args, processor, **_):
         schemas = {t: processor.schema(t) for t in types}
         for t, s in schemas.items():
             if fondat.validation.is_valid(s, Reference):
-                raise TypeError(f"OpenAPI does not support literals of complex types: {t}")
+                raise TypeError(f"Cannot document literals containing complex type: {t}")
             s.enum = enums[t]
         if len(types) == 1:  # homegeneous
             schema = schemas[types[0]]
             if nullable and not fondat.validate.is_valid(schema, Reference):
                 schema.nullable = True
-            return schema
-        return Schema(  # heterogeneus
+        else:
+            schema = Schema(  # heterogeneus
             anyOf=list(schemas.values()),
             nullable=nullable,
             **_kwargs(annotated),
         )
+        return schema
 
 
 @_provider
@@ -731,7 +742,7 @@ class Processor:
                 )
             ) is not None:
                 return schema
-        raise TypeError(f"failed to determine JSON Schema for {python_type}")
+        raise TypeError(f"failed to generate JSON Schema for type: {python_type}")
 
     def component_schema_name(self, name):
         if self.openapi.components is None:
