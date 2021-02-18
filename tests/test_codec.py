@@ -59,6 +59,12 @@ def test_dict_json_decode_error():
         get_codec(JSON, T).decode(value)
 
 
+def test_raw_dict():
+    value = {"a": 1}
+    codec = get_codec(String, type(value))
+    assert codec.decode(codec.encode(value)) == value
+
+
 # ----- TypedDict -----
 
 
@@ -487,8 +493,7 @@ def test_date_str_decode_error():
 
 def test_datetime_encodings():
     _test_encoding(
-        datetime.datetime,
-        datetime.datetime(2020, 12, 6, 16, 10, 45, 0, datetime.timezone.utc),
+        datetime.datetime, datetime.datetime(2020, 12, 6, 16, 10, 45, 0, datetime.timezone.utc),
     )
 
 

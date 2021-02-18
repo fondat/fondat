@@ -10,6 +10,7 @@ import functools
 import io
 import json
 import keyword
+import logging
 import wrapt
 
 from collections.abc import Iterable, Mapping, Set
@@ -22,6 +23,9 @@ from fondat.validation import validate, validate_arguments
 from typing import Annotated, Any, Generic, Literal, TypeVar, TypedDict, Union
 from typing import get_origin, get_args, get_type_hints
 from uuid import UUID
+
+
+_logger = logging.getLogger(__name__)
 
 
 providers = []
@@ -922,17 +926,20 @@ def _typeddict(codec_type, python_type):
 @_provider
 def _mapping(codec_type, python_type):
 
-    origin = get_origin(python_type)
+    if is_subclass(python_type, Mapping):
+        origin = Mapping
+        args = [Any, Any]
 
-    if (
-        not is_subclass(origin, Mapping)
-        or getattr(python_type, "__annotations__", None) is not None
-    ):
-        return  # not a Mapping
-
-    args = get_args(python_type)
-    if len(args) != 2:
-        raise TypeError("expecting Mapping[KT, VT]")
+    else:
+        origin = get_origin(python_type)
+        if (
+            not is_subclass(origin, Mapping)
+            or getattr(python_type, "__annotations__", None) is not None
+        ):
+            return  # not a Mapping
+        args = get_args(python_type)
+        if len(args) != 2:
+            raise TypeError("expecting Mapping[KT, VT]")
 
     if codec_type is JSON:
         key_codec = get_codec(String, args[0])
@@ -1006,16 +1013,17 @@ def _csv_decode(value):
 @_provider
 def _iterable(codec_type, python_type):
 
-    origin = get_origin(python_type)
-
-    if (
-        not is_subclass(origin, Iterable)
-        or is_subclass(python_type, (str, bytes, bytearray))
-        or is_subclass(origin, Mapping)
+    if is_subclass(python_type, Iterable) and not is_subclass(
+        python_type, (str, bytes, bytearray)
     ):
-        return
+        origin = python_type
+        args = (Any,)
 
-    args = get_args(python_type)
+    else:
+        origin = get_origin(python_type)
+        if not is_subclass(origin, Iterable) or is_subclass(origin, Mapping):
+            return
+        args = get_args(python_type)
 
     if len(args) != 1:
         raise TypeError("expecting Iterable[T]")
@@ -1218,8 +1226,11 @@ def _union(codec_type, python_type):
             try:
                 return getattr(codec, method)(value)
             except (TypeError, ValueError) as e:
+                _logger.debug("%s", e)
                 continue
-        raise ValueError
+        raise ValueError(
+            f"no suitable codec: {codec_type} for type: {python_type} and value: {value}"
+        )
 
     if codec_type is String:
 
