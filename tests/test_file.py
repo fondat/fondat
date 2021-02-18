@@ -22,7 +22,7 @@ pytestmark = pytest.mark.asyncio
 async def test_compression(tmp_path):
     DC = make_dataclass("DC", (("key", str), ("foo", str), ("bar", int)))
     for algorithm in (None, bz2, gzip, lzma, zlib):
-        path = tmp_path.joinpath(algorithm.__name__ if algorithm else "None")
+        path = tmp_path / (algorithm.__name__ if algorithm else "None")
         path.mkdir()
         dr = directory_resource(path=path, value_type=DC, compress=algorithm, writeable=True)
         r1 = DC(key="id1", foo="hello", bar=1)
@@ -64,7 +64,7 @@ async def test_crud_str(tmp_path):
 
 async def test_crud_missing_dir(tmp_path):
     with pytest.raises(FileNotFoundError):
-        dr = directory_resource(tmp_path.joinpath("missing"))
+        dr = directory_resource(tmp_path / "missing")
 
 
 async def test_crud_bytes(tmp_path):
@@ -176,7 +176,7 @@ async def test_pagination(tmp_path):
 async def test_read_package_dir():
     import tests
 
-    path = importlib.resources.files(tests).joinpath("test_file")
+    path = importlib.resources.files(tests) / "test_file"
     dr = directory_resource(path=path, value_type=str, extension=".txt")
     files = [f async for f in paginate(dr.get)]
     assert files == ["f1", "f2"]
@@ -206,15 +206,15 @@ async def test_crud_stream(tmp_path):
 
 
 async def test_traversal_attack(tmp_path):
-    main_path = tmp_path.joinpath("main")
+    main_path = tmp_path / "main"
     main_path.mkdir()
-    subdir_path = main_path.joinpath("subdir")
+    subdir_path = main_path / "subdir"
     subdir_path.mkdir()
-    with tmp_path.joinpath("forbidden.txt").open("w") as file:
+    with (tmp_path / "forbidden.txt").open("w") as file:
         file.write("forbidden")
-    with subdir_path.joinpath("forbidden.txt").open("w") as file:
+    with (subdir_path / "forbidden.txt").open("w") as file:
         file.write("forbidden")
-    with main_path.joinpath("permitted.txt").open("w") as file:
+    with (main_path / "permitted.txt").open("w") as file:
         file.write("permitted")
     dr = directory_resource(path=main_path, value_type=str)
     with pytest.raises(NotFoundError):
