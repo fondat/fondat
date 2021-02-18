@@ -493,7 +493,8 @@ def test_date_str_decode_error():
 
 def test_datetime_encodings():
     _test_encoding(
-        datetime.datetime, datetime.datetime(2020, 12, 6, 16, 10, 45, 0, datetime.timezone.utc),
+        datetime.datetime,
+        datetime.datetime(2020, 12, 6, 16, 10, 45, 0, datetime.timezone.utc),
     )
 
 

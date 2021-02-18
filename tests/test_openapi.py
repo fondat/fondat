@@ -3,7 +3,9 @@ import pytest
 import fondat.openapi
 import json
 
+from datetime import date
 from fondat.codec import get_codec, JSON, String
+from fondat.http import InCookie, InHeader, InQuery
 from fondat.openapi import generate_openapi, openapi_resource
 from fondat.resource import resource, operation, query, mutation, container_resource
 from fondat.types import Description, Example, dataclass
@@ -28,6 +30,10 @@ class DC:
     g: str = None
     h: Optional[str] = None
     i: Annotated[str, Example("aaa")]
+    j: Annotated[date, Example(date(2021, 1, 1))]
+    #    k: Annotated[list[date], Example([date(2021, 1, 1), date(2021, 12, 31)])]
+    #    k: Annotated[list[str], Example(["a", "b"])]
+    k: Annotated[int, Example(1)]
 
 
 @resource
@@ -75,7 +81,6 @@ class ResourceA:
 
 @resource(tag="b")
 class ResourceB:
-
     @operation
     async def get(self, param1: str) -> DC:
         """Get the B resource."""
@@ -94,6 +99,14 @@ class ResourceB:
     ) -> str:
         return f"{p1}+{p2}"
 
+    @query
+    async def query3(
+        self,
+        p1: Annotated[str, InHeader("X-Param1")],
+        p2: Annotated[str, InCookie("P2-Cookie")],
+    ) -> str:
+        return "query3"
+
     @mutation
     async def mutate(self, DC):
         """Perform some mutation."""
@@ -105,6 +118,8 @@ def test_generate():
         resource=Root(), info=fondat.openapi.Info(title="title", version="version")
     )
     validate(doc, fondat.openapi.OpenAPI)
+    js = get_codec(JSON, fondat.openapi.OpenAPI).encode(doc)
+    print(json.dumps(js))
 
 
 @pytest.mark.asyncio
@@ -133,6 +148,7 @@ async def test_nested_containers():
     c1_r1 = doc.paths.get("/c1/r1")
     assert c1_r1 is not None
     assert c1_r1.get is not None
+    js = get_codec(JSON, fondat.openapi.OpenAPI).encode(doc)
 
 
 def test_openapi_generate_openapi_specification():
@@ -140,4 +156,5 @@ def test_openapi_generate_openapi_specification():
     root = openapi_resource(resource=None, info=info, publish=True)
     result = generate_openapi(resource=root, info=info)
     validate(result, fondat.openapi.OpenAPI)
-    # print(json.dumps(get_codec(JSON, fondat.openapi.OpenAPI).encode(result)))
+    js = get_codec(JSON, fondat.openapi.OpenAPI).encode(result)
+    # print(json.dumps(js))
