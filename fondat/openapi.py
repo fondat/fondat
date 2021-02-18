@@ -1,7 +1,5 @@
 """Module to generate OpenAPI documents and resources."""
 
-# TODO: header and cookie parameters
-
 from __future__ import annotations
 
 import dataclasses
@@ -460,7 +458,9 @@ def _typeddict_schema(*, python_type, annotated, origin, args, processor, **_):
             return ref
         component_schema = _get_component_schema(annotated)
         if component_schema:
-            name = component_schema.name or processor.component_schema_name(python_type.__name__)
+            name = component_schema.name or processor.component_schema_name(
+                python_type.__name__
+            )
             ref = {"$ref": f"#/components/schemas/{name}"}
             processor.references[python_type] = ref
         hints = typing.get_type_hints(python_type, include_extras=True)
@@ -522,7 +522,9 @@ def _dataclass_schema(*, python_type, annotated, origin, args, processor, **_):
             return ref
         component_schema = _get_component_schema(annotated)
         if component_schema:
-            name = component_schema.name or processor.component_schema_name(python_type.__name__)
+            name = component_schema.name or processor.component_schema_name(
+                python_type.__name__
+            )
             ref = {"$ref": f"#/components/schemas/{name}"}
             processor.references[python_type] = ref
         hints = typing.get_type_hints(python_type, include_extras=True)
@@ -582,10 +584,10 @@ def _literal_schema(*, python_type, annotated, origin, args, processor, **_):
                 schema.nullable = True
         else:
             schema = Schema(  # heterogeneus
-            anyOf=list(schemas.values()),
-            nullable=nullable,
-            **_kwargs(annotated),
-        )
+                anyOf=list(schemas.values()),
+                nullable=nullable,
+                **_kwargs(annotated),
+            )
         return schema
 
 
@@ -700,15 +702,34 @@ class Processor:
                 param = parameters[name]
                 if param.default is not param.empty:
                     hint = Annotated[hint, Default(param.default)]
+                in_ = "query"
+                style = "form"
+                explode = False
+                for annotation in annotated:
+                    if is_instance(annotation, fondat.http.InCookie):
+                        name = annotation.key
+                        in_ = "cookie"
+                        style = "form"
+                        explode = False
+                    elif is_instance(annotation, fondat.http.InHeader):
+                        name = annotation.key
+                        in_ = "header"
+                        style = "simple"
+                        explode = None
+                    elif is_instance(annotation, fondat.http.InQuery):
+                        name = annotation.key
+                        in_ = "query"
+                        style = "form"
+                        explode = False
                 op.parameters.append(
                     Parameter(
                         name=name,
-                        in_="query",
+                        in_=in_,
                         description=self.description(annotated),
                         required=param.default is param.empty,
                         schema=self.schema(hint),
-                        style="form",
-                        explode=False,
+                        style=style,
+                        explode=explode,
                     )
                 )
         if "return" not in hints:
