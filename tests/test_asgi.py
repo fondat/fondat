@@ -204,3 +204,23 @@ async def test_empty_optional_int_body_param():
     await asgi_app(app)(scope, Receive(), send)
     assert send.response["status"] == http.HTTPStatus.OK.value
     assert send.body == b"None"
+
+
+async def test_cookie():
+    @resource
+    class Resource:
+        @operation
+        async def get(self) -> str:
+            return "foo"
+
+    async def filter(request):
+        response = yield
+        response.cookies["x"] = "y"
+        yield response
+
+    app = fondat.http.Application(root=Resource(), filters=[filter])
+    scope = _scope(method="GET", path="/")
+    send = Send()
+    await asgi_app(app)(scope, Receive(), send)
+    headers = dict(send.response["headers"])
+    assert headers[b"set-cookie"] == b"x=y"

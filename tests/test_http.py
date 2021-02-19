@@ -25,9 +25,7 @@ async def test_simple():
             return "str"
 
     application = Application(Resource())
-    request = Request()
-    request.method = "GET"
-    request.path = "/"
+    request = Request(method="GET", path="/")
     response = await application.handle(request)
     assert response.status == http.HTTPStatus.OK.value
     assert response.headers["Content-Type"] == "text/plain; charset=UTF-8"
@@ -47,9 +45,7 @@ async def test_nested_attr():
         nested = Nested()
 
     application = Application(Root())
-    request = Request()
-    request.method = "GET"
-    request.path = "/nested"
+    request = Request(method="GET", path="/nested")
     response = await application.handle(request)
     assert response.status == http.HTTPStatus.OK.value
     assert response.headers["Content-Type"] == "text/plain; charset=UTF-8"
@@ -73,9 +69,7 @@ async def test_nested_item():
             return Inner(key)
 
     app = Application(Outer())
-    request = Request()
-    request.method = "GET"
-    request.path = "/abc"
+    request = Request(method="GET", path="/abc")
     response = await app.handle(request)
     assert response.status == http.HTTPStatus.OK.value
     assert response.headers["Content-Type"] == "text/plain; charset=UTF-8"
@@ -90,9 +84,7 @@ async def test_valid_param():
             return str(foo)
 
     application = Application(Resource())
-    request = Request()
-    request.method = "GET"
-    request.path = "/"
+    request = Request(method="GET", path="/")
     request.query["foo"] = "123"
     response = await application.handle(request)
     assert response.status == http.HTTPStatus.OK.value
@@ -107,9 +99,7 @@ async def test_invalid_param():
             return str(foo)
 
     application = Application(Resource())
-    request = Request()
-    request.method = "GET"
-    request.path = "/"
+    request = Request(method="GET", path="/")
     request.query["foo"] = "abc"
     response = await application.handle(request)
     assert response.status == http.HTTPStatus.BAD_REQUEST.value
@@ -123,9 +113,7 @@ async def test_missing_required_param():
             return str(foo)
 
     application = Application(Resource())
-    request = Request()
-    request.method = "GET"
-    request.path = "/"
+    request = Request(method="GET", path="/")
     response = await application.handle(request)
     assert response.status == http.HTTPStatus.BAD_REQUEST.value
 
@@ -138,9 +126,7 @@ async def test_missing_optional_param():
             return str(foo)
 
     application = Application(Resource())
-    request = Request()
-    request.method = "GET"
-    request.path = "/"
+    request = Request(method="GET", path="/")
     response = await application.handle(request)
     assert response.status == http.HTTPStatus.OK.value
     assert await body(response) == b"None"
@@ -155,9 +141,7 @@ async def test_stream_response_body():
 
     application = Application(Resource())
 
-    request = Request()
-    request.method = "GET"
-    request.path = "/"
+    request = Request(method="GET", path="/")
     response = await application.handle(request)
     assert response.status == http.HTTPStatus.OK.value
     assert await body(response) == b"12345"
@@ -174,10 +158,7 @@ async def test_stream_request_body():
     application = Application(Resource())
 
     content = b"abcdefg"
-    request = Request()
-    request.method = "POST"
-    request.path = "/"
-    request.body = BytesStream(content)
+    request = Request(method="POST", path="/", body=BytesStream(content))
     response = await application.handle(request)
     assert response.status == http.HTTPStatus.OK.value
     assert response.headers["Content-Length"] == str(len(content))
@@ -201,10 +182,7 @@ async def test_request_body_dataclass():
     m = Model(a=1, b="s")
     codec = get_codec(Binary, Model)
 
-    request = Request()
-    request.method = "POST"
-    request.path = "/"
-    request.body = BytesStream(codec.encode(m))
+    request = Request(method="POST", path="/", body=BytesStream(codec.encode(m)))
     response = await application.handle(request)
     assert response.status == http.HTTPStatus.OK.value
     assert codec.decode(await body(response)) == m
@@ -219,8 +197,23 @@ async def test_invalid_return():
 
     application = Application(Resource())
 
-    request = Request()
-    request.method = "GET"
-    request.path = "/"
+    request = Request(method="GET", path="/")
     response = await application.handle(request)
     assert response.status == http.HTTPStatus.INTERNAL_SERVER_ERROR.value
+
+
+async def test_filter_return():
+    @resource
+    class Resource:
+        @operation
+        async def get(self) -> str:
+            return "str"
+
+    async def filter(request):
+        return Response(status=http.HTTPStatus.FORBIDDEN.value)
+
+    application = Application(root=Resource(), filters=[filter])
+
+    request = Request(method="GET", path="/")
+    response = await application.handle(request)
+    assert response.status == http.HTTPStatus.FORBIDDEN.value

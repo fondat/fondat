@@ -31,66 +31,102 @@ class Message:
     """
     Base class for HTTP request and response.
 
-    Attributes:
+    Parameters and attributes:
     • headers: multi-value dictionary to store headers; excludes cookies
     • cookies: dictionary containing message cookies
     • body: stream message body, or None if no body
     """
 
-    def __init__(self):
+    def __init__(
+        self,
+        *,
+        headers: Headers = None,
+        cookies: Cookies = None,
+        body: Stream = None,
+    ):
         super().__init__()
-        self.headers = Headers()
-        self.cookies = Cookies()
-        self.body = None
+        self.headers = headers or Headers()
+        self.cookies = cookies or Cookies()
+        self.body = body
 
 
 class Request(Message):
     """
     HTTP request.
 
-    Attributes:
+    Parameters and attributes:
     • headers: multi-value dictionary to store headers; excludes cookies
     • cookies: simple cookie object to store request cookies
     • body: stream for request body, or None
-    • method: the HTTP method name, in uppper case
+    • method: the HTTP method name, in upper case
     • path: HTTP request target excluding query string
     • version: version of the incoming HTTP request
     • query: multi-value dictionary to store query string parameters
     """
 
-    def __init__(self):
-        super().__init__()
-        self.method = "GET"
-        self.path = "/"
-        self.version = "1.1"
-        self.query = Query()
+    def __init__(
+        self,
+        *,
+        headers: Headers = None,
+        cookies: Cookies = None,
+        body: Stream = None,
+        method: str = "GET",
+        path: str = "/",
+        version: str = "1.1",
+        query: Query = None,
+    ):
+        super().__init__(headers=headers, cookies=cookies, body=body)
+        self.method = method
+        self.path = path
+        self.version = version
+        self.query = query or Query()
 
 
 class Response(Message):
     """
     HTTP response.
 
-    Attributes:
+    Parameters and attributes:
     • headers: multi-value dictionary to store headers; excludes cookies
     • cookies: dictionary containing response cookies
     • body: stream for response body, or None
     • status: HTTP status code
     """
 
-    def __init__(self):
-        super().__init__()
-        self.status = http.HTTPStatus.OK.value
+    def __init__(
+        self,
+        *,
+        headers: Headers = None,
+        cookies: Cookies = None,
+        body: Stream = None,
+        status: int = http.HTTPStatus.OK.value,
+    ):
+        super().__init__(headers=headers, cookies=cookies, body=body)
+        self.status = status
 
 
 class Chain:
     """
     A chain of zero or more filters, terminated by a single handler.
 
-    A filter is a coroutine function or asynchronous generator function that can inspect and/or
-    modify a request and optionally inspect, modify and/or yield a new response.
-
     A handler is a coroutine function that inspects a request and returns a response. A chain
     is itself a request handler.
+
+    A filter is either a coroutine function or an asynchronous generator.
+
+    A coroutine function filter can inspect and modify a request, and:
+    • return no value to indicate that the filter passed; processing continues down the chain
+    • return a response; the request is not processed by any subsequent filters or handler
+
+    An asynchronous generator filter can inspect and modify a request, and:
+    • yield no value; processing continues down the chain
+    • yield a response; the request is not processed by any subsequent filters or handler
+
+    The response from handler and downstream filters is sent to the asynchronous generator
+    filter and becomes the result of the yield expression. The filter can then inspect and
+    modify the response, and:
+    • yield no value; the existing response is passed back up the chain
+    • yield a new response; this response is passed back up the chain to the caller
     """
 
     def __init__(self, *, filters: MutableSequence[Callable] = None, handler: Callable):
@@ -410,12 +446,18 @@ async def handle_error(err: fondat.error.Error):
 
 class Application:
     """
-    An HTTP application.
+    An HTTP application, which passes an incoming request through HTTP filters, then to a
+    resource.
 
     Parameters and attributes:
     • root: resource to dispatch requests to
     • filters: filters to apply during HTTP request processing
-    • error_handler: produces response for raised fondat.error exception
+    • error_handler: coroutine function to produce response for raised fondat.error exception
+
+    An HTTP application is a "handler"; it's exposed as a coroutine callable that handles an
+    HTTP request and returns an HTTP response.
+
+    For a description of filters, see: Chain.
     """
 
     def __init__(
