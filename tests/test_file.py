@@ -222,3 +222,13 @@ async def test_traversal_attack(tmp_path):
     with pytest.raises(NotFoundError):
         await dr["../forbidden.txt"].get()
     assert await dr["permitted.txt"].get() == "permitted"
+
+
+async def test_content_length(tmp_path):
+    file_size = 4096
+    path = tmp_path / "block.bin"
+    with path.open("wb") as file:
+        file.write(b"x" * file_size)
+    resource = file_resource(path)
+    stream = await resource.get()
+    assert stream.content_length == file_size

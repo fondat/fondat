@@ -41,7 +41,9 @@ def _content_type(url: str) -> str:
 
 class _ReadFileStream(Stream):
     def __init__(self, path: Path, block_size: int = 131072):
-        super().__init__(_content_type(path.name))
+        super().__init__(
+            content_type=_content_type(path.name), content_length=path.stat().st_size
+        )
         self.path = path
         self.block_size = block_size
         self.position = 0
