@@ -747,7 +747,7 @@ class Processor:
         for annotation in annotated:
             if is_instance(annotation, str):
                 return annotation
-            elif is_instance(annotation, Description):
+            elif is_instance(annotation, fondat.types.Description):
                 return annotation.value
 
     def schema(self, type_hint, default=None):
