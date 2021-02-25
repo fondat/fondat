@@ -1,5 +1,7 @@
 """Module to generate OpenAPI documents and resources."""
 
+# TODO: example in schema
+
 from __future__ import annotations
 
 import dataclasses
@@ -16,7 +18,7 @@ from collections.abc import Iterable, Mapping
 from datetime import date, datetime
 from decimal import Decimal
 from fondat.security import SecurityRequirement
-from fondat.types import Description, Example, NoneType
+from fondat.types import NoneType
 from fondat.types import dataclass, is_instance, is_optional, is_subclass
 from typing import Annotated, Any, Literal, Optional, TypedDict, Union
 from uuid import UUID
