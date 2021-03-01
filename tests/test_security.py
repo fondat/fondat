@@ -14,7 +14,7 @@ class Never(fondat.security.SecurityRequirement):
         raise ForbiddenError
 
 
-req1 = fondat.security.ContextSecurityRequirement(req1=True)
+req1 = fondat.security.ContextSecurityRequirement(context="whatever", req1=True)
 
 never = Never()
 
@@ -32,7 +32,7 @@ class R1:
 
 async def test_security_req_success():
     r1 = R1()
-    with context.push(req1=True):
+    with context.push(context="whatever", req1=True):
         assert await r1.foo() == "foo_success"
 
 
