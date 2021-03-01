@@ -387,26 +387,15 @@ class counter:
             _logger.warning("Exception recording measurement", exc_info=True)
 
 
-@contextlib.contextmanager
-def push(monitor):
-    """Return a context manager that pushes a monitor onto the context stack."""
-    with context.push(context="fondat.monitor", monitor=monitor):
-        yield
+monitors = []
 
 
-def get_monitors():
-    """Return a generator that yields all context monitors."""
-    return (c["monitor"] for c in context.find(context="fondat.monitor"))
-
-
-async def record(measurement: Measurement, monitors=None):
+async def record(measurement: Measurement):
     """
-    Record a measurement in the specified monitors. If no monitors are specified, then
-    measurement is recorded in all context monitors.
+    Record a measurement in the monitors.
 
     Parameters:
     • measurement: measurement to record
-    • monitors: monitors to record measurement in
     """
-    for monitor in monitors or get_monitors():
+    for monitor in monitors:
         await monitor.record(measurement)
