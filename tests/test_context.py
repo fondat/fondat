@@ -13,7 +13,7 @@ def test_basic():
     assert count(context.find()) == 0
     with context.push(context="foo", value=1):
         with context.push(context="foo", value=2):
-            assert context.last(context="root") is not None
+            assert context.last(context="fondat.root") is not None
             assert count(context.find()) == 3
             assert count(context.find()) == 3
             assert context.first(context="foo")["value"] == 1

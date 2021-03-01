@@ -1,12 +1,13 @@
 """
-Module to manage context stacks.
+Module to manage execution context stacks.
 
-The context stack allows context to be built up as operations are performed. It can provide
-information about the origin of a request, identify principal(s) making the request, include
-access tokens or any other information that can be used when making authorization decisions.
+The execution context stack allows values to be "built up" as a request is handled and
+operations are performed. It can provide information about the origin of a request, identify
+principal(s) making a request, and include access tokens or any other information that can be
+used when making authorization decisions.
 
-The context stack is stored in context-local state; therefore sepeate stacks are maintained
-for different threads and asynchrous tasks.
+The execution context stack is stored in context-local state; therefore sepeate stacks are
+maintained for different threads and asynchrous tasks.
 """
 
 import contextvars
@@ -23,91 +24,112 @@ class _Element:
     A context stack element.
 
     The context stack is a linked list of elements; each stack element contains a value and a
-    reference to the next element below it on the stack. Because stacks are linked lists, they
-    can be safely forked when asynchronous tasks are performed.
+    reference to the previously pushed element below it on the stack. Because stacks are linked
+    lists, they can be safely forked when asynchronous tasks are performed.
 
     Each element is iterable; it will iterate over the values of the entire stack, beginning
-    with the referenced element's value, then the next element's value below it, and so on. In
-    this sense the element at the top represents the entire stack.
+    with its value, then the previously pushed element's value below it, and so on. In this
+    manner, the element at the top of a stack represents the entire stack.
 
     Parameters:
-    • value: the value to place at the top of the stack
-    • next: next element below this elemment, or None if this is the first element
+    • value: the value this stack element contains
+    • prev: the element below this elemment on the stack, or None if this is the first element
     """
 
-    __slots__ = ("_value", "_next")
+    __slots__ = ("_value", "_prev", "_len")
 
-    def __init__(self, value, next=None):
+    def __init__(self, value, prev=None):
         self._value = value
-        self._next = next
-        pass
+        self._prev = prev
+        self._len = prev._len + 1 if prev else 1
 
     def __iter__(self):
         class _iter:
-            def __init__(self, next):
-                self._next = next
+            __slots__ = ("_ptr",)
+
+            def __init__(self, ptr):
+                self._ptr = ptr
 
             def __iter__(self):
                 return self
 
             def __next__(self):
-                if self._next is None:
+                if self._ptr is None:
                     raise StopIteration
-                result = self._next._value
-                self._next = self._next._next
+                result = self._ptr._value
+                self._ptr = self._ptr._prev
                 return result
 
         return _iter(self)
 
     def __len__(self):
-        return sum(1 for _ in self)
+        return self._len
 
 
-class push:
+class StackContextManager:
     """
-    Return a context manager that:
-    • upon entry, pushes an element onto the context stack
-    • upon exit, resets the content stack to its original state
-
-    A pushed element must be a mapping, and should contain a "context" value expressing the
-    type of context being pushed onto the stack; context values beginning with "fondat." are
-    reserved.
-
-    If no context-local stack exists, then pushing a value causes a new stack to be created
-    with an initial "root" element, which will contain a unique identifier "id" and timestamp
-    "time".
-
-    A context element is a mapping of key-value pairs. It is expressed as:
-    • push(mapping): element is initialized from a mapping object's key-value pairs
-    • push(**kwargs): element is initialized with name-value pairs in keyword arguments
+    A context manager returned from pushing a value on the context stack, to automatically pop
+    a value from the stack upon exit.
     """
 
-    __slots__ = ("_value", "_token")
+    __slots__ = ("_token",)
 
-    def __init__(self, *args, **kwargs):
-        self._value = dict(*args, **kwargs)
+    def __init__(self, token):
+        self._token = token
+
+    def pop(self):
+        """
+        Manually pop the pushed value from the stack. Use with caution. The preferred use of
+        this context manager is to use "with" keyword to pop from the stack upon exit.
+        """
+        if self._token:
+            _stack.reset(self._token)
+        self._token = None
 
     def __enter__(self):
-        stack = _stack.get(None)
-        if not stack:
-            stack = _Element(
-                dict(
-                    context="root",
-                    id=uuid.uuid4(),
-                    time=datetime.datetime.now(tz=datetime.timezone.utc),
-                )
-            )
-        self._token = _stack.set(_Element(self._value, stack))
+        pass
 
     def __exit__(self, *args):
-        _stack.reset(self._token)
+        self.pop()
+
+
+def push(*args, **kwargs) -> StackContextManager:
+    """
+    Push a new value onto the execution context stack, and return a context manager that will
+    pop the value from the stack upon exit.
+
+    A context value is a mapping of key-value pairs. It is expressed as:
+    • push(mapping): element is initialized from a mapping object's key-value pairs
+    • push(**kwargs): element is initialized with name-value pairs in keyword arguments
+
+    A pushed value must contain a "context" value to express the type of context being pushed
+    onto the stack; context keys and "context" value beginning with "fondat." are reserved.
+
+    If no context-local stack exists, then pushing a value causes a new stack to be created
+    with an initial "fondat.root" element, which will contain a unique identifier "id" and
+    timestamp "time".
+    """
+    value = dict(*args, **kwargs)
+    if "context" not in value:
+        raise ValueError('pushed context must have a "context" item')
+    stack = _stack.get(None)
+    if not stack:
+        stack = _Element(
+            dict(
+                context="fondat.root",
+                id=uuid.uuid4(),
+                time=datetime.datetime.now(tz=datetime.timezone.utc),
+            )
+        )
+    token = _stack.set(_Element(value, stack))
+    return StackContextManager(token)
 
 
 def find(*args, **kwargs):
     """
     Return a generator that yields elements on the context stack that match the specified keys
-    and values. Elements are returned in the order of most recent to least recent (top of stack
-    to bottom).
+    and values. Elements are returned in the order of uppermost (last pushed) to lowermost
+    (first pushed).
 
     The elements to match can be expressed as follows:
     • find(mapping): match is expressed as a mapping object's key-value pairs
@@ -115,13 +137,13 @@ def find(*args, **kwargs):
 
     Supplying no parameters will yield all elements on the stack.
     """
-    test = dict(*args, **kwargs).items()
-    return (value for value in _stack.get(()) if test <= value.items())
+    test = dict(*args, **kwargs).items() or None
+    return (value for value in _stack.get(()) if not test or test <= value.items())
 
 
 def first(*args, **kwargs):
     """
-    Return the first (least recent) element pushed on to the contact stack that matches the
+    Return the first (lowermost) element pushed on to the contact stack that matches the
     specified keys and values, or None if no such element is found.
 
     The element to match for can be expressed as follows:
@@ -136,7 +158,7 @@ def first(*args, **kwargs):
 
 def last(*args, **kwargs):
     """
-    Return the last (most recent) element pushed on to the contact stack that matches the
+    Return the last (uppermost) element pushed on to the contact stack that matches the
     specified keys and values, or None if no such element is found.
 
     The element to match for can be expressed as follows:
