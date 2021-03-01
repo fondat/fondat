@@ -87,7 +87,7 @@ class StackContextManager:
         self._token = None
 
     def __enter__(self):
-        pass
+        return self
 
     def __exit__(self, *args):
         self.pop()

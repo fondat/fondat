@@ -1,6 +1,8 @@
+import pytest
+
+import asyncio
 import fondat.codec
 import fondat.monitoring
-import pytest
 
 from datetime import datetime, timedelta, timezone
 from fondat.codec import String, get_codec
@@ -235,3 +237,10 @@ async def test_monitors():
     await monitors.record(Measurement(_tags, _dt("2018-12-01T00:00:01Z"), "absolute", 1))
     assert len(m1.deque) == 1
     assert len(m2.deque) == 1
+
+
+@pytest.mark.asyncio
+async def test_timer():
+    m = fondat.monitoring.DequeMonitor()
+    async with fondat.monitoring.timer(tags=dict(foo="bar"), monitors=[m]):
+        await asyncio.sleep(0.1)

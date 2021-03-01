@@ -6,7 +6,6 @@ application monitor(s) can be added to/deleted from this object.
 """
 
 import collections
-import contextlib
 import fondat.context as context
 import fondat.validation
 import logging
@@ -15,9 +14,10 @@ import re
 import time
 
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Literal, Union
+from typing import Any, Literal, Optional, Union
 
 
 _logger = logging.getLogger(__name__)
@@ -328,14 +328,20 @@ class timer:
 
     Parameters:
     • tags: tags to record upon completion of the timer
-    • monitors: monitors to record measurement in  [context monitors]
+    • monitors: monitors to record measurement in  [global monitors]
     • status: name of tag to record status in measurement; None excludes status
 
-    If no exception is encounted during execution, recorded status is "success", otherwise
+    If no exception is encounted during execution, recotagsrded status is "success", otherwise
     "failure".
     """
 
-    def __init__(self, tags: dict[str, str], *, monitors=None, status: str = "status"):
+    def __init__(
+        self,
+        tags: dict[str, str],
+        *,
+        monitors: Optional[Iterable[Any]] = None,
+        status: str = "status",
+    ):
         self.tags = tags
         self.monitors = monitors
         self.status = status
@@ -362,14 +368,20 @@ class counter:
 
     Parameters:
     • tags: tags to record upon completion of the timer
-    • monitors: monitors to record measurement in  [context monitors]
+    • monitors: monitors to record measurement in  [global monitors]
     • status: name of tag to record status in measurement; None excludes status
 
     If no exception is encounted during execution, recorded status is "success", otherwise
     "failure".
     """
 
-    def __init__(self, tags: dict[str, str], *, monitors=None, status: str = "status"):
+    def __init__(
+        self,
+        tags: dict[str, str],
+        *,
+        monitors: Optional[Iterable[Any]] = None,
+        status: str = "status",
+    ):
         self.tags = tags
         self.monitors = monitors
         self.status = status
@@ -390,12 +402,13 @@ class counter:
 monitors = []
 
 
-async def record(measurement: Measurement):
+async def record(measurement: Measurement, monitors: Optional[Iterable[Any]] = None):
     """
-    Record a measurement in the monitors.
+    Record a measurement.
 
     Parameters:
     • measurement: measurement to record
+    • monitors: monitors to record measurement in  [global monitors]
     """
-    for monitor in monitors:
+    for monitor in monitors or globals()["monitors"]:
         await monitor.record(measurement)
