@@ -90,6 +90,8 @@ class DataclassWriter:
     • dialect: string, type or instance for dialect of CSV file being written
     """
 
+    __slots__ = ("_writer", "_dataclass", "_encoders")
+
     def __init__(
         self,
         fileobj: Any,
@@ -104,15 +106,15 @@ class DataclassWriter:
             for name in dataclass.__annotations__
         }
 
-    def writeheader(self) -> None:
+    def write_header(self) -> None:
         self._writer.writerow(name for name in self._dataclass.__annotations__)
 
-    def writerow(self, row: Any) -> None:
+    def write_row(self, row: Any) -> None:
         columns = (
             self._encoders[name](getattr(row, name)) for name in self._dataclass.__annotations__
         )
         self._writer.writerow(columns)
 
-    def writerows(self, rows: Iterable[Any]) -> None:
-        for row in values:
-            self.writerow(row)
+    def write_rows(self, rows: Iterable[Any]) -> None:
+        for row in rows:
+            self.write_row(row)

@@ -105,9 +105,9 @@ def test_dataclass():
     DC = make_dataclass("DC", (("x", int), ("y", float), ("z", date)))
     with io.StringIO() as s:
         dcw = fondat.csv.DataclassWriter(s, DC, {"x": fondat.csv.number_encoder(precision=2)})
-        dcw.writeheader()
+        dcw.write_header()
         assert s.getvalue() == "x,y,z\r\n"
         s.seek(0)
         s.truncate()
-        dcw.writerow(DC(1, 2.34, date(2021, 3, 2)))
+        dcw.write_row(DC(1, 2.34, date(2021, 3, 2)))
         assert s.getvalue() == "1.00,2.34,2021-03-02\r\n"
