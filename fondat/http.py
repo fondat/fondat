@@ -430,32 +430,35 @@ InBody = _InBody()
 async def handle_error(err: fondat.error.Error):
     """Default error handler for HTTP application."""
 
+    body = json.dumps(
+        dict(error=err.status, detail=err.args[0] if err.args else err.__doc__)
+    ).encode()
+
     response = Response()
     response.status = err.status
     response.headers["content-type"] = "application/json"
-    response.body = BytesStream(
-        json.dumps(
-            dict(
-                error=err.status,
-                detail=err.args[0] if err.args else err.__doc__,
-            )
-        ).encode()
-    )
+    response.headers["content-length"] = str(len(body))
+    response.body = BytesStream(body)
     return response
+
+
+#  TODO: In docstring, add description of routing through resource(s) to an operation.
 
 
 class Application:
     """
-    An HTTP application, which passes an incoming request through HTTP filters, then to a
-    resource.
+    An HTTP application, which handles ncoming HTTP requests by:
+    • passing request through zero or more HTTP filters, and
+    • dispatching it to a resource.
 
     Parameters and attributes:
     • root: resource to dispatch requests to
     • filters: filters to apply during HTTP request processing
     • error_handler: coroutine function to produce response for raised fondat.error exception
+    • path: URI path to root resource
 
-    An HTTP application is a "handler"; it's exposed as a coroutine callable that handles an
-    HTTP request and returns an HTTP response.
+    An HTTP application is a request handler; it's a coroutine callable that handles an HTTP
+    request and returns an HTTP response.
 
     For a description of filters, see: Chain.
     """
@@ -463,12 +466,15 @@ class Application:
     def __init__(
         self,
         root: type,
+        *,
         filters: Iterable[Any] = None,
         error_handler: Callable = handle_error,
+        path: str = "/",
     ):
         if not fondat.resource.is_resource(root):
             raise TypeError("root is not a resource")
         self.root = root
+        self.path = path.rstrip("/") + "/"
         self.filters = list(filters or [])
         self.error_handler = error_handler
 
@@ -490,11 +496,12 @@ class Application:
             return await self.error_handler(err)
 
     async def _handle(self, request: Request):
+        if not request.path.startswith(self.path):
+            raise fondat.error.NotFoundError
+        request.path = request.path[len(self.path) :]
         response = Response()
         method = request.method.lower()
-        segments = request.path.split("/")[1:]
-        if segments == [""]:  # handle root "/" path
-            segments = []
+        segments = request.path.split("/") if request.path else ()
         resource = self.root
         operation = None
         for segment in segments:
