@@ -98,8 +98,9 @@ class _Str_Binary(Binary[str]):
 
     content_type = _TEXT_PLAIN
 
-    @validate_arguments
     def encode(self, value: str) -> bytes:
+        if not isinstance(value, str):
+            raise TypeError
         return value.encode()
 
     @validate_arguments
@@ -114,8 +115,9 @@ _str_binarycodec = _Str_Binary()
 class _Str_String(String[str]):
     """String codec for Unicode character strings."""
 
-    @validate_arguments
     def encode(self, value: str) -> str:
+        if not isinstance(value, str):
+            raise TypeError
         return value
 
     @validate_arguments
@@ -132,8 +134,9 @@ class _Str_JSON(JSON[str]):
 
     json_type = str
 
-    @validate_arguments
     def encode(self, value: str) -> str:
+        if not isinstance(value, str):
+            raise TypeError
         return value
 
     @validate_arguments
@@ -164,8 +167,9 @@ class _Bytes_Binary(Binary[Union[bytes, bytearray]]):
 
     content_type = "application/octet-stream"
 
-    @validate_arguments
     def encode(self, value: Union[bytes, bytearray]) -> Union[bytes, bytearray]:
+        if not isinstance(value, (bytes, bytearray)):
+            raise TypeError
         return value
 
     @validate_arguments
@@ -183,8 +187,9 @@ class _Bytes_String(String[Union[bytes, bytearray]]):
     base64-encoded string. Example: "SGVsbG8gRm9uZGF0".
     """
 
-    @validate_arguments
     def encode(self, value: Union[bytes, bytearray]) -> str:
+        if not isinstance(value, (bytes, bytearray)):
+            raise TypeError
         return base64.b64encode(value).decode()
 
     @validate_arguments
@@ -207,8 +212,9 @@ class _Bytes_JSON(JSON[Union[bytes, bytearray]]):
 
     json_type = str
 
-    @validate_arguments
     def encode(self, value: Union[bytes, bytearray]) -> str:
+        if not isinstance(value, (bytes, bytearray)):
+            raise TypeError
         return _bytes_stringcodec.encode(value)
 
     @validate_arguments
@@ -237,8 +243,9 @@ def _bytes(codec_type, python_type):
 class _Int_String(String[int]):
     """String codec for integers."""
 
-    @validate_arguments
     def encode(self, value: int) -> str:
+        if not isinstance(value, int) or isinstance(value, bool):
+            raise TypeError
         return str(value)
 
     @validate_arguments
@@ -258,8 +265,9 @@ class _Int_Binary(Binary[int]):
 
     content_type = _TEXT_PLAIN
 
-    @validate_arguments
     def encode(self, value: int) -> bytes:
+        if not isinstance(value, int) or isinstance(value, bool):
+            raise TypeError
         return _int_stringcodec.encode(value).encode()
 
     @validate_arguments
@@ -276,8 +284,9 @@ class _Int_JSON(JSON[int]):
 
     json_type = Union[int, float]
 
-    @validate_arguments
     def encode(self, value: int) -> int:
+        if not isinstance(value, int) or isinstance(value, bool):
+            raise TypeError
         return value
 
     @validate_arguments
@@ -311,8 +320,9 @@ def _int(codec_type, python_type):
 class _Float_String(String[float]):
     """String codec for floating point numbers."""
 
-    @validate_arguments
     def encode(self, value: float) -> str:
+        if not isinstance(value, float):
+            raise TypeError
         return str(value)
 
     @validate_arguments
@@ -332,8 +342,9 @@ class _Float_Binary(Binary[float]):
 
     content_type = _TEXT_PLAIN
 
-    @validate_arguments
     def encode(self, value: float) -> bytes:
+        if not isinstance(value, float):
+            raise TypeError
         return _float_stringcodec.encode(value).encode()
 
     @validate_arguments
@@ -350,8 +361,9 @@ class _Float_JSON(JSON[float]):
 
     json_type = Union[int, float]
 
-    @validate_arguments
     def encode(self, value: float) -> float:
+        if not isinstance(value, float):
+            raise TypeError
         return value
 
     @validate_arguments
@@ -380,8 +392,9 @@ def _float(codec_type, python_type):
 class _Bool_String(String[bool]):
     """String codec for boolean values."""
 
-    @validate_arguments
     def encode(self, value: bool) -> str:
+        if not isinstance(value, bool):
+            raise TypeError
         return "true" if value else "false"
 
     @validate_arguments
@@ -401,8 +414,9 @@ class _Bool_Binary(Binary[bool]):
 
     content_type = _TEXT_PLAIN
 
-    @validate_arguments
     def encode(self, value: bool) -> bytes:
+        if not isinstance(value, bool):
+            raise TypeError
         return _bool_stringcodec.encode(value).encode()
 
     @validate_arguments
@@ -419,8 +433,9 @@ class _Bool_JSON(JSON[bool]):
 
     json_type = bool
 
-    @validate_arguments
     def encode(self, value: bool) -> bool:
+        if not isinstance(value, bool):
+            raise TypeError
         return value
 
     @validate_arguments
@@ -449,8 +464,9 @@ def _bool(codec_type, python_type):
 class _NoneType_String(String[NoneType]):
     """String codec for None value."""
 
-    @validate_arguments
     def encode(self, value: NoneType) -> str:
+        if not isinstance(value, NoneType):
+            raise TypeError
         return ""
 
     @validate_arguments
@@ -469,8 +485,9 @@ class _NoneType_Binary(Binary[NoneType]):
 
     content_type = _TEXT_PLAIN
 
-    @validate_arguments
     def encode(self, value: NoneType) -> bytes:
+        if not isinstance(value, NoneType):
+            raise TypeError
         return b""
 
     @validate_arguments
@@ -489,8 +506,9 @@ class _NoneType_JSON(JSON[NoneType]):
 
     json_type = NoneType
 
-    @validate_arguments
     def encode(self, value: NoneType) -> NoneType:
+        if not isinstance(value, NoneType):
+            raise TypeError
         return value
 
     @validate_arguments
@@ -520,8 +538,9 @@ def _NoneType(codec_type, python_type):
 class _Decimal_String(String[Decimal]):
     """String codec for Decimal numbers."""
 
-    @validate_arguments
     def encode(self, value: Decimal) -> str:
+        if not isinstance(value, Decimal):
+            raise TypeError
         return str(value)
 
     @validate_arguments
@@ -541,8 +560,9 @@ class _Decimal_Binary(Binary[Decimal]):
 
     content_type = _TEXT_PLAIN
 
-    @validate_arguments
     def encode(self, value: Decimal) -> bytes:
+        if not isinstance(value, Decimal):
+            raise TypeError
         return _decimal_string.encode(value).encode()
 
     @validate_arguments
@@ -562,8 +582,9 @@ class _Decimal_JSON(JSON[Decimal]):
 
     json_type = str
 
-    @validate_arguments
     def encode(self, value: Decimal) -> str:
+        if not isinstance(value, Decimal):
+            raise TypeError
         return _decimal_string.encode(value)
 
     @validate_arguments
@@ -595,8 +616,9 @@ class _Date_String(String[date]):
     Example: "2018-06-16".
     """
 
-    @validate_arguments
     def encode(self, value: date) -> str:
+        if not isinstance(value, date):
+            raise TypeError
         return value.isoformat()
 
     @validate_arguments
@@ -619,8 +641,9 @@ class _Date_Binary(Binary[date]):
 
     content_type = _TEXT_PLAIN
 
-    @validate_arguments
     def encode(self, value: date) -> bytes:
+        if not isinstance(value, date):
+            raise TypeError
         return _date_stringcodec.encode(value).encode()
 
     @validate_arguments
@@ -640,8 +663,9 @@ class _Date_JSON(JSON[date]):
 
     json_type = str
 
-    @validate_arguments
     def encode(self, value: date) -> str:
+        if not isinstance(value, date):
+            raise TypeError
         return _date_stringcodec.encode(value)
 
     @validate_arguments
@@ -679,8 +703,9 @@ class _Datetime_String(String[datetime]):
     Example: "2018-06-16T12:34:56.789012Z".
     """
 
-    @validate_arguments
     def encode(self, value: datetime) -> str:
+        if not isinstance(value, datetime):
+            raise TypeError
         result = _to_utc(value).isoformat()
         if result.endswith("+00:00"):
             result = result[0:-6]
@@ -710,8 +735,9 @@ class _Datetime_Binary(Binary[datetime]):
 
     content_type = _TEXT_PLAIN
 
-    @validate_arguments
     def encode(self, value: datetime) -> bytes:
+        if not isinstance(value, datetime):
+            raise TypeError
         return _datetime_stringcodec.encode(value).encode()
 
     @validate_arguments
@@ -731,8 +757,9 @@ class _Datetime_JSON(JSON[datetime]):
 
     json_type = str
 
-    @validate_arguments
     def encode(self, value: datetime) -> str:
+        if not isinstance(value, datetime):
+            raise TypeError
         return _datetime_stringcodec.encode(value)
 
     @validate_arguments
@@ -761,8 +788,9 @@ def _datetime(codec_type, python_type):
 class _UUID_String(String[UUID]):
     """String codec for UUID."""
 
-    @validate_arguments
     def encode(self, value: UUID) -> str:
+        if not isinstance(value, UUID):
+            raise TypeError
         return str(value)
 
     @validate_arguments
@@ -782,8 +810,9 @@ class _UUID_Binary(Binary[UUID]):
 
     content_type = _TEXT_PLAIN
 
-    @validate_arguments
     def encode(self, value: UUID) -> bytes:
+        if not isinstance(value, UUID):
+            raise TypeError
         return _uuid_stringcodec.encode(value).encode()
 
     @validate_arguments
@@ -800,8 +829,9 @@ class _UUID_JSON(JSON[UUID]):
 
     json_type = str
 
-    @validate_arguments
     def encode(self, value: UUID) -> str:
+        if not isinstance(value, UUID):
+            raise TypeError
         return _uuid_stringcodec.encode(value)
 
     @validate_arguments
@@ -861,8 +891,9 @@ def _typeddict(codec_type, python_type):
                         continue
                 return result
 
-            @validate_arguments
             def encode(self, value: python_type) -> Any:
+                if not isinstance(value, dict):
+                    raise TypeError
                 return self._process(value, "encode")
 
             def decode(self, value: Any) -> python_type:
@@ -892,8 +923,9 @@ def _typeddict(codec_type, python_type):
 
         @affix_type_hints(localns=locals())
         class _TypedDict_String(String[python_type]):
-            @validate_arguments
             def encode(self, value: python_type) -> str:
+                if not isinstance(value, dict):
+                    raise TypeError
                 return json.dumps(json_codec.encode(value))
 
             @validate_arguments
@@ -909,8 +941,9 @@ def _typeddict(codec_type, python_type):
         class _TypedDict_Binary(Binary[python_type]):
             content_type = "application/json"
 
-            @validate_arguments
             def encode(self, value: python_type) -> bytes:
+                if not isinstance(value, dict):
+                    raise TypeError
                 return string_codec.encode(value).encode()
 
             @validate_arguments
@@ -950,8 +983,9 @@ def _mapping(codec_type, python_type):
         class _Mapping_JSON(JSON[python_type]):
             json_type = _json_type
 
-            @validate_arguments
             def encode(self, value: python_type) -> _json_type:
+                if not isinstance(value, Mapping):
+                    raise TypeError
                 return {key_codec.encode(k): value_codec.encode(v) for k, v in value.items()}
 
             @validate_arguments
@@ -967,8 +1001,9 @@ def _mapping(codec_type, python_type):
 
         @affix_type_hints(localns=locals())
         class _Mapping_String(String[python_type]):
-            @validate_arguments
             def encode(self, value: python_type) -> str:
+                if not isinstance(value, Mapping):
+                    raise TypeError
                 return json.dumps(json_codec.encode(value))
 
             @validate_arguments
@@ -986,8 +1021,9 @@ def _mapping(codec_type, python_type):
 
             content_type = "application/json"
 
-            @validate_arguments
             def encode(self, value: python_type) -> bytes:
+                if not isinstance(value, Mapping):
+                    raise TypeError
                 return string_codec.encode(value).encode()
 
             @validate_arguments
@@ -1041,8 +1077,9 @@ def _iterable(codec_type, python_type):
 
             json_type = _json_type
 
-            @validate_arguments
             def encode(self, value: python_type) -> _json_type:
+                if not isinstance(value, Iterable) or isinstance(value, str):
+                    raise TypeError
                 if is_set:
                     value = sorted(value)
                 return [item_codec.encode(item) for item in value]
@@ -1059,8 +1096,9 @@ def _iterable(codec_type, python_type):
 
         @affix_type_hints(localns=locals())
         class _Iterable_String(String[python_type]):
-            @validate_arguments
             def encode(self, value: python_type) -> str:
+                if not isinstance(value, Iterable) or isinstance(value, str):
+                    raise TypeError
                 if is_set:
                     value = sorted(value)
                 return _csv_encode((item_codec.encode(item) for item in value))
@@ -1079,8 +1117,9 @@ def _iterable(codec_type, python_type):
         class _Iterable_Binary(Binary[python_type]):
             content_type = _TEXT_PLAIN
 
-            @validate_arguments
             def encode(self, value: python_type) -> bytes:
+                if not isinstance(value, Iterable) or isinstance(value, str):
+                    raise TypeError
                 return string_codec.encode(value).encode()
 
             @validate_arguments
@@ -1130,8 +1169,9 @@ def _dataclass(codec_type, python_type):
 
             json_type = dict[str, Any]  # will be replaced below
 
-            @validate_arguments
             def encode(self, value: python_type) -> Any:
+                if not isinstance(value, python_type):
+                    raise TypeError
                 result = {}
                 for key in hints:
                     v = getattr(value, key)
@@ -1139,6 +1179,7 @@ def _dataclass(codec_type, python_type):
                         result[_dc_kw.get(key, key)] = get_codec(JSON, hints[key]).encode(v)
                 return result
 
+            @validate_arguments
             def decode(self, value: Any) -> python_type:
                 validate(value, self.json_type)
                 kwargs = {}
@@ -1178,8 +1219,9 @@ def _dataclass(codec_type, python_type):
 
         @affix_type_hints(localns=locals())
         class _Dataclass_String(String[python_type]):
-            @validate_arguments
             def encode(self, value: python_type) -> str:
+                if not isinstance(value, python_type):
+                    raise TypeError
                 return json.dumps(json_codec.encode(value))
 
             @validate_arguments
@@ -1197,8 +1239,9 @@ def _dataclass(codec_type, python_type):
 
             content_type = "application/json"
 
-            @validate_arguments
             def encode(self, value: python_type) -> bytes:
+                if not isinstance(value, python_type):
+                    raise TypeError
                 return string_codec.encode(value).encode()
 
             @validate_arguments
@@ -1229,7 +1272,7 @@ def _union(codec_type, python_type):
                 _logger.debug("%s", e)
                 continue
         raise ValueError(
-            f"no suitable codec: {codec_type} for type: {python_type} and value: {value}"
+            f"cannot {method} type: {python_type} as {codec_type} for value: {value}"
         )
 
     if codec_type is String:
@@ -1238,8 +1281,9 @@ def _union(codec_type, python_type):
 
         @affix_type_hints(localns=locals())
         class _Union_String(String[python_type]):
-            @validate_arguments
             def encode(self, value: python_type) -> str:
+                if value is None and NoneType in types:
+                    return ""
                 return process(codecs, "encode", value)
 
             @validate_arguments
@@ -1257,8 +1301,9 @@ def _union(codec_type, python_type):
 
             content_type = "application/octet-stream"
 
-            @validate_arguments
             def encode(self, value: python_type) -> bytes:
+                if value is None and NoneType in types:
+                    return b""
                 return process(codecs, "encode", value)
 
             @validate_arguments
@@ -1277,8 +1322,9 @@ def _union(codec_type, python_type):
 
             json_type = _json_type
 
-            @validate_arguments
             def encode(self, value: python_type) -> _json_type:
+                if value is None and NoneType in types:
+                    return None
                 return process(codecs, "encode", value)
 
             @validate_arguments
@@ -1374,7 +1420,6 @@ def _literal(codec_type, python_type):
 class _Any_String(String[Any]):
     """String codec for Any."""
 
-    @validate_arguments
     def encode(self, value: Any) -> str:
         return get_codec(String, type(value)).encode(value)
 
@@ -1392,7 +1437,6 @@ class _Any_Binary(Binary[Any]):
 
     content_type = "application/octet-stream"
 
-    @validate_arguments
     def encode(self, value: Any) -> bytes:
         return get_codec(Binary, type(value)).encode(value)
 
@@ -1410,7 +1454,6 @@ class _Any_JSON(JSON[Any]):
 
     json_type = Any
 
-    @validate_arguments
     def encode(self, value: Any) -> Any:
         return get_codec(JSON, type(value)).encode(value)
 

@@ -12,7 +12,7 @@ import typing
 import wrapt
 
 from collections.abc import Callable, Iterable, Mapping
-from fondat.types import is_instance, is_subclass, split_annotated
+from fondat.types import NoneType, is_instance, is_subclass, split_annotated
 from typing import Annotated, Any, Literal, Union
 
 
@@ -96,6 +96,8 @@ def _decorate_exception(e, addition):
 
 
 def _validate_union(value, args):
+    if value is None and NoneType in args:
+        return
     for arg in args:
         try:
             return validate(value, arg)

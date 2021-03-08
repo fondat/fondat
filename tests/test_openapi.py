@@ -134,7 +134,9 @@ def test_generate():
     )
     validate(doc, fondat.openapi.OpenAPI)
     js = get_codec(JSON, fondat.openapi.OpenAPI).encode(doc)
-    print(json.dumps(js))
+
+
+#    print(json.dumps(js))
 
 
 @pytest.mark.asyncio
@@ -172,4 +174,6 @@ def test_openapi_generate_openapi_specification():
     result = generate_openapi(resource=root, info=info)
     validate(result, fondat.openapi.OpenAPI)
     js = get_codec(JSON, fondat.openapi.OpenAPI).encode(result)
-    # print(json.dumps(js))
+
+
+#    print(json.dumps(js))
