@@ -280,7 +280,7 @@ class Table:
             stmt.text(" WHERE ")
             stmt.statement(where)
         stmt.text(";")
-        stmt.result = TypedDict("Count", {"count": int})
+        stmt.result = TypedDict("Result", {"count": int})
         result = await self.database.execute(stmt)
         async with self.database.transaction():
             return (await result.__anext__())["count"]

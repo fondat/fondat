@@ -681,14 +681,33 @@ class Processor:
         for name, hint in hints.items():
             python_type, annotated = fondat.types.split_annotated(hint)
             if name == "return":
-                op.responses[str(http.HTTPStatus.OK.value)] = Response(
-                    description=self.description(annotated) or "Response.",
-                    content={
-                        fondat.codec.get_codec(
-                            fondat.codec.Binary, hint
-                        ).content_type: MediaType(schema=self.schema(hint))
-                    },
-                )
+                if python_type is NoneType:
+                    op.responses[str(http.HTTPStatus.NO_CONTENT.value)] = Response(
+                        description="No content.",
+                    )
+                else:
+                    origin = typing.get_origin(python_type)
+                    args = typing.get_args(python_type)
+                    if origin is typing.Union and NoneType in args:
+                        op.responses[str(http.HTTPStatus.NO_CONTENT.value)] = Response(
+                            description="No content.",
+                        )
+                        python_type = typing.Union[
+                            tuple(arg for arg in args if arg is not NoneType)
+                        ]
+                        hint = (
+                            Annotated[tuple(python_type, *annotated)]
+                            if annotated
+                            else python_type
+                        )
+                    op.responses[str(http.HTTPStatus.OK.value)] = Response(
+                        description=self.description(annotated) or "Response.",
+                        content={
+                            fondat.codec.get_codec(
+                                fondat.codec.Binary, hint
+                            ).content_type: MediaType(schema=self.schema(hint))
+                        },
+                    )
             elif fondat.http.InBody in annotated:
                 param = parameters[name]
                 op.requestBody = RequestBody(
@@ -738,6 +757,7 @@ class Processor:
             op.responses[str(http.HTTPStatus.NO_CONTENT.value)] = Response(
                 description="No content.",
             )
+        op.responses = {key: op.responses[key] for key in sorted(op.responses.keys())}
         if not op.parameters:
             op.parameters = None
         return op

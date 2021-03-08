@@ -8,9 +8,9 @@ from fondat.codec import get_codec, JSON, String
 from fondat.http import InCookie, InHeader, InQuery
 from fondat.openapi import generate_openapi, openapi_resource
 from fondat.resource import resource, operation, query, mutation, container_resource
-from fondat.types import Description, Example, dataclass
+from fondat.types import Description, Example, NoneType, dataclass
 from fondat.validation import validate
-from typing import Annotated, Optional
+from typing import Annotated, Optional, Union
 from uuid import UUID
 
 
@@ -74,6 +74,21 @@ class ResourceA:
     async def get(self) -> str:
         """Get the A resource."""
         return "Hello from Resource A"
+
+    @mutation
+    async def return_none(self) -> NoneType:
+        """Method explicitly does not return a value."""
+        pass
+
+    @mutation
+    async def return_optional(self) -> Optional[int]:
+        """Method optionally returns an int."""
+        return None
+
+    @mutation
+    async def return_union(self) -> Union[int, float, None]:
+        """Method returns int, float or None."""
+        return None
 
     def __getitem__(self, key: str) -> Sub1:
         return Sub1(key)
