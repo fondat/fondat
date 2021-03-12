@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import fondat.patch
+import fondat.types
 import logging
 import typing
 
@@ -182,12 +183,13 @@ class Table:
     def __init__(self, name: str, database: Database, schema: type, pk: str):
         self.name = name
         self.database = database
+        schema, _ = fondat.types.split_annotated(schema)
         if not is_dataclass(schema):
             raise TypeError("table schema must be a dataclass")
         self.schema = schema
         self.columns = typing.get_type_hints(schema, include_extras=True)
         if pk not in self.columns:
-            raise ValueError(f"unknown primary key: {pk}")
+            raise ValueError(f"primary key not in schema: {pk}")
         self.pk = pk
 
     def __repr__(self):
@@ -226,8 +228,8 @@ class Table:
         offset: int = None,
     ) -> AsyncIterator[Any]:
         """
-        Return an asynchronous iterable for rows in table that match the where expression.
-        Each row result a Mapping of column name to value.
+        Return an asynchronous iterable for rows in table that match the WHERE statement.
+        Each row item is a dictionary that maps column name to value.
 
         Parameters:
         • columns: columns to return, or None for all columns

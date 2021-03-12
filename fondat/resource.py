@@ -53,23 +53,28 @@ async def authorize(security):
     Parameters:
     • security: iterable of security requirements
 
-    This coroutine function executes the security requirements. If any security requirement
-    does not raise an exception then this coroutine passes and authorization is granted.
+    Security exceptions are: UnauthorizedError and ForbiddenError.
 
-    If one security requirement raises a ForbiddenError, then ForbiddenError will be raised;
-    otherwise UnauthorizedError will be raised. If a non-security exception is raised, then it
-    is re-raised.
+    This coroutine function executes the security requirements in the order specified. If any
+    security requirement does not raise a security exception, then this coroutine passes and
+    authorization is granted.
+
+    If a security requirement raises a non-security exception, then that exception is
+    immediately re-raised.  If security requrements raise a mixture of ForbiddenError and
+    UnauthorizedError exceptions, then the first ForbiddenError is re-raised. If only
+    UnautorizedError exceptions are raised, then the first UnauthorizedError is re-raised.
     """
     exception = None
-    for requirement in security or []:
+    for requirement in security or ():
         try:
             await requirement.authorize()
             return  # security requirement authorized the operation
-        except ForbiddenError:
-            exception = Forbidden
-        except UnauthorizedError:
+        except ForbiddenError as fe:
+            if not isinstance(exception, ForbiddenException):
+                exception = fe
+        except UnauthorizedError as ue:
             if not exception:
-                exception = UnauthorizedError
+                exception = ue
         except:
             raise
     if exception:

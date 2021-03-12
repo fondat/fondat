@@ -11,7 +11,7 @@ class LazyMap(MutableMapping):
     """
     A mapping of key-value pairs, in which a value can be lazily initialized at the time of
     first access. This is useful to allow resources to access other resources, preventing
-    circular dependencies.
+    circular imports.
 
     Parameters:
     • init: mapping of key-value pairs to initialize the lazy map
