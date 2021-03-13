@@ -1,4 +1,5 @@
 import pytest
+import fondat.error
 import http
 
 from typing import Annotated
@@ -217,3 +218,40 @@ async def test_filter_return():
     request = Request(method="GET", path="/")
     response = await application.handle(request)
     assert response.status == http.HTTPStatus.FORBIDDEN.value
+
+
+async def test_filter_yield():
+    @resource
+    class Resource:
+        @operation
+        async def get(self) -> str:
+            return "str"
+
+    async def filter(request):
+        assert request.method == "GET"
+        response = yield
+        assert response.status == http.HTTPStatus.OK.value
+
+    application = Application(root=Resource(), filters=[filter])
+    request = Request(method="GET", path="/")
+    response = await application.handle(request)
+    assert response.status == http.HTTPStatus.OK.value
+
+
+async def test_filter_yield_raises_exception():
+    @resource
+    class Resource:
+        @operation
+        async def get(self) -> str:
+            raise fondat.error.NotFoundError
+
+    async def filter(request):
+        try:
+            yield
+        except fondat.error.NotFoundError as e:
+            raise fondat.error.InternalServerError from e
+
+    application = Application(root=Resource(), filters=[filter])
+    request = Request(method="GET", path="/")
+    response = await application.handle(request)
+    assert response.status == http.HTTPStatus.INTERNAL_SERVER_ERROR.value

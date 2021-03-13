@@ -136,30 +136,47 @@ class Chain:
 
     async def handle(self, request):
         """Handle a request."""
-        rewind = []
+        unwind = []
         response = None
+        exception = None
         for filter in (f(request) for f in self.filters):
             if inspect.isasyncgen(filter):
                 try:
                     response = await filter.__anext__()
-                    if response:  # yielded a response
-                        break
-                    rewind.append(filter)
+                    if not response:
+                        unwind.append(filter)
                 except StopAsyncIteration:
                     pass
+                except Exception as e:
+                    exception = e
             elif asyncio.iscoroutine(filter):
-                response = await filter
-                if response:  # yielded a response
-                    break
-        if not response:
-            response = await self.handler(request)
-        for filter in reversed(rewind):
+                try:
+                    response = await filter
+                except Exception as e:
+                    exception = e
+            if exception or response:
+                break
+        if not exception and not response:
             try:
-                _response = await filter.asend(response)
-                if _response:  # yielded a new response
+                response = await self.handler(request)
+            except Exception as e:
+                exception = e
+        for filter in reversed(unwind):
+            try:
+                _response = (
+                    await filter.asend(response)
+                    if not exception
+                    else await filter.athrow(type(exception), exception)
+                )
+                if _response:  # new response overrides previous response or exception
                     response = _response
+                    exception = None
             except StopAsyncIteration:
                 pass
+            except Exception as e:  # new exception overrides previous response or exception
+                exception = e
+        if exception:
+            raise exception
         return response
 
 
@@ -492,7 +509,9 @@ class Application:
                 raise fondat.error.InternalServerError from ex
         except fondat.error.Error as err:
             if isinstance(err, fondat.error.InternalServerError):
-                _logger.error(msg=err.__cause__.args[0], exc_info=err.__cause__, stacklevel=3)
+                if cause := err.__cause__:
+                    msg = cause.args[0] if cause.args else str(cause)
+                    _logger.error(msg=msg, exc_info=cause, stacklevel=3)
             return await self.error_handler(err)
 
     async def _handle(self, request: Request):
