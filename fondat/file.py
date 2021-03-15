@@ -8,7 +8,7 @@ import os.path
 from collections.abc import Iterable
 from fondat.codec import Binary, String, get_codec
 from fondat.error import InternalServerError, NotFoundError
-from fondat.http import InBody
+from fondat.http import AsBody
 from fondat.pagination import make_page_dataclass
 from fondat.resource import resource, operation
 from fondat.types import Stream, affix_type_hints
@@ -84,7 +84,7 @@ def _stream_resource_class(
         if writeable:
 
             @operation(publish=publish, security=security)
-            async def put(self, value: Annotated[Stream, InBody]):
+            async def put(self, value: Annotated[Stream, AsBody]):
                 """Write resource."""
                 tmp = _tmp_path(self.path)
                 try:
@@ -145,7 +145,7 @@ def _file_resource_class(
         if writeable:
 
             @operation(publish=publish, security=security)
-            async def put(self, value: Annotated[value_type, InBody]):
+            async def put(self, value: Annotated[value_type, AsBody]):
                 """Write resource."""
                 content = codec.encode(value)
                 if compress:

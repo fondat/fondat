@@ -373,7 +373,7 @@ async def _subordinate(resource, segment):
 class InQuery:
     """
     Annotation to indicate an operation parameter is expected in a request query string
-    parameter.
+    parameter.  This is the default annotation for query operation parameters.
 
     If the InQuery class is used as the annotation instead of an InQuery(name=...) instance,
     then the name of the query string parameter will be the name of the operation parameter.
@@ -436,7 +436,8 @@ class InCookie:
 
 class InBody:
     """
-    Annotation to indicate an operation parameter is expected in a body parameter.
+    Annotation to indicate an operation parameter is expected in a body parameter. This is the
+    default annotation for mutation operation parameters.
 
     If the InBody class is used as the annotation instead of an InBody(name=...) instance,
     then the name of the body parameter will be the name of the operation parameter.
@@ -530,7 +531,7 @@ async def _decode_body(operation, request):
         raise fondat.error.BadRequestError(f"{e} in request body")
 
 
-def get_param_in(param_name, type_hint):
+def get_param_in(method, param_name, type_hint):
     """
     Return an annotation expressing where a parameter is to be provided.
 
@@ -547,6 +548,8 @@ def get_param_in(param_name, type_hint):
                 return annotation()
             elif isinstance(annotation, (AsBody, InBody, InCookie, InHeader, InQuery)):
                 return annotation
+    if method._fondat_operation.op_type == "mutation":
+        return InBody(param_name)
     return InQuery(param_name)
 
 
@@ -625,7 +628,7 @@ class Application:
         for name, hint in hints.items():
             if name == "return":
                 continue
-            param_in = get_param_in(name, hint)
+            param_in = get_param_in(operation, name, hint)
             if isinstance(param_in, AsBody):
                 params[name] = body
             elif isinstance(param_in, InBody):

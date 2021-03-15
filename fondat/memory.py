@@ -9,7 +9,7 @@ from collections import namedtuple
 from collections.abc import Iterable
 from datetime import datetime, timedelta, timezone
 from fondat.error import BadRequestError, NotFoundError
-from fondat.http import InBody
+from fondat.http import AsBody
 from fondat.resource import resource, operation, mutation
 from fondat.security import SecurityRequirement
 from fondat.types import affix_type_hints
@@ -96,7 +96,7 @@ def memory_resource(
             return item.value
 
         @operation(publish=publish, security=security)
-        async def put(self, value: Annotated[value_type, InBody]) -> None:
+        async def put(self, value: Annotated[value_type, AsBody]) -> None:
             """Write item."""
             with self.container.lock:
                 now = _now()

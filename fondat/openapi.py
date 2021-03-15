@@ -712,7 +712,7 @@ class Processor:
                 param = parameters[name]
                 if param.default is not param.empty:
                     hint = Annotated[hint, Default(param.default)]
-                param_in = fondat.http.get_param_in(name, hint)
+                param_in = fondat.http.get_param_in(method, name, hint)
                 if isinstance(param_in, fondat.http.InCookie):
                     name = param_in.name
                     in_ = "cookie"
