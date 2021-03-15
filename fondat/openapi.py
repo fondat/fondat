@@ -708,40 +708,28 @@ class Processor:
                             ).content_type: MediaType(schema=self.schema(hint))
                         },
                     )
-            elif fondat.http.InBody in annotated:
-                param = parameters[name]
-                op.requestBody = RequestBody(
-                    description=self.description(annotated),
-                    content={
-                        fondat.codec.get_codec(
-                            fondat.codec.Binary, hint
-                        ).content_type: MediaType(schema=self.schema(hint))
-                    },
-                    required=param.default is param.empty,
-                )
             else:
                 param = parameters[name]
                 if param.default is not param.empty:
                     hint = Annotated[hint, Default(param.default)]
-                in_ = "query"
-                style = "form"
-                explode = False
-                for annotation in annotated:
-                    if is_instance(annotation, fondat.http.InCookie):
-                        name = annotation.key
-                        in_ = "cookie"
-                        style = "form"
-                        explode = False
-                    elif is_instance(annotation, fondat.http.InHeader):
-                        name = annotation.key
-                        in_ = "header"
-                        style = "simple"
-                        explode = None
-                    elif is_instance(annotation, fondat.http.InQuery):
-                        name = annotation.key
-                        in_ = "query"
-                        style = "form"
-                        explode = False
+                param_in = fondat.http.get_param_in(name, hint)
+                if isinstance(param_in, fondat.http.InCookie):
+                    name = param_in.name
+                    in_ = "cookie"
+                    style = "form"
+                    explode = False
+                elif is_instance(param_in, fondat.http.InHeader):
+                    name = param_in.name
+                    in_ = "header"
+                    style = "simple"
+                    explode = None
+                elif is_instance(param_in, fondat.http.InQuery):
+                    name = param_in.name
+                    in_ = "query"
+                    style = "form"
+                    explode = False
+                else:
+                    continue  # ignore AsBody, InBody
                 op.parameters.append(
                     Parameter(
                         name=name,
@@ -753,6 +741,18 @@ class Processor:
                         explode=explode,
                     )
                 )
+        body_type = fondat.http.get_body_type(method)
+        if body_type:
+            python_type, annotated = fondat.types.split_annotated(body_type)
+            op.requestBody = RequestBody(
+                description=self.description(annotated),
+                content={
+                    fondat.codec.get_codec(
+                        fondat.codec.Binary, body_type
+                    ).content_type: MediaType(schema=self.schema(body_type))
+                },
+                required=True,  # FIXME
+            )
         if "return" not in hints:
             op.responses[str(http.HTTPStatus.NO_CONTENT.value)] = Response(
                 description="No content.",

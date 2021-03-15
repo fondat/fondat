@@ -5,7 +5,7 @@ import json
 
 from datetime import date
 from fondat.codec import get_codec, JSON, String
-from fondat.http import InCookie, InHeader, InQuery
+from fondat.http import InCookie, InHeader, InQuery, InBody
 from fondat.openapi import generate_openapi, openapi_resource
 from fondat.resource import resource, operation, query, mutation, container_resource
 from fondat.types import Description, Example, NoneType, dataclass
@@ -52,6 +52,10 @@ class Sub2:
     async def get(self) -> str:
         """Get the A subordinate, subordinate resource."""
         return key
+
+    @operation
+    async def post(self, x: Annotated[str, InBody], y: Annotated[int, InBody]) -> None:
+        pass
 
 
 @resource(tag="a")

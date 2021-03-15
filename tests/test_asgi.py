@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from fondat.asgi import asgi_app
 from fondat.codec import get_codec
 from fondat.resource import resource, operation
-from fondat.http import InBody, Request, Response
+from fondat.http import AsBody, Request, Response
 from fondat.types import Stream, BytesStream  # , dataclass
 from typing import Annotated, Any, Optional
 
@@ -121,7 +121,7 @@ async def test_valid_body_param():
     @resource
     class Resource:
         @operation
-        async def post(self, foo: Annotated[str, InBody]) -> str:
+        async def post(self, foo: Annotated[str, AsBody]) -> str:
             return foo
 
     app = fondat.http.Application(Resource())
@@ -137,7 +137,7 @@ async def test_invalid_body_param():
     @resource
     class Resource:
         @operation
-        async def post(self, foo: Annotated[int, InBody]) -> str:
+        async def post(self, foo: Annotated[int, AsBody]) -> str:
             return "str"
 
     app = fondat.http.Application(Resource())
@@ -152,7 +152,7 @@ async def test_empty_required_str_body_param():
     @resource
     class Resource:
         @operation
-        async def post(self, foo: Annotated[str, InBody]) -> str:
+        async def post(self, foo: Annotated[str, AsBody]) -> str:
             return foo
 
     app = fondat.http.Application(Resource())
@@ -166,7 +166,7 @@ async def test_empty_required_int_body_param():
     @resource
     class Resource:
         @operation
-        async def post(self, foo: Annotated[int, InBody]) -> str:
+        async def post(self, foo: Annotated[int, AsBody]) -> str:
             return "str"
 
     app = fondat.http.Application(Resource())
@@ -180,7 +180,7 @@ async def test_empty_default_optional_str_body_param():
     @resource
     class Resource:
         @operation
-        async def post(self, foo: Annotated[str, InBody] = None) -> str:
+        async def post(self, foo: Annotated[str, AsBody] = None) -> str:
             return str(foo)
 
     app = fondat.http.Application(Resource())
@@ -195,7 +195,7 @@ async def test_empty_optional_int_body_param():
     @resource
     class Resource:
         @operation
-        async def post(self, foo: Annotated[Optional[int], InBody]) -> str:
+        async def post(self, foo: Annotated[Optional[int], AsBody]) -> str:
             return str(foo)
 
     app = fondat.http.Application(Resource())

@@ -5,7 +5,7 @@ import http
 from typing import Annotated
 from fondat.codec import Binary, get_codec
 from fondat.resource import resource, operation
-from fondat.http import Application, InBody, Request, Response
+from fondat.http import Application, AsBody, InBody, Request, Response
 from fondat.types import Stream, BytesStream
 from dataclasses import dataclass
 
@@ -152,7 +152,7 @@ async def test_stream_request_body():
     @resource
     class Resource:
         @operation
-        async def post(self, foo: Annotated[Stream, InBody]) -> BytesStream:
+        async def post(self, foo: Annotated[Stream, AsBody]) -> BytesStream:
             content = b"".join([b async for b in foo])
             return BytesStream(content)
 
@@ -175,7 +175,7 @@ async def test_request_body_dataclass():
     @resource
     class Resource:
         @operation
-        async def post(self, val: Annotated[Model, InBody]) -> Model:
+        async def post(self, val: Annotated[Model, AsBody]) -> Model:
             return val
 
     application = Application(Resource())
@@ -255,3 +255,18 @@ async def test_filter_yield_raises_exception():
     request = Request(method="GET", path="/")
     response = await application.handle(request)
     assert response.status == http.HTTPStatus.INTERNAL_SERVER_ERROR.value
+
+
+async def test_request_in_body_parameters():
+    @resource
+    class Resource:
+        @operation
+        async def post(self, a: Annotated[str, InBody], b: Annotated[str, InBody]) -> str:
+            return f"{a}{b}"
+
+    application = Application(Resource())
+
+    request = Request(method="POST", path="/", body=BytesStream(b'{"a": "foo", "b": "bar"}'))
+    response = await application.handle(request)
+    assert response.status == http.HTTPStatus.OK.value
+    assert await body(response) == b"foobar"

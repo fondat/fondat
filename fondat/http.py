@@ -4,6 +4,8 @@ import asyncio
 import fondat.error
 import fondat.resource
 import fondat.security
+import fondat.types
+import functools
 import http
 import http.cookies
 import inspect
@@ -16,7 +18,7 @@ from collections.abc import Callable, Iterable, MutableSequence
 from fondat.codec import Binary, String, get_codec
 from fondat.types import Stream, BytesStream, is_optional, is_subclass
 from fondat.validation import validate
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, TypedDict
 
 
 _logger = logging.getLogger(__name__)
@@ -368,80 +370,131 @@ async def _subordinate(resource, segment):
     return item
 
 
-class ParamIn:
-    """Base class for parameter annotations."""
+class InQuery:
+    """
+    Annotation to indicate an operation parameter is expected in a request query string
+    parameter.
 
+    If the InQuery class is used as the annotation instead of an InQuery(name=...) instance,
+    then the name of the query string parameter will be the name of the operation parameter.
 
-class _InString(ParamIn):
-    def __init__(
-        self, attr: Literal["query", "headers", "cookies"], key: str, description: str
-    ):
-        super().__init__()
-        self.attr = attr
-        self.key = key
-        self.description = description
+    Parameters:
+    • name: name of the query string parameter
+    """
 
-    async def get(self, hint, request):
-        value = getattr(request, self.attr).get(self.key)
-        if value is None:
-            return None
-        try:
-            if is_subclass(hint, Stream):
-                return BytesStream(get_codec(String, bytes).decode(value))
-            return get_codec(String, hint).decode(value)
-        except (TypeError, ValueError) as e:
-            raise fondat.error.BadRequestError(f"{e} in {self}")
+    def __init__(self, name):
+        self.name = name
+
+    def get(self, request):
+        return request.query.get(self.name)
 
     def __str__(self):
-        return f"{self.description}: {self.key}"
+        return f"request query string parameter: {self.name}"
 
 
-class InQuery(_InString):
-    """Annotation to indicate a parameter is provided in request query string."""
+class InHeader:
+    """
+    Annotation to indicate an operation parameter is expected in a request header.
 
-    def __init__(self, name: str):
-        super().__init__("query", name, "query parameter")
+    If the InHeader class is used as the annotation instead of an InHeader(name=...) instance,
+    then the name of the header will be the name of the operation parameter.
 
+    Parameters:
+    • name: name of the header
+    """
 
-class InHeader(_InString):
-    """Annotation to indicate a parameter is provided in request header."""
+    def __init__(self, name):
+        self.name = name
 
-    def __init__(self, name: str):
-        super().__init__("headers", name, "request header")
-
-
-class InCookie(_InString):
-    """Annotation to indicate a parameter is provided in request cookie."""
-
-    def __init__(self, name: str):
-        super().__init__("cookies", name, "request cookie")
-
-
-class _InBody(ParamIn):
-    """Annotation to indicate a parameter is provided in request body."""
-
-    async def get(self, hint, request):
-        if is_subclass(hint, Stream):
-            return request.body
-        try:
-            value = bytearray()
-            if request.body is not None:
-                async for b in request.body:
-                    value.extend(b)
-            if len(value) == 0:  # empty body is no body
-                return None
-            return get_codec(Binary, hint).decode(value)
-        except (TypeError, ValueError) as e:
-            raise fondat.error.BadRequestError(f"{e} in {self}")
-
-    def __call__(self):
-        return self
+    def get(self, request):
+        return request.headers.get(self.name)
 
     def __str__(self):
-        return "request body"
+        return f"request header: {self.name}"
 
 
-InBody = _InBody()
+class InCookie:
+    """
+    Annotation to indicate an operation parameter is expected in a request cookie.
+
+    If the InCookie class is used as the annotation instead of an InCookie(name=...) instance,
+    then the name of the cookie will be the name of the operation parameter.
+
+    Parameters:
+    • name: name of the cookie
+    """
+
+    def __init__(self, name):
+        self.name = name
+
+    def get(self, request):
+        return request.cookies.get(self.name)
+
+    def __str__(self):
+        return f"request cookie: {self.name}"
+
+
+class InBody:
+    """
+    Annotation to indicate an operation parameter is expected in a body parameter.
+
+    If the InBody class is used as the annotation instead of an InBody(name=...) instance,
+    then the name of the body parameter will be the name of the operation parameter.
+
+    Parameters:
+    • name: name of the body parameter
+    """
+
+    def __init__(self, name):
+        self.name = name
+
+    def __str__(self):
+        return f"request body parameter: {self.name}"
+
+
+class AsBody:
+    """Annotation to indicate an operation parameter is expected to be the request body."""
+
+    def __str__(self):
+        return f"request body"
+
+
+@functools.cache
+def get_body_type(operation):
+    """Return the type of the request body for the specified operation."""
+    signature = inspect.signature(operation)
+    type_hints = typing.get_type_hints(operation, include_extras=True)
+    as_body_param = None
+    in_body_params = {}
+    required_keys = set()
+    for name, hint in type_hints.items():
+        stripped = fondat.types.strip_optional(hint)  # courtesy of get_type_hints of callable
+        if name == "return" or not typing.get_origin(stripped) is Annotated:
+            continue
+        for annotation in typing.get_args(stripped)[1:]:
+            is_required = signature.parameters[name].default is inspect.Parameter.empty
+            if is_subclass(annotation, InBody):
+                in_body_params[name] = hint
+                if is_required:
+                    required_keys.add(name)
+            elif isinstance(annotation, InBody):
+                in_body_params[annotation.name] = hint
+                if is_required:
+                    required_keys.add(annotation.name)
+            elif is_subclass(annotation, AsBody) or isinstance(annotation, AsBody):
+                if as_body_param:
+                    raise TypeError("cannot have multiple AsBody annotated parameters")
+                as_body_param = name
+    if as_body_param and in_body_params:
+        raise TypeError("cannot mix AsBody and InBody annotated parameters")
+    if as_body_param:
+        return type_hints[as_body_param]
+    if not in_body_params:
+        return None
+    rb = TypedDict("RequestBody", in_body_params, total=False)
+    rb.__required_keys__ = frozenset(required_keys)
+    rb.__optional_keys__ = frozenset(k for k in in_body_params if k not in required_keys)
+    return rb
 
 
 async def handle_error(err: fondat.error.Error):
@@ -459,9 +512,45 @@ async def handle_error(err: fondat.error.Error):
     return response
 
 
+async def _decode_body(operation, request):
+    body_type = get_body_type(operation)
+    if not body_type:
+        return None
+    python_type, annotated = fondat.types.split_annotated(body_type)
+    if is_subclass(python_type, Stream):
+        return request.body
+    content = await fondat.types.stream_bytes(request.body)
+    if len(content) == 0:
+        if not is_optional(body_type):
+            raise fondat.error.BadRequestError("request body is required")
+        return None  # empty body is no body
+    try:
+        return get_codec(Binary, body_type).decode(content)
+    except (TypeError, ValueError) as e:
+        raise fondat.error.BadRequestError(f"{e} in request body")
+
+
+def get_param_in(param_name, type_hint):
+    """
+    Return an annotation expressing where a parameter is to be provided.
+
+    If an annotations is a class, then it is instantated. If no annotation exists, then an
+    appropriate InQuery annotation is provided.
+    """
+    stripped = fondat.types.strip_optional(type_hint)
+    if typing.get_origin(stripped) is Annotated:
+        args = typing.get_args(stripped)
+        for annotation in args[1:]:
+            if is_subclass(annotation, (InBody, InCookie, InHeader, InQuery)):
+                return annotation(param_name)
+            elif is_subclass(annotation, AsBody):
+                return annotation()
+            elif isinstance(annotation, (AsBody, InBody, InCookie, InHeader, InQuery)):
+                return annotation
+    return InQuery(param_name)
+
+
 #  TODO: In docstring, add description of routing through resource(s) to an operation.
-
-
 class Application:
     """
     An HTTP application, which handles ncoming HTTP requests by:
@@ -529,35 +618,33 @@ class Application:
         if not fondat.resource.is_operation(operation):
             raise fondat.error.MethodNotAllowedError
         signature = inspect.signature(operation)
+        body = await _decode_body(operation, request)
         params = {}
         hints = typing.get_type_hints(operation, include_extras=True)
         return_hint = hints.get("return", type(None))
         for name, hint in hints.items():
             if name == "return":
                 continue
-            in_param = None
-            if typing.get_origin(hint) is Annotated:
-                args = typing.get_args(hint)
-                hint = args[0]
-                for ann in args[1:]:
-                    if isinstance(ann, ParamIn):
-                        in_param = ann
-                        break
-            if not in_param:
-                in_param = InQuery(name)
-            param = await in_param.get(hint, request)
-            if param is None:
-                if signature.parameters[
-                    name
-                ].default is inspect.Parameter.empty and not is_optional(hint):
-                    raise fondat.error.BadRequestError(f"expecting value in {in_param}")
-                params[name] = None
-            else:
-                try:
-                    validate(param, hint)
-                except (TypeError, ValueError) as tve:
-                    raise fondat.error.BadRequestError(f"{tve} in {in_param}")
-                params[name] = param
+            param_in = get_param_in(name, hint)
+            if isinstance(param_in, AsBody):
+                params[name] = body
+            elif isinstance(param_in, InBody):
+                if param_in.name in body:
+                    params[name] = body[param_in.name]
+            else:  # InCookie, InHeader, InQuery
+                value = param_in.get(request)
+                if value is None:
+                    if is_optional(hint):
+                        params[name] = None
+                    elif signature.parameters[name].default is inspect.Parameter.empty:
+                        raise fondat.error.BadRequestError(f"expecting value in {param_in}")
+                else:
+                    try:
+                        param = get_codec(String, hint).decode(value)
+                        validate(param, hint)
+                    except (TypeError, ValueError) as tve:
+                        raise fondat.error.BadRequestError(f"{tve} in {param_in}")
+                    params[name] = param
         result = await operation(**params)
         validate(result, return_hint)
         if not is_subclass(return_hint, Stream):

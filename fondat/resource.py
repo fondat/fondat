@@ -91,9 +91,7 @@ def resource(wrapped=None, *, tag=None):
 
     if wrapped is None:
         return functools.partial(resource, tag=tag)
-
     wrapped._fondat_resource = types.SimpleNamespace(tag=tag or wrapped.__name__)
-
     return wrapped
 
 

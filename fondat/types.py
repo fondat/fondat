@@ -157,6 +157,17 @@ class BytesStream(Stream):
         return result
 
 
+async def stream_bytes(stream: Stream) -> bytearray:
+    """Read and return the content of a stream in a byte array."""
+
+    if stream is None:
+        return None
+    result = bytearray()
+    async for b in stream:
+        result.extend(b)
+    return result
+
+
 class Description:
     """Type annotation to provide a textual description."""
 
@@ -199,6 +210,15 @@ def is_optional(hint):
     """Return if the specified type is optional (i.e. is Union[..., None])."""
     python_type, _ = split_annotated(hint)
     return typing.get_origin(python_type) is Union and NoneType in typing.get_args(python_type)
+
+
+def strip_optional(hint):
+    """Strip any optionality from the type."""
+    if typing.get_origin(hint) is typing.Union:
+        args = typing.get_args(hint)
+        if NoneType in args:
+            hint = typing.Union[tuple(arg for arg in args if arg is not NoneType)]
+    return hint
 
 
 def is_subclass(cls, cls_or_tuple):
