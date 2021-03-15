@@ -391,6 +391,9 @@ class InQuery:
     def __str__(self):
         return f"request query string parameter: {self.name}"
 
+    def __repr__(self):
+        return f"InQuery({self.name})"
+
 
 class InHeader:
     """
@@ -411,6 +414,9 @@ class InHeader:
 
     def __str__(self):
         return f"request header: {self.name}"
+
+    def __repr__(self):
+        return f"InHeader({self.name})"
 
 
 class InCookie:
@@ -433,6 +439,9 @@ class InCookie:
     def __str__(self):
         return f"request cookie: {self.name}"
 
+    def __repr__(self):
+        return f"InCookie({self.name})"
+
 
 class InBody:
     """
@@ -452,12 +461,40 @@ class InBody:
     def __str__(self):
         return f"request body parameter: {self.name}"
 
+    def __repr__(self):
+        return f"InBody({self.name})"
+
 
 class AsBody:
     """Annotation to indicate an operation parameter is expected to be the request body."""
 
     def __str__(self):
         return f"request body"
+
+    def __repr__(self):
+        return "AsBody"
+
+
+def get_param_in(method, param_name, type_hint):
+    """
+    Return an annotation expressing where a parameter is to be provided.
+
+    If an annotations is a class, then it is instantated. If no annotation exists, then an
+    appropriate InQuery annotation is provided.
+    """
+    stripped = fondat.types.strip_optional(type_hint)
+    if typing.get_origin(stripped) is Annotated:
+        args = typing.get_args(stripped)
+        for annotation in args[1:]:
+            if is_subclass(annotation, (InBody, InCookie, InHeader, InQuery)):
+                return annotation(param_name)
+            elif is_subclass(annotation, AsBody):
+                return annotation()
+            elif isinstance(annotation, (AsBody, InBody, InCookie, InHeader, InQuery)):
+                return annotation
+    if method._fondat_operation.op_type == "mutation":
+        return InBody(param_name)
+    return InQuery(param_name)
 
 
 @functools.cache
@@ -469,23 +506,21 @@ def get_body_type(operation):
     in_body_params = {}
     required_keys = set()
     for name, hint in type_hints.items():
-        stripped = fondat.types.strip_optional(hint)  # courtesy of get_type_hints of callable
-        if name == "return" or not typing.get_origin(stripped) is Annotated:
+        if name == "return":
             continue
-        for annotation in typing.get_args(stripped)[1:]:
-            is_required = signature.parameters[name].default is inspect.Parameter.empty
-            if is_subclass(annotation, InBody):
-                in_body_params[name] = hint
-                if is_required:
-                    required_keys.add(name)
-            elif isinstance(annotation, InBody):
-                in_body_params[annotation.name] = hint
-                if is_required:
-                    required_keys.add(annotation.name)
-            elif is_subclass(annotation, AsBody) or isinstance(annotation, AsBody):
-                if as_body_param:
-                    raise TypeError("cannot have multiple AsBody annotated parameters")
-                as_body_param = name
+        stripped = fondat.types.strip_optional(hint)  # courtesy of get_type_hints for callable
+        param_in = get_param_in(operation, name, hint)
+        if not isinstance(param_in, (AsBody, InBody)):
+            continue
+        is_required = signature.parameters[name].default is inspect.Parameter.empty
+        if isinstance(param_in, InBody):
+            in_body_params[param_in.name] = hint
+            if is_required:
+                required_keys.add(param_in.name)
+        elif isinstance(param_in, AsBody):
+            if as_body_param:
+                raise TypeError("cannot have multiple AsBody annotated parameters")
+            as_body_param = name
     if as_body_param and in_body_params:
         raise TypeError("cannot mix AsBody and InBody annotated parameters")
     if as_body_param:
@@ -529,28 +564,6 @@ async def _decode_body(operation, request):
         return get_codec(Binary, body_type).decode(content)
     except (TypeError, ValueError) as e:
         raise fondat.error.BadRequestError(f"{e} in request body")
-
-
-def get_param_in(method, param_name, type_hint):
-    """
-    Return an annotation expressing where a parameter is to be provided.
-
-    If an annotations is a class, then it is instantated. If no annotation exists, then an
-    appropriate InQuery annotation is provided.
-    """
-    stripped = fondat.types.strip_optional(type_hint)
-    if typing.get_origin(stripped) is Annotated:
-        args = typing.get_args(stripped)
-        for annotation in args[1:]:
-            if is_subclass(annotation, (InBody, InCookie, InHeader, InQuery)):
-                return annotation(param_name)
-            elif is_subclass(annotation, AsBody):
-                return annotation()
-            elif isinstance(annotation, (AsBody, InBody, InCookie, InHeader, InQuery)):
-                return annotation
-    if method._fondat_operation.op_type == "mutation":
-        return InBody(param_name)
-    return InQuery(param_name)
 
 
 #  TODO: In docstring, add description of routing through resource(s) to an operation.
