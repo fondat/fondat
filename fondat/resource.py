@@ -157,7 +157,7 @@ def operation(
         res_name = f"{instance.__class__.__module__}.{instance.__class__.__qualname__}"
         op_name = wrapped.__name__
         tags = {"resource": res_name, "operation": op_name}
-        _logger.debug("%s.%s(args=%s, kwargs=%s)", res_name, op_name, args, kwargs)
+        _logger.debug("operation: %s.%s(args=%s, kwargs=%s)", res_name, op_name, args, kwargs)
         with context.push({"context": "fondat.operation", **tags}):
             async with monitoring.timer({"name": "operation_duration_seconds", **tags}):
                 async with monitoring.counter({"name": "operation_calls_total", **tags}):

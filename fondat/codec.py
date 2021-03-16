@@ -1355,7 +1355,7 @@ def _literal(codec_type, python_type):
                     return v
             except:
                 continue
-        raise ValueError
+        raise ValueError(f"expecting one of: {get_args(python_type)}")
 
     if codec_type is String:
 
