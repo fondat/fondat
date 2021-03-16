@@ -141,7 +141,6 @@ async def test_stream_response_body():
             return BytesStream(b"12345")
 
     application = Application(Resource())
-
     request = Request(method="GET", path="/")
     response = await application.handle(request)
     assert response.status == http.HTTPStatus.OK.value
@@ -157,7 +156,6 @@ async def test_stream_request_body():
             return BytesStream(content)
 
     application = Application(Resource())
-
     content = b"abcdefg"
     request = Request(method="POST", path="/", body=BytesStream(content))
     response = await application.handle(request)
@@ -179,10 +177,8 @@ async def test_request_body_dataclass():
             return val
 
     application = Application(Resource())
-
     m = Model(a=1, b="s")
     codec = get_codec(Binary, Model)
-
     request = Request(method="POST", path="/", body=BytesStream(codec.encode(m)))
     response = await application.handle(request)
     assert response.status == http.HTTPStatus.OK.value
@@ -197,7 +193,6 @@ async def test_invalid_return():
             return "str"
 
     application = Application(Resource())
-
     request = Request(method="GET", path="/")
     response = await application.handle(request)
     assert response.status == http.HTTPStatus.INTERNAL_SERVER_ERROR.value
@@ -214,7 +209,6 @@ async def test_filter_return():
         return Response(status=http.HTTPStatus.FORBIDDEN.value)
 
     application = Application(root=Resource(), filters=[filter])
-
     request = Request(method="GET", path="/")
     response = await application.handle(request)
     assert response.status == http.HTTPStatus.FORBIDDEN.value
@@ -265,8 +259,20 @@ async def test_request_in_body_parameters():
             return f"{a}{b}"
 
     application = Application(Resource())
-
     request = Request(method="POST", path="/", body=BytesStream(b'{"a": "foo", "b": "bar"}'))
     response = await application.handle(request)
     assert response.status == http.HTTPStatus.OK.value
     assert await body(response) == b"foobar"
+
+
+async def test_body_validation():
+    @resource
+    class Resource:
+        @operation
+        async def post(self, a: Annotated[int, InBody]) -> str:
+            return f"{a}"
+
+    application = Application(Resource())
+    request = Request(method="POST", path="/", body=BytesStream(b'{"a": "not_int"}'))
+    response = await application.handle(request)
+    assert response.status == http.HTTPStatus.BAD_REQUEST.value

@@ -561,9 +561,11 @@ async def _decode_body(operation, request):
             raise fondat.error.BadRequestError("request body is required")
         return None  # empty body is no body
     try:
-        return get_codec(Binary, body_type).decode(content)
+        result = get_codec(Binary, body_type).decode(content)
+        validate(result, body_type)
     except (TypeError, ValueError) as e:
         raise fondat.error.BadRequestError(f"{e} in request body")
+    return result
 
 
 #  TODO: In docstring, add description of routing through resource(s) to an operation.
