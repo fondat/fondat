@@ -1,5 +1,7 @@
 """Module to expose resources through HTTP."""
 
+#  TODO: In docstring, add description of routing through resource(s) to an operation.
+
 import asyncio
 import fondat.error
 import fondat.resource
@@ -111,7 +113,7 @@ class Chain:
     """
     A chain of zero or more filters, terminated by a single handler.
 
-    A handler is a coroutine function that inspects a request and returns a response. A chain
+    A handler is a coroutine function that receives a request and returns a response. A chain
     is itself a request handler.
 
     A filter is either a coroutine function or an asynchronous generator.
@@ -136,7 +138,7 @@ class Chain:
         self.filters = filters  # concrete and mutable
         self.handler = handler
 
-    async def handle(self, request):
+    async def __call__(self, request: Request) -> Response:
         """Handle a request."""
         unwind = []
         response = None
@@ -535,19 +537,20 @@ def get_body_type(operation):
     return rb
 
 
-async def handle_error(err: fondat.error.Error):
-    """Default error handler for HTTP application."""
-
-    body = json.dumps(
-        dict(error=err.status, detail=err.args[0] if err.args else err.__doc__)
-    ).encode()
-
-    response = Response()
-    response.status = err.status
-    response.headers["content-type"] = "application/json"
-    response.headers["content-length"] = str(len(body))
-    response.body = BytesStream(body)
-    return response
+async def simple_error_filter(request: Request):
+    """Generates a simple JSON error response if a Fondat error is raised."""
+    try:
+        yield
+    except fondat.error.Error as err:
+        body = json.dumps(
+            {"error": err.status, "detail": str(err.args[0]) if err.args else err.__doc__}
+        ).encode()
+        response = Response()
+        response.status = err.status
+        response.headers["content-type"] = "application/json"
+        response.headers["content-length"] = str(len(body))
+        response.body = BytesStream(body)
+        yield response
 
 
 async def _decode_body(operation, request):
@@ -570,7 +573,6 @@ async def _decode_body(operation, request):
     return result
 
 
-#  TODO: In docstring, add description of routing through resource(s) to an operation.
 class Application:
     """
     An HTTP application, which handles ncoming HTTP requests by:
@@ -580,21 +582,17 @@ class Application:
     Parameters and attributes:
     • root: resource to dispatch requests to
     • filters: filters to apply during HTTP request processing
-    • error_handler: coroutine function to produce response for raised fondat.error exception
     • path: URI path to root resource
 
     An HTTP application is a request handler; it's a coroutine callable that handles an HTTP
-    request and returns an HTTP response.
-
-    For a description of filters, see: Chain.
+    request and returns an HTTP response. For a description of filters, see: Chain.
     """
 
     def __init__(
         self,
         root: type,
         *,
-        filters: Iterable[Any] = None,
-        error_handler: Callable = handle_error,
+        filters: Iterable[Any] = (simple_error_filter,),
         path: str = "/",
     ):
         if not fondat.resource.is_resource(root):
@@ -602,28 +600,11 @@ class Application:
         self.root = root
         self.path = path.rstrip("/") + "/"
         self.filters = list(filters or [])
-        self.error_handler = error_handler
 
-    async def __call__(self, *args, **kwargs):
-        return await self.handle(*args, **kwargs)
+    async def __call__(self, request: Request) -> Response:
+        return await Chain(filters=self.filters, handler=self._handle)(request)
 
-    async def handle(self, request: Request):
-        try:
-            try:
-                chain = Chain(filters=self.filters, handler=self._handle)
-                return await chain.handle(request)
-            except fondat.error.Error:
-                raise
-            except Exception as ex:
-                raise fondat.error.InternalServerError from ex
-        except fondat.error.Error as err:
-            if isinstance(err, fondat.error.InternalServerError):
-                if cause := err.__cause__:
-                    msg = cause.args[0] if cause.args else str(cause)
-                    _logger.error(msg=msg, exc_info=cause, stacklevel=3)
-            return await self.error_handler(err)
-
-    async def _handle(self, request: Request):
+    async def _handle(self, request: Request) -> Response:
         if not request.path.startswith(self.path):
             raise fondat.error.NotFoundError
         request.path = request.path[len(self.path) :]

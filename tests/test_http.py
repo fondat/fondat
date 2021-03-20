@@ -1,13 +1,14 @@
 import pytest
+
 import fondat.error
 import http
 
-from typing import Annotated
-from fondat.codec import Binary, get_codec
-from fondat.resource import resource, operation
-from fondat.http import Application, AsBody, InBody, Request, Response
-from fondat.types import Stream, BytesStream
 from dataclasses import dataclass
+from fondat.codec import Binary, get_codec
+from fondat.http import Application, AsBody, InBody, Request, Response, simple_error_filter
+from fondat.resource import resource, operation
+from fondat.types import Stream, BytesStream
+from typing import Annotated
 
 
 pytestmark = pytest.mark.asyncio
@@ -27,7 +28,7 @@ async def test_simple():
 
     application = Application(Resource())
     request = Request(method="GET", path="/")
-    response = await application.handle(request)
+    response = await application(request)
     assert response.status == http.HTTPStatus.OK.value
     assert response.headers["Content-Type"] == "text/plain; charset=UTF-8"
     assert response.headers["Content-Length"] == "3"
@@ -47,7 +48,7 @@ async def test_nested_attr():
 
     application = Application(Root())
     request = Request(method="GET", path="/nested")
-    response = await application.handle(request)
+    response = await application(request)
     assert response.status == http.HTTPStatus.OK.value
     assert response.headers["Content-Type"] == "text/plain; charset=UTF-8"
     assert response.headers["Content-Length"] == "6"
@@ -71,7 +72,7 @@ async def test_nested_item():
 
     app = Application(Outer())
     request = Request(method="GET", path="/abc")
-    response = await app.handle(request)
+    response = await app(request)
     assert response.status == http.HTTPStatus.OK.value
     assert response.headers["Content-Type"] == "text/plain; charset=UTF-8"
     assert await body(response) == b"abc"
@@ -87,7 +88,7 @@ async def test_valid_param():
     application = Application(Resource())
     request = Request(method="GET", path="/")
     request.query["foo"] = "123"
-    response = await application.handle(request)
+    response = await application(request)
     assert response.status == http.HTTPStatus.OK.value
     assert await body(response) == b"123"
 
@@ -102,7 +103,7 @@ async def test_invalid_param():
     application = Application(Resource())
     request = Request(method="GET", path="/")
     request.query["foo"] = "abc"
-    response = await application.handle(request)
+    response = await application(request)
     assert response.status == http.HTTPStatus.BAD_REQUEST.value
 
 
@@ -115,7 +116,7 @@ async def test_missing_required_param():
 
     application = Application(Resource())
     request = Request(method="GET", path="/")
-    response = await application.handle(request)
+    response = await application(request)
     assert response.status == http.HTTPStatus.BAD_REQUEST.value
 
 
@@ -128,7 +129,7 @@ async def test_missing_optional_param():
 
     application = Application(Resource())
     request = Request(method="GET", path="/")
-    response = await application.handle(request)
+    response = await application(request)
     assert response.status == http.HTTPStatus.OK.value
     assert await body(response) == b"None"
 
@@ -142,7 +143,7 @@ async def test_stream_response_body():
 
     application = Application(Resource())
     request = Request(method="GET", path="/")
-    response = await application.handle(request)
+    response = await application(request)
     assert response.status == http.HTTPStatus.OK.value
     assert await body(response) == b"12345"
 
@@ -158,7 +159,7 @@ async def test_stream_request_body():
     application = Application(Resource())
     content = b"abcdefg"
     request = Request(method="POST", path="/", body=BytesStream(content))
-    response = await application.handle(request)
+    response = await application(request)
     assert response.status == http.HTTPStatus.OK.value
     assert response.headers["Content-Length"] == str(len(content))
     assert await body(response) == content
@@ -180,7 +181,7 @@ async def test_request_body_dataclass():
     m = Model(a=1, b="s")
     codec = get_codec(Binary, Model)
     request = Request(method="POST", path="/", body=BytesStream(codec.encode(m)))
-    response = await application.handle(request)
+    response = await application(request)
     assert response.status == http.HTTPStatus.OK.value
     assert codec.decode(await body(response)) == m
 
@@ -194,8 +195,8 @@ async def test_invalid_return():
 
     application = Application(Resource())
     request = Request(method="GET", path="/")
-    response = await application.handle(request)
-    assert response.status == http.HTTPStatus.INTERNAL_SERVER_ERROR.value
+    with pytest.raises(TypeError):
+        response = await application(request)
 
 
 async def test_filter_return():
@@ -208,9 +209,9 @@ async def test_filter_return():
     async def filter(request):
         return Response(status=http.HTTPStatus.FORBIDDEN.value)
 
-    application = Application(root=Resource(), filters=[filter])
+    application = Application(root=Resource(), filters=[simple_error_filter, filter])
     request = Request(method="GET", path="/")
-    response = await application.handle(request)
+    response = await application(request)
     assert response.status == http.HTTPStatus.FORBIDDEN.value
 
 
@@ -226,9 +227,9 @@ async def test_filter_yield():
         response = yield
         assert response.status == http.HTTPStatus.OK.value
 
-    application = Application(root=Resource(), filters=[filter])
+    application = Application(root=Resource(), filters=[simple_error_filter, filter])
     request = Request(method="GET", path="/")
-    response = await application.handle(request)
+    response = await application(request)
     assert response.status == http.HTTPStatus.OK.value
 
 
@@ -245,9 +246,9 @@ async def test_filter_yield_raises_exception():
         except fondat.error.NotFoundError as e:
             raise fondat.error.InternalServerError from e
 
-    application = Application(root=Resource(), filters=[filter])
+    application = Application(root=Resource(), filters=[simple_error_filter, filter])
     request = Request(method="GET", path="/")
-    response = await application.handle(request)
+    response = await application(request)
     assert response.status == http.HTTPStatus.INTERNAL_SERVER_ERROR.value
 
 
@@ -260,7 +261,7 @@ async def test_request_in_body_parameters():
 
     application = Application(Resource())
     request = Request(method="POST", path="/", body=BytesStream(b'{"a": "foo", "b": "bar"}'))
-    response = await application.handle(request)
+    response = await application(request)
     assert response.status == http.HTTPStatus.OK.value
     assert await body(response) == b"foobar"
 
@@ -274,5 +275,5 @@ async def test_body_validation():
 
     application = Application(Resource())
     request = Request(method="POST", path="/", body=BytesStream(b'{"a": "not_int"}'))
-    response = await application.handle(request)
+    response = await application(request)
     assert response.status == http.HTTPStatus.BAD_REQUEST.value
