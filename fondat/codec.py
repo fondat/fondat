@@ -1269,7 +1269,6 @@ def _union(codec_type, python_type):
             try:
                 return getattr(codec, method)(value)
             except (TypeError, ValueError) as e:
-                _logger.debug("%s", e)
                 continue
         raise ValueError(
             f"cannot {method} type: {python_type} as {codec_type} for value: {value}"
