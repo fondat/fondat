@@ -19,7 +19,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from fondat.security import SecurityRequirement
 from fondat.types import NoneType
-from fondat.types import dataclass, is_instance, is_optional, is_subclass
+from fondat.types import datacls, is_instance, is_optional, is_subclass
 from typing import Annotated, Any, Literal, Optional, TypedDict, Union
 from uuid import UUID
 
@@ -51,15 +51,15 @@ def _affix(wrapped):
     return wrapped
 
 
-def _dataclass(wrapped):
-    return _affix(Annotated[dataclass(wrapped), ComponentSchema])
+def _datacls(wrapped):
+    return _affix(Annotated[datacls(wrapped), ComponentSchema])
 
 
 Reference = TypedDict("Reference", {"$ref": str})
 _affix(Reference)
 
 
-@_dataclass
+@_datacls
 class OpenAPI:
     openapi: str
     info: Info
@@ -71,7 +71,7 @@ class OpenAPI:
     externalDocs: Optional[ExternalDocumentation]
 
 
-@_dataclass
+@_datacls
 class Info:
     title: str
     description: Optional[str]
@@ -81,34 +81,34 @@ class Info:
     version: str
 
 
-@_dataclass
+@_datacls
 class Contact:
     name: Optional[str]
     url: Optional[str]
     email: Optional[str]
 
 
-@_dataclass
+@_datacls
 class License:
     name: str
     url: Optional[str]
 
 
-@_dataclass
+@_datacls
 class Server:
     url: str
     description: Optional[str]
     variables: Mapping[str, ServerVariable]
 
 
-@_dataclass
+@_datacls
 class ServerVariable:
     enum: Optional[Iterable[str]]
     default: str = ""
     description: Optional[str] = ""
 
 
-@_dataclass
+@_datacls
 class Components:
     schemas: Optional[Mapping[str, Union[Schema, Reference]]]
     responses: Optional[Mapping[str, Union[Response, Reference]]]
@@ -121,7 +121,7 @@ class Components:
     callbacks: Optional[Mapping[str, Union[Callback, Reference]]]
 
 
-@_dataclass
+@_datacls
 class PathItem:
     summary: Optional[str]
     description: Optional[str]
@@ -141,7 +141,7 @@ Paths = Mapping[str, Union[PathItem, Reference]]
 _affix(Paths)
 
 
-@_dataclass
+@_datacls
 class Operation:
     tags: Optional[Iterable[str]]
     summary: Optional[str]
@@ -157,13 +157,13 @@ class Operation:
     servers: Optional[Iterable[Server]]
 
 
-@_dataclass
+@_datacls
 class ExternalDocumentation:
     description: Optional[str]
     url: str
 
 
-@_dataclass
+@_datacls
 class Parameter:
     name: str
     in_: Literal["query", "header", "path", "cookie"]
@@ -180,14 +180,14 @@ class Parameter:
     content: Optional[Mapping[str, MediaType]]
 
 
-@_dataclass
+@_datacls
 class RequestBody:
     description: Optional[str]
     content: Mapping[str, MediaType]
     required: Optional[bool]
 
 
-@_dataclass
+@_datacls
 class MediaType:
     schema: Optional[Union[Schema, Reference]]
     example: Optional[Any]
@@ -195,7 +195,7 @@ class MediaType:
     encoding: Optional[Mapping[str, Encoding]]
 
 
-@_dataclass
+@_datacls
 class Encoding:
     contentType: Optional[str]
     headers: Optional[Mapping[str, Union[Header, Reference]]]
@@ -204,7 +204,7 @@ class Encoding:
     allowReserved: Optional[bool]
 
 
-@_dataclass
+@_datacls
 class Response:
     description: str
     headers: Optional[Mapping[str, Union[Header, Reference]]]
@@ -220,7 +220,7 @@ Callback = Mapping[str, PathItem]
 _affix(Callback)
 
 
-@_dataclass
+@_datacls
 class Example:
     summary: Optional[str]
     description: Optional[str]
@@ -228,7 +228,7 @@ class Example:
     externalValue: Optional[str]
 
 
-@_dataclass
+@_datacls
 class Link:
     operationRef: Optional[str]
     operationId: Optional[str]
@@ -238,7 +238,7 @@ class Link:
     server: Optional[Server]
 
 
-@_dataclass
+@_datacls
 class Header:
     description: Optional[str]
     required: Optional[bool]
@@ -253,14 +253,14 @@ class Header:
     content: Optional[Mapping[str, MediaType]]
 
 
-@_dataclass
+@_datacls
 class Tag:
     name: str
     description: Optional[str]
     externalDocs: Optional[ExternalDocumentation]
 
 
-@_dataclass
+@_datacls
 class Schema:
     title: Optional[str]
     multipleOf: Optional[Union[int, float]]
@@ -299,13 +299,13 @@ class Schema:
     deprecated: Optional[bool]
 
 
-@_dataclass
+@_datacls
 class Discriminator:
     propertyName: str
     mapping: Optional[Mapping[str, str]]
 
 
-@_dataclass
+@_datacls
 class XML:
     name: Optional[str]
     namespace: Optional[str]
@@ -314,7 +314,7 @@ class XML:
     wrapped: Optional[bool]
 
 
-@_dataclass
+@_datacls
 class SecurityScheme:
     type_: str
     description: Optional[str]
@@ -326,7 +326,7 @@ class SecurityScheme:
     openIdConnectUrl: Optional[str]
 
 
-@_dataclass
+@_datacls
 class OAuthFlows:
     implicit: Optional[OAuthFlow]
     password: Optional[OAuthFlow]
@@ -334,7 +334,7 @@ class OAuthFlows:
     authorizationCode: Optional[OAuthFlow]
 
 
-@_dataclass
+@_datacls
 class OAuthFlow:
     authorizationUrl: Optional[str]
     tokenUrl: Optional[str]

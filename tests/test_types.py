@@ -2,7 +2,7 @@ import pytest
 
 from dataclasses import field
 from collections.abc import AsyncIterator
-from fondat.types import BytesStream, dataclass
+from fondat.types import BytesStream, datacls
 from typing import Optional
 
 
@@ -19,8 +19,8 @@ async def test_bytes_stream():
     assert await _ajoin(BytesStream(value)) == value
 
 
-def test_dataclass_optional():
-    @dataclass
+def test_datacls_optional():
+    @datacls
     class Foo:
         x: Optional[int]
 
@@ -28,8 +28,8 @@ def test_dataclass_optional():
     assert foo.x == None
 
 
-def test_dataclass_default():
-    @dataclass
+def test_datacls_default():
+    @datacls
     class Foo:
         x: int = 1
 
@@ -37,8 +37,8 @@ def test_dataclass_default():
     assert foo.x == 1
 
 
-def test_dataclass_field_default():
-    @dataclass
+def test_datacls_field_default():
+    @datacls
     class Foo:
         x: int = field(default=1)
 
@@ -46,8 +46,8 @@ def test_dataclass_field_default():
     assert foo.x == 1
 
 
-def test_dataclass_field_default_factory():
-    @dataclass
+def test_datacls_field_default_factory():
+    @datacls
     class Foo:
         x: dict = field(default_factory=dict)
 

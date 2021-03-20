@@ -61,27 +61,22 @@ class _MISSING:
     pass
 
 
-def dataclass(cls, init: bool = True, **kwargs):
+def datacls(cls, init: bool = True, **kwargs):
     """
-    Decorate a class to be a data class.
+    Decorate a class to be a data class. This decorator wraps the Python dataclasses.dataclass
+    decorator, with the following changes:
 
-    This decorator uses the Python dataclass decorator, except:
-
-    • the __init__ method only accepts keyword arguments, and
-    • Optional values default to None if no default specified.
-
-    Attributes (defaulted or not) can be declared in any order.
+    • fields (with default values or not) can be declared in any order
+    • the __init__ method only accepts keyword arguments
+    • Optional[...] fields default to None if no default value specified
     """
 
     c = dataclasses.dataclass(cls, init=False, **kwargs)
     fields = {field.name: field for field in dataclasses.fields(c)}
-
     if init:
 
         def __init__(self, **kwargs):
-
             hints = typing.get_type_hints(c)
-
             for key in kwargs:
                 if key not in fields:
                     raise TypeError(f"__init__() got an unexpected keyword argument '{key}'")
@@ -114,7 +109,6 @@ def dataclass(cls, init: bool = True, **kwargs):
                 setattr(self, key, value)
 
         c.__init__ = __init__
-
     return c
 
 

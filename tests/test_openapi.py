@@ -8,18 +8,18 @@ from fondat.codec import get_codec, JSON, String
 from fondat.http import InCookie, InHeader, InQuery, InBody
 from fondat.openapi import generate_openapi, openapi_resource
 from fondat.resource import resource, operation, query, mutation, container_resource
-from fondat.types import Description, Example, NoneType, dataclass
+from fondat.types import Description, Example, NoneType, datacls
 from fondat.validation import validate
 from typing import Annotated, Optional, Union
 from uuid import UUID
 
 
-@dataclass
+@datacls
 class DB:
     foo: UUID
 
 
-@dataclass
+@datacls
 class DC:
     a: Annotated[str, "this is a description"]
     b: Annotated[int, Description("this is also a description")]
