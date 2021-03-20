@@ -1,4 +1,5 @@
 import pytest
+
 import fondat.error
 
 from http import HTTPStatus

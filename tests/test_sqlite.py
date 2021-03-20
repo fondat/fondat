@@ -1,5 +1,6 @@
-import dataclasses
 import pytest
+
+import dataclasses
 import fondat.sql as sql
 import fondat.sqlite as sqlite
 import tempfile

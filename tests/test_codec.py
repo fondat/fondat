@@ -1,9 +1,10 @@
+import pytest
+
 import dataclasses
 import datetime
 import decimal
 import enum
 import json
-import pytest
 import re
 
 from base64 import b64encode

@@ -1,7 +1,8 @@
+import pytest
+
 import asyncio
 import dataclasses
 import json
-import pytest
 import re
 
 from base64 import b64encode

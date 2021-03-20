@@ -1,8 +1,9 @@
+import pytest
+
 import bz2
 import importlib.resources
 import gzip
 import lzma
-import pytest
 import uuid
 import zlib
 
