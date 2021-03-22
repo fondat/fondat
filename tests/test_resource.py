@@ -91,3 +91,12 @@ def test_nested_containers():
     assert fondat.resource.is_resource(c2.c1)
     assert fondat.resource.is_resource(c2.c1.r2)
     assert fondat.resource.is_operation(c2.c1.r2.get)
+
+
+def test_invalid_method():
+    with pytest.raises(TypeError):
+
+        class R:
+            @operation
+            async def invalid_method_name(self) -> None:
+                pass

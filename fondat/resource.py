@@ -105,6 +105,9 @@ def is_operation(obj_or_type: Any) -> bool:
     return getattr(obj_or_type, "_fondat_operation", None) is not None
 
 
+_methods = {"get", "put", "post", "delete", "patch"}
+
+
 def operation(
     wrapped=None,
     *,
@@ -124,8 +127,10 @@ def operation(
     • deprecated: declare the operation as deprecated
     • validate: validate method arguments
 
-    Resource operations should correlate to HTTP method names, named in lower case. For
-    example: get, put, post, delete, patch. Operation type is inferred from method name.
+    Resource operation name must correlate to HTTP method names, named in lower case.
+    Supported names: get, put, post, delete, and patch.
+
+    If op_type is not provided, operation type is inferred from the method name.
     """
 
     if wrapped is None:
@@ -137,11 +142,14 @@ def operation(
             validate=validate,
         )
 
+    name = wrapped.__name__
+    if name not in _methods:
+        raise TypeError(f"operation name must be one of: {_methods}")
+
     if not asyncio.iscoroutinefunction(wrapped):
         raise TypeError("operation must be a coroutine")
 
-    op_type = op_type or "query" if wrapped.__name__ == "get" else "mutation"
-    name = wrapped.__name__
+    op_type = op_type or "query" if name == "get" else "mutation"
     description = wrapped.__doc__ or name
     summary = _summary(wrapped)
 
