@@ -36,7 +36,7 @@ class ReceiveStream(Stream):
         event = await self._receive()
         event_type = event["type"]
         if event_type == "http.disconnect":
-            raise RuntimeError  # TODO: better error type? CancelException?
+            raise StopAsyncIteration
         if event_type != "http.request":
             raise InternalServerError(
                 f"expecting http.request event type; received {event_type}"

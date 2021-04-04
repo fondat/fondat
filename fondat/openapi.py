@@ -778,11 +778,11 @@ class Processor:
                         fondat.codec.Binary, body_type
                     ).content_type: MediaType(schema=self.schema(body_type))
                 },
-                required=True,  # FIXME
+                required=True,
             )
         if "return" not in hints:
             op.responses[str(http.HTTPStatus.NO_CONTENT.value)] = Response(
-                description="No content.",
+                description="No content."
             )
         op.responses = {key: op.responses[key] for key in sorted(op.responses.keys())}
         if not op.parameters:
