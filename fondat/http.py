@@ -5,7 +5,6 @@
 import asyncio
 import fondat.error
 import fondat.resource
-import fondat.security
 import fondat.types
 import functools
 import http
@@ -16,11 +15,13 @@ import logging
 import multidict
 import typing
 
+from collections import namedtuple
 from collections.abc import Callable, Iterable, MutableSequence
 from fondat.codec import Binary, String, get_codec
+from fondat.security import Scheme
 from fondat.types import Stream, BytesStream, is_optional, is_subclass
 from fondat.validation import validate
-from typing import Annotated, Any, Literal, TypedDict
+from typing import Annotated, Any, Literal, Optional, TypedDict
 
 
 _logger = logging.getLogger(__name__)
@@ -52,6 +53,9 @@ class Message:
         self.headers = headers or Headers()
         self.cookies = cookies or Cookies()
         self.body = body
+
+    def __repr__(self):
+        return f"Message(headers={self.headers}, cookies={self.cookies}, body={self.body})"
 
 
 class Request(Message):
@@ -85,6 +89,13 @@ class Request(Message):
         self.version = version
         self.query = query or Query()
 
+    def __repr__(self):
+        return (
+            f"Request(headers={self.headers}, cookies={self.cookies}, body={self.body}, "
+            f"method={self.method}, path={self.path}, version={self.version}, "
+            f"query={self.query})"
+        )
+
 
 class Response(Message):
     """
@@ -107,6 +118,12 @@ class Response(Message):
     ):
         super().__init__(headers=headers, cookies=cookies, body=body)
         self.status = status
+
+    def __repr__(self):
+        return (
+            f"Response(headers={self.headers}, cookies={self.cookies}, body={self.body}, "
+            f"status={self.status})"
+        )
 
 
 class Chain:
@@ -186,166 +203,92 @@ class Chain:
         return response
 
 
-class HTTPSecurityScheme(fondat.security.SecurityScheme):
+BasicCredentials = namedtuple("BasicCredentials", ("user_id", "password"))
+
+
+class BasicScheme(Scheme):
     """
-    Base class for HTTP authentication security scheme.
+    HTTP basic authentication scheme.
 
     Parameters:
-    • name: name of the security scheme
-    • scheme: name of the HTTP authorization scheme
-    • description: a short description for the security scheme
+    • name: name of authentication scheme
+    • description: a short description of authentication scheme
     """
 
-    def __init__(self, name: str, scheme: str, **kwargs):
-        super().__init__(name, "http", **kwargs)
-        self.scheme = scheme
-
-    # TODO: move to OpenAPI
-    @property
-    def json(self):
-        """JSON representation of the security scheme."""
-        result = super().json
-        result["scheme"] = self.scheme
-        return result
+    def extract(self, request: Request) -> Optional[BasicCredentials]:
+        """Return basic credentials from request if provided, otherwise None."""
+        try:
+            scheme, credentials = request.headers["Authorization"].split(" ", 1)
+            if scheme.lower() == "basic":
+                return BasicCredentials(*base64.b64decode(credentials).decode().split(":", 1))
+        except:
+            return None
 
 
-class HTTPBasicSecurityScheme(HTTPSecurityScheme):
+class BearerScheme(Scheme):
     """
-    Base class for HTTP basic authentication security scheme. Subclass must implement the
-    authenticate method.
+    Bearer token authentication scheme.
 
     Parameters:
-    • name: name of the security scheme
-    • realm: realm to include in the challenge  [name]
-    • description: a short description for the security scheme
+    • name: name of authentication scheme
+    • description: a short description of authentication scheme
+    • format: identifies how bearer token is formatted
     """
 
-    def __init__(self, name: str, realm: str = None, **kwargs):
-        super().__init__(name, "basic", **kwargs)
-        self.realm = realm or name
+    def __init__(self, *, format: str = None, **kwargs):
+        super().__init__(**kwargs)
+        self.format = format
 
-    async def filter(self, request):
-        """
-        Filters the incoming HTTP request. If the request contains credentials in the HTTP
-        Basic authentication scheme, they are passed to the authenticate method. If
-        authentication is successful, a context is added to the context stack.
-        """
-        auth = None
-        header = request.headers.get("Authorization")
-        if header and request.authorization[0].lower() == "basic":
-            try:
-                user_id, password = (
-                    base64.b64decode(request.authorization[1]).decode().split(":", 1)
-                )
-            except (binascii.Error, UnicodeDecodeError):
-                pass
-            else:
-                auth = await self.authenticate(user_id, password)
-        with fondat.context.push(auth) if auth else contextlib.nullcontext():
-            yield
-
-    async def authenticate(user_id, password):
-        """
-        Perform authentication of credentials supplied in the HTTP request. If authentication
-        is successful, a context is returned to be pushed on the context stack. If
-        authentication fails, None is returned. This method should not raise an exception
-        unless an unrecoverable error occurs.
-        """
-        raise NotImplementedError
+    def extract(self, request: Request) -> Optional[str]:
+        """Return bearer token value from request if provided, otherwise None."""
+        name, token = request.headers["Authorization"].split(" ", 1)
+        if name.lower() == "bearer":
+            return token
+        return None
 
 
-class APIKeySecurityScheme(fondat.security.SecurityScheme):
+class CookieScheme(Scheme):
     """
-    Base class for API key authentication security scheme. Subclass must implement the
-    authenticate method.
+    Cookie authentication scheme.
 
     Parameters:
-    • name: name of the security scheme
-    • key: name of API key to be used
-    • location: location of API key
-    • description: a short description for the security scheme
-    """
-
-    def __init__(self, name: str, key: str, location: Literal["header", "cookie"], **kwargs):
-        super().__init__(name, "apiKey", **kwargs)
-        self.key = key
-        self.location = location
-
-    # TODO: move to OpenAPI
-    @property
-    def json(self):
-        """JSON representation of the security scheme."""
-        result = super().json
-        result["name"] = self.key
-        result["in"] = self.location
-        return result
-
-    async def authenticate(value):
-        """
-        Perform authentication of API key value supplied in the HTTP request. If
-        authentication is successful, a context is returned to be pushed on the context stack.
-        If authentication fails, None is returned. This method should not raise an exception
-        unless an unrecoverable error occurs.
-        """
-        raise NotImplementedError
-
-
-class HeaderSecurityScheme(APIKeySecurityScheme):
-    """
-    Base class for header authentication security scheme. Subclass must implement the
-    authenticate method.
-
-    Parameters:
-    • name: name of the security scheme
-    • header: name of the header to be used
-    • description: a short description for the security scheme
-    """
-
-    def __init__(self, name: str, header: str, **kwargs):
-        super().__init__(name, location="header", key=header, **kwargs)
-
-    async def filter(self, request):
-        """
-        Filters the incoming HTTP request. If the request contains the header, it is passed to
-        the authenticate method. If authentication is successful, a context is added to the
-        context stack.
-        """
-        header = request.headers.get(self.key)
-        auth = await self.authenticate(header) if header is not None else None
-        with fondat.context.push(auth) if auth else contextlib.nullcontext():
-            yield
-
-    async def authenticate(self, header):
-        raise NotImplementedError
-
-
-class CookieSecurityScheme(APIKeySecurityScheme):
-    """
-    Base class for cookie authentication security scheme. Subclass must implement the
-    authenticate method.
-
-    Parameters:
-    • name: name of the security scheme
+    • name: name of authentication scheme
+    • description: a short description of authentication scheme
     • cookie: name of cookie to be used
-    • description: a short description for the security scheme
     """
 
-    def __init__(self, name: str, cookie: str, **kwargs):
-        super().__init__(name, location="cookie", key=cookie, **kwargs)
+    def __init__(self, *, cookie: str, **kwargs):
+        super().__init__(**kwargs)
+        self.cookie = cookie
 
-    async def filter(self, request):
-        """
-        Filters the incoming HTTP request. If the request contains the cookie, it is passed to
-        the authenticate method. If authentication is successful, a context is added to the
-        context stack.
-        """
-        cookie = request.cookies.get(self.key)
-        auth = await self.authenticate(cookie) if cookie is not None else None
-        with fondat.context.push(auth) if auth else contextlib.nullcontext():
-            yield
+    def extract(self, request: Request) -> Optional[str]:
+        """Return cookie value from request if provided, otherwise None."""
+        try:
+            return request.cookies[self.cookie].value
+        except:
+            return None
 
-    async def authenticate(self, cookie):
-        raise NotImplementedError
+
+class HeaderScheme(Scheme):
+    """
+    Header authentication scheme.
+
+    Parameters:
+    • name: name of authentication scheme
+    • description: a short description of authentication scheme
+    • header: name of the header to be used
+    """
+
+    def __init__(self, *, header: str, **kwargs):
+        super().__init__(**kwargs)
+        self.header = header
+
+    def extract(self, request: Request) -> Optional[str]:
+        """Return header value from request if provided, otherwise None."""
+        try:
+            return request.headers[self.header]
+        except:
+            return None
 
 
 async def _subordinate(resource, segment):
@@ -386,65 +329,16 @@ class InQuery:
     • name: name of the query string parameter
     """
 
+    __slots__ = ("name",)
+
     def __init__(self, name):
         self.name = name
-
-    def get(self, request):
-        return request.query.get(self.name)
 
     def __str__(self):
         return f"request query string parameter: {self.name}"
 
     def __repr__(self):
         return f"InQuery({self.name})"
-
-
-class InHeader:
-    """
-    Annotation to indicate an operation parameter is expected in a request header.
-
-    If the InHeader class is used as the annotation instead of an InHeader(name=...) instance,
-    then the name of the header will be the name of the operation parameter.
-
-    Parameters:
-    • name: name of the header
-    """
-
-    def __init__(self, name):
-        self.name = name
-
-    def get(self, request):
-        return request.headers.get(self.name)
-
-    def __str__(self):
-        return f"request header: {self.name}"
-
-    def __repr__(self):
-        return f"InHeader({self.name})"
-
-
-class InCookie:
-    """
-    Annotation to indicate an operation parameter is expected in a request cookie.
-
-    If the InCookie class is used as the annotation instead of an InCookie(name=...) instance,
-    then the name of the cookie will be the name of the operation parameter.
-
-    Parameters:
-    • name: name of the cookie
-    """
-
-    def __init__(self, name):
-        self.name = name
-
-    def get(self, request):
-        return request.cookies.get(self.name)
-
-    def __str__(self):
-        return f"request cookie: {self.name}"
-
-    def __repr__(self):
-        return f"InCookie({self.name})"
 
 
 class InBody:
@@ -458,6 +352,8 @@ class InBody:
     Parameters:
     • name: name of the body parameter
     """
+
+    __slots__ = ("name",)
 
     def __init__(self, name):
         self.name = name
@@ -490,11 +386,11 @@ def get_param_in(method, param_name, type_hint):
     if typing.get_origin(stripped) is Annotated:
         args = typing.get_args(stripped)
         for annotation in args[1:]:
-            if is_subclass(annotation, (InBody, InCookie, InHeader, InQuery)):
+            if is_subclass(annotation, (InBody, InQuery)):
                 return annotation(param_name)
             elif is_subclass(annotation, AsBody):
                 return annotation()
-            elif isinstance(annotation, (AsBody, InBody, InCookie, InHeader, InQuery)):
+            elif isinstance(annotation, (AsBody, InBody, InQuery)):
                 return annotation
     if method._fondat_operation.op_type == "mutation":
         return InBody(param_name)
@@ -632,8 +528,8 @@ class Application:
             elif isinstance(param_in, InBody):
                 if param_in.name in body:
                     params[name] = body[param_in.name]
-            else:  # InCookie, InHeader, InQuery
-                value = param_in.get(request)
+            elif isinstance(param_in, InQuery):
+                value = request.query.get(param_in.name)
                 if value is None:
                     if is_optional(hint):
                         params[name] = None

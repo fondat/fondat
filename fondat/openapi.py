@@ -17,9 +17,8 @@ import typing
 from collections.abc import Iterable, Mapping
 from datetime import date, datetime
 from decimal import Decimal
-from fondat.security import SecurityRequirement
-from fondat.types import NoneType
-from fondat.types import datacls, is_instance, is_optional, is_subclass
+from fondat.security import Policy
+from fondat.types import NoneType, datacls, is_instance, is_optional, is_subclass
 from typing import Annotated, Any, Literal, Optional, TypedDict, Union
 from uuid import UUID
 
@@ -316,7 +315,7 @@ class XML:
 
 @_datacls
 class SecurityScheme:
-    type_: str
+    type: str
     description: Optional[str]
     name: Optional[str]
     in_: Optional[str]
@@ -605,6 +604,7 @@ class Processor:
     def __init__(self, openapi: OpenAPI):
         self.openapi = openapi
         self.references = {}
+        self.schemes = {}
 
     def process(self, resource, path, params={}, tag=None):
         if path == "/":
@@ -648,6 +648,43 @@ class Processor:
                 f"{path}/{{{param_name}}}",
                 {**params, param_name: param_type},
             )
+        if self.schemes:
+            if not self.openapi.components:
+                self.openapi.components = Components()
+            if not self.openapi.components.securitySchemes:
+                self.openapi.components.securitySchemes = {}
+            for name, scheme in self.schemes.items():
+                if name not in self.openapi.components.securitySchemes:
+                    if isinstance(scheme, fondat.http.BasicScheme):
+                        security_scheme = SecurityScheme(
+                            type="http",
+                            description=scheme.description,
+                            scheme="basic",
+                        )
+                    elif isinstance(scheme, fondat.http.BearerScheme):
+                        security_scheme = SecurityScheme(
+                            type="http",
+                            description=scheme.description,
+                            scheme="bearer",
+                            bearerFormat=scheme.format,
+                        )
+                    elif isinstance(scheme, fondat.http.HeaderScheme):
+                        security_scheme = SecurityScheme(
+                            type="apiKey",
+                            description=scheme.description,
+                            name=scheme.header,
+                            in_="header",
+                        )
+                    elif isinstance(scheme, fondat.http.CookieScheme):
+                        security_scheme = SecurityScheme(
+                            type="apiKey",
+                            description=scheme.description,
+                            name=scheme.cookie,
+                            in_="cookie",
+                        )
+                    else:
+                        raise TypeError(f"unknown scheme type for: {name}")
+                    self.openapi.components.securitySchemes[name] = security_scheme
 
     @staticmethod
     def resource(obj):
@@ -713,17 +750,7 @@ class Processor:
                 if param.default is not param.empty:
                     hint = Annotated[hint, Default(param.default)]
                 param_in = fondat.http.get_param_in(method, name, hint)
-                if isinstance(param_in, fondat.http.InCookie):
-                    name = param_in.name
-                    in_ = "cookie"
-                    style = "form"
-                    explode = False
-                elif is_instance(param_in, fondat.http.InHeader):
-                    name = param_in.name
-                    in_ = "header"
-                    style = "simple"
-                    explode = None
-                elif is_instance(param_in, fondat.http.InQuery):
+                if is_instance(param_in, fondat.http.InQuery):
                     name = param_in.name
                     in_ = "query"
                     style = "form"
@@ -760,7 +787,20 @@ class Processor:
         op.responses = {key: op.responses[key] for key in sorted(op.responses.keys())}
         if not op.parameters:
             op.parameters = None
+        op.security = self.security_requirements(fondat_op)
         return op
+
+    def security_requirements(self, operation):
+        result = []
+        for policy in (p for p in operation.policies or () if p.schemes is not None):
+            requirements = {}
+            for scheme in policy.schemes:
+                if self.schemes.get(scheme.name) not in (None, scheme):
+                    raise TypeError(f"different schemes with same name: {name}")
+                self.schemes[scheme.name] = scheme
+                requirements[scheme.name] = []  # no scopes in currently supported schemes
+            result.append(requirements)
+        return result if result else None
 
     @staticmethod
     def description(annotated):
@@ -826,7 +866,7 @@ def openapi_resource(
     resource: type,
     path: str = "/",
     info: Info,
-    security: Iterable[SecurityRequirement] = None,
+    policies: Iterable[Policy] = None,
     publish: bool = False,
 ):
     """
@@ -836,7 +876,7 @@ def openapi_resource(
     • resource: resource to generate OpenAPI document for
     • path: URI path to resource
     • info: provides metadata about the API
-    • security: security requirements to apply to all operations
+    • policies: security policies to apply to all operations
     • publish: publish the resource in documentation
     """
 
@@ -845,7 +885,7 @@ def openapi_resource(
         def __init__(self):
             self.openapi = None
 
-        @fondat.resource.operation(publish=publish, security=security)
+        @fondat.resource.operation(publish=publish, policies=policies)
         async def get(self) -> OpenAPI:
             if not self.openapi:
                 self.openapi = generate_openapi(resource=resource, path=path, info=info)

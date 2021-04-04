@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 from fondat.error import BadRequestError, NotFoundError
 from fondat.http import AsBody
 from fondat.resource import resource, operation, mutation
-from fondat.security import SecurityRequirement
+from fondat.security import Policy
 from fondat.types import affix_type_hints
 from typing import Annotated, Union
 
@@ -32,7 +32,7 @@ def memory_resource(
     evict: bool = False,
     expire: Union[int, float] = None,
     publish: bool = True,
-    security: Iterable[SecurityRequirement] = None,
+    policies: Iterable[Policy] = None,
 ):
     """
     Return a new resource that stores items in memory.
@@ -44,7 +44,7 @@ def memory_resource(
     • evict: should oldest item be evicted to make room for a new item
     • expire: expire time for each value in seconds  [unlimited]
     • publish: publish the operation in documentation
-    • security: security requirements to apply to all operations
+    • policies: security policies to apply to all operations
     """
 
     @resource
@@ -56,7 +56,7 @@ def memory_resource(
         def __getitem__(self, key: key_type) -> Item:
             return Item(self, key)
 
-        @operation(publish=publish, security=security)
+        @operation(publish=publish, policies=policies)
         async def get(self) -> list[key_type]:
             """Return list of item keys."""
             now = _now()
@@ -67,7 +67,7 @@ def memory_resource(
                     if not self.expire or item.time + _delta(self.expire) <= now
                 ]
 
-        @mutation(publish=publish, security=security)
+        @mutation(publish=publish, policies=policies)
         async def clear(self) -> None:
             """Remove all items."""
             with self.lock:
@@ -85,7 +85,7 @@ def memory_resource(
             self.container = container
             self.key = key
 
-        @operation(publish=publish, security=security)
+        @operation(publish=publish, policies=policies)
         async def get(self) -> value_type:
             """Read item."""
             item = self.container.storage.get(self.key)
@@ -95,7 +95,7 @@ def memory_resource(
                 raise NotFoundError
             return item.value
 
-        @operation(publish=publish, security=security)
+        @operation(publish=publish, policies=policies)
         async def put(self, value: Annotated[value_type, AsBody]) -> None:
             """Write item."""
             with self.container.lock:
@@ -122,7 +122,7 @@ def memory_resource(
                     raise BadRequestError("item size limit reached")
                 self.container.storage[self.key] = _Item(copy.deepcopy(value), now)
 
-        @operation(publish=publish, security=security)
+        @operation(publish=publish, policies=policies)
         async def delete(self):
             """Delete item."""
             await self.get()  # ensure item exists and has not expired

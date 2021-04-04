@@ -1,14 +1,15 @@
 import pytest
 
+import fondat.http
 import fondat.openapi
 import json
 
 from datetime import date
 from fondat.codec import get_codec, JSON, String
-from fondat.http import InCookie, InHeader, InQuery, InBody
 from fondat.openapi import generate_openapi, openapi_resource
 from fondat.resource import resource, operation, query, mutation, container_resource
 from fondat.types import Description, Example, NoneType, datacls
+from fondat.security import Policy
 from fondat.validation import validate
 from typing import Annotated, Optional, Union
 from uuid import UUID
@@ -54,7 +55,9 @@ class Sub2:
         return key
 
     @operation
-    async def post(self, x: Annotated[str, InBody], y: Annotated[int, InBody]) -> None:
+    async def post(
+        self, x: Annotated[str, fondat.http.InBody], y: Annotated[int, fondat.http.InBody]
+    ) -> None:
         pass
 
 
@@ -70,6 +73,33 @@ class Sub1:
 
     def __getitem__(self, key: str) -> Sub2:
         return Sub2(key)
+
+
+basic_policy = Policy(
+    schemes=[fondat.http.BasicScheme(name="Basic", description="Username and password")]
+)
+
+bearer_policy = Policy(
+    schemes=[
+        fondat.http.BearerScheme(name="Bearer", format="JWT", description="JSON Web Token")
+    ]
+)
+
+cookie_policy = Policy(
+    schemes=[
+        fondat.http.CookieScheme(name="Cookie", cookie="fondat", description="Cookie scheme")
+    ]
+)
+
+header_policy = Policy(
+    schemes=[
+        fondat.http.HeaderScheme(
+            name="Header", header="X-Fondat-Header", description="Header scheme"
+        )
+    ]
+)
+
+empty_policy = Policy(schemes=[])
 
 
 @resource(tag="a")
@@ -97,6 +127,26 @@ class ResourceA:
     def __getitem__(self, key: str) -> Sub1:
         return Sub1(key)
 
+    @query(policies=[basic_policy])
+    async def basic(self) -> str:
+        return "basic"
+
+    @query(policies=[bearer_policy])
+    async def bearer(self) -> str:
+        return "bearer"
+
+    @query(policies=[cookie_policy])
+    async def cookie(self) -> str:
+        return "cookie"
+
+    @query(policies=[header_policy])
+    async def header(self) -> str:
+        return "header"
+
+    @query(policies=[empty_policy, header_policy])
+    async def optional(self) -> str:
+        return "optional"
+
 
 @resource(tag="b")
 class ResourceB:
@@ -119,11 +169,7 @@ class ResourceB:
         return f"{p1}+{p2}"
 
     @query
-    async def query3(
-        self,
-        p1: Annotated[str, InHeader("X-Param1")],
-        p2: Annotated[str, InCookie("P2-Cookie")],
-    ) -> str:
+    async def query3(self, p1: Annotated[str, fondat.http.InQuery("param1")]) -> str:
         return "query3"
 
     @mutation
@@ -139,8 +185,7 @@ def test_generate():
     validate(doc, fondat.openapi.OpenAPI)
     js = get_codec(JSON, fondat.openapi.OpenAPI).encode(doc)
 
-
-#    print(json.dumps(js))
+    print(json.dumps(js))
 
 
 @pytest.mark.asyncio

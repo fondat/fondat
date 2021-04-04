@@ -1,43 +1,93 @@
 import pytest
 
 import fondat.context as context
-import fondat.security
 
 from fondat.error import UnauthorizedError, ForbiddenError
 from fondat.resource import resource, mutation
+from fondat.security import Policy
 
 
 pytestmark = pytest.mark.asyncio
 
 
-class Never(fondat.security.SecurityRequirement):
-    def authorized(self):
-        raise ForbiddenError
+async def authorized_rule():
+    pass
 
 
-req1 = fondat.security.ContextSecurityRequirement(context="whatever", req1=True)
+authorized_policy = Policy(rules=[authorized_rule])
 
-never = Never()
+
+async def forbidden_rule():
+    raise ForbiddenError
+
+
+forbidden_policy = Policy(rules=[forbidden_rule])
+
+
+async def unauthorized_rule():
+    raise UnauthorizedError
+
+
+unauthorized_policy = Policy(rules=[unauthorized_rule])
 
 
 @resource
 class R1:
-    @mutation(security=[req1])
-    async def foo(self) -> str:
-        return "foo_success"
+    @mutation
+    async def none(self) -> str:
+        return "none"
 
-    @mutation(security=[req1, never])
-    async def bar(self) -> str:
-        return "bar_success"
+    @mutation(policies=[])
+    async def empty(self) -> str:
+        return "empty"
+
+    @mutation(policies=[authorized_policy])
+    async def authorized(self) -> str:
+        return "authorized"
+
+    @mutation(policies=[unauthorized_policy, forbidden_policy, authorized_policy])
+    async def authorized_wins(self) -> str:
+        return "authorized_wins"
+
+    @mutation(policies=[unauthorized_policy])
+    async def unauthorized(self) -> str:
+        return "unauthorized"
+
+    @mutation(policies=[forbidden_policy])
+    async def forbidden(self) -> str:
+        return "forbidden"
+
+    @mutation(policies=[unauthorized_policy, forbidden_policy])
+    async def forbidden_wins(self) -> str:
+        return "mixed"
 
 
-async def test_security_req_success():
-    r1 = R1()
-    with context.push(context="whatever", req1=True):
-        assert await r1.foo() == "foo_success"
+async def test_security_none():
+    assert await R1().none() == "none"
 
 
-async def test_security_req_forbidden():
-    r1 = R1()
+async def test_security_empty():
+    assert await R1().empty() == "empty"
+
+
+async def test_security_authorized():
+    assert await R1().authorized() == "authorized"
+
+
+async def test_security_authorized_wins():
+    assert await R1().authorized_wins() == "authorized_wins"
+
+
+async def test_security_unauthorized():
     with pytest.raises(UnauthorizedError):
-        await r1.foo()
+        await R1().unauthorized()
+
+
+async def test_security_forbidden():
+    with pytest.raises(ForbiddenError):
+        await R1().forbidden()
+
+
+async def test_security_forbidden_wins():
+    with pytest.raises(ForbiddenError):
+        await R1().forbidden_wins()

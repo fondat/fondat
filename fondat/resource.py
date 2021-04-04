@@ -23,7 +23,8 @@ import wrapt
 
 from collections.abc import Iterable, Mapping
 from fondat.error import ForbiddenError, UnauthorizedError
-from fondat.security import SecurityRequirement
+from fondat.security import Policy
+from fondat.validation import validate_arguments
 from typing import Any, Literal
 
 
@@ -46,31 +47,30 @@ def _summary(function):
     return " ".join(result)
 
 
-async def authorize(security):
+async def authorize(policies: Iterable[Policy]):
     """
-    Peform authorization of an operation.
+    Evaluate the specified security policies.
 
     Parameters:
-    • security: iterable of security requirements
+    • policies: security policies to evaluate
 
     Security exceptions are: UnauthorizedError and ForbiddenError.
 
-    This coroutine function executes the security requirements in the order specified. If any
-    security requirement does not raise a security exception, then this coroutine passes and
-    authorization is granted.
+    This function evaluates the security policies in the order specified. If a non-security
+    exception occurs, it shall be immediately raised, ceasing further evaluaton. Otherwise,
+    if one of the security policies does not raise a security exception, then authorization
+    shall be immediately granted, ceasing further evaluation.
 
-    If a security requirement raises a non-security exception, then that exception is
-    immediately re-raised.  If security requrements raise a mixture of ForbiddenError and
-    UnauthorizedError exceptions, then the first ForbiddenError is re-raised. If only
-    UnautorizedError exceptions are raised, then the first UnauthorizedError is re-raised.
+    If security policies all raise security exceptions, then the first ForbiddenError exception
+    is raised if encountered, otherwise the first UnauthorizedError exception is raised.
     """
     exception = None
-    for requirement in security or ():
+    for policy in policies or ():
         try:
-            await requirement.authorize()
-            return  # security requirement authorized the operation
+            await policy.apply()
+            return  # security policy authorized the operation
         except ForbiddenError as fe:
-            if not isinstance(exception, ForbiddenException):
+            if not isinstance(exception, ForbiddenError):
                 exception = fe
         except UnauthorizedError as ue:
             if not exception:
@@ -108,11 +108,12 @@ def is_operation(obj_or_type: Any) -> bool:
 _methods = {"get", "put", "post", "delete", "patch"}
 
 
+@validate_arguments
 def operation(
     wrapped=None,
     *,
     op_type: Literal["query", "mutation"] = None,
-    security: Iterable[SecurityRequirement] = None,
+    policies: Iterable[Policy] = None,
     publish: bool = True,
     deprecated: bool = False,
     validate: bool = True,
@@ -122,7 +123,7 @@ def operation(
 
     Parameters:
     • op_type: operation type
-    • security: security requirements for the operation
+    • policies: security policies for the operation
     • publish: publish the operation in documentation
     • deprecated: declare the operation as deprecated
     • validate: validate method arguments
@@ -131,13 +132,15 @@ def operation(
     Supported names: get, put, post, delete, and patch.
 
     If op_type is not provided, operation type is inferred from the method name.
+
+    For information on how security policies are evaluated, see the authorize function.
     """
 
     if wrapped is None:
         return functools.partial(
             operation,
             publish=publish,
-            security=security,
+            policies=policies,
             deprecated=deprecated,
             validate=validate,
         )
@@ -169,7 +172,7 @@ def operation(
         with context.push({"context": "fondat.operation", **tags}):
             async with monitoring.timer({"name": "operation_duration_seconds", **tags}):
                 async with monitoring.counter({"name": "operation_calls_total", **tags}):
-                    await authorize(operation.security)
+                    await authorize(operation.policies)
                     return await wrapped(*args, **kwargs)
 
     wrapped._fondat_operation = types.SimpleNamespace(
@@ -177,12 +180,12 @@ def operation(
         summary=summary,
         description=description,
         publish=publish,
-        security=security,
+        policies=policies,
         deprecated=deprecated,
     )
 
     if validate:
-        wrapped = fondat.validation.validate_arguments(wrapped)
+        wrapped = validate_arguments(wrapped)
 
     return wrapper(wrapped)
 
@@ -191,13 +194,14 @@ def operation(
 TAG_INNER = "__inner__"
 
 
+@validate_arguments
 def inner(
     wrapped=None,
     *,
     method: str,
     op_type: str = None,
     publish: bool = True,
-    security: Iterable[SecurityRequirement] = None,
+    policies: Iterable[Policy] = None,
     validate: bool = True,
 ):
     """
@@ -206,7 +210,7 @@ def inner(
     Parameters:
     • method: name of method to implement (e.g "get")
     • publish: publish the operation in documentation
-    • security: security requirements for the operation
+    • policies: security policies for the operation
     • validate: validate method arguments
 
     This decorator creates a new resource class, with a single operation that implements the
@@ -220,7 +224,7 @@ def inner(
             method=method,
             op_type=op_type,
             publish=publish,
-            security=security,
+            policies=policies,
             validate=validate,
         )
 
@@ -233,7 +237,7 @@ def inner(
     _wrapped = wrapped
 
     if validate:
-        _wrapped = fondat.validation.validate_arguments(_wrapped)
+        _wrapped = validate_arguments(_wrapped)
 
     @resource(tag=TAG_INNER)
     class Inner:
@@ -250,7 +254,7 @@ def inner(
 
     functools.update_wrapper(proxy, wrapped)
     proxy.__name__ = method
-    proxy = operation(proxy, publish=publish, security=security, validate=False)
+    proxy = operation(proxy, publish=publish, policies=policies, validate=False)
     setattr(Inner, method, proxy)
     setattr(Inner, "__call__", proxy)
 
