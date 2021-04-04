@@ -16,6 +16,11 @@ from uuid import UUID
 
 
 @datacls
+class Query:
+    s: Annotated[list[str], Example(["a", "b", "c"])]
+
+
+@datacls
 class DB:
     foo: UUID
 
@@ -151,7 +156,7 @@ class ResourceA:
 @resource(tag="b")
 class ResourceB:
     @operation
-    async def get(self, param1: str) -> DC:
+    async def get(self, param1: Annotated[str, Example("example parameter")]) -> DC:
         """Get the B resource."""
         return DC("text", 1)
 
@@ -177,6 +182,10 @@ class ResourceB:
         """Perform some mutation."""
         pass
 
+    @query(method="post")
+    async def query4(self, body: Annotated[Query, fondat.http.AsBody]) -> str:
+        return "query4"
+
 
 def test_generate():
     doc = generate_openapi(
@@ -184,8 +193,6 @@ def test_generate():
     )
     validate(doc, fondat.openapi.OpenAPI)
     js = get_codec(JSON, fondat.openapi.OpenAPI).encode(doc)
-
-    print(json.dumps(js))
 
 
 @pytest.mark.asyncio
@@ -225,4 +232,4 @@ def test_openapi_generate_openapi_specification():
     js = get_codec(JSON, fondat.openapi.OpenAPI).encode(result)
 
 
-#    print(json.dumps(js))
+# print(json.dumps(js))

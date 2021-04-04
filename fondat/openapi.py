@@ -1,7 +1,5 @@
 """Module to generate OpenAPI documents and resources."""
 
-# TODO: example in schema
-
 from __future__ import annotations
 
 import dataclasses
@@ -353,7 +351,7 @@ for dc in _to_affix:
 _ops = {"get", "put", "post", "delete", "options", "hegenerate_ad", "patch", "trace"}
 
 
-def _kwargs(annotated):
+def _kwargs(python_type, annotated):
     kwargs = {}
     for annotation in annotated:
         if is_instance(annotation, str):
@@ -361,9 +359,15 @@ def _kwargs(annotated):
         elif is_instance(annotation, fondat.types.Description):
             kwargs["description"] = annotation.value
         elif is_instance(annotation, fondat.types.Example):
-            kwargs["example"] = annotation.value
+            fondat.validation.validate(annotation.value, python_type, "in example")
+            kwargs["example"] = fondat.codec.get_codec(fondat.codec.JSON, python_type).encode(
+                annotation.value
+            )
         elif is_instance(annotation, Default):
-            kwargs["default"] = annotation.value
+            fondat.validation.validate(annotation.value, python_type, "in default")
+            kwargs["default"] = fondat.codec.get_codec(fondat.codec.JSON, python_type).encode(
+                annotation.value
+            )
     return kwargs
 
 
@@ -381,7 +385,9 @@ def _simple_schema(pytype, schema_type, schema_format=None):
     @_provider
     def simple(*, python_type, annotated, **_):
         if python_type is pytype:
-            return Schema(type=schema_type, format=schema_format, **_kwargs(annotated))
+            return Schema(
+                type=schema_type, format=schema_format, **_kwargs(python_type, annotated)
+            )
 
 
 _simple_schema(bool, "boolean")
@@ -402,7 +408,7 @@ def _str_schema(*, python_type, annotated, **_):
                 kwargs["maxLan ength"] = annotation.value
             elif is_instance(annotation, fondat.validation.Pattern):
                 kwargs["pattern"] = annotation.value.pattern
-        return Schema(type="string", **_kwargs(annotated), **kwargs)
+        return Schema(type="string", **_kwargs(python_type, annotated), **kwargs)
 
 
 @_provider
@@ -417,7 +423,7 @@ def _bytes_schema(*, python_type, annotated, **_):
         return Schema(
             type="string",
             format="binary" if fondat.http.InBody in annotated else "byte",
-            **_kwargs(annotated),
+            **_kwargs(python_type, annotated),
             **kwargs,
         )
 
@@ -431,7 +437,9 @@ def _int_schema(*, python_type, annotated, **_):
                 kwargs["minimum"] = annotation.value
             elif is_instance(annotation, fondat.validation.MaxValue):
                 kwargs["maximum"] = annotation.value
-        return Schema(type="integer", format="int64", **_kwargs(annotated), **kwargs)
+        return Schema(
+            type="integer", format="int64", **_kwargs(python_type, annotated), **kwargs
+        )
 
 
 @_provider
@@ -443,7 +451,9 @@ def _float_schema(*, python_type, annotated, **_):
                 kwargs["minimum"] = annotation.value
             elif is_instance(annotation, fondat.validation.MaxValue):
                 kwargs["maximum"] = annotations.value
-        return Schema(type="number", format="double", **_kwargs(annotated), **kwargs)
+        return Schema(
+            type="number", format="double", **_kwargs(python_type, annotated), **kwargs
+        )
 
 
 def _get_component_schema(annotated):
@@ -471,7 +481,7 @@ def _typeddict_schema(*, python_type, annotated, origin, args, processor, **_):
             properties={key: processor.schema(pytype) for key, pytype in hints.items()},
             required=required,
             additionalProperties=False,
-            **_kwargs(annotated),
+            **_kwargs(python_type, annotated),
         )
         if component_schema:
             processor.openapi.components.schemas[name] = schema
@@ -488,7 +498,7 @@ def _mapping_schema(*, python_type, annotated, origin, args, processor, **_):
             type="object",
             properties={},
             additionalProperties=processor.schema(args[1]),
-            **_kwargs(annotated),
+            **_kwargs(python_type, annotated),
         )
 
 
@@ -507,7 +517,7 @@ def _iterable_schema(*, python_type, annotated, origin, args, processor, **_):
         return Schema(
             type="array",
             items=processor.schema(args[0]),
-            **_kwargs(annotated),
+            **_kwargs(python_type, annotated),
             **kwargs,
         )
 
@@ -547,7 +557,7 @@ def _dataclass_schema(*, python_type, annotated, origin, args, processor, **_):
             properties=properties,
             required=required or None,
             additionalProperties=False,
-            **_kwargs(annotated),
+            **_kwargs(python_type, annotated),
         )
         if component_schema:
             processor.openapi.components.schemas[name] = schema
@@ -565,7 +575,7 @@ def _union_schema(*, python_type, annotated, origin, args, processor, **_):
             if not fondat.validation.is_valid(schema, Reference):
                 schema.nullable = True
             return schema
-        return Schema(anyOf=schemas, nullable=nullable, **_kwargs(annotated))
+        return Schema(anyOf=schemas, nullable=nullable, **_kwargs(python_type, annotated))
 
 
 @_provider
@@ -587,7 +597,7 @@ def _literal_schema(*, python_type, annotated, origin, args, processor, **_):
             schema = Schema(  # heterogeneus
                 anyOf=list(schemas.values()),
                 nullable=nullable,
-                **_kwargs(annotated),
+                **_kwargs(python_type, annotated),
             )
         return schema
 
@@ -595,7 +605,7 @@ def _literal_schema(*, python_type, annotated, origin, args, processor, **_):
 @_provider
 def _any_schema(*, python_type, annotated, origin, args, **_):
     if python_type is Any:
-        return Schema(**_kwargs(annotated))
+        return Schema(**_kwargs(python_type, annotated))
 
 
 class Processor:
