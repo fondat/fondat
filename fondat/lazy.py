@@ -76,7 +76,6 @@ def lazy_import(module_name: str) -> Callable:
     """
 
     def callback():
-        _logger.debug("lazily importing module: %s", module_name)
         return importlib.import_module(module_name)
 
     return lazy(callback)
@@ -92,7 +91,6 @@ def lazy_import_attr(module_name: str, attr_name: str) -> Callable:
     """
 
     def callback():
-        _logger.debug("lazily importing attribute: %s:%s", module_name, attr_name)
         return getattr(importlib.import_module(module_name), attr_name)
 
     return lazy(callback)
