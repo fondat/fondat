@@ -18,10 +18,10 @@ they can be automatically exposed through an HTTP API.
 ## Features
 
 * Asynchronous uniform resource interface.
-* Resource operations accessed through HTTP API.
+* Resource operations can be exposed through HTTP API.
 * Type encoding and validation of resource operation parameters and return values.
 * Authorization to resource operations enforced through security policies.
-* Lightweight abstraction of SQL tables, indexes and queries.
+* Abstraction of SQL tables, indexes and queries.
 * Monitoring of resource operations and elapsed time in time series databases.
 * Generates [OpenAPI](https://www.openapis.org/) documents, compatible with [Swagger UI](https://swagger.io/tools/swagger-ui/).
 
@@ -30,10 +30,6 @@ they can be automatically exposed through an HTTP API.
 ```
 pip install fondat-core
 ```
-
-## Documentation
-
-See the [docs](https://github.com/fondat/fondat/tree/main/docs) folder for documentation.
 
 ## Develop
 
