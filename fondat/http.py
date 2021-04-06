@@ -18,6 +18,7 @@ import typing
 from collections import namedtuple
 from collections.abc import Callable, Iterable, MutableSequence
 from fondat.codec import Binary, String, get_codec
+from fondat.error import BadRequestError, MethodNotAllowedError, NotFoundError
 from fondat.security import Scheme
 from fondat.types import Stream, BytesStream, is_optional, is_subclass
 from fondat.validation import validate
@@ -298,10 +299,10 @@ async def _subordinate(resource, segment):
         if fondat.resource.is_resource(attr):
             return attr
         if not callable(attr):
-            raise fondat.error.NotFoundError
+            raise NotFoundError
         hints = typing.get_type_hints(attr)
         if not fondat.resource.is_resource(hints.get("return")):
-            raise fondat.error.NotFoundError
+            raise NotFoundError
         if is_coroutine_function(attr):
             return await attr()
         else:
@@ -311,9 +312,9 @@ async def _subordinate(resource, segment):
     try:
         item = resource[segment]
     except TypeError:
-        raise fondat.error.NotFoundError
+        raise NotFoundError
     if not fondat.resource.is_resource(item):
-        raise fondat.error.NotFoundError
+        raise NotFoundError
     return item
 
 
@@ -459,13 +460,13 @@ async def _decode_body(operation, request):
     content = await fondat.types.stream_bytes(request.body)
     if len(content) == 0:
         if not is_optional(body_type):
-            raise fondat.error.BadRequestError("request body is required")
+            raise BadRequestError("request body is required")
         return None  # empty body is no body
     try:
         result = get_codec(Binary, body_type).decode(content)
         validate(result, body_type)
     except (TypeError, ValueError) as e:
-        raise fondat.error.BadRequestError(f"{e} in request body")
+        raise BadRequestError(f"{e} in request body")
     return result
 
 
@@ -502,7 +503,7 @@ class Application:
 
     async def _handle(self, request: Request) -> Response:
         if not request.path.startswith(self.path):
-            raise fondat.error.NotFoundError
+            raise NotFoundError
         request.path = request.path[len(self.path) :]
         response = Response()
         method = request.method.lower()
@@ -524,11 +525,11 @@ class Application:
         if operation:  # operation name as segment (@query or @mutation)
             fondat_op = getattr(operation, "_fondat_operation", None)
             if not fondat_op or not fondat_op.method == method:
-                raise fondat.error.MethodNotAllowedError
+                raise MethodNotAllowedError
         else:  # no remaining segments; operation name as HTTP method
             operation = getattr(resource, method, None)
             if not fondat.resource.is_operation(operation):
-                raise fondat.error.MethodNotAllowedError
+                raise MethodNotAllowedError
         signature = inspect.signature(operation)
         body = await _decode_body(operation, request)
         params = {}
@@ -549,13 +550,13 @@ class Application:
                     if is_optional(hint):
                         params[name] = None
                     elif signature.parameters[name].default is inspect.Parameter.empty:
-                        raise fondat.error.BadRequestError(f"expecting value in {param_in}")
+                        raise BadRequestError(f"expecting value in {param_in}")
                 else:
                     try:
                         param = get_codec(String, hint).decode(value)
                         validate(param, hint)
                     except (TypeError, ValueError) as tve:
-                        raise fondat.error.BadRequestError(f"{tve} in {param_in}")
+                        raise BadRequestError(f"{tve} in {param_in}")
                     params[name] = param
         result = await operation(**params)
         validate(result, return_hint)
