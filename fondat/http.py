@@ -392,7 +392,7 @@ def get_param_in(method, param_name, type_hint):
                 return annotation()
             elif isinstance(annotation, (AsBody, InBody, InQuery)):
                 return annotation
-    if method._fondat_operation.op_type == "mutation":
+    if method._fondat_operation.type == "mutation":
         return InBody(param_name)
     return InQuery(param_name)
 
@@ -510,10 +510,25 @@ class Application:
         resource = self.root
         operation = None
         for segment in segments:
-            resource = await _subordinate(resource, segment)
-        operation = getattr(resource, method, None)
-        if not fondat.resource.is_operation(operation):
-            raise fondat.error.MethodNotAllowedError
+            if operation:  # cannot have segments after operation name
+                raise NotFoundError
+            try:
+                resource = await _subordinate(resource, segment)
+            except NotFoundError:
+                try:
+                    operation = getattr(resource, segment)
+                    if not fondat.resource.is_operation(operation):
+                        raise NotFoundError
+                except AttributeError:
+                    raise NotFoundError
+        if operation:  # operation name as segment (@query or @mutation)
+            fondat_op = getattr(operation, "_fondat_operation", None)
+            if not fondat_op or not fondat_op.method == method:
+                raise fondat.error.MethodNotAllowedError
+        else:  # no remaining segments; operation name as HTTP method
+            operation = getattr(resource, method, None)
+            if not fondat.resource.is_operation(operation):
+                raise fondat.error.MethodNotAllowedError
         signature = inspect.signature(operation)
         body = await _decode_body(operation, request)
         params = {}

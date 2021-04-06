@@ -13,6 +13,7 @@ import keyword
 import typing
 
 from collections.abc import Iterable, Mapping
+from copy import copy
 from datetime import date, datetime
 from decimal import Decimal
 from fondat.security import Policy
@@ -348,9 +349,6 @@ for dc in _to_affix:
     fondat.types.affix_type_hints(dc)
 
 
-_ops = {"get", "put", "post", "delete", "options", "hegenerate_ad", "patch", "trace"}
-
-
 def _kwargs(python_type, annotated):
     kwargs = {}
     for annotation in annotated:
@@ -616,10 +614,10 @@ class Processor:
         self.references = {}
         self.schemes = {}
 
-    def process(self, resource, path, params={}, tag=None):
+    def process(self, resource, path, params={}):
         if path == "/":
             path = ""
-        tag = tag or resource._fondat_resource.tag
+        tag = resource._fondat_resource.tag
         path_item = PathItem(
             parameters=[
                 Parameter(
@@ -639,13 +637,16 @@ class Processor:
                     res,
                     f"{path}/{name}",
                     params,
-                    tag if res._fondat_resource.tag == fondat.resource.TAG_INNER else None,
                 )
-            elif name in _ops and callable(attr):
-                operation = self.operation(tag, attr)
-                if operation:
+            elif operation := self.operation(tag, attr):
+                fondat_op = getattr(attr, "_fondat_operation")
+                if name == fondat_op.method:
                     setattr(path_item, name, operation)
                     self.openapi.paths[path or "/"] = path_item
+                else:
+                    op_item = PathItem(parameters=path_item.parameters)
+                    setattr(op_item, fondat_op.method, operation)
+                    self.openapi.paths[f"{path or ''}/{name}"] = op_item
         attr = getattr(resource, "__getitem__", None)
         if res := self.resource(attr):
             param_name, param_type = next(iter(typing.get_type_hints(attr).items()))
@@ -712,6 +713,8 @@ class Processor:
         return None
 
     def operation(self, tag, method):
+        if not callable(method):
+            return None
         fondat_op = getattr(method, "_fondat_operation", None)
         if not fondat_op or not fondat_op.publish:
             return None

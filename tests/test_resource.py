@@ -53,13 +53,8 @@ async def test_call_invalid_type():
         await R1().post(1)
 
 
-async def test_outer_scope():
-    assert await R1().q1.get() == R1.i_am_r1
-
-
-async def test_inner_call():
-    r1 = R1()
-    assert await r1.q1.get() == await r1.q1()
+async def test_query():
+    assert await R1().q1() == R1.i_am_r1
 
 
 async def test_valid_args():

@@ -5,8 +5,10 @@ A resource is an addressible object that exposes operations through a uniform se
 
 A resource class contains operation methods, each decorated with the @operation decorator.
 
-A resource can expose inner (subordinate) resources through an attribute, method or property
-that is decorated as a resource.
+A resource can expose subordinate resources through an attribute, method or property that is
+decorated as a resource.
+
+For information on how security policies are evaluated, see the authorize function.
 """
 
 import asyncio
@@ -112,7 +114,8 @@ _methods = {"get", "put", "post", "delete", "patch"}
 def operation(
     wrapped=None,
     *,
-    op_type: Literal["query", "mutation"] = None,
+    method: Literal[tuple(_methods)] = None,
+    type: Literal["query", "mutation"] = None,
     policies: Iterable[Policy] = None,
     publish: bool = True,
     deprecated: bool = False,
@@ -122,18 +125,12 @@ def operation(
     Decorate a resource coroutine that performs an operation.
 
     Parameters:
-    • op_type: operation type
+    • method: method of operation  [inferred from wrapped function name]
+    • type: type of operation  [inferred from method]
     • policies: security policies for the operation
     • publish: publish the operation in documentation
     • deprecated: declare the operation as deprecated
     • validate: validate method arguments
-
-    Resource operation name must correlate to HTTP method names, named in lower case.
-    Supported names: get, put, post, delete, and patch.
-
-    If op_type is not provided, operation type is inferred from the method name.
-
-    For information on how security policies are evaluated, see the authorize function.
     """
 
     if wrapped is None:
@@ -145,15 +142,18 @@ def operation(
             validate=validate,
         )
 
-    name = wrapped.__name__
-    if name not in _methods:
-        raise TypeError(f"operation name must be one of: {_methods}")
-
     if not asyncio.iscoroutinefunction(wrapped):
         raise TypeError("operation must be a coroutine")
 
-    op_type = op_type or "query" if name == "get" else "mutation"
-    description = wrapped.__doc__ or name
+    if method is None:
+        method = wrapped.__name__
+        if method not in _methods:
+            raise TypeError(f"method must be one of: {_methods}")
+
+    if not type:
+        type = "query" if method == "get" else "mutation"
+
+    description = wrapped.__doc__ or wrapped.__name__
     summary = _summary(wrapped)
 
     for p in inspect.signature(wrapped).parameters.values():
@@ -165,10 +165,12 @@ def operation(
     @wrapt.decorator
     async def wrapper(wrapped, instance, args, kwargs):
         operation = getattr(wrapped, "_fondat_operation")
-        res_name = f"{instance.__class__.__module__}.{instance.__class__.__qualname__}"
-        op_name = wrapped.__name__
-        tags = {"resource": res_name, "operation": op_name}
-        _logger.debug("operation: %s.%s(args=%s, kwargs=%s)", res_name, op_name, args, kwargs)
+        resource_name = f"{instance.__class__.__module__}.{instance.__class__.__qualname__}"
+        operation_name = wrapped.__name__
+        tags = {"resource": resource_name, "operation": operation_name}
+        _logger.debug(
+            "operation: %s.%s(args=%s, kwargs=%s)", resource_name, operation_name, args, kwargs
+        )
         with context.push({"context": "fondat.operation", **tags}):
             async with monitoring.timer({"name": "operation_duration_seconds", **tags}):
                 async with monitoring.counter({"name": "operation_calls_total", **tags}):
@@ -176,12 +178,13 @@ def operation(
                     return await wrapped(*args, **kwargs)
 
     wrapped._fondat_operation = types.SimpleNamespace(
-        op_type=op_type,
+        method=method,
+        type=type,
+        policies=policies,
+        publish=publish,
+        deprecated=deprecated,
         summary=summary,
         description=description,
-        publish=publish,
-        policies=policies,
-        deprecated=deprecated,
     )
 
     if validate:
@@ -190,88 +193,8 @@ def operation(
     return wrapper(wrapped)
 
 
-# A resource tagged with TAG_INNER shall inherit the tag from its outer (superior) resource.
-TAG_INNER = "__inner__"
-
-
-@validate_arguments
-def inner(
-    wrapped=None,
-    *,
-    method: str,
-    op_type: str = None,
-    publish: bool = True,
-    policies: Iterable[Policy] = None,
-    validate: bool = True,
-):
-    """
-    Decorator to define an inner resource operation.
-
-    Parameters:
-    • method: name of method to implement (e.g "get")
-    • publish: publish the operation in documentation
-    • policies: security policies for the operation
-    • validate: validate method arguments
-
-    This decorator creates a new resource class, with a single operation that implements the
-    decorated method. The decorated method is bound to the original outer resource instance
-    where it was defined.
-    """
-
-    if wrapped is None:
-        return functools.partial(
-            inner,
-            method=method,
-            op_type=op_type,
-            publish=publish,
-            policies=policies,
-            validate=validate,
-        )
-
-    if not asyncio.iscoroutinefunction(wrapped):
-        raise TypeError("inner resource method must be a coroutine")
-
-    if not method:
-        raise TypeError("method name is required")
-
-    _wrapped = wrapped
-
-    if validate:
-        _wrapped = validate_arguments(_wrapped)
-
-    @resource(tag=TAG_INNER)
-    class Inner:
-        def __init__(self, outer):
-            self._outer = outer
-
-    Inner.__doc__ = wrapped.__doc__
-    Inner.__name__ = wrapped.__name__.title().replace("_", "")
-    Inner.__qualname__ = Inner.__name__
-    Inner.__module__ = wrapped.__module__
-
-    async def proxy(self, *args, **kwargs):
-        return await types.MethodType(_wrapped, self._outer)(*args, **kwargs)
-
-    functools.update_wrapper(proxy, wrapped)
-    proxy.__name__ = method
-    proxy = operation(proxy, publish=publish, policies=policies, validate=False)
-    setattr(Inner, method, proxy)
-    setattr(Inner, "__call__", proxy)
-
-    def res(self) -> Inner:
-        return Inner(self)
-
-    res.__doc__ = wrapped.__doc__
-    res.__module__ = wrapped.__module__
-    res.__name__ = wrapped.__name__
-    res.__qualname__ = wrapped.__qualname__
-    res.__annotations__ = {"return": Inner}
-
-    return property(res)
-
-
 def query(wrapped=None, *, method: str = "get", **kwargs):
-    """Decorator to define an inner resource query operation."""
+    """Decorator to define a query operation."""
 
     if wrapped is None:
         return functools.partial(
@@ -280,11 +203,11 @@ def query(wrapped=None, *, method: str = "get", **kwargs):
             **kwargs,
         )
 
-    return inner(wrapped, op_type="query", method=method, **kwargs)
+    return operation(wrapped, type="query", method=method, **kwargs)
 
 
 def mutation(wrapped=None, *, method: str = "post", **kwargs):
-    """Decorator to define an inner resource mutation operation."""
+    """Decorator to define an mutation operation."""
 
     if wrapped is None:
         return functools.partial(
@@ -293,7 +216,7 @@ def mutation(wrapped=None, *, method: str = "post", **kwargs):
             **kwargs,
         )
 
-    return inner(wrapped, op_type="mutation", method=method, **kwargs)
+    return operation(wrapped, type="mutation", method=method, **kwargs)
 
 
 def container_resource(resources: Mapping[str, type], tag: str = None):

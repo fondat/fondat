@@ -152,6 +152,11 @@ class ResourceA:
     async def optional(self) -> str:
         return "optional"
 
+    @mutation
+    async def delete(self):
+        """Delete as a POST method. This is the full description. """
+        pass
+
 
 @resource(tag="b")
 class ResourceB:
