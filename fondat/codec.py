@@ -8,6 +8,7 @@ import csv
 import decimal
 import functools
 import io
+import iso8601
 import json
 import keyword
 import logging
@@ -699,8 +700,14 @@ def _to_utc(value):
 @affix_type_hints
 class _Datetime_String(String[datetime]):
     """
-    String codec for datetime. A datetime is represented in a string in RFC 3339 format.
-    Example: "2018-06-16T12:34:56.789012Z".
+    String codec for datetime.
+
+    It will decode a datetime represented in an ISO 8601 formatted string. It will encode a
+    datetime to an RFC 3339 (subset of ISO 8601) formatted string.
+
+    Datetimes always encode and decode to UTC timezone offset.
+
+    Example: "2020-04-07T12:34:56.789012Z".
     """
 
     def encode(self, value: datetime) -> str:
@@ -715,10 +722,8 @@ class _Datetime_String(String[datetime]):
 
     @validate_arguments
     def decode(self, value: str) -> datetime:
-        if value.endswith("Z"):
-            value = value[0:-1]
         try:
-            return _to_utc(datetime.fromisoformat(value))
+            return _to_utc(iso8601.parse_date(value))
         except:
             raise ValueError(f"{value} is not a valid datetime")
 
@@ -729,8 +734,15 @@ _datetime_stringcodec = _Datetime_String()
 @affix_type_hints
 class _Datetime_Binary(Binary[datetime]):
     """
-    Binary codec for datetimes. A datetime is represented in a binary format as an RFC 3339
-    UTF-8 or ASCII encoded string. Example: "2018-06-16T12:34:56.789012Z".
+    Binary codec for datetime.
+
+    It will decode a datetime represented in an ISO 8601 formatted UTF-8 or ASCII encoded byte
+    string. It will encode a datetime to an RFC 3339 (subset of ISO 8601) formatted UTF-8
+    encoded byte string.
+
+    Datetimes always encode and decode to UTC timezone offset.
+
+    Example: b"2020-04-07T12:34:56.789012Z".
     """
 
     content_type = _TEXT_PLAIN
@@ -751,8 +763,14 @@ _datetime_binarycodec = _Datetime_Binary()
 @affix_type_hints
 class _Datetime_JSON(JSON[datetime]):
     """
-    JSON codec for datetimes. A datetime is represented in JSON as an RFC 3339 formatted
-    string. Example: "2018-06-16T12:34:56.789012Z".
+    String codec for datetime.
+
+    It will decode a datetime represented in an ISO 8601 formatted string. It will encode a
+    datetime to an RFC 3339 (subset of ISO 8601) formatted string.
+
+    Datetimes always encode and decode to UTC timezone offset.
+
+    Example: "2020-04-07T12:34:56.789012Z".
     """
 
     json_type = str

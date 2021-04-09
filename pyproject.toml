@@ -28,6 +28,7 @@ packages = [
 [tool.poetry.dependencies]
 python = "^3.9"
 aiosqlite = "^0.16"
+iso8601 = "^0.1"
 multidict = "^5.1"
 wrapt = "^1.12"
 
