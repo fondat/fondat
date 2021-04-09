@@ -5,7 +5,7 @@ import functools
 import sys
 import typing
 
-from collections.abc import AsyncIterator, Iterable, Mapping
+from collections.abc import AsyncIterator, Mapping
 from typing import Any, Union
 
 
@@ -55,61 +55,6 @@ def affix_type_hints(obj=None, *, globalns=None, localns=None, attrs: bool = Tru
             )
 
     return obj
-
-
-class _MISSING:
-    pass
-
-
-def datacls(cls, init: bool = True, **kwargs):
-    """
-    Decorate a class to be a data class. This decorator wraps the Python dataclasses.dataclass
-    decorator, with the following changes:
-
-    • fields (with default values or not) can be declared in any order
-    • the __init__ method only accepts keyword arguments
-    • Optional[...] fields default to None if no default value specified
-    """
-
-    c = dataclasses.dataclass(cls, init=False, **kwargs)
-    fields = {field.name: field for field in dataclasses.fields(c)}
-    if init:
-
-        def __init__(self, **kwargs):
-            hints = typing.get_type_hints(c)
-            for key in kwargs:
-                if key not in fields:
-                    raise TypeError(f"__init__() got an unexpected keyword argument '{key}'")
-            missing = [
-                f"'{key}'"
-                for key, hint in hints.items()
-                if not is_optional(hint)
-                and key not in kwargs
-                and fields[key].default is dataclasses.MISSING
-                and fields[key].default_factory is dataclasses.MISSING
-            ]
-            if missing:
-                raise TypeError(
-                    f"__init__() missing {len(missing)} required keyword-only "
-                    + (
-                        f"arguments: {', '.join(missing[0:-1])} and {missing[-1]}"
-                        if len(missing) > 1
-                        else f"argument: {missing[0]}"
-                    )
-                )
-            for key, field in fields.items():
-                value = kwargs.get(key, _MISSING)
-                if value is _MISSING:
-                    if field.default is not dataclasses.MISSING:
-                        value = field.default
-                    elif field.default_factory is not dataclasses.MISSING:
-                        value = field.default_factory()
-                    else:
-                        value = None
-                setattr(self, key, value)
-
-        c.__init__ = __init__
-    return c
 
 
 class Stream(AsyncIterator[Union[bytes, bytearray]]):

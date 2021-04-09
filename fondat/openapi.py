@@ -16,8 +16,9 @@ from collections.abc import Iterable, Mapping
 from copy import copy
 from datetime import date, datetime
 from decimal import Decimal
+from fondat.data import datacls
 from fondat.security import Policy
-from fondat.types import NoneType, datacls, is_instance, is_optional, is_subclass
+from fondat.types import NoneType, is_instance, is_optional, is_subclass
 from typing import Annotated, Any, Literal, Optional, TypedDict, Union
 from uuid import UUID
 
