@@ -435,9 +435,14 @@ def get_body_type(operation):
 
 
 async def simple_error_filter(request: Request):
-    """Generates a simple JSON error response if a Fondat error is raised."""
+    """Generates a simple JSON error response if an exception is raised."""
     try:
-        yield
+        try:
+            yield
+        except Exception as exception:
+            if isinstance(exception, fondat.error.Error):
+                raise
+            raise fondat.error.InternalServerError from exception
     except fondat.error.Error as err:
         body = json.dumps(
             {"error": err.status, "detail": str(err.args[0]) if err.args else err.__doc__}

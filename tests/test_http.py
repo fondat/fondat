@@ -195,8 +195,8 @@ async def test_invalid_return():
 
     application = Application(Resource())
     request = Request(method="GET", path="/")
-    with pytest.raises(TypeError):
-        response = await application(request)
+    response = await application(request)
+    assert response.status == http.HTTPStatus.INTERNAL_SERVER_ERROR.value
 
 
 async def test_filter_return():
