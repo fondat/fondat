@@ -442,6 +442,7 @@ async def simple_error_filter(request: Request):
         except Exception as exception:
             if isinstance(exception, fondat.error.Error):
                 raise
+            _logger.exception("unhandled exception")
             raise fondat.error.InternalServerError from exception
     except fondat.error.Error as err:
         body = json.dumps(
