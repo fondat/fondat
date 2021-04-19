@@ -11,7 +11,7 @@ from typing import Union
 
 
 # will be appended to during generation
-__all__ = ["Error", "errors", "get_error_for_status"]
+__all__ = ["Error", "errors", "error_for_status"]
 
 
 class Error(Exception):
@@ -55,7 +55,7 @@ for status in http.HTTPStatus:
         __all__.append(name)
 
 
-def get_error_for_status(status: Union[int, http.HTTPStatus], default=InternalServerError):
+def error_for_status(status: Union[int, http.HTTPStatus], default=InternalServerError):
     """
     Return an error class matching the specified HTTP status.
 
