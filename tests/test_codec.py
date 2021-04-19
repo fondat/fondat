@@ -148,11 +148,11 @@ def test_list_str_decode_success():
 
 
 def test_list_bytes_encode_success():
-    assert get_codec(Binary, list[str]).encode(["a", "b", "c"]) == b"a,b,c"
+    assert get_codec(Binary, list[str]).encode(["a", "b", "c"]) == b'["a", "b", "c"]'
 
 
 def test_list_bytes_decode_success():
-    assert get_codec(Binary, list[str]).decode(b"a,b,c") == [
+    assert get_codec(Binary, list[str]).decode(b'["a", "b", "c"]') == [
         "a",
         "b",
         "c",
@@ -243,11 +243,11 @@ def test_set_str_decode_int_error():
 
 
 def test_set_bytes_encode_success():
-    assert get_codec(Binary, set[str]).encode({"a", "b", "c"}) == b"a,b,c"
+    assert get_codec(Binary, set[str]).encode({"a", "b", "c"}) == b'["a", "b", "c"]'
 
 
 def test_set_bytes_decode_success():
-    assert get_codec(Binary, set[str]).decode(b"a,b,c") == {
+    assert get_codec(Binary, set[str]).decode(b'["a", "b", "c"]') == {
         "a",
         "b",
         "c",

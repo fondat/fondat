@@ -1129,20 +1129,20 @@ def _iterable(codec_type, python_type):
 
     if codec_type is Binary:
 
-        string_codec = get_codec(String, python_type)
+        json_codec = get_codec(JSON, python_type)
 
         @affix_type_hints(localns=locals())
         class _Iterable_Binary(Binary[python_type]):
-            content_type = _TEXT_PLAIN
+            content_type = "application/json"
 
             def encode(self, value: python_type) -> bytes:
                 if not isinstance(value, Iterable) or isinstance(value, str):
                     raise TypeError
-                return string_codec.encode(value).encode()
+                return json.dumps(json_codec.encode(value)).encode()
 
             @validate_arguments
             def decode(self, value: Union[bytes, bytearray]) -> python_type:
-                return string_codec.decode(value.decode())
+                return json_codec.decode(json.loads(value.decode()))
 
         return _Iterable_Binary()
 
