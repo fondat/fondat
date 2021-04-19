@@ -115,7 +115,7 @@ async def test_list(table):
             )
             await table.insert(body)
         assert await table.count() == count
-        async for result in await table.select("key"):
+        async for result in await table.select(columns="key"):
             await table.delete(result["key"])
         assert await table.count() == 0
 

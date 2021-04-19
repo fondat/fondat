@@ -221,6 +221,7 @@ class Table:
 
     async def select(
         self,
+        *,
         columns: Union[Iterable[str], str] = None,
         where: Statement = None,
         order: str = None,
