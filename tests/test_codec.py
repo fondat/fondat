@@ -4,6 +4,7 @@ import dataclasses
 import datetime
 import decimal
 import enum
+import fondat.codec
 import json
 import re
 
@@ -12,7 +13,7 @@ from fondat.codec import String, Binary, JSON
 from fondat.codec import get_codec
 from dataclasses import make_dataclass, field
 from io import BytesIO
-from typing import Any, Literal, Optional, TypedDict, Union
+from typing import Any, Annotated, Literal, Optional, TypedDict, Union
 from uuid import UUID
 
 
@@ -719,6 +720,32 @@ def test_dataclass_json_encode_decode_keyword():
     assert codec.decode(encoded) == dc
 
 
+def test_camelize():
+    assert fondat.codec.camelize("abc") == "abc"
+    assert fondat.codec.camelize("first_name") == "firstName"
+    assert fondat.codec.camelize("_first_name") == "_firstName"
+    assert fondat.codec.camelize("in_") == "in"
+
+
+def test_dataclass_json_camel_codec():
+    DC = make_dataclass("DC", [("first_name", str), ("last_name", str)])
+    codec = fondat.codec.dataclass_json_camel_codec(DC)
+    value = DC(first_name="John", last_name="Smith")
+    encoded = codec.encode(value)
+    assert encoded == {"firstName": "John", "lastName": "Smith"}
+    assert codec.decode(encoded) == value
+
+
+def test_dataclass_string_camel_codec():
+    DC = make_dataclass("DC", [("first_name", str), ("last_name", str)])
+    json_codec = fondat.codec.dataclass_json_camel_codec(DC)
+    value = DC(first_name="John", last_name="Smith")
+    string_codec = get_codec(String, Annotated[DC, json_codec])
+    encoded = string_codec.encode(value)
+    assert encoded == '{"firstName": "John", "lastName": "Smith"}'
+    assert string_codec.decode(encoded) == value
+
+
 # ----- any -----
 
 
@@ -744,3 +771,20 @@ def test_any_dataclass_binary_codec_success():
     encoded = get_codec(Binary, Any).encode(dc)
     decoded = get_codec(JSON, Any).decode(json.loads(encoded.decode()))
     assert DC(**decoded) == dc
+
+
+# ----- general -----
+
+
+def test_get_codec_annotated_codec():
+    class CustomCodec(JSON[int]):
+        def encode(self, value: int) -> Any:
+            return 123
+
+        def encode(self, value: Any) -> int:
+            return 123
+
+    json_codec = CustomCodec()
+    CustomType = Annotated[int, json_codec]
+    assert get_codec(JSON, CustomType) is json_codec
+    assert get_codec(String, CustomType) is not json_codec

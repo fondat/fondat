@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import binascii
 import csv
+import dataclasses
 import decimal
 import functools
 import io
@@ -15,11 +16,10 @@ import logging
 import wrapt
 
 from collections.abc import Iterable, Mapping, Set
-from dataclasses import dataclass, is_dataclass
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from enum import Enum
-from fondat.types import NoneType, affix_type_hints, is_subclass
+from fondat.types import NoneType, affix_type_hints, is_subclass, split_annotated
 from fondat.validation import validate, validate_arguments
 from typing import Annotated, Any, Generic, Literal, TypeVar, TypedDict, Union
 from typing import get_origin, get_args, get_type_hints
@@ -66,21 +66,21 @@ class Codec(Generic[F, T]):
 
 
 class String(Codec[F, str]):
-    """Encodes Python types to/from Unicode string objects."""
+    """Encodes Python types to/from Unicode string representations."""
 
 
 class Binary(Codec[F, Union[bytes, bytearray]]):
     """
-    Encodes Python types to/from binary objects.
+    Encodes Python types to/from binary representations.
 
     Attribute:
-    • content_type: string containing the media type of the binary object representation
+    • content_type: string containing the media type of the binary representation
     """
 
 
 class JSON(Codec[F, Any]):
     """
-    Encodes Python types to/from the JSON object model.
+    Encodes Python types to/from the JSON representations.
 
     The JSON object model is strictly composed of the following types: dict, list, str, int,
     float, bool, NoneType.
@@ -150,6 +150,7 @@ _str_jsoncodec = _Str_JSON()
 
 @_provider
 def _str(codec_type, python_type):
+    python_type, _ = split_annotated(python_type)
     if is_subclass(python_type, str):
         if codec_type is Binary:
             return _str_binarycodec
@@ -228,6 +229,7 @@ _bytes_jsoncodec = _Bytes_JSON()
 
 @_provider
 def _bytes(codec_type, python_type):
+    python_type, _ = split_annotated(python_type)
     if is_subclass(python_type, (bytes, bytearray)):
         if codec_type is Binary:
             return _bytes_binarycodec
@@ -305,6 +307,7 @@ _int_jsoncodec = _Int_JSON()
 
 @_provider
 def _int(codec_type, python_type):
+    python_type, _ = split_annotated(python_type)
     if is_subclass(python_type, int) and not is_subclass(python_type, bool):
         if codec_type is Binary:
             return _int_binarycodec
@@ -377,6 +380,7 @@ _float_jsoncodec = _Float_JSON()
 
 @_provider
 def _float(codec_type, python_type):
+    python_type, _ = split_annotated(python_type)
     if is_subclass(python_type, float):
         if codec_type is Binary:
             return _float_binarycodec
@@ -449,6 +453,7 @@ _bool_jsoncodec = _Bool_JSON()
 
 @_provider
 def _bool(codec_type, python_type):
+    python_type, _ = split_annotated(python_type)
     if is_subclass(python_type, bool):
         if codec_type is Binary:
             return _bool_binarycodec
@@ -522,7 +527,7 @@ _nonetype_jsoncodec = _NoneType_JSON()
 
 @_provider
 def _NoneType(codec_type, python_type):
-
+    python_type, _ = split_annotated(python_type)
     if python_type is NoneType:
         if codec_type is Binary:
             return _nonetype_binarycodec
@@ -598,6 +603,7 @@ _decimal_json = _Decimal_JSON()
 
 @_provider
 def _Decimal(codec_type, python_type):
+    python_type, _ = split_annotated(python_type)
     if is_subclass(python_type, Decimal):
         if codec_type is Binary:
             return _decimal_binary
@@ -679,6 +685,7 @@ _date_jsoncodec = _Date_JSON()
 
 @_provider
 def _date(codec_type, python_type):
+    python_type, _ = split_annotated(python_type)
     if is_subclass(python_type, date) and not is_subclass(python_type, datetime):
         if codec_type is Binary:
             return _date_binarycodec
@@ -790,6 +797,7 @@ _datetime_jsoncodec = _Datetime_JSON()
 
 @_provider
 def _datetime(codec_type, python_type):
+    python_type, _ = split_annotated(python_type)
     if is_subclass(python_type, datetime):
         if codec_type is Binary:
             return _datetime_binarycodec
@@ -862,6 +870,7 @@ _uuid_jsoncodec = _UUID_JSON()
 
 @_provider
 def _uuid(codec_type, python_type):
+    python_type, _ = split_annotated(python_type)
     if is_subclass(python_type, UUID):
         if codec_type is Binary:
             return _uuid_binarycodec
@@ -876,6 +885,8 @@ def _uuid(codec_type, python_type):
 
 @_provider
 def _typeddict(codec_type, python_type):
+
+    python_type, _ = split_annotated(python_type)
 
     if (
         not is_subclass(python_type, dict)
@@ -977,6 +988,8 @@ def _typeddict(codec_type, python_type):
 @_provider
 def _mapping(codec_type, python_type):
 
+    python_type, _ = split_annotated(python_type)
+
     if is_subclass(python_type, Mapping):
         origin = Mapping
         args = [Any, Any]
@@ -1067,6 +1080,8 @@ def _csv_decode(value):
 @_provider
 def _iterable(codec_type, python_type):
 
+    python_type, _ = split_annotated(python_type)
+
     if is_subclass(python_type, Iterable) and not is_subclass(
         python_type, (str, bytes, bytearray)
     ):
@@ -1155,19 +1170,15 @@ _dc_kw = {k + "_": k for k in keyword.kwlist}
 
 
 @_provider
-def _dataclass(codec_type, python_type):
+def dataclass_codec(codec_type, python_type):
 
-    if not is_dataclass(python_type):
+    original_type = python_type
+    python_type, _ = split_annotated(python_type)
+
+    if not dataclasses.is_dataclass(python_type):
         return
 
     if codec_type is JSON:
-
-        def dict_key(key):
-            if key.endswith("_"):
-                truncated = key[:-1]
-                if keyword.iskeyword(trunc):
-                    return truncated
-            return key
 
         if c := _building.get((codec_type, python_type)):
             return c  # return the (incomplete) outer one still being built
@@ -1233,7 +1244,7 @@ def _dataclass(codec_type, python_type):
 
     if codec_type is String:
 
-        json_codec = get_codec(JSON, python_type)
+        json_codec = get_codec(JSON, original_type)
 
         @affix_type_hints(localns=locals())
         class _Dataclass_String(String[python_type]):
@@ -1250,7 +1261,7 @@ def _dataclass(codec_type, python_type):
 
     if codec_type is Binary:
 
-        string_codec = get_codec(String, python_type)
+        string_codec = get_codec(String, original_type)
 
         @affix_type_hints(localns=locals())
         class _Dataclass_Binary(Binary[python_type]):
@@ -1269,12 +1280,46 @@ def _dataclass(codec_type, python_type):
         return _Dataclass_Binary()
 
 
+def camelize(name: str) -> str:
+    """Normalize a snake-case name to camel case."""
+
+    stripped = name.lstrip("_")
+    prefix = "_" * (len(name) - len(stripped))
+    split = stripped.split("_")
+    return "".join([prefix, split[0].lower(), *(x.title() for x in split[1:])])
+
+
+def dataclass_json_camel_codec(python_type):
+    """Create codec to encode a dataclass to/from JSON with property names in camelCase."""
+
+    original_type = python_type
+    python_type, _ = split_annotated(python_type)
+
+    if not dataclasses.is_dataclass(python_type):
+        raise TypeError("python_type must be a dataclass")
+
+    codec = get_codec(JSON, original_type)
+    keys = {field.name for field in dataclasses.fields(python_type)}
+    emap = {k: c for k, c in zip(keys, (camelize(k) for k in keys)) if c not in keys}
+    dmap = {v: k for k, v in emap.items()}
+
+    class CamelCodec(JSON[python_type]):
+        def encode(self, value: python_type) -> Any:
+            return {emap.get(k, k): v for k, v in codec.encode(value).items()}
+
+        def decode(self, value: Any) -> python_type:
+            return codec.decode({dmap.get(k, k): v for k, v in value.items()})
+
+    return CamelCodec()
+
+
 # ----- Union -----
 
 
 @_provider
 def _union(codec_type, python_type):
 
+    python_type, _ = split_annotated(python_type)
     origin = get_origin(python_type)
 
     if origin is not Union:
@@ -1357,6 +1402,7 @@ def _union(codec_type, python_type):
 @_provider
 def _literal(codec_type, python_type):
 
+    python_type, _ = split_annotated(python_type)
     origin = get_origin(python_type)
 
     if origin is not Literal:
@@ -1484,6 +1530,7 @@ _any_jsoncodec = _Any_JSON()
 
 @_provider
 def _any(codec_type, python_type):
+    python_type, _ = split_annotated(python_type)
     if python_type is Any:
         if codec_type is Binary:
             return _any_binarycodec
@@ -1494,11 +1541,14 @@ def _any(codec_type, python_type):
 
 
 @functools.cache
-def get_codec(codec_type, python_type):
+def get_codec(codec_type, python_type, annotations=None):
     """Return a codec compatible with the specified Python type."""
 
-    if get_origin(python_type) is Annotated:
-        python_type = get_args(python_type)[0]  # strip annotation
+    _, args = split_annotated(python_type)
+
+    for arg in args:
+        if isinstance(arg, codec_type):
+            return arg
 
     for provider in providers:
         if (codec := provider(codec_type, python_type)) is not None:
