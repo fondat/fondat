@@ -9,6 +9,7 @@ from fondat.http import Application, AsBody, InBody, Request, Response, simple_e
 from fondat.resource import resource, operation
 from fondat.types import Stream, BytesStream
 from typing import Annotated
+from uuid import UUID
 
 
 pytestmark = pytest.mark.asyncio
@@ -277,3 +278,26 @@ async def test_body_validation():
     request = Request(method="POST", path="/", body=BytesStream(b'{"a": "not_int"}'))
     response = await application(request)
     assert response.status == http.HTTPStatus.BAD_REQUEST.value
+
+
+async def test_subordinate_getitem():
+    @resource
+    class Inner:
+        def __init__(self, id: UUID):
+            assert isinstance(id, UUID)
+            self.id = id
+
+        @operation
+        async def get(self) -> str:
+            return f"{self.id}!"
+
+    @resource
+    class Outer:
+        def __getitem__(self, id: UUID) -> Inner:
+            return Inner(id)
+
+    application = Application(Outer())
+    request = Request(method="GET", path="/a60de6fd-41b0-4c2d-9fe6-ad3fa2496695")
+    response = await application(request)
+    assert response.status == http.HTTPStatus.OK.value
+    assert await body(response) == b"a60de6fd-41b0-4c2d-9fe6-ad3fa2496695!"

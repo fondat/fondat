@@ -292,7 +292,7 @@ class HeaderScheme(Scheme):
             return None
 
 
-async def _subordinate(resource, segment):
+async def _subordinate(resource, segment: str):
 
     # resource.attr
     if (attr := getattr(resource, segment, None)) is not None:
@@ -310,12 +310,16 @@ async def _subordinate(resource, segment):
 
     # resource[item]
     try:
-        item = resource[segment]
-    except TypeError:
+        hints = typing.get_type_hints(resource.__getitem__)
+        name = next(iter(hints))
+        if name == "return":
+            raise NotFoundError
+        item = resource[get_codec(String, hints[name]).decode(segment)]
+        if not fondat.resource.is_resource(item):
+            raise NotFoundError
+        return item
+    except:
         raise NotFoundError
-    if not fondat.resource.is_resource(item):
-        raise NotFoundError
-    return item
 
 
 class InQuery:
