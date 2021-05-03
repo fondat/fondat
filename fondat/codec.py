@@ -899,7 +899,7 @@ def _typeddict(codec_type, python_type):
         if c := _building.get((codec_type, python_type)):
             return c  # return the (incomplete) outer one still being built
 
-        hints = get_type_hints(python_type, include_extras=False)
+        hints = get_type_hints(python_type, include_extras=True)
 
         for key in hints:
             if type(key) is not str:
@@ -1183,7 +1183,7 @@ def dataclass_codec(codec_type, python_type):
         if c := _building.get((codec_type, python_type)):
             return c  # return the (incomplete) outer one still being built
 
-        hints = get_type_hints(python_type, include_extras=False)
+        hints = get_type_hints(python_type, include_extras=True)
 
         noneables = {
             name
@@ -1304,6 +1304,8 @@ def dataclass_json_camel_codec(python_type):
     dmap = {v: k for k, v in emap.items()}
 
     class CamelCodec(JSON[python_type]):
+        json_type = dict[str, Any]  # FIXME
+
         def encode(self, value: python_type) -> Any:
             return {emap.get(k, k): v for k, v in codec.encode(value).items()}
 

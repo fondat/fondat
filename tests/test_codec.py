@@ -727,12 +727,24 @@ def test_camelize():
     assert fondat.codec.camelize("in_") == "in"
 
 
-def test_dataclass_json_camel_codec():
+def test_dataclass_json_camel_codec_flat():
     DC = make_dataclass("DC", [("first_name", str), ("last_name", str)])
     codec = fondat.codec.dataclass_json_camel_codec(DC)
     value = DC(first_name="John", last_name="Smith")
     encoded = codec.encode(value)
     assert encoded == {"firstName": "John", "lastName": "Smith"}
+    assert codec.decode(encoded) == value
+
+
+def test_dataclass_json_camel_codec_nested():
+    DC1 = make_dataclass("DC", [("first_name", str), ("last_name", str)])
+    DC1 = Annotated[DC1, fondat.codec.dataclass_json_camel_codec(DC1)]
+    DC2 = make_dataclass("DC", [("dc_one", DC1)])
+    DC2 = Annotated[DC2, fondat.codec.dataclass_json_camel_codec(DC2)]
+    codec = fondat.codec.get_codec(JSON, DC2)
+    value = DC2(dc_one=DC1(first_name="John", last_name="Smith"))
+    encoded = codec.encode(value)
+    assert encoded == {"dcOne": {"firstName": "John", "lastName": "Smith"}}
     assert codec.decode(encoded) == value
 
 
@@ -742,7 +754,7 @@ def test_dataclass_string_camel_codec():
     value = DC(first_name="John", last_name="Smith")
     string_codec = get_codec(String, Annotated[DC, json_codec])
     encoded = string_codec.encode(value)
-    assert encoded == '{"firstName": "John", "lastName": "Smith"}'
+    assert json.loads(encoded) == {"firstName": "John", "lastName": "Smith"}
     assert string_codec.decode(encoded) == value
 
 

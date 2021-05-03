@@ -514,10 +514,10 @@ class Application:
     async def _handle(self, request: Request) -> Response:
         if not request.path.startswith(self.path):
             raise NotFoundError
-        request.path = request.path[len(self.path) :]
+        path = request.path[len(self.path) :]
         response = Response()
         method = request.method.lower()
-        segments = request.path.split("/") if request.path else ()
+        segments = path.split("/") if path else ()
         resource = self.root
         operation = None
         for segment in segments:
