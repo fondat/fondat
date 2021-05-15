@@ -9,6 +9,7 @@ import json
 import re
 
 from base64 import b64encode
+from collections.abc import Iterable
 from fondat.codec import String, Binary, JSON
 from fondat.codec import get_codec
 from dataclasses import make_dataclass, field
@@ -720,44 +721,6 @@ def test_dataclass_json_encode_decode_keyword():
     assert codec.decode(encoded) == dc
 
 
-def test_camelize():
-    assert fondat.codec.camelize("abc") == "abc"
-    assert fondat.codec.camelize("first_name") == "firstName"
-    assert fondat.codec.camelize("_first_name") == "_firstName"
-    assert fondat.codec.camelize("in_") == "in"
-
-
-def test_dataclass_json_camel_codec_flat():
-    DC = make_dataclass("DC", [("first_name", str), ("last_name", str)])
-    codec = fondat.codec.dataclass_json_camel_codec(DC)
-    value = DC(first_name="John", last_name="Smith")
-    encoded = codec.encode(value)
-    assert encoded == {"firstName": "John", "lastName": "Smith"}
-    assert codec.decode(encoded) == value
-
-
-def test_dataclass_json_camel_codec_nested():
-    DC1 = make_dataclass("DC", [("first_name", str), ("last_name", str)])
-    DC1 = Annotated[DC1, fondat.codec.dataclass_json_camel_codec(DC1)]
-    DC2 = make_dataclass("DC", [("dc_one", DC1)])
-    DC2 = Annotated[DC2, fondat.codec.dataclass_json_camel_codec(DC2)]
-    codec = fondat.codec.get_codec(JSON, DC2)
-    value = DC2(dc_one=DC1(first_name="John", last_name="Smith"))
-    encoded = codec.encode(value)
-    assert encoded == {"dcOne": {"firstName": "John", "lastName": "Smith"}}
-    assert codec.decode(encoded) == value
-
-
-def test_dataclass_string_camel_codec():
-    DC = make_dataclass("DC", [("first_name", str), ("last_name", str)])
-    json_codec = fondat.codec.dataclass_json_camel_codec(DC)
-    value = DC(first_name="John", last_name="Smith")
-    string_codec = get_codec(String, Annotated[DC, json_codec])
-    encoded = string_codec.encode(value)
-    assert json.loads(encoded) == {"firstName": "John", "lastName": "Smith"}
-    assert string_codec.decode(encoded) == value
-
-
 # ----- any -----
 
 
@@ -783,6 +746,17 @@ def test_any_dataclass_binary_codec_success():
     encoded = get_codec(Binary, Any).encode(dc)
     decoded = get_codec(JSON, Any).decode(json.loads(encoded.decode()))
     assert DC(**decoded) == dc
+
+
+# ----- Iterable -----
+
+
+def test_iterable_json_decode():
+    assert get_codec(JSON, Iterable[int]).decode([1, 2, 3]) == [1, 2, 3]
+
+
+def test_iterable_string_decode():
+    assert get_codec(String, Iterable[int]).decode("1,2,3") == [1, 2, 3]
 
 
 # ----- general -----

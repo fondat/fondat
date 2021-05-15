@@ -1080,6 +1080,8 @@ def _csv_decode(value):
 @_provider
 def _iterable(codec_type, python_type):
 
+    decode_type = list if get_origin(python_type) is Iterable else python_type
+
     python_type, _ = split_annotated(python_type)
 
     if is_subclass(python_type, Iterable) and not is_subclass(
@@ -1119,7 +1121,7 @@ def _iterable(codec_type, python_type):
 
             @validate_arguments
             def decode(self, value: _json_type) -> python_type:
-                return python_type((item_codec.decode(item) for item in value))
+                return decode_type((item_codec.decode(item) for item in value))
 
         return _Iterable_JSON()
 
@@ -1138,7 +1140,7 @@ def _iterable(codec_type, python_type):
 
             @validate_arguments
             def decode(self, value: str) -> python_type:
-                return python_type((item_codec.decode(item) for item in _csv_decode(value)))
+                return decode_type((item_codec.decode(item) for item in _csv_decode(value)))
 
         return _Iterable_String()
 
@@ -1169,13 +1171,21 @@ def _iterable(codec_type, python_type):
 _dc_kw = {k + "_": k for k in keyword.kwlist}
 
 
+def camel_case(name: str) -> str:
+    """Normalize a name to camel case."""
+
+    stripped = name.lstrip("_")
+    prefix = "_" * (len(name) - len(stripped))
+    split = stripped.split("_")
+    return "".join([prefix, split[0].lower(), *(x.title() for x in split[1:])])
+
+
 @_provider
 def dataclass_codec(codec_type, python_type):
 
-    original_type = python_type
-    python_type, _ = split_annotated(python_type)
+    dc_type, _ = split_annotated(python_type)
 
-    if not dataclasses.is_dataclass(python_type):
+    if not dataclasses.is_dataclass(dc_type):
         return
 
     if codec_type is JSON:
@@ -1183,14 +1193,14 @@ def dataclass_codec(codec_type, python_type):
         if c := _building.get((codec_type, python_type)):
             return c  # return the (incomplete) outer one still being built
 
-        hints = get_type_hints(python_type, include_extras=True)
+        hints = get_type_hints(dc_type, include_extras=True)
 
         noneables = {
             name
             for name, hint in hints.items()
             if get_origin(hint) is Union
             and NoneType in get_args(hint)
-            and getattr(python_type, name, None) is None
+            and getattr(dc_type, name, None) is None
         }
 
         @affix_type_hints(localns=locals())
@@ -1199,7 +1209,7 @@ def dataclass_codec(codec_type, python_type):
             json_type = dict[str, Any]  # will be replaced below
 
             def encode(self, value: python_type) -> Any:
-                if not isinstance(value, python_type):
+                if not isinstance(value, dc_type):
                     raise TypeError
                 result = {}
                 for key in hints:
@@ -1244,13 +1254,11 @@ def dataclass_codec(codec_type, python_type):
 
     if codec_type is String:
 
-        json_codec = get_codec(JSON, original_type)
+        json_codec = get_codec(JSON, python_type)
 
         @affix_type_hints(localns=locals())
         class _Dataclass_String(String[python_type]):
             def encode(self, value: python_type) -> str:
-                if not isinstance(value, python_type):
-                    raise TypeError
                 return json.dumps(json_codec.encode(value))
 
             @validate_arguments
@@ -1261,7 +1269,7 @@ def dataclass_codec(codec_type, python_type):
 
     if codec_type is Binary:
 
-        string_codec = get_codec(String, original_type)
+        string_codec = get_codec(String, python_type)
 
         @affix_type_hints(localns=locals())
         class _Dataclass_Binary(Binary[python_type]):
@@ -1269,8 +1277,6 @@ def dataclass_codec(codec_type, python_type):
             content_type = "application/json"
 
             def encode(self, value: python_type) -> bytes:
-                if not isinstance(value, python_type):
-                    raise TypeError
                 return string_codec.encode(value).encode()
 
             @validate_arguments
@@ -1278,41 +1284,6 @@ def dataclass_codec(codec_type, python_type):
                 return string_codec.decode(value.decode())
 
         return _Dataclass_Binary()
-
-
-def camelize(name: str) -> str:
-    """Normalize a snake-case name to camel case."""
-
-    stripped = name.lstrip("_")
-    prefix = "_" * (len(name) - len(stripped))
-    split = stripped.split("_")
-    return "".join([prefix, split[0].lower(), *(x.title() for x in split[1:])])
-
-
-def dataclass_json_camel_codec(python_type):
-    """Create codec to encode a dataclass to/from JSON with property names in camelCase."""
-
-    original_type = python_type
-    python_type, _ = split_annotated(python_type)
-
-    if not dataclasses.is_dataclass(python_type):
-        raise TypeError("python_type must be a dataclass")
-
-    codec = get_codec(JSON, original_type)
-    keys = {field.name for field in dataclasses.fields(python_type)}
-    emap = {k: c for k, c in zip(keys, (camelize(k) for k in keys)) if c not in keys}
-    dmap = {v: k for k, v in emap.items()}
-
-    class CamelCodec(JSON[python_type]):
-        json_type = dict[str, Any]  # FIXME
-
-        def encode(self, value: python_type) -> Any:
-            return {emap.get(k, k): v for k, v in codec.encode(value).items()}
-
-        def decode(self, value: Any) -> python_type:
-            return codec.decode({dmap.get(k, k): v for k, v in value.items()})
-
-    return CamelCodec()
 
 
 # ----- Union -----
