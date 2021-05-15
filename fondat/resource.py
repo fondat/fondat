@@ -83,7 +83,7 @@ async def authorize(policies: Iterable[Policy]):
         raise exception
 
 
-def resource(wrapped=None, *, tag=None):
+def resource(wrapped: type = None, *, tag: str = None):
     """
     Decorate a class to be a resource containing operations.
 
