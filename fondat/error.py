@@ -6,6 +6,7 @@ Error classes are dynamically generated from all errors in the http.HTTPStatus e
 
 import http
 
+from contextlib import contextmanager
 from fondat.types import is_instance
 from typing import Union
 
@@ -66,3 +67,18 @@ def error_for_status(status: Union[int, http.HTTPStatus], default=InternalServer
     if is_instance(status, http.HTTPStatus):
         status = status.value
     return _status_errors.get(status, default)
+
+
+@contextmanager
+def reraise(exceptions, replacement):
+    """
+    Context manager that catches exception(s) and raises a replacement.
+
+    Parameters:
+    • exceptions: exception class or tuple of exception classes to be caught
+    • replacement: exeption class to raise as the replacement
+    """
+    try:
+        yield
+    except exceptions as e:
+        raise replacement from e
