@@ -49,7 +49,7 @@ def get_codec(python_type: Any) -> SQLiteCodec:
 
 def _codec_provider(wrapped=None):
     if wrapped is None:
-        return functools.partial(provider)
+        return functools.partial(_codec_provider)
     codec_providers.append(wrapped)
     return wrapped
 

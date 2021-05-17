@@ -104,7 +104,7 @@ def memory_resource(
                     for key in {
                         k
                         for k, v in self.container.storage.items()
-                        if v.time + _delta(container.expire) <= now
+                        if v.time + _delta(self.container.expire) <= now
                     }:
                         del self.container.storage[self.key]
                 while (

@@ -3,6 +3,7 @@
 #  TODO: In docstring, add description of routing through resource(s) to an operation.
 
 import asyncio
+import base64
 import fondat.error
 import fondat.resource
 import fondat.types
@@ -22,7 +23,7 @@ from fondat.error import BadRequestError, MethodNotAllowedError, NotFoundError
 from fondat.security import Scheme
 from fondat.types import Stream, BytesStream, is_optional, is_subclass
 from fondat.validation import validate
-from typing import Annotated, Any, Literal, Optional, TypedDict
+from typing import Annotated, Any, Optional, TypedDict
 
 
 _logger = logging.getLogger(__name__)
@@ -303,7 +304,7 @@ async def _subordinate(resource, segment: str):
         hints = typing.get_type_hints(attr)
         if not fondat.resource.is_resource(hints.get("return")):
             raise NotFoundError
-        if is_coroutine_function(attr):
+        if asyncio.iscoroutinefunction(attr):
             return await attr()
         else:
             return attr()

@@ -7,6 +7,7 @@ import fondat.codec
 import fondat.http
 import fondat.resource
 import fondat.types
+import functools
 import http
 import inspect
 import keyword
@@ -747,7 +748,7 @@ class Processor:
                             tuple(arg for arg in args if arg is not NoneType)
                         ]
                         hint = (
-                            Annotated[tuple(python_type, *annotated)]
+                            Annotated[tuple([python_type, *annotated])]
                             if annotated
                             else python_type
                         )
@@ -810,7 +811,7 @@ class Processor:
             requirements = {}
             for scheme in policy.schemes:
                 if self.schemes.get(scheme.name) not in (None, scheme):
-                    raise TypeError(f"different schemes with same name: {name}")
+                    raise TypeError(f"different schemes with same name: {scheme.name}")
                 self.schemes[scheme.name] = scheme
                 requirements[scheme.name] = []  # no scopes in currently supported schemes
             result.append(requirements)

@@ -58,7 +58,7 @@ class Sub2:
     @operation
     async def get(self) -> str:
         """Get the A subordinate, subordinate resource."""
-        return key
+        return self.key
 
     @operation
     async def post(
@@ -75,7 +75,7 @@ class Sub1:
     @operation
     async def get(self) -> str:
         """Get the A subordinate resource."""
-        return key
+        return self.key
 
     def __getitem__(self, key: str) -> Sub2:
         return Sub2(key)

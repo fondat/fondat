@@ -29,7 +29,7 @@ def _round(value: Any, precision: Optional[int]) -> str:
 
 def currency_encoder(
     prefix: str = "", suffix: str = "", precision: int = None
-) -> Callable[(Any,), str]:
+) -> Callable[[Any], str]:
     """
     Return a function that encodes a number as a currency value.
 
@@ -45,7 +45,7 @@ def currency_encoder(
     return encode
 
 
-def percent_encoder(precision: int = None) -> Callable[(Any,), str]:
+def percent_encoder(precision: int = None) -> Callable[[Any], str]:
     """
     Return a function that encodes fractional value as a percentage.
 
@@ -62,7 +62,7 @@ def percent_encoder(precision: int = None) -> Callable[(Any,), str]:
     return encode
 
 
-def number_encoder(precision: int = None) -> Callable[(Any,), str]:
+def number_encoder(precision: int = None) -> Callable[[Any], str]:
     """
     Return a function that encodes a numeric value.
 
