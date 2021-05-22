@@ -70,86 +70,102 @@ def datacls(cls: type, init: bool = True, **kwargs) -> type:
 
 def make_datacls(
     cls_name: str,
-    fields: Iterable[
-        Union[str, tuple[str, type], tuple[str, type, dataclasses.Field], dataclasses.Field]
-    ],
+    fields: Iterable[Union[tuple[str, type], tuple[str, type, dataclasses.Field]]],
     init: bool = True,
     **kwargs,
 ) -> type:
     """
-    Return a new dataclass. This decorator wraps the Python dataclasses.make_dataclass
+    Return a new dataclass. This function wraps the Python dataclasses.make_dataclass
     function, with the following changes to the generated __init__ method:
 
     • fields (with default values or not) can be declared in any order
-    • fields also accepts the result of the dataclasses.fields() function
     • the __init__ method only accepts keyword arguments
     • Optional[...] fields default to None if no default value is specified
+
+    Keyword arguments are passed on to the dataclasses.make_dataclass function.
     """
 
-    result = dataclasses.make_dataclass(
+    dataclass = dataclasses.make_dataclass(
         cls_name=cls_name,
-        fields=tuple(
-            (f.name, f.type, f) if isinstance(f, dataclasses.Field) else f for f in fields
-        ),
+        fields=fields,
         init=False,
         **kwargs,
     )
     if init:
-        result.__init__ = _datacls_init(result)
-    return result
+        dataclass.__init__ = _datacls_init(dataclass)
+    return dataclass
 
 
-def flds(dataclass: Any, names: set[str] = None) -> tuple[dataclasses.Field]:
-    """
-    Return a tuple describing the fields of a dataclass.
-
-    Parameters:
-    • dataclass: dataclass or dataclass instance containing fields to describe
-    • names: the names of the dataclass fields to describe
-    """
-
-    fields = {field.name: field for field in dataclasses.fields(dataclass)}
-    if names is not None:
-        fields = {name: fields[name] for name in names}
-    return tuple(fields.values())
-
-
-def subset_datacls(
+def derive_datacls(
     cls_name: str,
     dataclass: type,
-    names: Iterable[str] = None,
-    optional: Union[bool, Iterable[str]] = False,
+    *,
+    include: Iterable[str] = None,
+    exclude: Iterable[str] = None,
+    append: Iterable[Union[tuple[str, type], tuple[str, type, dataclasses.Field]]] = None,
+    optional: Union[Iterable[str], bool] = False,
     **kwargs,
 ) -> type:
     """
-    Return a new dataclass, containing a subset of fields from another dataclass.
+    Return a new dataclass with fields derived from another dataclass.
 
-    • dataclass: source dataclass
-    • names: the names of source dataclass fields to include
-    • optional: fields to be made optional
+    • dataclass: dataclass to derive fields from
+    • include: the names of dataclass fields to include  [all]
+    • exclude: the names of dataclass fields to exclude  [none]
+    • optional: derived fields to make optional
+    • append: iterable of field tuples to append to the derived dataclass
 
-    If names are not specified, then all fields from the source dataclass are included.
+    If include is not specified, then all fields from the source dataclass are included. If
+    exclude is not specified, then no fields from the source dataclass are excluded.
 
-    If optional is a boolean value, it specifies if all fields should be made optional.
+    The append parameter takes the same form as the fields parameter in the make_datacls
+    function.
+
+    The optional parameter can be a boolean value or an iterable of field names. If boolean,
+    it specifies whether all derived fields should be made optional.
+
+    Keyword arguments are passed on to the make_datacls function.
     """
 
-    if names is None:
-        names = dataclass.__annotations__.keys()
-    fields = flds(dataclass, names)
-    optional = set(names if optional is True else () if optional is False else optional)
-    for field in fields:
-        if field.name in optional:
-            field.type = Optional[field.type]
+    def _type(f):
+        if optional is True or (optional is not False and f.name in optional):
+            return Optional[f.type]
+        return f.type
+
+    def _field(f):
+        return dataclasses.field(
+            default=f.default,
+            default_factory=f.default_factory,
+            init=f.init,
+            repr=f.repr,
+            hash=f.hash,
+            compare=f.compare,
+            metadata=f.metadata,
+        )
+
+    fields = [
+        (f.name, _type(f), _field(f))
+        for f in dataclasses.fields(dataclass)
+        if (include is None or f.name in include) and (exclude is None or f.name not in exclude)
+    ]
+
+    for item in append or ():
+        if len(item) == 2:
+            item = (item[0], item[1], dataclasses.field())
+        if len(item) != 3:
+            raise TypeError(f"Invalid field: {item!r}")
+        fields.append(item)
+
     return make_datacls(cls_name, fields=fields, **kwargs)
 
 
-def copy(source: Any, target: Any, fields: Iterable[str] = None):
+def copy_data(source: Any, target: Any, fields: Iterable[str] = None):
     """
-    Copy fields from one instance of a dataclass to another.
+    Copy data from one instance of a dataclass to another.
 
     Parameters:
-    • source: instance to copy fields from
-    • target: instance to copy fields to
+    • source: instance to copy data from
+    • target: instance to copy data to
     • fields: names of fields to be copied
 
     If fields are specified, then only those fields shall be copied; they must be present
