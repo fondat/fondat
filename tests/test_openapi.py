@@ -155,7 +155,7 @@ class ResourceA:
 
     @mutation
     async def delete(self):
-        """Delete as a POST method. This is the full description. """
+        """Delete as a POST method. This is the full description."""
         pass
 
 
