@@ -41,7 +41,7 @@ _building = {}
 
 def _provider(wrapped=None):
     if wrapped is None:
-        return functools.partial(provider)
+        return functools.partial(_provider)
     providers.append(wrapped)
     return wrapped
 
