@@ -3,9 +3,9 @@
 import dataclasses
 import typing
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from fondat.types import is_optional
-from typing import Any, Optional, Union
+from typing import Any, Optional, TypedDict, Union
 
 
 class _MISSING:
@@ -109,6 +109,7 @@ def derive_datacls(
     """
     Return a new dataclass with fields derived from another dataclass.
 
+    Parameters:
     • dataclass: dataclass to derive fields from
     • include: the names of dataclass fields to include  [all]
     • exclude: the names of dataclass fields to exclude  [none]
@@ -118,13 +119,13 @@ def derive_datacls(
     If include is not specified, then all fields from the source dataclass are included. If
     exclude is not specified, then no fields from the source dataclass are excluded.
 
-    The append parameter takes the same form as the fields parameter in the make_datacls
-    function.
-
     The optional parameter can be a boolean value or an iterable of field names. If boolean,
     it specifies whether all derived fields should be made optional.
 
-    Keyword arguments are passed on to the make_datacls function.
+    The append parameter takes the same form as the fields parameter in the make_datacls
+    function. These fields are not affected by the optional parameter.
+
+    Any additional keyword arguments are passed on to the make_datacls function.
     """
 
     def _type(f):
@@ -159,7 +160,11 @@ def derive_datacls(
     return make_datacls(cls_name, fields=fields, **kwargs)
 
 
-def copy_data(source: Any, target: Any, fields: Iterable[str] = None):
+def copy_data(
+    source: Any,
+    target: Any,
+    fields: Union[Mapping[str, str], Iterable[str]] = None,
+):
     """
     Copy data from one instance of a dataclass to another.
 
@@ -168,15 +173,57 @@ def copy_data(source: Any, target: Any, fields: Iterable[str] = None):
     • target: instance to copy data to
     • fields: names of fields to be copied
 
+    The source and target dataclass instances do not have to be of the same type. This
+    function makes no attempt to ensure type compatibility between dataclass fields.
+
+    The fields parameter can be provided as either an iterable of field names that are common
+    between source and target dataclass, or a mapping of source-to-target field names.
+
     If fields are specified, then only those fields shall be copied; they must be present
     in both source and target dataclass instances. If fields are not specified, then only
     fields that source and target dataclasses have in common will be copied.
-
-    This function makes no attempt to ensure type compatibility between dataclass fields.
     """
 
-    if fields is None:
-        fields = source.__annotations__.keys() & target.__annotations__.keys()
+    source_fields = dataclasses.fields(source)
+    target_fields = dataclasses.fields(target)
 
-    for field in fields:
-        setattr(target, field, getattr(source, field))
+    if fields is None:
+        fields = set(f.name for f in source_fields) & set(f.name for f in target_fields)
+
+    if not isinstance(fields, Mapping):
+        fields = {field: field for field in fields}
+
+    for s, t in fields.items():
+        setattr(target, t, getattr(source, s))
+
+
+def dataclass_typeddict(
+    clsname: str,
+    dataclass: type,
+    include: set[str] = None,
+    exclude: set[str] = None,
+    total: bool = True,
+) -> type:
+    """
+    Generate a TypedDict type from a dataclass.
+
+    Parameters:
+    • dataclass: dataclass to derive dictionary keys from
+    • include: the names of dataclass fields to include  [all]
+    • exclude: the names of dataclass fields to exclude  [none]
+    • total: should all keys be present in the TypedDict
+    """
+
+    fields = dataclasses.fields(dataclass)
+
+    if include is None:
+        include = {field.name for field in fields}
+
+    if exclude is None:
+        exclude = set()
+
+    return TypedDict(
+        clsname,
+        {f.name: f.type for f in fields if f.name in include and f.name not in exclude},
+        total=total,
+    )

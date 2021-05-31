@@ -1,6 +1,6 @@
 import pytest
 
-from fondat.data import copy_data, datacls, make_datacls, derive_datacls
+from fondat.data import copy_data, datacls, make_datacls, derive_datacls, dataclass_typeddict
 from fondat.types import is_optional
 from dataclasses import field, fields
 from typing import Optional
@@ -130,3 +130,33 @@ def test_copy_common():
     copy_data(foo, bar)
     for name in bar.__annotations__:
         assert getattr(bar, name) == getattr(foo, name)
+
+
+def test_copy_mapped():
+    A = make_datacls("A", (("a", str), ("b", str), ("c", str)))
+    B = make_datacls("B", (("d", Optional[str]), ("e", Optional[str]), ("f", Optional[str])))
+    a = A(a="a", b="b", c="c")
+    b = B()
+    copy_data(a, b, {"a": "d", "b": "e", "c": "f"})
+    assert b == B(d="a", e="b", f="c")
+
+
+def test_dataclass_typeddict_simple():
+    DC = make_datacls("A", (("a", str), ("b", int), ("c", float)))
+    TD = dataclass_typeddict("TD", DC)
+    annotations = TD.__annotations__
+    assert annotations["a"] is str
+    assert annotations["b"] is int
+    assert annotations["c"] is float
+
+
+def test_dataclass_typeddict_include():
+    DC = make_datacls("A", (("a", str), ("b", int), ("c", float)))
+    TD = dataclass_typeddict("TD", DC, include={"a", "b"})
+    assert TD.__annotations__.keys() == {"a", "b"}
+
+
+def test_dataclass_typeddict_exclude():
+    DC = make_datacls("A", (("a", str), ("b", int), ("c", float)))
+    TD = dataclass_typeddict("TD", DC, exclude={"a"})
+    assert TD.__annotations__.keys() == {"b", "c"}
