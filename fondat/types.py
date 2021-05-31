@@ -6,7 +6,7 @@ import sys
 import typing
 
 from collections.abc import AsyncIterator, Mapping
-from typing import Any, Union
+from typing import Annotated, Any, Union
 
 
 NoneType = type(None)
@@ -139,25 +139,36 @@ class Example:
 
 def split_annotated(hint):
     """Return a tuple containing the python type and annotations."""
-    if typing.get_origin(hint) is typing.Annotated:
-        args = typing.get_args(hint)
-        return args[0], args[1:]
-    return hint, ()
+    if not typing.get_origin(hint) is typing.Annotated:
+        return hint, ()
+    args = typing.get_args(hint)
+    return args[0], args[1:]
 
 
 def is_optional(hint):
-    """Return if the specified type is optional (i.e. is Union[..., None])."""
+    """Return if the specified type is optional (contains Union[..., None])."""
     python_type, _ = split_annotated(hint)
-    return typing.get_origin(python_type) is Union and NoneType in typing.get_args(python_type)
+    if not typing.get_origin(python_type) is Union:
+        return python_type is NoneType
+    for arg in typing.get_args(python_type):
+        if is_optional(arg):
+            return True
+    return False
 
 
 def strip_optional(hint):
-    """Strip any optionality from the type."""
-    if typing.get_origin(hint) is typing.Union:
-        args = typing.get_args(hint)
-        if NoneType in args:
-            hint = typing.Union[tuple(arg for arg in args if arg is not NoneType)]
-    return hint
+    """Strip optionality from the type."""
+    python_type, annotations = split_annotated(hint)
+    if not typing.get_origin(python_type) is Union:
+        return hint
+    python_type = Union[
+        tuple(
+            strip_optional(arg) for arg in typing.get_args(python_type) if arg is not NoneType
+        )
+    ]
+    if not annotations:
+        return python_type
+    return Annotated[tuple([python_type, *annotations])]
 
 
 def is_subclass(cls, cls_or_tuple):
