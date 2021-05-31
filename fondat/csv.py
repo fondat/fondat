@@ -6,13 +6,12 @@ spreadsheets: currency, percent, number. These encoders can also be configured t
 to a specific decimal precision.
 """
 
-import csv
 import dataclasses
-import io
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Mapping, Sequence
 from fondat.codec import Codec, String, get_codec
-from fondat.types import is_optional
+from fondat.data import dataclass_typeddict
+from fondat.types import is_optional, is_subclass
 from typing import Any, Optional, get_type_hints
 
 
@@ -103,57 +102,121 @@ def fixed_codec(python_type: Any, precision: int):
     return FixedCodec()
 
 
-def dataclass_row_codec(
-    dataclass: Any,
-    columns: Iterable[str] = None,
-    fields: Mapping[str, str] = None,
+def typeddict_codec(
+    typeddict: Any,
+    columns: Sequence[str] = None,
+    keys: Mapping[str, str] = None,
     codecs: Mapping[str, Any] = None,
 ):
     """
-    Return a codec that encodes/decodes a dataclass to/from a CSV row.
+    Return a codec that encodes/decodes a typed dictionary to/from a CSV row. A CSV row is
+    represented as a list of strings.
 
     Parameters:
-    • dataclass: dataclass type to encode/decode
-    • columns: ordered column names
-    • fields: column-to-field mappings
-    • codecs: column-to-codec mappings
-
-    A row is list of strings.
+    • typeddict: TypedDict type to encode/decode
+    • columns: sequence of column names
+    • keys: mapping between columns and dictionary keys
+    • codecs: mapping between columns and codecs
 
     The columns parameter specifies the names of CSV columns, and the order they are encoded
-    in a row. If the columns parameter is omitted, then columns will be all dataclass
-    fields, in the order they are defined in the dataclass.
+    in a row. If the columns parameter is omitted, then columns will be all dictionary keys,
+    in the order they are defined in the TypedDict.
 
-    The fields mapping specifies which database fields map to which columns. If no mapping for
-    a given column is specified, then the column name will match the field name.
+    The keys mapping specifies the mapping between columns and dictionary keys. If no mapping
+    for a given column is specified, then the column will map the to dictionary key of the
+    same name.
 
     The codecs mapping specifies which codecs are used to encode columns. If no mapping for a
     given column is provided, then the default codec for its associated field is used.
     """
 
-    if not dataclasses.is_dataclass(dataclass):
-        raise TypeError("dataclass parameter must be a dataclass")
+    if not is_subclass(typeddict, dict) or getattr(typeddict, "__annotations__", None) is None:
+        raise TypeError("typeddict parameter must be a TypedDict")
 
-    hints = get_type_hints(dataclass, include_extras=True)
+    hints = get_type_hints(typeddict, include_extras=True)
 
     if columns is None:
         columns = tuple(key for key in hints.keys())
 
-    if fields is None:
-        fields = {field: field for field in hints}
+    if keys is None:
+        keys = {key: key for key in hints}
 
-    fields = {column: field for column, field in fields.items() if column in columns}
+    keys = {column: key for column, key in keys.items() if column in columns}
 
     if codecs is None:
         codecs = {}
 
     codecs = {
-        column: codecs.get(column, get_codec(String, hints[fields[column]]))
+        column: codecs.get(column, get_codec(String, hints[keys[column]]))
         for column in columns
-        if column in fields
+        if column in keys
     }
 
-    optional_fields = {field for field in fields if is_optional(hints[field])}
+    optional_fields = {key for key in keys if is_optional(hints[key])}
+
+    class TypedDictRowCodec(Codec[typeddict, list[str]]):
+        """Encodes/decodes a dataclass to/from a CSV row."""
+
+        def encode(self, value: typeddict) -> list[str]:
+            """
+            Encode from dataclass to row.
+
+            If a field value is None, it will be represented in a column as an empty string.
+            """
+            return [codecs[column].encode(value.get(keys[column])) for column in columns]
+
+        def decode(self, values: list[str]) -> typeddict:
+            """
+            Decode from row to dataclass.
+
+            If a column to decode contains an empty string value, it will be represented as
+            None if the associated field is optional.
+            """
+            items = {}
+            for column, value in zip(columns, values):
+                key = keys.get(column)
+                if not key:  # ignore unmapped column
+                    continue
+                if value == "" and key in optional_fields:
+                    items[key] = None
+                else:
+                    items[key] = codecs[column].decode(value)
+            return typeddict(items)
+
+    return TypedDictRowCodec()
+
+
+def dataclass_codec(
+    dataclass: Any,
+    columns: Sequence[str] = None,
+    fields: Mapping[str, str] = None,
+    codecs: Mapping[str, Any] = None,
+):
+    """
+    Return a codec that encodes/decodes a dataclass to/from a CSV row. A CSV row is
+    represented as a list of strings.
+
+    Parameters:
+    • dataclass: dataclass type to encode/decode
+    • columns: ordered column names
+    • fields: mapping between row columns and dataclass fields
+    • codecs: mapping between columns and codecs
+
+    The columns parameter specifies the names of CSV columns, and the order they are encoded
+    in a row. If the columns parameter is omitted, then columns will be all dataclass
+    fields, in the order they are defined in the dataclass.
+
+    The fields mapping specifies the mapping between column names and dictionary keys. If no
+    mapping for a given column is specified, then the column will map to the field name of
+    the same name.
+
+    The codecs mapping specifies which codecs are used to encode columns. If no mapping for a
+    given column is provided, then the default codec for its associated field is used.
+    """
+
+    td_codec = typeddict_codec(
+        dataclass_typeddict("TD", dataclass), columns=columns, keys=fields, codecs=codecs
+    )
 
     class DataclassRowCodec(Codec[dataclass, list[str]]):
         """Encodes/decodes a dataclass to/from a CSV row."""
@@ -164,7 +227,7 @@ def dataclass_row_codec(
 
             If a field value is None, it will be represented in a column as an empty string.
             """
-            return [codecs[column].encode(getattr(value, fields[column])) for column in columns]
+            return td_codec.encode(dataclasses.asdict(value))
 
         def decode(self, values: list[str]) -> dataclass:
             """
@@ -173,16 +236,6 @@ def dataclass_row_codec(
             If a column to decode contains an empty string value, it will be represented as
             None if the associated field is optional.
             """
-            kwargs = {}
-            for column, value in zip(columns, values):
-                field = fields.get(column)
-                if not field:  # ignore unmapped column
-                    continue
-                hint = hints[field]
-                if value == "" and field in optional_fields:
-                    kwargs[field] = None
-                else:
-                    kwargs[field] = codecs[column].decode(value)
-            return dataclass(**kwargs)
+            return dataclass(**td_codec.decode(values))
 
     return DataclassRowCodec()
