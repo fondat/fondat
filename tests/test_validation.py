@@ -410,22 +410,27 @@ def test_typeddict_error():
         validate(dict(c="str"), TD)
 
 
-def test_typeddict_required_success():
+def test_typeddict_total_success():
     TD = TypedDict("TD", e=float)
     validate(dict(e=1.2), TD)
 
 
-def test_typeddict_required_error():
+def test_typeddict_total_error():
     TD = TypedDict("TD", f=str)
     with pytest.raises(ValueError):
         validate(dict(), TD)
 
 
-def test_typeddict_optional_success():
+def test_typeddict_total_false():
     class TD(TypedDict, total=False):
         l: str
 
     validate(dict(), TD)
+
+
+def test_typeddict_optional():
+    TD = TypedDict("TD", {"a": Optional[str]})
+    validate(dict(a=None), TD)
 
 
 # -- decorators -----
