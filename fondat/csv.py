@@ -157,13 +157,16 @@ def typeddict_codec(
     class TypedDictRowCodec(Codec[typeddict, list[str]]):
         """Encodes/decodes a dataclass to/from a CSV row."""
 
+        def __init__(self, columns: Sequence[str]):
+            self.columns = columns
+
         def encode(self, value: typeddict) -> list[str]:
             """
             Encode from dataclass to row.
 
             If a field value is None, it will be represented in a column as an empty string.
             """
-            return [codecs[column].encode(value.get(keys[column])) for column in columns]
+            return [codecs[column].encode(value.get(keys[column])) for column in self.columns]
 
         def decode(self, values: list[str]) -> typeddict:
             """
@@ -173,17 +176,24 @@ def typeddict_codec(
             None if the associated field is optional.
             """
             items = {}
-            for column, value in zip(columns, values):
+            for column, value in zip(self.columns, values):
                 key = keys.get(column)
                 if not key:  # ignore unmapped column
                     continue
                 if value == "" and key in optional_fields:
                     items[key] = None
                 else:
-                    items[key] = codecs[column].decode(value)
+                    try:
+                        items[key] = codecs[column].decode(value)
+                    except (TypeError, ValueError) as e:
+                        msg = f"in {column}"
+                        if not e.args:
+                            e.args = msg
+                        else:
+                            e.args[0] += msg
             return typeddict(items)
 
-    return TypedDictRowCodec()
+    return TypedDictRowCodec(columns=columns)
 
 
 def dataclass_codec(
@@ -221,6 +231,9 @@ def dataclass_codec(
     class DataclassRowCodec(Codec[dataclass, list[str]]):
         """Encodes/decodes a dataclass to/from a CSV row."""
 
+        def __init__(self, columns: Sequence[str]):
+            self.columns = columns
+
         def encode(self, value: dataclass) -> list[str]:
             """
             Encode from dataclass to row.
@@ -238,4 +251,4 @@ def dataclass_codec(
             """
             return dataclass(**td_codec.decode(values))
 
-    return DataclassRowCodec()
+    return DataclassRowCodec(td_codec.columns)

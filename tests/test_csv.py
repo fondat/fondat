@@ -192,6 +192,12 @@ def test_dc_decode_empty_columns():
     assert dcc.decode(["", ""]) == DC(a=None, b="")
 
 
+def test_dc_columns():
+    DC = make_dataclass("DC", (("a", str), ("b", str)))
+    dcc = dataclass_codec(dataclass=DC)
+    assert dcc.columns == ("a", "b")
+
+
 def test_td_encode():
     TD = TypedDict("TD", {"x": int, "y": float, "z": date})
     codecs = {"y": percent_codec(int, 2)}
@@ -218,3 +224,9 @@ def test_td_encode_missing_none():
     TD = TypedDict("TD", {"x": Optional[str], "y": str}, total=False)
     tdc = typeddict_codec(typeddict=TD)
     assert tdc.encode({"y": ""}) == ["", ""]
+
+
+def test_td_columns():
+    TD = TypedDict("TD", {"x": str, "y": str})
+    tdc = typeddict_codec(typeddict=TD)
+    assert tdc.columns == ("x", "y")
