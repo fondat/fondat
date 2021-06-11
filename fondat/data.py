@@ -110,6 +110,7 @@ def derive_datacls(
     Return a new dataclass with fields derived from another dataclass.
 
     Parameters:
+    • cls_name: the name of the new dataclass
     • dataclass: dataclass to derive fields from
     • include: the names of dataclass fields to include  [all]
     • exclude: the names of dataclass fields to exclude  [none]
@@ -163,7 +164,7 @@ def derive_datacls(
 def copy_data(
     source: Any,
     target: Any,
-    fields: Union[Mapping[str, str], Iterable[str]] = None,
+    fields: Union[Iterable[str], Mapping[str, str]] = None,
 ):
     """
     Copy data from one instance of a dataclass to another.
@@ -171,7 +172,7 @@ def copy_data(
     Parameters:
     • source: instance to copy data from
     • target: instance to copy data to
-    • fields: names of fields to be copied
+    • fields: names or mappings of fields to be copied
 
     The source and target dataclass instances do not have to be of the same type. This
     function makes no attempt to ensure type compatibility between dataclass fields.
@@ -198,7 +199,7 @@ def copy_data(
 
 
 def dataclass_typeddict(
-    clsname: str,
+    type_name: str,
     dataclass: type,
     include: set[str] = None,
     exclude: set[str] = None,
@@ -208,10 +209,11 @@ def dataclass_typeddict(
     Generate a TypedDict type from a dataclass.
 
     Parameters:
+    • type_name: the name of the new TypedDict type
     • dataclass: dataclass to derive dictionary keys from
     • include: the names of dataclass fields to include  [all]
     • exclude: the names of dataclass fields to exclude  [none]
-    • total: should all keys be present in the TypedDict
+    • total: must all keys be present in the TypedDict
     """
 
     fields = dataclasses.fields(dataclass)
@@ -223,7 +225,7 @@ def dataclass_typeddict(
         exclude = set()
 
     return TypedDict(
-        clsname,
+        type_name,
         {f.name: f.type for f in fields if f.name in include and f.name not in exclude},
         total=total,
     )
