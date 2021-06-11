@@ -14,8 +14,8 @@ class Scheme:
 
 class Policy:
     """
-    A group of authentication schemes and authorization rules. For a security policy to allow
-    an operation to be performed, all authentication schemes must be satisfied and all
+    A combination of authentication schemes and authorization rules. For a security policy to
+    allow an operation to be performed, all authentication schemes must be satisfied and all
     authorization rules must pass.
 
     Parameters and attributes:
