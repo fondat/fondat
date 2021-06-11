@@ -12,6 +12,7 @@ import typing
 import wrapt
 
 from collections.abc import Callable, Iterable, Mapping
+from fondat.error import amend_exception
 from fondat.types import NoneType, is_instance, is_subclass, split_annotated
 from typing import Annotated, Any, Literal, Union
 
@@ -173,13 +174,13 @@ def _validate(value, type_hint):
 
     # basic type validation
     if origin and not is_instance(value, origin):
-        raise TypeError(f"expecting {origin.__name__}; got {value}")
+        raise TypeError(f"expecting {origin.__name__}; got {type(value)}")
     elif not origin and not is_instance(value, python_type):
-        raise TypeError(f"expecting {python_type}; got {value}")
+        raise TypeError(f"expecting {python_type}; got {type(value)}")
     elif python_type is int and is_instance(value, bool):  # bool is subclass of int
         raise TypeError("expecting int; got bool")
     elif is_subclass(origin, Iterable) and is_instance(value, (str, bytes, bytearray)):
-        raise TypeError(f"expecting Iterable; got {value}")
+        raise TypeError(f"expecting Iterable; got {type(value)}")
 
     # structured type validation
     if is_subclass(python_type, dict) and hasattr(python_type, "__annotations__"):
@@ -195,15 +196,8 @@ def _validate(value, type_hint):
 def validate(value: Any, type_hint: Any, where: str = None) -> NoneType:
     """Validate a value."""
 
-    try:
+    with amend_exception(exceptions=(TypeError, ValueError), append=where):
         _validate(value, type_hint)
-    except (TypeError, ValueError) as e:
-        if where:
-            if not e.args:
-                e.args = (where,)
-            else:
-                e.args = (f"{e.args[0]} {where}", *e.args[1:])
-        raise
 
 
 def validate_arguments(callable: Callable):
