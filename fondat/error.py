@@ -6,6 +6,7 @@ Error classes are dynamically generated from all errors in the http.HTTPStatus e
 
 import http
 
+from collections.abc import Iterable
 from contextlib import contextmanager
 from fondat.types import is_instance
 from typing import Union
@@ -82,3 +83,26 @@ def reraise(exceptions, replacement):
         yield
     except exceptions as e:
         raise replacement from e
+
+
+@contextmanager
+def amend_exception(
+    *,
+    exceptions: Union[Exception, tuple[Exception]],
+    append: str,
+):
+    """
+    Context manager that catches exception(s) and amends the exception's first argument.
+
+    Parameters:
+    • exceptions: exception class or tuple of exception classes to be caught
+    • append: string to append to exception's first argument
+    """
+    try:
+        yield
+    except exceptions as e:
+        if not e.args:
+            e.args = append
+        else:
+            e.args = (f"{e.args[0]} {append}", *e.args[1:])
+        raise
