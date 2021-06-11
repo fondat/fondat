@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import fondat.patch
+import fondat.security
 import fondat.types
 import logging
 import typing
 
-from collections.abc import AsyncIterator, Iterable, Mapping
-from contextlib import AbstractAsyncContextManager
-from dataclasses import dataclass, is_dataclass, make_dataclass
-from fondat.resource import resource, operation
+from collections.abc import AsyncIterator, Iterable, Sequence
+from dataclasses import dataclass, is_dataclass
+from fondat.codec import get_codec, Binary
+from fondat.data import datacls
+from fondat.resource import resource, operation, query
 from typing import Annotated, Any, Optional, TypedDict, Union
 
 
@@ -224,7 +226,7 @@ class Table:
         *,
         columns: Union[Iterable[str], str] = None,
         where: Statement = None,
-        order: str = None,
+        order: Union[Sequence[str], str] = None,
         limit: int = None,
         offset: int = None,
     ) -> AsyncIterator[Any]:
@@ -239,12 +241,14 @@ class Table:
         • limit: limit the number of results returned, or None to not limit
         • offset: number of rows to skip, or None to skip none
 
-        Columns can be specified as an iterable of column names, or as a string containing
-        comma-separated names.
+        This coroutine must be called within a database transaction.
         """
 
         if isinstance(columns, str):
             columns = columns.replace(",", " ").split()
+
+        if order is not None and not isinstance(order, str):
+            order = ", ".join(order)
 
         result = TypedDict(
             "Columns",
@@ -260,7 +264,7 @@ class Table:
             stmt.statement(where)
         if order:
             stmt.text(" ORDER BY ")
-            stmt.text(", ".join(order))
+            stmt.text(order)
         if limit is not None:
             stmt.text(f" LIMIT {limit}")
         if offset:
@@ -284,8 +288,8 @@ class Table:
             stmt.statement(where)
         stmt.text(";")
         stmt.result = TypedDict("Result", {"count": int})
-        result = await self.database.execute(stmt)
         async with self.database.transaction():
+            result = await self.database.execute(stmt)
             return (await result.__anext__())["count"]
 
     async def insert(self, value: Any) -> None:
@@ -302,6 +306,7 @@ class Table:
             ", ",
         )
         stmt.text(");")
+        _logger.debug(f"GONNA insert: {stmt}")
         async with self.database.transaction():
             await self.database.execute(stmt)
 
@@ -389,3 +394,100 @@ class Index:
         stmt.text(f"DROP INDEX {self.name};")
         async with self.table.database.transaction():
             await self.table.database.execute(stmt)
+
+
+def row_resource(
+    table: Table,
+    policies: Iterable[fondat.security.Policy] = None,
+) -> type:
+    """Return a base class for a row resource."""
+
+    @resource
+    class BaseRowResource:
+        def __init__(self, pk: table.columns[table.pk]):
+            self.table = table
+            self.pk = pk
+
+        @operation(policies=policies)
+        async def get(self) -> table.schema:
+            if row := await table.read(self.pk):
+                return row
+            raise fondat.error.NotFoundError
+
+        @operation(policies=policies)
+        async def put(self, value: table.schema):
+            """..."""
+            if getattr(value, table.pk) != self.pk:
+                raise fondat.error.BadRequest("value and resource primary key must match")
+            if not await self.exists():
+                await table.insert(value)
+            else:
+                await table.update(value)
+
+        @operation(policies=policies)
+        async def patch(self, body: Any):
+            """..."""
+            if not await self.exists():  # must update an existing row
+                raise fondat.error.NotFoundError
+            raise fondat.error.InternalServerError
+
+        @operation(policies=policies)
+        async def delete(self) -> None:
+            """..."""
+            await table.delete(self.pk)
+
+        @query(policies=policies)
+        async def exists(self) -> bool:
+            """Return True if a row exists in the table."""
+            where = Statement()
+            where.text(f"{table.pk} = ")
+            where.param(self.pk, table.columns[table.pk])
+            return await table.count(where) != 0
+
+    fondat.types.affix_type_hints(BaseRowResource, localns=locals())
+    return BaseRowResource
+
+
+def table_resource(
+    table: Table,
+    row_resource_type: type,
+    policies: Iterable[fondat.security.Policy] = None,
+) -> type:
+    """Return a base class for a table resource."""
+
+    @datacls
+    class Page:
+        items: list[table.schema]
+        cursor: Optional[bytes] = None
+
+    pk_type = table.columns[table.pk]
+    cursor_codec = get_codec(Binary, pk_type)
+
+    class BaseTableResource:
+        """..."""
+
+        def __getitem__(self, pk: pk_type) -> row_resource_type:
+            return row_resource_type(pk)
+
+        def __init__(self):
+            self.table = table
+
+        @operation(policies=policies)
+        async def get(self, limit: int = None, cursor: bytes = None) -> Page:
+            if cursor is not None:
+                where = Statement()
+                where.text("{table.pk} > ")
+                where.param(pk_type, cursor_codec.decode(cursor))
+            else:
+                where = None
+            results = table.select(order=table.pk, limit=limit, where=where)
+            items = ([table.schema(**row) for row in results],)
+            cursor = (
+                cursor_codec.encode(getattr(items[-1], table.pk))
+                if limit and len(items)
+                else None
+            )
+            return Page(items=items, cursor=cursor)
+
+    fondat.types.affix_type_hints(BaseTableResource, localns=locals())
+    return BaseTableResource

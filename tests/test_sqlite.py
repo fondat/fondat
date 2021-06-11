@@ -1,20 +1,20 @@
 import pytest
 
-import dataclasses
+import fondat.error
 import fondat.sql as sql
 import fondat.sqlite as sqlite
 import tempfile
 
-from dataclasses import dataclass
 from datetime import date, datetime
-from typing import Annotated, Optional, TypedDict
+from fondat.data import datacls
+from typing import Optional, TypedDict
 from uuid import UUID, uuid4
 
 
 pytestmark = pytest.mark.asyncio
 
 
-@dataclass
+@datacls
 class DC:
     key: UUID
     str_: Optional[str]
@@ -44,7 +44,7 @@ async def table(database):
     await foo.drop()
 
 
-async def test_crud(table):
+async def test_table_crud(table):
     row = DC(
         key=uuid4(),
         str_="string",
@@ -77,12 +77,12 @@ async def test_crud(table):
 
 
 async def test_binary(database):
-    @dataclass
+    @datacls
     class Bin:
         key: UUID
         bin: bytes
 
-    row = Bin(uuid4(), b"\x01\x02\x03\x04\x05")
+    row = Bin(key=uuid4(), bin=b"\x01\x02\x03\x04\x05")
     table = sql.Table("bin", database, Bin, "key")
     async with database.transaction():
         await table.create()
@@ -149,3 +149,56 @@ async def test_index(table):
     index = sql.Index("foo_ix_str", table, ("str_",))
     await index.create()
     await index.drop()
+
+
+async def test_select_order(table):
+    async with table.database.transaction():
+        await table.insert(DC(key=uuid4(), str_="B", int_=1))
+        await table.insert(DC(key=uuid4(), str_="B", int_=2))
+        await table.insert(DC(key=uuid4(), str_="A"))
+        await table.insert(DC(key=uuid4(), str_="C"))
+        keys = [row["str_"] async for row in await table.select(order="str_")]
+        assert keys == ["A", "B", "B", "C"]
+        keys = [
+            (row["str_"], row["int_"])
+            async for row in await table.select(order=["str_", "int_"])
+        ]
+        assert keys == [("A", None), ("B", 1), ("B", 2), ("C", None)]
+        keys = [
+            (row["str_"], row["int_"]) async for row in await table.select(order="str_, int_")
+        ]
+        assert keys == [("A", None), ("B", 1), ("B", 2), ("C", None)]
+
+
+async def test_resource_crud(table):
+    pk = uuid4()
+    resource = sql.table_resource(table, sql.row_resource(table))()[pk]
+    row = DC(
+        key=pk,
+        str_="string",
+        dict_={"a": 1},
+        list_=[1, 2, 3],
+        set_={"foo", "bar"},
+        int_=1,
+        float_=2.3,
+        bool_=True,
+        bytes_=b"12345",
+        date_=date.fromisoformat("2019-01-01"),
+        datetime_=datetime.fromisoformat("2019-01-01T01:01:01+00:00"),
+    )
+    await resource.put(row)
+    assert await resource.get() == row
+    row.dict_ = {"a": 2}
+    row.list_ = [2, 3, 4]
+    row.set_ = None
+    row.int_ = 2
+    row.float_ = 1.0
+    row.bool_ = False
+    row.bytes_ = None
+    row.date_ = None
+    row.datetime_ = None
+    await resource.put(row)
+    assert await resource.get() == row
+    await resource.delete()
+    with pytest.raises(fondat.error.NotFoundError):
+        await resource.get()
