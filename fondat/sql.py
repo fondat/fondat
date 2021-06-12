@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import fondat.error
 import fondat.patch
 import fondat.security
 import fondat.types
@@ -422,7 +423,7 @@ def row_resource(
         async def put(self, value: table.schema):
             """Insert or update (upsert) row."""
             if getattr(value, table.pk) != self.pk:
-                raise fondat.error.BadRequest("value and resource primary key must match")
+                raise fondat.error.BadRequestError(f"{table.pk} must match primary key")
             if not await self.exists():
                 await table.insert(value)
             else:
@@ -435,6 +436,8 @@ def row_resource(
             new = fondat.patch.json_merge_patch(value=old, type=table.schema, patch=body)
             if old == new:
                 return
+            if getattr(new, table.pk) != getattr(old, table.pk):
+                raise fondat.error.BadRequestError(f"cannot modify {table.pk}")
             stmt = Statement()
             stmt.text(f"UPDATE {table.name} SET ")
             updates = []
@@ -479,6 +482,8 @@ def table_resource(
         items: list[table.schema]
         cursor: Optional[bytes] = None
 
+    fondat.types.affix_type_hints(Page, localns=locals())
+
     pk_type = table.columns[table.pk]
     cursor_codec = get_codec(Binary, pk_type)
 
@@ -500,8 +505,9 @@ def table_resource(
                 where.param(pk_type, cursor_codec.decode(cursor))
             else:
                 where = None
-            results = table.select(order=table.pk, limit=limit, where=where)
-            items = ([table.schema(**row) for row in results],)
+            async with table.database.transaction():
+                results = await table.select(order=table.pk, limit=limit, where=where)
+                items = [table.schema(**result) async for result in results]
             cursor = (
                 cursor_codec.encode(getattr(items[-1], table.pk))
                 if limit and len(items)

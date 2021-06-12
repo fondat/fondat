@@ -229,6 +229,24 @@ async def test_resource_patch(table):
     assert await resource.get() == row
 
 
+async def test_update_invalid_pk(table):
+    pk = uuid4()
+    resource = sql.table_resource(table, sql.row_resource(table))()[pk]
+    row = DC(key=uuid4(), str_="string")  # different pk
+    with pytest.raises(fondat.error.BadRequestError):
+        await resource.put(row)
+
+
+async def test_patch_pk(table):
+    pk = uuid4()
+    resource = sql.table_resource(table, sql.row_resource(table))()[pk]
+    row = DC(key=pk, str_="string")
+    await resource.put(row)
+    patch = {"key": str(uuid4())}  # modify pk
+    with pytest.raises(fondat.error.BadRequestError):
+        await resource.patch(patch)
+
+
 def test_consecutive_loop(database):
     async def select():
         stmt = sql.Statement()
@@ -254,3 +272,13 @@ async def test_gather(database):
             assert result.foo == n
 
     await asyncio.gather(*[select(n) for n in range(0, count)])
+
+
+async def test_list(table):
+    resource = sql.table_resource(table, sql.row_resource(table))()
+    count = 5
+    for n in range(0, count):
+        key = uuid4()
+        await resource[key].put(DC(key=key, int_=n))
+    results = await resource.get()
+    assert len(results.items) == count
