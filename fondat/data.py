@@ -4,7 +4,7 @@ import dataclasses
 import typing
 
 from collections.abc import Iterable, Mapping
-from fondat.types import is_optional
+from fondat.types import is_optional, split_annotated
 from typing import Any, Optional, TypedDict, Union
 
 
@@ -201,6 +201,7 @@ def copy_data(
 def dataclass_typeddict(
     type_name: str,
     dataclass: type,
+    *,
     include: set[str] = None,
     exclude: set[str] = None,
     total: bool = True,
@@ -216,6 +217,7 @@ def dataclass_typeddict(
     • total: must all keys be present in the TypedDict
     """
 
+    dataclass, _ = split_annotated(dataclass)
     fields = dataclasses.fields(dataclass)
 
     if include is None:
