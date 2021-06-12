@@ -402,9 +402,13 @@ def row_resource(
 ) -> type:
     """Return a base class for a row resource."""
 
+    pk_type = table.columns[table.pk]
+
     @resource
-    class BaseRowResource:
-        def __init__(self, pk: table.columns[table.pk]):
+    class RowResource:
+        """Row resource."""
+
+        def __init__(self, pk: pk_type):
             self.table = table
             self.pk = pk
 
@@ -416,7 +420,7 @@ def row_resource(
 
         @operation(policies=policies)
         async def put(self, value: table.schema):
-            """..."""
+            """Insert or update (upsert) row."""
             if getattr(value, table.pk) != self.pk:
                 raise fondat.error.BadRequest("value and resource primary key must match")
             if not await self.exists():
@@ -425,27 +429,42 @@ def row_resource(
                 await table.update(value)
 
         @operation(policies=policies)
-        async def patch(self, body: Any):
-            """..."""
-            if not await self.exists():  # must update an existing row
-                raise fondat.error.NotFoundError
-            raise fondat.error.InternalServerError
+        async def patch(self, body: dict[str, Any]):
+            """Modify row."""
+            old = await self.get()
+            new = fondat.patch.json_merge_patch(value=old, type=table.schema, patch=body)
+            if old == new:
+                return
+            stmt = Statement()
+            stmt.text(f"UPDATE {table.name} SET ")
+            updates = []
+            for name, python_type in table.columns.items():
+                if getattr(old, name) != getattr(new, name):
+                    update = Statement()
+                    update.text(f"{name} = ")
+                    update.param(getattr(new, name), python_type)
+                    updates.append(update)
+            stmt.statements(updates, ", ")
+            stmt.text(f" WHERE {table.pk} = ")
+            stmt.param(self.pk, pk_type)
+            async with table.database.transaction():
+                await table.database.execute(stmt)
 
         @operation(policies=policies)
         async def delete(self) -> None:
-            """..."""
+            """Delete row."""
             await table.delete(self.pk)
 
         @query(policies=policies)
         async def exists(self) -> bool:
-            """Return True if a row exists in the table."""
+            """Return if row exists."""
             where = Statement()
             where.text(f"{table.pk} = ")
             where.param(self.pk, table.columns[table.pk])
             return await table.count(where) != 0
 
-    fondat.types.affix_type_hints(BaseRowResource, localns=locals())
-    return BaseRowResource
+    fondat.types.affix_type_hints(RowResource, localns=locals())
+    return RowResource
 
 
 def table_resource(
@@ -463,8 +482,8 @@ def table_resource(
     pk_type = table.columns[table.pk]
     cursor_codec = get_codec(Binary, pk_type)
 
-    class BaseTableResource:
-        """..."""
+    class TableResource:
+        """Table resource."""
 
         def __getitem__(self, pk: pk_type) -> row_resource_type:
             return row_resource_type(pk)
@@ -474,6 +493,7 @@ def table_resource(
 
         @operation(policies=policies)
         async def get(self, limit: int = None, cursor: bytes = None) -> Page:
+            """Get paginated list of rows."""
             if cursor is not None:
                 where = Statement()
                 where.text("{table.pk} > ")
@@ -489,5 +509,5 @@ def table_resource(
             )
             return Page(items=items, cursor=cursor)
 
-    fondat.types.affix_type_hints(BaseTableResource, localns=locals())
-    return BaseTableResource
+    fondat.types.affix_type_hints(TableResource, localns=locals())
+    return TableResource

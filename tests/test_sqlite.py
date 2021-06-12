@@ -1,12 +1,14 @@
 import pytest
 
+import asyncio
 import fondat.error
+import fondat.patch
 import fondat.sql as sql
 import fondat.sqlite as sqlite
 import tempfile
 
 from datetime import date, datetime
-from fondat.data import datacls
+from fondat.data import datacls, make_datacls
 from typing import Optional, TypedDict
 from uuid import UUID, uuid4
 
@@ -18,7 +20,7 @@ pytestmark = pytest.mark.asyncio
 class DC:
     key: UUID
     str_: Optional[str]
-    dict_: Optional[TypedDict("TD", {"a": int})]
+    dict_: Optional[TypedDict("TD", {"a": Optional[int], "b": Optional[int]}, total=False)]
     list_: Optional[list[int]]
     set_: Optional[set[str]]
     int_: Optional[int]
@@ -202,3 +204,53 @@ async def test_resource_crud(table):
     await resource.delete()
     with pytest.raises(fondat.error.NotFoundError):
         await resource.get()
+
+
+async def test_resource_patch(table):
+    pk = uuid4()
+    resource = sql.table_resource(table, sql.row_resource(table))()[pk]
+    row = DC(
+        key=pk,
+        str_="string",
+        dict_={"a": 1},
+        list_=[1, 2, 3],
+        set_={"foo", "bar"},
+        int_=1,
+        float_=2.3,
+        bool_=True,
+        bytes_=b"12345",
+        date_=date.fromisoformat("2019-01-01"),
+        datetime_=datetime.fromisoformat("2019-01-01T01:01:01+00:00"),
+    )
+    await resource.put(row)
+    patch = {"str_": "new_string", "dict_": {"a": None, "b": 2}}
+    await resource.patch(patch)
+    row = fondat.patch.json_merge_patch(value=row, type=DC, patch=patch)
+    assert await resource.get() == row
+
+
+def test_consecutive_loop(database):
+    async def select():
+        stmt = sql.Statement()
+        stmt.text("SELECT 1 AS foo;")
+        stmt.result = make_datacls("DC", (("foo", int),))
+        async with database.transaction() as transaction:
+            result = await (await database.execute(stmt)).__anext__()
+            assert result.foo == 1
+
+    asyncio.run(select())
+    asyncio.run(select())
+
+
+async def test_gather(database):
+    count = 50
+
+    async def select(n: int):
+        stmt = sql.Statement()
+        stmt.text(f"SELECT {n} AS foo;")
+        stmt.result = make_datacls("DC", (("foo", int),))
+        async with database.transaction() as transaction:
+            result = await (await database.execute(stmt)).__anext__()
+            assert result.foo == n
+
+    await asyncio.gather(*[select(n) for n in range(0, count)])
