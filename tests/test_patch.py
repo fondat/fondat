@@ -2,7 +2,7 @@ import pytest
 
 
 from dataclasses import make_dataclass, field
-from fondat.patch import json_merge_patch
+from fondat.patch import json_merge_patch, json_merge_diff
 from typing import Optional
 
 
@@ -63,3 +63,20 @@ def test_merge_patch_dc_nested_delete():
     assert json_merge_patch(type=DC1, value=DC1(a=DC2(b="c")), patch={"a": {"b": None}}) == DC1(
         a=DC2(b=None)
     )
+
+
+def test_merge_diff_rfc_7386_test_cases():
+    assert json_merge_diff(old={"a": "b"}, new={"a": "c"}) == {"a": "c"}
+    assert json_merge_diff(old={"a": "b"}, new={"a": "b", "b": "c"}) == {"b": "c"}
+    assert json_merge_diff(old={"a": "b"}, new={}) == {"a": None}
+    assert json_merge_diff(old={"a": "b", "b": "c"}, new={"b": "c"}) == {"a": None}
+    assert json_merge_diff(old={"a": ["b"]}, new={"a": "c"}) == {"a": "c"}
+    assert json_merge_diff(old={"a": "c"}, new={"a": ["b"]}) == {"a": ["b"]}
+    assert json_merge_diff(old={"a": {"b": "c"}}, new={"a": {"b": "d"}}) == {"a": {"b": "d"}}
+    assert json_merge_diff(old={"a": [{"b": "c"}]}, new={"a": [1]}) == {"a": [1]}
+    assert json_merge_diff(old=["a", "b"], new=["c", "d"]) == ["c", "d"]
+    assert json_merge_diff(old={"a": "b"}, new=["c"]) == ["c"]
+    assert json_merge_diff(old={"a": "foo"}, new=None) == None
+    assert json_merge_diff(old={"a": "foo"}, new="bar") == "bar"
+    assert json_merge_diff(old={"e": None}, new={"e": None, "a": 1}) == {"a": 1}
+    assert json_merge_diff(old={}, new={"a": {"bb": {}}}) == {"a": {"bb": {}}}

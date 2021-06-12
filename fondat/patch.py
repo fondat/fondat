@@ -33,3 +33,28 @@ def json_merge_patch(*, value: Any, type: type = Any, patch: Any) -> Any:
     """
     codec = get_codec(JSON, type)
     return codec.decode(_json_merge_patch(codec.encode(value), patch))
+
+
+def _json_merge_diff(old: Any, new: Any) -> Any:
+    if isinstance(old, collections.abc.Mapping) and isinstance(new, collections.abc.Mapping):
+        diff = {}
+        for key in new:
+            if key in old:
+                old_value = old[key]
+                new_value = new[key]
+                if new_value != old_value:
+                    if (d := _json_merge_diff(old_value, new_value)) != {}:
+                        diff[key] = d
+            else:
+                diff[key] = new[key]
+        for key in old:
+            if key not in new:
+                diff[key] = None
+        return diff
+    else:
+        return new
+
+
+def json_merge_diff(*, old: Any, new: Any, type: type = Any) -> Any:
+    codec = get_codec(JSON, type)
+    return _json_merge_diff(codec.encode(old), codec.encode(new))
