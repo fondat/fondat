@@ -14,7 +14,6 @@ import keyword
 import typing
 
 from collections.abc import Iterable, Mapping
-from copy import copy
 from datetime import date, datetime
 from decimal import Decimal
 from fondat.data import datacls

@@ -11,7 +11,6 @@ maintained for different threads and asynchrous tasks.
 """
 
 import contextvars
-import collections.abc
 import datetime
 import uuid
 

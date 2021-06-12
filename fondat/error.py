@@ -6,7 +6,6 @@ Error classes are dynamically generated from all errors in the http.HTTPStatus e
 
 import http
 
-from collections.abc import Iterable
 from contextlib import contextmanager
 from fondat.types import is_instance
 from typing import Union

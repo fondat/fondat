@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-import collections.abc
 import dataclasses
-import enum
 import inspect
 import re
 import typing
@@ -14,7 +12,7 @@ import wrapt
 from collections.abc import Callable, Iterable, Mapping
 from fondat.error import amend_exception
 from fondat.types import NoneType, is_instance, is_subclass, split_annotated
-from typing import Annotated, Any, Literal, Union
+from typing import Any, Literal, Union
 
 
 class Validator:

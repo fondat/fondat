@@ -2,8 +2,6 @@
 
 import logging
 import mimetypes
-import os
-import os.path
 
 from collections.abc import Iterable
 from fondat.codec import Binary, String, get_codec

@@ -9,10 +9,8 @@ import collections
 import fondat.context as context
 import fondat.validation
 import logging
-import math
 import re
 import time
-
 
 from collections.abc import Iterable
 from dataclasses import dataclass

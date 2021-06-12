@@ -13,7 +13,6 @@ import iso8601
 import json
 import keyword
 import logging
-import wrapt
 
 from collections.abc import Iterable, Mapping, Set
 from datetime import date, datetime, timezone

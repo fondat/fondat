@@ -1,11 +1,9 @@
 """Module to to manage various types."""
 
-import dataclasses
 import functools
-import sys
 import typing
 
-from collections.abc import AsyncIterator, Mapping
+from collections.abc import AsyncIterator
 from typing import Annotated, Any, Union
 
 
@@ -14,31 +12,31 @@ NoneType = type(None)
 
 def affix_type_hints(obj=None, *, globalns=None, localns=None, attrs: bool = True):
     """
-    Affixes an object's type hints to the object by materializing evaluated string type hints
-    into the type's __annotations__ attribute.
+        Affixes an object's type hints to the object by materializing evaluated string type hints
+        into the type's __annotations__ attribute.
 
-    This function exists due to PEP 563, in which annotations are stored as strings, are only
-    evaluated when typing.get_type_hints is called; this will be the default behavior of
-    annotations in Python 3.10. The work in PEP 649, if accepted, will likely eliminate the
-    need to affix type hints.
+        This function exists due to PEP 563, in which annotations are stored as strings, are only
+        evaluated when typing.get_type_hints is called; this will be the default behavior of
+        annotations in Python 3.10. The work in PEP 649, if accepted, will likely eliminate the
+        need to affix type hints.
+    ow
+        This function can be applied as a decorator to a class or function.
 
-    This function can be applied as a decorator to a class or function.
+        Parameters:
+        • obj: function, method, module or class object
+        • globalns: global namespace to evaluate type hints
+        • localns: local namespace to evaluate type hints
+        • attrs: affix all of object's attribute type hints
 
-    Parameters:
-    • obj: function, method, module or class object
-    • globalns: global namespace to evaluate type hints
-    • localns: local namespace to evaluate type hints
-    • attrs: affix all of object's attribute type hints
+        Type hints are affixed by first resolving through typing.get_type_hints, then by storing
+        the result in the object's __annotations__ attribute.
 
-    Type hints are affixed by first resolving through typing.get_type_hints, then by storing
-    the result in the object's __annotations__ attribute.
+        If the object is a class, this function will affix annotations from all superclasses into
+        the object annotations.
 
-    If the object is a class, this function will affix annotations from all superclasses into
-    the object annotations.
-
-    Affixation provides the following benefits (under PEP 563):
-    • time and scope of annotation evaluation is under the control of the caller
-    • annotations are not re-evaluated for every call to typing.get_type_hints
+        Affixation provides the following benefits (under PEP 563):
+        • time and scope of annotation evaluation is under the control of the caller
+        • annotations are not re-evaluated for every call to typing.get_type_hints
     """
 
     if obj is None:
