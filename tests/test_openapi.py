@@ -4,11 +4,12 @@ import fondat.http
 import fondat.openapi
 
 from datetime import date
+from fondat.annotation import Description, Example
 from fondat.codec import get_codec, JSON, String
 from fondat.data import datacls
 from fondat.openapi import generate_openapi, openapi_resource
 from fondat.resource import resource, operation, query, mutation, container_resource
-from fondat.types import Description, Example, NoneType
+from fondat.types import NoneType
 from fondat.security import Policy
 from fondat.validation import validate
 from typing import Annotated, Optional, Union

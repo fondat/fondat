@@ -3,8 +3,8 @@ import pytest
 import fondat.resource
 
 from dataclasses import dataclass
+from fondat.annotation import Description
 from fondat.resource import resource, operation, query, mutation
-from fondat.types import Description
 from typing import Annotated, Optional
 from uuid import UUID
 

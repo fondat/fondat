@@ -11,8 +11,7 @@ from dataclasses import make_dataclass
 from fondat.error import InternalServerError, NotFoundError
 from fondat.file import directory_resource, file_resource
 from fondat.pagination import paginate
-from fondat.types import BytesStream
-from pathlib import Path
+from fondat.stream import BytesStream
 from tempfile import TemporaryDirectory
 
 

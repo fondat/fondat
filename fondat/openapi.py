@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import fondat.annotation
 import fondat.codec
 import fondat.http
 import fondat.resource
@@ -355,9 +356,9 @@ def _kwargs(python_type, annotated):
     for annotation in annotated:
         if is_instance(annotation, str):
             kwargs["description"] = annotation
-        elif is_instance(annotation, fondat.types.Description):
+        elif is_instance(annotation, fondat.annotation.Description):
             kwargs["description"] = annotation.value
-        elif is_instance(annotation, fondat.types.Example):
+        elif is_instance(annotation, fondat.annotation.Example):
             fondat.validation.validate(annotation.value, python_type, "in example")
             kwargs["example"] = fondat.codec.get_codec(fondat.codec.JSON, python_type).encode(
                 annotation.value
@@ -821,7 +822,7 @@ class Processor:
         for annotation in annotated:
             if is_instance(annotation, str):
                 return annotation
-            elif is_instance(annotation, fondat.types.Description):
+            elif is_instance(annotation, fondat.annotation.Description):
                 return annotation.value
 
     def schema(self, type_hint, default=None):

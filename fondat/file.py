@@ -9,7 +9,8 @@ from fondat.error import InternalServerError, NotFoundError
 from fondat.http import AsBody
 from fondat.pagination import make_page_dataclass
 from fondat.resource import resource, operation
-from fondat.types import Stream, affix_type_hints
+from fondat.stream import Stream
+from fondat.types import affix_type_hints
 from fondat.security import Policy
 from pathlib import Path
 from typing import Annotated, Any, Union

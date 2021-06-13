@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from fondat.codec import Binary, get_codec
 from fondat.http import Application, AsBody, InBody, Request, Response, simple_error_filter
 from fondat.resource import resource, operation
-from fondat.types import Stream, BytesStream
+from fondat.stream import Stream, BytesStream
 from typing import Annotated
 from uuid import UUID
 

@@ -3,7 +3,7 @@ import pytest
 from fondat.data import copy_data, datacls, make_datacls, derive_datacls, dataclass_typeddict
 from fondat.types import is_optional
 from dataclasses import field, fields
-from typing import Optional
+from typing import Annotated, Optional
 
 
 def test_datacls_optional():
@@ -160,3 +160,10 @@ def test_dataclass_typeddict_exclude():
     DC = make_datacls("A", (("a", str), ("b", int), ("c", float)))
     TD = dataclass_typeddict("TD", DC, exclude={"a"})
     assert TD.__annotations__.keys() == {"b", "c"}
+
+
+def test_annotated_dataclass_typeddict():
+    DC = make_datacls("A", (("a", str),))
+    A = Annotated[DC, "annotated"]
+    TD = dataclass_typeddict("TD", A)
+    assert TD.__annotations__.keys() == DC.__annotations__.keys()

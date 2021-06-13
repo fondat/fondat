@@ -5,7 +5,7 @@ import urllib.parse
 
 from collections.abc import Awaitable, Callable, Mapping
 from fondat.error import InternalServerError
-from fondat.types import Stream
+from fondat.stream import Stream
 
 
 def _int(s: str):

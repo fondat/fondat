@@ -14,13 +14,12 @@ import json
 import keyword
 import logging
 
-from collections.abc import Iterable, Mapping, Set
+from collections.abc import Iterable, Mapping
 from datetime import date, datetime, timezone
 from decimal import Decimal
-from enum import Enum
 from fondat.types import NoneType, affix_type_hints, is_subclass, split_annotated
 from fondat.validation import validate, validate_arguments
-from typing import Annotated, Any, Generic, Literal, TypeVar, TypedDict, Union
+from typing import Any, Generic, Literal, TypeVar, TypedDict, Union
 from typing import get_origin, get_args, get_type_hints
 from uuid import UUID
 

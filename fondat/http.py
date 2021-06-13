@@ -21,7 +21,8 @@ from collections.abc import Callable, Iterable, MutableSequence
 from fondat.codec import Binary, String, get_codec
 from fondat.error import BadRequestError, MethodNotAllowedError, NotFoundError
 from fondat.security import Scheme
-from fondat.types import Stream, BytesStream, is_optional, is_subclass
+from fondat.stream import Stream, BytesStream, stream_bytes
+from fondat.types import is_optional, is_subclass
 from fondat.validation import validate
 from typing import Annotated, Any, Optional, TypedDict
 
@@ -468,7 +469,7 @@ async def _decode_body(operation, request):
     python_type, annotated = fondat.types.split_annotated(body_type)
     if is_subclass(python_type, Stream):
         return request.body
-    content = await fondat.types.stream_bytes(request.body)
+    content = await stream_bytes(request.body)
     if len(content) == 0:
         if not is_optional(body_type):
             raise BadRequestError("request body is required")

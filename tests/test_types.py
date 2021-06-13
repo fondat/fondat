@@ -1,7 +1,8 @@
 import pytest
 
 from collections.abc import AsyncIterator
-from fondat.types import BytesStream, is_optional, strip_optional
+from fondat.stream import BytesStream
+from fondat.types import is_optional, strip_optional
 from typing import Annotated, Optional, Union
 
 
