@@ -100,3 +100,8 @@ def is_instance(obj, class_or_tuple):
         return isinstance(obj, class_or_tuple)
     except:
         return False
+
+
+def is_typeddict(type):
+    """Return if a type is a TypedDict."""
+    return is_subclass(type, dict) and getattr(type, "__annotations__", None) is not None

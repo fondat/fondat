@@ -17,7 +17,8 @@ import logging
 from collections.abc import Iterable, Mapping
 from datetime import date, datetime, timezone
 from decimal import Decimal
-from fondat.types import NoneType, affix_type_hints, is_subclass, split_annotated
+from fondat.types import NoneType
+from fondat.types import affix_type_hints, is_subclass, is_typeddict, split_annotated
 from fondat.validation import validate, validate_arguments
 from typing import Any, Generic, Literal, TypeVar, TypedDict, Union
 from typing import get_origin, get_args, get_type_hints
@@ -886,11 +887,8 @@ def _typeddict(codec_type, python_type):
 
     python_type, _ = split_annotated(python_type)
 
-    if (
-        not is_subclass(python_type, dict)
-        or getattr(python_type, "__annotations__", None) is None
-    ):
-        return  # not a TypedDict
+    if not is_typeddict(python_type):
+        return
 
     if codec_type is JSON:
 
