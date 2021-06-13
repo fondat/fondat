@@ -1,10 +1,4 @@
-"""
-Comma separated values encoding module.
-
-This module contains encoders that generate values that can be interpreted by most
-spreadsheets: currency, percent, number. These encoders can also be configured to round values
-to a specific decimal precision.
-"""
+"""Comma separated values encoding module."""
 
 import dataclasses
 

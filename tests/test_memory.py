@@ -5,7 +5,6 @@ from fondat.error import BadRequestError, NotFoundError
 from fondat.memory import memory_resource
 from fondat.resource import operation
 from time import sleep
-from uuid import uuid4
 
 
 pytestmark = pytest.mark.asyncio

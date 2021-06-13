@@ -2,7 +2,6 @@ import pytest
 
 import fondat.http
 import fondat.openapi
-import json
 
 from datetime import date
 from fondat.codec import get_codec, JSON, String

@@ -1,8 +1,5 @@
 import pytest
 
-import fondat.csv
-import io
-
 from dataclasses import make_dataclass
 from datetime import date
 from decimal import Decimal

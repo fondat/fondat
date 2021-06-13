@@ -1,16 +1,9 @@
 import pytest
 
-import asyncio
-import dataclasses
-import json
-import re
-
-from base64 import b64encode
-from dataclasses import make_dataclass, field
+from dataclasses import make_dataclass
 from decimal import Decimal
 from fondat.validation import MinLen, MaxLen, Pattern, MinValue, MaxValue
 from fondat.validation import validate, validate_arguments, validate_return_value
-from io import BytesIO
 from datetime import date, datetime, timezone
 from typing import Annotated, Literal, Optional, T, TypedDict, Union
 from uuid import UUID

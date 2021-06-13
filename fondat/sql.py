@@ -498,7 +498,7 @@ def table_resource(
 
         @operation(policies=policies)
         async def get(self, limit: int = None, cursor: bytes = None) -> Page:
-            """Get paginated list of rows."""
+            """Get paginated list of rows, ordered by primary key."""
             if cursor is not None:
                 where = Statement()
                 where.text("{table.pk} > ")

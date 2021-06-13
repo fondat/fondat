@@ -6,7 +6,6 @@ application monitor(s) can be added to/deleted from this object.
 """
 
 import collections
-import fondat.context as context
 import fondat.validation
 import logging
 import re

@@ -1,19 +1,13 @@
 import pytest
 
-import dataclasses
 import datetime
 import decimal
-import enum
-import fondat.codec
 import json
-import re
 
 from base64 import b64encode
 from collections.abc import Iterable
-from fondat.codec import String, Binary, JSON
-from fondat.codec import get_codec
+from fondat.codec import get_codec, String, Binary, JSON
 from dataclasses import make_dataclass, field
-from io import BytesIO
 from typing import Any, Annotated, Literal, Optional, TypedDict, Union
 from uuid import UUID
 
@@ -670,7 +664,7 @@ def test_literal_single_json_type():
     assert codec.json_type == str
 
 
-def test_enum_mixed_str_types():
+def test_literal_mixed_str_types():
     codec = get_codec(String, Literal["a", 1])
     assert codec.decode("a") == "a"
     assert codec.decode("1") == 1
