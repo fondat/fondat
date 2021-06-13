@@ -1,6 +1,6 @@
 import pytest
 
-from fondat.data import copy_data, datacls, make_datacls, derive_datacls, dataclass_typeddict
+from fondat.data import copy_data, datacls, make_datacls, derive_datacls, derive_typeddict
 from fondat.types import is_optional
 from dataclasses import field, fields
 from typing import Annotated, Optional
@@ -141,29 +141,28 @@ def test_copy_mapped():
     assert b == B(d="a", e="b", f="c")
 
 
-def test_dataclass_typeddict_simple():
+def test_derive_typeddict_dataclass_simple():
     DC = make_datacls("A", (("a", str), ("b", int), ("c", float)))
-    TD = dataclass_typeddict("TD", DC)
+    TD = derive_typeddict("TD", DC)
     annotations = TD.__annotations__
     assert annotations["a"] is str
     assert annotations["b"] is int
     assert annotations["c"] is float
 
 
-def test_dataclass_typeddict_include():
+def test_derive_typeddict_dataclass_include():
     DC = make_datacls("A", (("a", str), ("b", int), ("c", float)))
-    TD = dataclass_typeddict("TD", DC, include={"a", "b"})
+    TD = derive_typeddict("TD", DC, include={"a", "b"})
     assert TD.__annotations__.keys() == {"a", "b"}
 
 
-def test_dataclass_typeddict_exclude():
+def test_derive_typeddict_dataclass_exclude():
     DC = make_datacls("A", (("a", str), ("b", int), ("c", float)))
-    TD = dataclass_typeddict("TD", DC, exclude={"a"})
+    TD = derive_typeddict("TD", DC, exclude={"a"})
     assert TD.__annotations__.keys() == {"b", "c"}
 
 
-def test_annotated_dataclass_typeddict():
+def test_derive_typeddict_annotated_dataclass():
     DC = make_datacls("A", (("a", str),))
-    A = Annotated[DC, "annotated"]
-    TD = dataclass_typeddict("TD", A)
+    TD = derive_typeddict("TD", Annotated[DC, "annotated"])
     assert TD.__annotations__.keys() == DC.__annotations__.keys()

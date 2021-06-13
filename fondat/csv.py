@@ -4,7 +4,7 @@ import dataclasses
 
 from collections.abc import Mapping, Sequence
 from fondat.codec import Codec, String, get_codec
-from fondat.data import dataclass_typeddict
+from fondat.data import derive_typeddict
 from fondat.types import is_optional, is_subclass
 from typing import Any, Optional, get_type_hints
 
@@ -219,7 +219,7 @@ def dataclass_codec(
     """
 
     td_codec = typeddict_codec(
-        dataclass_typeddict("TD", dataclass), columns=columns, keys=fields, codecs=codecs
+        derive_typeddict("TD", dataclass), columns=columns, keys=fields, codecs=codecs
     )
 
     class DataclassRowCodec(Codec[dataclass, list[str]]):

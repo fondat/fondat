@@ -198,36 +198,39 @@ def copy_data(
         setattr(target, t, getattr(source, s))
 
 
-def dataclass_typeddict(
+def derive_typeddict(
     type_name: str,
-    dataclass: type,
+    source: Any,
     *,
     include: set[str] = None,
     exclude: set[str] = None,
     total: bool = True,
 ) -> type:
     """
-    Generate a TypedDict type from a dataclass.
+    Generate a derived TypedDict from a source TypedDict or dataclass.
 
     Parameters:
     • type_name: the name of the new TypedDict type
-    • dataclass: dataclass to derive dictionary keys from
-    • include: the names of dataclass fields to include  [all]
-    • exclude: the names of dataclass fields to exclude  [none]
+    • source: TypedDict or dataclass to derive from
+    • include: the names of keys to include  [all]
+    • exclude: the names of keys to exclude  [none]
     • total: must all keys be present in the TypedDict
     """
 
-    dataclass, _ = split_annotated(dataclass)
-    fields = dataclasses.fields(dataclass)
+    source, _ = split_annotated(source)
 
     if include is None:
-        include = {field.name for field in fields}
+        include = source.__annotations__.keys()
 
     if exclude is None:
         exclude = set()
 
     return TypedDict(
         type_name,
-        {f.name: f.type for f in fields if f.name in include and f.name not in exclude},
+        {
+            key: type
+            for key, type in source.__annotations__.items()
+            if key in include and key not in exclude
+        },
         total=total,
     )
