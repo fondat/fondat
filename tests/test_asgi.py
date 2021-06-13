@@ -3,9 +3,8 @@ import pytest
 import fondat.http
 import http
 
-from dataclasses import dataclass
 from fondat.asgi import asgi_app
-from fondat.codec import get_codec
+from fondat.http import AsBody
 from fondat.resource import resource, operation
 from typing import Annotated, Any, Optional
 
