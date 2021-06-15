@@ -307,7 +307,6 @@ class Table:
             ", ",
         )
         stmt.text(");")
-        _logger.debug(f"GONNA insert: {stmt}")
         async with self.database.transaction():
             await self.database.execute(stmt)
 
@@ -397,7 +396,7 @@ class Index:
             await self.table.database.execute(stmt)
 
 
-def row_resource(
+def row_resource_class(
     table: Table,
     policies: Iterable[fondat.security.Policy] = None,
 ) -> type:
@@ -470,7 +469,7 @@ def row_resource(
     return RowResource
 
 
-def table_resource(
+def table_resource_class(
     table: Table,
     row_resource_type: type,
     policies: Iterable[fondat.security.Policy] = None,

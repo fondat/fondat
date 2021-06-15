@@ -174,7 +174,7 @@ async def test_select_order(table):
 
 async def test_resource_crud(table):
     pk = uuid4()
-    resource = sql.table_resource(table, sql.row_resource(table))()[pk]
+    resource = sql.table_resource_class(table, sql.row_resource_class(table))()[pk]
     row = DC(
         key=pk,
         str_="string",
@@ -208,7 +208,7 @@ async def test_resource_crud(table):
 
 async def test_resource_patch(table):
     pk = uuid4()
-    resource = sql.table_resource(table, sql.row_resource(table))()[pk]
+    resource = sql.table_resource_class(table, sql.row_resource_class(table))()[pk]
     row = DC(
         key=pk,
         str_="string",
@@ -231,7 +231,7 @@ async def test_resource_patch(table):
 
 async def test_update_invalid_pk(table):
     pk = uuid4()
-    resource = sql.table_resource(table, sql.row_resource(table))()[pk]
+    resource = sql.table_resource_class(table, sql.row_resource_class(table))()[pk]
     row = DC(key=uuid4(), str_="string")  # different pk
     with pytest.raises(fondat.error.BadRequestError):
         await resource.put(row)
@@ -239,7 +239,7 @@ async def test_update_invalid_pk(table):
 
 async def test_patch_pk(table):
     pk = uuid4()
-    resource = sql.table_resource(table, sql.row_resource(table))()[pk]
+    resource = sql.table_resource_class(table, sql.row_resource_class(table))()[pk]
     row = DC(key=pk, str_="string")
     await resource.put(row)
     patch = {"key": str(uuid4())}  # modify pk
@@ -275,7 +275,7 @@ async def test_gather(database):
 
 
 async def test_list(table):
-    resource = sql.table_resource(table, sql.row_resource(table))()
+    resource = sql.table_resource_class(table, sql.row_resource_class(table))()
     count = 5
     for n in range(0, count):
         key = uuid4()
