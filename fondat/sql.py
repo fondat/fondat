@@ -422,7 +422,7 @@ def row_resource_class(
         async def put(self, value: table.schema):
             """Insert or update (upsert) row."""
             if getattr(value, table.pk) != self.pk:
-                raise fondat.error.BadRequestError(f"{table.pk} must match primary key")
+                raise fondat.error.BadRequestError("value pk must match resource pk")
             if not await self.exists():
                 await table.insert(value)
             else:
@@ -431,12 +431,12 @@ def row_resource_class(
         @operation(policies=policies)
         async def patch(self, body: dict[str, Any]):
             """Modify row."""
+            if table.pk in body:
+                raise fondat.error.BadRequestError(f"cannot patch field: {table.pk}")
             old = await self.get()
             new = fondat.patch.json_merge_patch(value=old, type=table.schema, patch=body)
-            if old == new:
+            if old == new:  # nothing to update
                 return
-            if getattr(new, table.pk) != getattr(old, table.pk):
-                raise fondat.error.BadRequestError(f"cannot modify {table.pk}")
             stmt = Statement()
             stmt.text(f"UPDATE {table.name} SET ")
             updates = []
