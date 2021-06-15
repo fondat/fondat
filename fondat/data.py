@@ -100,10 +100,10 @@ def derive_datacls(
     cls_name: str,
     dataclass: type,
     *,
-    include: Iterable[str] = None,
-    exclude: Iterable[str] = None,
+    include: set[str] = None,
+    exclude: set[str] = None,
     append: Iterable[Union[tuple[str, type], tuple[str, type, dataclasses.Field]]] = None,
-    optional: Union[Iterable[str], bool] = False,
+    optional: Union[set[str], bool] = False,
     **kwargs,
 ) -> type:
     """
@@ -164,38 +164,31 @@ def derive_datacls(
 def copy_data(
     source: Any,
     target: Any,
-    fields: Union[Iterable[str], Mapping[str, str]] = None,
+    include: set[str] = None,
+    exclude: set[str] = None,
 ):
     """
-    Copy data from one instance of a dataclass to another.
+    Copy data from a dataclass instance to another.
 
     Parameters:
     • source: instance to copy data from
     • target: instance to copy data to
-    • fields: names or mappings of fields to be copied
+    • include: source dataclass fields to include  [all]
+    • exclude: source dataclass fields to exclude  [none]
 
-    The source and target dataclass instances do not have to be of the same type. This
-    function makes no attempt to ensure type compatibility between dataclass fields.
-
-    The fields parameter can be provided as either an iterable of field names that are common
-    between source and target dataclass, or a mapping of source-to-target field names.
-
-    If fields are specified, then only those fields shall be copied; they must be present
-    in both source and target dataclass instances. If fields are not specified, then only
-    fields that source and target dataclasses have in common will be copied.
+    If fields to include are not specified, then all fields from the source dataclass will be
+    included. If fields to exclude are not specified, then no fields from the source dataclass
+    will be excluded.
     """
 
-    source_fields = dataclasses.fields(source)
-    target_fields = dataclasses.fields(target)
+    if include is None:
+        include = source.__annotations__.keys()
 
-    if fields is None:
-        fields = set(f.name for f in source_fields) & set(f.name for f in target_fields)
+    if exclude is None:
+        exclude = set()
 
-    if not isinstance(fields, Mapping):
-        fields = {field: field for field in fields}
-
-    for s, t in fields.items():
-        setattr(target, t, getattr(source, s))
+    for field in (f for f in include if f not in exclude):
+        setattr(target, field, getattr(source, field))
 
 
 def derive_typeddict(

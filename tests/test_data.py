@@ -1,3 +1,4 @@
+from fondat.codec import dataclass_codec
 import pytest
 
 from fondat.data import copy_data, datacls, make_datacls, derive_datacls, derive_typeddict
@@ -110,35 +111,34 @@ def test_copy_all():
     assert foo == bar
 
 
-def test_copy_subset():
-    Foo = make_datacls(
-        "Foo", (("a", Optional[int]), ("b", Optional[str]), ("c", Optional[float]))
-    )
+def test_copy_include():
+    @datacls
+    class Foo:
+        a: Optional[int]
+        b: Optional[str]
+        c: Optional[float]
+
     foo = Foo(a=1, b="a", c=2.0)
     bar = Foo()
-    subset = {"a", "b"}
-    copy_data(foo, bar, subset)
+    include = {"a", "b"}
+    copy_data(foo, bar, include=include)
     for name in bar.__annotations__:
-        assert getattr(bar, name) == (getattr(foo, name) if name in subset else None)
+        assert getattr(bar, name) == (getattr(foo, name) if name in include else None)
 
 
-def test_copy_common():
-    Foo = make_datacls("Foo", (("a", int), ("b", str), ("c", float)))
-    Bar = make_datacls("Bar", (("a", Optional[int]), ("b", Optional[str])))
+def test_copy_exclude():
+    @datacls
+    class Foo:
+        a: Optional[int]
+        b: Optional[str]
+        c: Optional[float]
+
     foo = Foo(a=1, b="a", c=2.0)
-    bar = Bar()
-    copy_data(foo, bar)
+    bar = Foo()
+    exclude = {"a"}
+    copy_data(foo, bar, exclude=exclude)
     for name in bar.__annotations__:
-        assert getattr(bar, name) == getattr(foo, name)
-
-
-def test_copy_mapped():
-    A = make_datacls("A", (("a", str), ("b", str), ("c", str)))
-    B = make_datacls("B", (("d", Optional[str]), ("e", Optional[str]), ("f", Optional[str])))
-    a = A(a="a", b="b", c="c")
-    b = B()
-    copy_data(a, b, {"a": "d", "b": "e", "c": "f"})
-    assert b == B(d="a", e="b", f="c")
+        assert getattr(bar, name) == (getattr(foo, name) if name not in exclude else None)
 
 
 def test_derive_typeddict_dataclass_simple():
