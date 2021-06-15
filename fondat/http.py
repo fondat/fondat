@@ -244,9 +244,12 @@ class BearerScheme(Scheme):
 
     def extract(self, request: Request) -> Optional[str]:
         """Return bearer token value from request if provided, otherwise None."""
-        name, token = request.headers["Authorization"].split(" ", 1)
-        if name.lower() == "bearer":
-            return token
+        try:
+            name, token = request.headers["Authorization"].split(" ", 1)
+            if name.lower() == "bearer":
+                return token
+        except:
+            pass
         return None
 
 
