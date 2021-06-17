@@ -4,7 +4,7 @@ import fondat.http
 import fondat.openapi
 
 from datetime import date
-from fondat.annotation import Description, Example
+from fondat.annotation import Deprecated, Description, Example
 from fondat.codec import get_codec, JSON, String
 from fondat.data import datacls
 from fondat.openapi import generate_openapi, openapi_resource
@@ -41,6 +41,9 @@ class DC:
     #    k: Annotated[list[date], Example([date(2021, 1, 1), date(2021, 12, 31)])]
     #    k: Annotated[list[str], Example(["a", "b"])]
     k: Annotated[int, Example(1)]
+    deprecated_a: Annotated[int, Deprecated]
+    deprecated_b: Annotated[int, Deprecated(True)]
+    deprecated_c: Annotated[int, Deprecated(False)]
 
 
 @resource
@@ -238,4 +241,5 @@ def test_openapi_generate_openapi_specification():
     js = get_codec(JSON, fondat.openapi.OpenAPI).encode(result)
 
 
+# import json
 # print(json.dumps(js))

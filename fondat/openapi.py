@@ -368,6 +368,10 @@ def _kwargs(python_type, annotated):
             kwargs["default"] = fondat.codec.get_codec(fondat.codec.JSON, python_type).encode(
                 annotation.value
             )
+        elif is_instance(annotation, fondat.annotation.Deprecated):
+            kwargs["deprecated"] = annotation.value
+        elif annotation is fondat.annotation.Deprecated:
+            kwargs["deprecated"] = True
     return kwargs
 
 
