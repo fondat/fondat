@@ -418,7 +418,6 @@ def get_body_type(operation):
     for name, hint in type_hints.items():
         if name == "return":
             continue
-        stripped = fondat.types.strip_optional(hint)  # courtesy of get_type_hints for callable
         param_in = get_param_in(operation, name, hint)
         if not isinstance(param_in, (AsBody, InBody)):
             continue
@@ -469,7 +468,7 @@ async def _decode_body(operation, request):
     body_type = get_body_type(operation)
     if not body_type:
         return None
-    python_type, annotated = fondat.types.split_annotated(body_type)
+    python_type, _ = fondat.types.split_annotated(body_type)
     if is_subclass(python_type, Stream):
         return request.body
     content = await stream_bytes(request.body)
