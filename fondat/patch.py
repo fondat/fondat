@@ -23,8 +23,8 @@ def _json_merge_patch(target, patch):
 
 def json_merge_patch(*, value: Any, type: type = Any, patch: Any) -> Any:
     """
-    Return a new patched value, the result of applying a JSON Merge Patch document to the JSON
-    representation of the specified value, per RFC 7386.
+    Return the result of applying a JSON Merge Patch document to the JSON representation of
+    a specified value, per RFC 7386.
 
     Parameters:
     • value: value to be patched
@@ -56,5 +56,9 @@ def _json_merge_diff(old: Any, new: Any) -> Any:
 
 
 def json_merge_diff(*, old: Any, new: Any, type: type = Any) -> Any:
+    """
+    Return a JSON Merge Patch document per RFC 7386, the result of comparing the JSON
+    representations of specified old and new values.
+    """
     codec = get_codec(JSON, type)
     return _json_merge_diff(codec.encode(old), codec.encode(new))
