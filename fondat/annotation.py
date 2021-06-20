@@ -6,11 +6,7 @@ from typing import Any
 
 
 class Deprecated:
-    """
-    Type annotation to indicate a schema value is deprecated. Can be included in an
-    annotation as an instance with a boolean value, or as the class itself, which is
-    equivalent to Deprecated(True).
-    """
+    """Type annotation to indicate a value is deprecated."""
 
     __slots__ = ("value",)
 
@@ -51,6 +47,22 @@ class Example:
 
     def __repr__(self):
         return f"Example({self.value!r})"
+
+    def __str__(self):
+        return str(self.value)
+
+
+class ReadOnly:
+    """Type annotation to indicate a value is read-only."""
+
+    __slots__ = ("value",)
+
+    @validate_arguments
+    def __init__(self, value: bool):
+        self.value = value
+
+    def __repr__(self):
+        return f"ReadOnly({self.value!r})"
 
     def __str__(self):
         return str(self.value)

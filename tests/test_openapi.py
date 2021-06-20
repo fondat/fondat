@@ -4,7 +4,7 @@ import fondat.http
 import fondat.openapi
 
 from datetime import date
-from fondat.annotation import Deprecated, Description, Example
+from fondat.annotation import Deprecated, Description, Example, ReadOnly
 from fondat.codec import get_codec, JSON, String
 from fondat.data import datacls
 from fondat.openapi import generate_openapi, openapi_resource
@@ -38,12 +38,14 @@ class DC:
     h: Optional[str] = None
     i: Annotated[str, Example("aaa")]
     j: Annotated[date, Example(date(2021, 1, 1))]
-    #    k: Annotated[list[date], Example([date(2021, 1, 1), date(2021, 12, 31)])]
-    #    k: Annotated[list[str], Example(["a", "b"])]
-    k: Annotated[int, Example(1)]
-    deprecated_a: Annotated[int, Deprecated]
-    deprecated_b: Annotated[int, Deprecated(True)]
-    deprecated_c: Annotated[int, Deprecated(False)]
+    example_int: Annotated[int, Example(1)]
+    example_str: Annotated[str, Example("value")]
+    deprecated_class: Annotated[int, Deprecated]
+    deprecated_true: Annotated[int, Deprecated(True)]
+    deprecated_false: Annotated[int, Deprecated(False)]
+    readonly_class: Annotated[int, ReadOnly]
+    readonly_true: Annotated[int, ReadOnly(True)]
+    readonly_false: Annotated[int, ReadOnly(False)]
 
 
 @resource

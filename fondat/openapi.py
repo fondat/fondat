@@ -372,6 +372,10 @@ def _kwargs(python_type, annotated):
             kwargs["deprecated"] = annotation.value
         elif annotation is fondat.annotation.Deprecated:
             kwargs["deprecated"] = True
+        elif is_instance(annotation, fondat.annotation.ReadOnly):
+            kwargs["readOnly"] = annotation.value
+        elif annotation is fondat.annotation.ReadOnly:
+            kwargs["readOnly"] = True
     return kwargs
 
 
