@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import fondat.error
 import fondat.patch
 import fondat.security
 import fondat.types
@@ -10,9 +9,12 @@ import logging
 import typing
 
 from collections.abc import AsyncIterator, Iterable, Sequence
+from copy import deepcopy
 from dataclasses import dataclass, is_dataclass
 from fondat.codec import get_codec, Binary
 from fondat.data import datacls
+from fondat.error import BadRequestError, NotFoundError
+from fondat.patch import json_merge_patch
 from fondat.resource import resource, operation, query
 from typing import Annotated, Any, Optional, TypedDict, Union
 
@@ -399,6 +401,7 @@ class Index:
 def row_resource_class(
     table: Table,
     policies: Iterable[fondat.security.Policy] = None,
+    cache: bool = True,
 ) -> type:
     """Return a base class for a row resource."""
 
@@ -411,55 +414,67 @@ def row_resource_class(
         def __init__(self, pk: pk_type):
             self.table = table
             self.pk = pk
+            self._cache = None
 
         @operation(policies=policies)
         async def get(self) -> table.schema:
+            """Get row from table."""
+            if self._cache:
+                return self._cache
             if row := await table.read(self.pk):
+                if cache:
+                    self._cache = deepcopy(row)
                 return row
-            raise fondat.error.NotFoundError
+            raise NotFoundError
 
         @operation(policies=policies)
         async def put(self, value: table.schema):
             """Insert or update (upsert) row."""
             if getattr(value, table.pk) != self.pk:
-                raise fondat.error.BadRequestError("value pk must match resource pk")
-            if not await self.exists():
+                raise BadRequestError("cannot modify primary key")
+            try:
+                old = await self.get()
+                new = value
+                if old != new:
+                    stmt = Statement()
+                    stmt.text(f"UPDATE {table.name} SET ")
+                    updates = []
+                    for name, python_type in table.columns.items():
+                        if getattr(old, name) != getattr(new, name):
+                            update = Statement()
+                            update.text(f"{name} = ")
+                            update.param(getattr(new, name), python_type)
+                            updates.append(update)
+                    stmt.statements(updates, ", ")
+                    stmt.text(f" WHERE {table.pk} = ")
+                    stmt.param(self.pk, pk_type)
+                    async with table.database.transaction():
+                        await table.database.execute(stmt)
+                self._cache = new
+            except NotFoundError:
                 await table.insert(value)
-            else:
-                await table.update(value)
+            self._cache = deepcopy(value)
 
         @operation(policies=policies)
         async def patch(self, body: dict[str, Any]):
             """Modify row."""
             if table.pk in body:
-                raise fondat.error.BadRequestError(f"cannot patch field: {table.pk}")
-            old = await self.get()
-            new = fondat.patch.json_merge_patch(value=old, type=table.schema, patch=body)
-            if old == new:  # nothing to update
-                return
-            stmt = Statement()
-            stmt.text(f"UPDATE {table.name} SET ")
-            updates = []
-            for name, python_type in table.columns.items():
-                if getattr(old, name) != getattr(new, name):
-                    update = Statement()
-                    update.text(f"{name} = ")
-                    update.param(getattr(new, name), python_type)
-                    updates.append(update)
-            stmt.statements(updates, ", ")
-            stmt.text(f" WHERE {table.pk} = ")
-            stmt.param(self.pk, pk_type)
-            async with table.database.transaction():
-                await table.database.execute(stmt)
+                raise BadRequestError(f"cannot patch field: {table.pk}")
+            await self.put(
+                json_merge_patch(value=await self.get(), type=table.schema, patch=body)
+            )
 
         @operation(policies=policies)
         async def delete(self) -> None:
             """Delete row."""
             await table.delete(self.pk)
+            self._cache = None
 
         @query(policies=policies)
         async def exists(self) -> bool:
             """Return if row exists."""
+            if self._cache:
+                return True
             where = Statement()
             where.text(f"{table.pk} = ")
             where.param(self.pk, table.columns[table.pk])
