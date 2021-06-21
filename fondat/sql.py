@@ -161,7 +161,7 @@ class Database:
         """
         Execute a SQL statement.
 
-        A database context must be established prior to the execution of a statement.
+        A database transaction must be established prior to the execution of a statement.
 
         If the statement is a query that expects results, then the type of each row to be
         returned is specified in the statement's "result" attribute; result rows are accessed

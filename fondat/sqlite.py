@@ -305,8 +305,8 @@ class Database(fondat.sql.Database):
                 self._txn.reset(token)
 
     async def execute(self, statement: Statement) -> Optional[AsyncIterator[Any]]:
-        if not self._conn.get():
-            raise RuntimeError("connection context required to execute statement")
+        if not self._txn.get():
+            raise RuntimeError("transaction context required to execute statement")
         text = []
         args = []
         for fragment in statement:

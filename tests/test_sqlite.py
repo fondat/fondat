@@ -285,19 +285,20 @@ async def test_no_connecton(database):
 
 
 async def test_no_transaction(table):
-    key = uuid4()
     async with table.database.connection():
-        await table.insert(DC(key=key))
-    async with table.database.connection():
-        assert await table.read(key)
+        stmt = sql.Statement()
+        stmt.text(f"SELECT 1;")
+        with pytest.raises(RuntimeError):
+            await table.database.execute(stmt)
 
 
 async def connection_decorator(table):
     @sql.connection
     async def foo():
-        key = uuid4()
-        await table.insert(DC(key=key))
-        assert await table.read(key)
+        async with table.database.transaction():
+            key = uuid4()
+            await table.insert(DC(key=key))
+            assert await table.read(key)
 
     await foo()
 
