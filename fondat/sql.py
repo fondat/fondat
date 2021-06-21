@@ -5,8 +5,10 @@ from __future__ import annotations
 import fondat.patch
 import fondat.security
 import fondat.types
+import functools
 import logging
 import typing
+import wrapt
 
 from collections.abc import AsyncIterator, Iterable, Sequence
 from copy import deepcopy
@@ -131,18 +133,27 @@ class Statement(Iterable):
 class Database:
     """Base class for a SQL database."""
 
+    async def connection(self):
+        """
+        Return a context manager that establishes a connection to the database. If a
+        connection context has already been established, this method has no effect. Upon
+        exit of the outermost connection context, the database connection is closed.
+        """
+        raise NotImplementedError
+
     async def transaction(self):
         """
-        Return context manager that manages a database transaction.
+        Return a context manager that represents a database transaction in which statements
+        are executed.
 
-        A transaction context provides SQL transactional semantics (commit/rollback) around
-        statements executed.
+        If a connection context is not established prior to the creation of the transaction
+        context, a connection is made, and is used for the duration of the transaction.
 
-        Creating an inner transaction context within an outer transaction context has no
-        effect; only the outermost transaction context will exhibit commit/rollback behavior.
+        Upon exit of a transaction context, if an exception was raised, changes will be
+        rolled back; otherwise changes will be committed.
 
-        Upon exit of the outer transaction context, if an exception was raised, the
-        transaction will be rolled back; otherwise the transaction will be committed.
+        Transactions can be nested; committing the outermost transaction commits all changes
+        to the database.
         """
         raise NotImplementedError
 
@@ -150,11 +161,11 @@ class Database:
         """
         Execute a SQL statement.
 
-        A transaction context must be established in order to execute a statement.
+        A database context must be established prior to the execution of a statement.
 
         If the statement is a query that expects results, then the type of each row to be
-        returned is specified in the statement's "result" attribute; rows are accessed via a
-        returned asynchronus iterator.
+        returned is specified in the statement's "result" attribute; result rows are accessed
+        via a returned asynchronus iterator.
 
         Parameter:
         • statement: statement to excute
@@ -163,8 +174,8 @@ class Database:
 
     def get_codec(self, python_type: Any) -> Any:
         """
-        Return a codec suitable for encoding/decoding the Python type to a corresponding SQL
-        type.
+        Return a codec suitable for encoding/decoding a Python value to/from a
+        corresponding SQL value.
         """
         raise NotImplementedError
 
@@ -214,15 +225,13 @@ class Table:
             columns.append(" ".join(column))
         stmt.text(", ".join(columns))
         stmt.text(");")
-        async with self.database.transaction():
-            await self.database.execute(stmt)
+        await self.database.execute(stmt)
 
     async def drop(self):
         """Drop table from database."""
         stmt = Statement()
         stmt.text(f"DROP TABLE {self.name};")
-        async with self.database.transaction():
-            await self.database.execute(stmt)
+        await self.database.execute(stmt)
 
     async def select(
         self,
@@ -291,9 +300,8 @@ class Table:
             stmt.statement(where)
         stmt.text(";")
         stmt.result = TypedDict("Result", {"count": int})
-        async with self.database.transaction():
-            result = await self.database.execute(stmt)
-            return (await result.__anext__())["count"]
+        result = await self.database.execute(stmt)
+        return (await result.__anext__())["count"]
 
     async def insert(self, value: Any) -> None:
         """Insert table row."""
@@ -309,20 +317,18 @@ class Table:
             ", ",
         )
         stmt.text(");")
-        async with self.database.transaction():
-            await self.database.execute(stmt)
+        await self.database.execute(stmt)
 
     async def read(self, key: Any) -> Any:
         """Return a table row, or None if not found."""
         where = Statement()
         where.text(f"{self.pk} = ")
         where.param(key, self.columns[self.pk])
-        async with self.database.transaction():
-            results = await self.select(where=where, limit=1)
-            try:
-                return self.schema(**await results.__anext__())
-            except StopAsyncIteration:
-                return None
+        results = await self.select(where=where, limit=1)
+        try:
+            return self.schema(**await results.__anext__())
+        except StopAsyncIteration:
+            return None
 
     async def update(self, value: Any) -> None:
         """Update table row."""
@@ -338,8 +344,7 @@ class Table:
         stmt.statements(updates, ", ")
         stmt.text(f" WHERE {self.pk} = ")
         stmt.param(key, self.columns[self.pk])
-        async with self.database.transaction():
-            await self.database.execute(stmt)
+        await self.database.execute(stmt)
 
     async def delete(self, key: Any) -> None:
         """Delete table row."""
@@ -347,8 +352,7 @@ class Table:
         stmt.text(f"DELETE FROM {self.name} WHERE {self.pk} = ")
         stmt.param(key, self.columns[self.pk])
         stmt.text(";")
-        async with self.database.transaction():
-            await self.database.execute(stmt)
+        await self.database.execute(stmt)
 
 
 class Index:
@@ -387,23 +391,23 @@ class Index:
         stmt.text(f"INDEX {self.name} on {self.table.name} (")
         stmt.text(", ".join(self.keys))
         stmt.text(");")
-        async with self.table.database.transaction():
-            await self.table.database.execute(stmt)
+        await self.table.database.execute(stmt)
 
     async def drop(self):
         """Drop index from database."""
         stmt = Statement()
         stmt.text(f"DROP INDEX {self.name};")
-        async with self.table.database.transaction():
-            await self.table.database.execute(stmt)
+        await self.table.database.execute(stmt)
 
 
-def row_resource_class(
-    table: Table,
-    policies: Iterable[fondat.security.Policy] = None,
-    cache: bool = True,
-) -> type:
-    """Return a base class for a row resource."""
+def row_resource_class(table: Table, cache: bool = True) -> type:
+    """
+    Return a base class for a row resource.
+
+    Parameters:
+    • table: table for which row resource is based
+    • cache: cache row value between operations
+    """
 
     pk_type = table.columns[table.pk]
 
@@ -416,46 +420,48 @@ def row_resource_class(
             self.pk = pk
             self._cache = None
 
-        @operation(policies=policies)
+        @operation
         async def get(self) -> table.schema:
             """Get row from table."""
             if self._cache:
                 return self._cache
-            if row := await table.read(self.pk):
-                if cache:
-                    self._cache = deepcopy(row)
-                return row
+            async with table.database.transaction():
+                if row := await table.read(self.pk):
+                    if cache:
+                        self._cache = deepcopy(row)
+                    return row
             raise NotFoundError
 
-        @operation(policies=policies)
+        @operation
         async def put(self, value: table.schema):
             """Insert or update (upsert) row."""
             if getattr(value, table.pk) != self.pk:
                 raise BadRequestError("cannot modify primary key")
-            try:
-                old = await self.get()
-                new = value
-                if old != new:
-                    stmt = Statement()
-                    stmt.text(f"UPDATE {table.name} SET ")
-                    updates = []
-                    for name, python_type in table.columns.items():
-                        if getattr(old, name) != getattr(new, name):
-                            update = Statement()
-                            update.text(f"{name} = ")
-                            update.param(getattr(new, name), python_type)
-                            updates.append(update)
-                    stmt.statements(updates, ", ")
-                    stmt.text(f" WHERE {table.pk} = ")
-                    stmt.param(self.pk, pk_type)
-                    async with table.database.transaction():
+            async with table.database.transaction():
+                try:
+                    old = await self.get()
+                    new = value
+                    if old != new:
+                        stmt = Statement()
+                        stmt.text(f"UPDATE {table.name} SET ")
+                        updates = []
+                        for name, python_type in table.columns.items():
+                            if getattr(old, name) != getattr(new, name):
+                                update = Statement()
+                                update.text(f"{name} = ")
+                                update.param(getattr(new, name), python_type)
+                                updates.append(update)
+                        stmt.statements(updates, ", ")
+                        stmt.text(f" WHERE {table.pk} = ")
+                        stmt.param(self.pk, pk_type)
                         await table.database.execute(stmt)
-                self._cache = new
-            except NotFoundError:
-                await table.insert(value)
-            self._cache = deepcopy(value)
+                    self._cache = new
+                except NotFoundError:
+                    await table.insert(value)
+            if cache:
+                self._cache = deepcopy(value)
 
-        @operation(policies=policies)
+        @operation
         async def patch(self, body: dict[str, Any]):
             """Modify row."""
             if table.pk in body:
@@ -464,13 +470,14 @@ def row_resource_class(
                 json_merge_patch(value=await self.get(), type=table.schema, patch=body)
             )
 
-        @operation(policies=policies)
+        @operation
         async def delete(self) -> None:
             """Delete row."""
-            await table.delete(self.pk)
             self._cache = None
+            async with table.database.transaction():
+                await table.delete(self.pk)
 
-        @query(policies=policies)
+        @query
         async def exists(self) -> bool:
             """Return if row exists."""
             if self._cache:
@@ -478,18 +485,24 @@ def row_resource_class(
             where = Statement()
             where.text(f"{table.pk} = ")
             where.param(self.pk, table.columns[table.pk])
-            return await table.count(where) != 0
+            async with table.database.transaction():
+                return await table.count(where) != 0
 
     fondat.types.affix_type_hints(RowResource, localns=locals())
     return RowResource
 
 
-def table_resource_class(
-    table: Table,
-    row_resource_type: type,
-    policies: Iterable[fondat.security.Policy] = None,
-) -> type:
-    """Return a base class for a table resource."""
+def table_resource_class(table: Table, row_resource_type: type = None) -> type:
+    """
+    Return a base class for a table resource.
+
+    Parameters:
+    • table: table for which table resource is based
+    • row_resource_type: type to instantiate for table row resource  [implict]
+    """
+
+    if row_resource_type is None:
+        row_resource_type = row_resource_class(table)
 
     @datacls
     class Page:
@@ -510,7 +523,7 @@ def table_resource_class(
         def __init__(self):
             self.table = table
 
-        @operation(policies=policies)
+        @operation
         async def get(self, limit: int = None, cursor: bytes = None) -> Page:
             """Get paginated list of rows, ordered by primary key."""
             if cursor is not None:
@@ -522,12 +535,40 @@ def table_resource_class(
             async with table.database.transaction():
                 results = await table.select(order=table.pk, limit=limit, where=where)
                 items = [table.schema(**result) async for result in results]
-            cursor = (
-                cursor_codec.encode(getattr(items[-1], table.pk))
-                if limit and len(items)
-                else None
-            )
+                cursor = (
+                    cursor_codec.encode(getattr(items[-1], table.pk))
+                    if limit and len(items)
+                    else None
+                )
             return Page(items=items, cursor=cursor)
 
     fondat.types.affix_type_hints(TableResource, localns=locals())
     return TableResource
+
+
+def connection(wrapped=None, *, database: Database):
+    """Decorate a coroutine function with a database connection context."""
+
+    if wrapped is None:
+        return functools.partial(connection, database=database)
+
+    @wrapt.decorator
+    async def wrapper(wrapped, instance, args, kwargs):
+        async with database.connection():
+            return await wrapped(*args, **kwargs)
+
+    return wrapper(wrapped)
+
+
+def transaction(wrapped=None, *, database: Database):
+    """Decorate a coroutine function with a database transaction context."""
+
+    if wrapped is None:
+        return functools.partial(transaction, database=database)
+
+    @wrapt.decorator
+    async def wrapper(wrapped, instance, args, kwargs):
+        async with database.transaction():
+            return await wrapped(*args, **kwargs)
+
+    return wrapper(wrapped)

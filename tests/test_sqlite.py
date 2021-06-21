@@ -5,6 +5,7 @@ import fondat.error
 import fondat.patch
 import fondat.sql as sql
 import fondat.sqlite as sqlite
+import logging
 import tempfile
 
 from datetime import date, datetime
@@ -12,6 +13,8 @@ from fondat.data import datacls, make_datacls
 from typing import Optional, TypedDict
 from uuid import UUID, uuid4
 
+
+_logger = logging.getLogger(__name__)
 
 pytestmark = pytest.mark.asyncio
 
@@ -41,9 +44,11 @@ def database():
 @pytest.fixture(scope="function")  # FIXME: scope to module with event_loop fixture?
 async def table(database):
     foo = sql.Table("foo", database, DC, "key")
-    await foo.create()
+    async with database.transaction():
+        await foo.create()
     yield foo
-    await foo.drop()
+    async with database.transaction():
+        await foo.drop()
 
 
 async def test_table_crud(table):
@@ -101,21 +106,8 @@ async def test_binary(database):
 async def test_list(table):
     async with table.database.transaction():
         count = 10
-        for n in range(0, count):
-            body = DC(
-                key=uuid4(),
-                str_=None,
-                dict_=None,
-                list_=None,
-                set_=None,
-                int_=None,
-                float_=None,
-                bool_=None,
-                bytes_=None,
-                date_=None,
-                datetime_=None,
-            )
-            await table.insert(body)
+        for _ in range(0, count):
+            await table.insert(DC(key=uuid4()))
         assert await table.count() == count
         async for result in await table.select(columns="key"):
             await table.delete(result["key"])
@@ -126,20 +118,7 @@ async def test_rollback(table):
     key = uuid4()
     try:
         async with table.database.transaction():
-            row = DC(
-                key=key,
-                str_=None,
-                dict_=None,
-                list_=None,
-                set_=None,
-                int_=None,
-                float_=None,
-                bool_=None,
-                bytes_=None,
-                date_=None,
-                datetime_=None,
-            )
-            await table.insert(row)
+            await table.insert(DC(key=key))
             raise RuntimeError  # force rollback
     except RuntimeError:
         pass
@@ -149,8 +128,9 @@ async def test_rollback(table):
 
 async def test_index(table):
     index = sql.Index("foo_ix_str", table, ("str_",))
-    await index.create()
-    await index.drop()
+    async with table.database.transaction():
+        await index.create()
+        await index.drop()
 
 
 async def test_select_order(table):
@@ -229,7 +209,7 @@ async def test_resource_patch(table):
     assert await resource.get() == row
 
 
-async def test_update_invalid_pk(table):
+async def test_resource_put_invalid_pk(table):
     pk = uuid4()
     resource = sql.table_resource_class(table, sql.row_resource_class(table))()[pk]
     row = DC(key=uuid4(), str_="string")  # different pk
@@ -237,7 +217,7 @@ async def test_update_invalid_pk(table):
         await resource.put(row)
 
 
-async def test_patch_pk(table):
+async def test_resource_patch_pk(table):
     pk = uuid4()
     resource = sql.table_resource_class(table, sql.row_resource_class(table))()[pk]
     row = DC(key=pk, str_="string")
@@ -248,33 +228,31 @@ async def test_patch_pk(table):
 
 
 def test_consecutive_loop(database):
+    @sql.transaction(database=database)
     async def select():
         stmt = sql.Statement()
         stmt.text("SELECT 1 AS foo;")
         stmt.result = make_datacls("DC", (("foo", int),))
-        async with database.transaction() as transaction:
-            result = await (await database.execute(stmt)).__anext__()
-            assert result.foo == 1
+        result = await (await database.execute(stmt)).__anext__()
+        assert result.foo == 1
 
     asyncio.run(select())
     asyncio.run(select())
 
 
 async def test_gather(database):
-    count = 50
-
+    @sql.transaction(database=database)
     async def select(n: int):
         stmt = sql.Statement()
         stmt.text(f"SELECT {n} AS foo;")
         stmt.result = make_datacls("DC", (("foo", int),))
-        async with database.transaction() as transaction:
-            result = await (await database.execute(stmt)).__anext__()
-            assert result.foo == n
+        result = await (await database.execute(stmt)).__anext__()
+        assert result.foo == n
 
-    await asyncio.gather(*[select(n) for n in range(0, count)])
+    await asyncio.gather(*[select(n) for n in range(0, 50)])
 
 
-async def test_list(table):
+async def test_resource_list(table):
     resource = sql.table_resource_class(table, sql.row_resource_class(table))()
     count = 5
     for n in range(0, count):
@@ -282,3 +260,60 @@ async def test_list(table):
         await resource[key].put(DC(key=key, int_=n))
     results = await resource.get()
     assert len(results.items) == count
+
+
+async def test_nested_transaction(table):
+    async with table.database.transaction():
+        assert await table.count() == 0
+        await table.insert(DC(key=uuid4()))
+        assert await table.count() == 1
+        try:
+            async with table.database.transaction():
+                await table.insert(DC(key=uuid4()))
+                assert await table.count() == 2
+                raise RuntimeError
+        except RuntimeError:
+            pass
+        assert await table.count() == 1
+
+
+async def test_no_connecton(database):
+    stmt = sql.Statement()
+    stmt.text(f"SELECT 1;")
+    with pytest.raises(RuntimeError):
+        await database.execute(stmt)
+
+
+async def test_no_transaction(table):
+    key = uuid4()
+    async with table.database.connection():
+        await table.insert(DC(key=key))
+    async with table.database.connection():
+        assert await table.read(key)
+
+
+async def connection_decorator(table):
+    @sql.connection
+    async def foo():
+        key = uuid4()
+        await table.insert(DC(key=key))
+        assert await table.read(key)
+
+    await foo()
+
+
+async def transaction_decorator(table):
+    key = uuid4()
+
+    @sql.transaction
+    async def foo():
+        await table.insert(DC(key=key))
+        assert await table.read(key) is not None
+        raise RuntimeError  # rollback
+
+    try:
+        await foo()
+    except RuntimeError:
+        pass
+    async with table.database.transaction():
+        assert table.read(key) is None

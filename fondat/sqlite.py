@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
 import aiosqlite
-import contextlib
 import contextvars
 import fondat.codec
 import fondat.sql
@@ -11,11 +11,13 @@ import functools
 import logging
 import sqlite3
 import typing
+import uuid
 
 from asyncio.exceptions import CancelledError
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from fondat.codec import Codec, String
-from fondat.types import affix_type_hints, is_subclass
+from fondat.types import affix_type_hints, is_subclass, split_annotated
 from fondat.sql import Statement
 from fondat.validation import validate_arguments
 from typing import Annotated, Any, Literal, Optional, Union
@@ -37,8 +39,7 @@ codec_providers = []
 def get_codec(python_type: Any) -> SQLiteCodec:
     """Return a codec compatible with the specified Python type."""
 
-    if typing.get_origin(python_type) is Annotated:
-        python_type = typing.get_args(python_type)[0]  # strip annotation
+    python_type, _ = split_annotated(python_type)
 
     for provider in codec_providers:
         if (codec := provider(python_type)) is not None:
@@ -234,6 +235,11 @@ class _Results(AsyncIterator[Any]):
         return self.statement.result(**{k: self.codecs[k].decode(row[k]) for k in self.codecs})
 
 
+@asynccontextmanager
+async def _async_null_context():
+    yield
+
+
 class Database(fondat.sql.Database):
     """
     Manages access to a SQLite database.
@@ -242,65 +248,65 @@ class Database(fondat.sql.Database):
     • path: path to SQLite database file
     """
 
-    __slots__ = ("path", "_connection")
+    __slots__ = ("path", "_conn", "_txn")
 
     def __init__(self, path: str):
         super().__init__()
         self.path = path
-        self._connection = contextvars.ContextVar("fondat_sqlite_connection")
+        self._conn = contextvars.ContextVar("fondat_sqlite_conn", default=None)
+        self._txn = contextvars.ContextVar("fondat_sqlite_txn", default=None)
 
-    @contextlib.asynccontextmanager
-    async def transaction(self):
-
-        connection = self._connection.get(None)
-        token = None
-
-        if not connection:
-            _logger.debug("%s", "transaction begin")
-            connection = await aiosqlite.connect(self.path)
-            connection.row_factory = sqlite3.Row
-            token = self._connection.set(connection)
-
+    @asynccontextmanager
+    async def connection(self):
+        if self._conn.get(None):  # connection already established
+            yield
+            return
+        _logger.debug("open connection")
+        connection = await aiosqlite.connect(self.path)
+        connection.row_factory = sqlite3.Row
+        token = self._conn.set(connection)
         try:
             yield
-
-        except Exception as e:
-
-            # There is an issue in Python when a context manager is created
-            # within a generator: if the generator is not iterated fully, the
-            # context manager will not exit until the event loop cancels the
-            # task by raising a CancelledError, long after the context is
-            # assumed to be out of scope. Until there is some kind of fix,
-            # this warning is an attempt to surface the problem.
-            if type(e) is CancelledError:
-                _logger.warning(
-                    "%s",
-                    "transaction failed due to CancelledError; "
-                    "possible transaction context in aborted generator?",
-                )
-
-            # A GeneratorExit exception is raised when an explicit attempt
-            # is made to cleanup an asynchronus generator via the aclose
-            # coroutine method. Therefore, such an exception is not cause to
-            # rollback the transaction.
-            if token and not type(e) is GeneratorExit:
-                _logger.debug("%s", "transaction rollback")
-                await connection.rollback()
-                raise
-
-        else:
-            if token:
-                _logger.debug("%s", "transaction commit")
-                await connection.commit()
-
         finally:
-            if token:
-                self._connection.reset(token)
+            _logger.debug("close connection")
+            self._conn.reset(token)
+            try:
                 await connection.close()
+            except Exception as e:
+                _logger.error(exc_info=e)
+
+    @asynccontextmanager
+    async def transaction(self):
+        txid = f"_{uuid.uuid4().hex}"
+        _logger.debug("transaction begin %s", txid)
+        token = self._txn.set(txid)
+
+        async def commit():
+            _logger.debug("transaction commit %s", txid)
+            await connection.execute(f"RELEASE SAVEPOINT {txid};")
+
+        async def rollback():
+            _logger.debug("transaction rollback %s", tx_id)
+            await connection.execute(f"ROLLBACK TO SAVEPOINT {txid};")
+
+        async with (self.connection() if not self._conn.get() else _async_null_context()):
+            connection = self._conn.get()
+            await connection.execute(f"SAVEPOINT {txid};")
+            try:
+                yield
+            except GeneratorExit:  # explicit cleanup of asynchronous generator
+                await commit()
+            except Exception:
+                await rollback()
+                raise
+            else:
+                await commit()
+            finally:
+                self._txn.reset(token)
 
     async def execute(self, statement: Statement) -> Optional[AsyncIterator[Any]]:
-        if not (connection := self._connection.get(None)):
-            raise RuntimeError("transaction context required to execute statement")
+        if not self._conn.get():
+            raise RuntimeError("connection context required to execute statement")
         text = []
         args = []
         for fragment in statement:
@@ -309,9 +315,10 @@ class Database(fondat.sql.Database):
             else:
                 text.append("?")
                 args.append(get_codec(fragment.python_type).encode(fragment.value))
-        results = await connection.execute("".join(text), args)
-        if statement.result is not None:  # expecting a result
-            return _Results(statement, results.__aiter__())
+        async with (self.transaction() if not self._txn.get() else _async_null_context()):
+            results = await self._conn.get().execute("".join(text), args)
+            if statement.result is not None:  # expecting a result
+                return _Results(statement, results.__aiter__())
 
     def get_codec(self, python_type: Any) -> SQLiteCodec:
         return get_codec(python_type)
