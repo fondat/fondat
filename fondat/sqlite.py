@@ -286,7 +286,7 @@ class Database(fondat.sql.Database):
             await connection.execute(f"RELEASE SAVEPOINT {txid};")
 
         async def rollback():
-            _logger.debug("transaction rollback %s", tx_id)
+            _logger.debug("transaction rollback %s", txid)
             await connection.execute(f"ROLLBACK TO SAVEPOINT {txid};")
 
         async with (self.connection() if not self._conn.get() else _async_null_context()):
