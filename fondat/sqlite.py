@@ -273,7 +273,7 @@ class Database(fondat.sql.Database):
             try:
                 await connection.close()
             except Exception as e:
-                _logger.error(exc_info=e)
+                _logger.exception("error closing connection")
 
     @asynccontextmanager
     async def transaction(self):
