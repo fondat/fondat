@@ -70,18 +70,18 @@ def error_for_status(status: Union[int, http.HTTPStatus], default=InternalServer
 
 
 @contextmanager
-def reraise(exceptions, replacement):
+def replace_exception(catch: Union[Exception, tuple[Exception]], throw: Exception, *args):
     """
     Context manager that catches exception(s) and raises a replacement.
 
     Parameters:
-    • exceptions: exception class or tuple of exception classes to be caught
-    • replacement: exeption class to raise as the replacement
+    • catch: exception class or tuple of exception classes to be caught
+    • throw: exeption class to raise as the replacement
     """
     try:
         yield
-    except exceptions as e:
-        raise replacement from e
+    except catch as cause:
+        raise throw(*args) from cause
 
 
 @contextmanager
