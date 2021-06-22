@@ -20,21 +20,21 @@ def test_get_error_http_status():
     assert error_for_status(HTTPStatus.OK, None) is None
 
 
-def test_reraise_catch_single():
+def test_replace_catch_single():
     with pytest.raises(RuntimeError):
-        with fondat.error.reraise(ValueError, RuntimeError):
+        with fondat.error.replace_exception(ValueError, RuntimeError):
             raise ValueError
 
 
-def test_reraise_catch_multiple():
+def test_replace_catch_multiple():
     exceptions = (TypeError, ValueError)
     for exception in exceptions:
         with pytest.raises(RuntimeError):
-            with fondat.error.reraise(exceptions, RuntimeError):
+            with fondat.error.replace_exception(exceptions, RuntimeError):
                 raise exception
 
 
-def test_reraise_catch_none():
+def test_replace_catch_none():
     with pytest.raises(ValueError):
-        with fondat.error.reraise(TypeError, RuntimeError):
+        with fondat.error.replace_exception(TypeError, RuntimeError):
             raise ValueError
