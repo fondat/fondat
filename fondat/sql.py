@@ -420,17 +420,42 @@ def row_resource_class(table: Table, cache: bool = True) -> type:
             self.pk = pk
             self._cache = None
 
+        async def _read(self):
+            if self._cache:
+                return self._cache
+            if row := await table.read(self.pk):
+                if cache:
+                    self._cache = deepcopy(row)
+                return row
+            raise NotFoundError
+
+        async def _update(self, old: table.schema, new: table.schema):
+            if old != new:
+                stmt = Statement()
+                stmt.text(f"UPDATE {table.name} SET ")
+                updates = []
+                for name, python_type in table.columns.items():
+                    ofield = getattr(old, name)
+                    nfield = getattr(new, name)
+                    if ofield != nfield:
+                        update = Statement()
+                        update.text(f"{name} = ")
+                        update.param(nfield, python_type)
+                        updates.append(update)
+                stmt.statements(updates, ", ")
+                stmt.text(f" WHERE {table.pk} = ")
+                stmt.param(self.pk, pk_type)
+                await table.database.execute(stmt)
+                if cache:
+                    self._cache = deepcopy(new)
+
         @operation
         async def get(self) -> table.schema:
             """Get row from table."""
             if self._cache:
                 return self._cache
             async with table.database.transaction():
-                if row := await table.read(self.pk):
-                    if cache:
-                        self._cache = deepcopy(row)
-                    return row
-            raise NotFoundError
+                return await self._read()
 
         @operation
         async def put(self, value: table.schema):
@@ -439,36 +464,23 @@ def row_resource_class(table: Table, cache: bool = True) -> type:
                 raise BadRequestError("cannot modify primary key")
             async with table.database.transaction():
                 try:
-                    old = await self.get()
+                    old = await self._read()
                     new = value
-                    if old != new:
-                        stmt = Statement()
-                        stmt.text(f"UPDATE {table.name} SET ")
-                        updates = []
-                        for name, python_type in table.columns.items():
-                            if getattr(old, name) != getattr(new, name):
-                                update = Statement()
-                                update.text(f"{name} = ")
-                                update.param(getattr(new, name), python_type)
-                                updates.append(update)
-                        stmt.statements(updates, ", ")
-                        stmt.text(f" WHERE {table.pk} = ")
-                        stmt.param(self.pk, pk_type)
-                        await table.database.execute(stmt)
-                    self._cache = new
+                    await self._update(old, new)
                 except NotFoundError:
                     await table.insert(value)
-            if cache:
-                self._cache = deepcopy(value)
+                    if cache:
+                        self._cache = deepcopy(value)
 
         @operation
         async def patch(self, body: dict[str, Any]):
             """Modify row."""
             if table.pk in body:
                 raise BadRequestError(f"cannot patch field: {table.pk}")
-            await self.put(
-                json_merge_patch(value=await self.get(), type=table.schema, patch=body)
-            )
+            async with table.database.transaction():
+                old = await self._read()
+                new = json_merge_patch(value=old, type=table.schema, patch=body)
+                await self._update(old, new)
 
         @operation
         async def delete(self) -> None:

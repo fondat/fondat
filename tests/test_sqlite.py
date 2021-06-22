@@ -209,6 +209,18 @@ async def test_resource_patch(table):
     assert await resource.get() == row
 
 
+async def test_resource_patch_small(table):
+    pk = uuid4()
+    resource = sql.table_resource_class(table, sql.row_resource_class(table))()[pk]
+    row = DC(key=pk, str_="string")
+    await resource.put(row)
+    patch = {"str_": "strung"}
+    await resource.patch(patch)
+    resource = sql.table_resource_class(table, sql.row_resource_class(table))()[pk]
+    row = await resource.get()
+    assert row.str_ == "strung"
+
+
 async def test_resource_put_invalid_pk(table):
     pk = uuid4()
     resource = sql.table_resource_class(table, sql.row_resource_class(table))()[pk]
