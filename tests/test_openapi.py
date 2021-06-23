@@ -46,6 +46,7 @@ class DC:
     readonly_class: Annotated[int, ReadOnly]
     readonly_true: Annotated[int, ReadOnly(True)]
     readonly_false: Annotated[int, ReadOnly(False)]
+    example_set: set[str]
 
 
 @resource

@@ -514,14 +514,13 @@ def _mapping_schema(*, python_type, annotated, origin, args, processor, **_):
 def _iterable_schema(*, python_type, annotated, origin, args, processor, **_):
     if is_subclass(origin, Iterable) and not is_subclass(origin, Mapping) and len(args) == 1:
         kwargs = {}
-        is_set = is_subclass(origin, set)
+        if is_subclass(origin, set):
+            kwargs["uniqueItems"] = True
         for annotation in annotated:
             if is_instance(annotation, fondat.validation.MinLen):
                 kwargs["minItems"] = annotation.value
             elif is_instance(annotation, fondat.validation.MaxLen):
                 kwargs["maxItems"] = annotation.value
-            if is_set:
-                kwargs["uniqueItems"] = True
         return Schema(
             type="array",
             items=processor.schema(args[0]),
