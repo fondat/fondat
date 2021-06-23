@@ -1,8 +1,9 @@
 """Document partial modification (patch) module."""
 
 import collections.abc
-import copy
+import fondat.validation
 
+from copy import deepcopy
 from fondat.codec import get_codec, JSON
 from typing import Any
 
@@ -18,10 +19,10 @@ def _json_merge_patch(target, patch):
                 target[key] = _json_merge_patch(target.get(key), value)
         return target
     else:
-        return copy.deepcopy(patch)
+        return deepcopy(patch)
 
 
-def json_merge_patch(*, value: Any, type: type = Any, patch: Any) -> Any:
+def json_merge_patch(*, value: Any, type: type = Any, patch: Any, validate: bool = True) -> Any:
     """
     Return the result of applying a JSON Merge Patch document to the JSON representation of
     a specified value, per RFC 7386.
@@ -30,9 +31,13 @@ def json_merge_patch(*, value: Any, type: type = Any, patch: Any) -> Any:
     • value: value to be patched
     • type: type of value to be patched
     • patch: JSON Merge Patch document to apply to value
+    • validate: validate the patched result
     """
     codec = get_codec(JSON, type)
-    return codec.decode(_json_merge_patch(codec.encode(value), patch))
+    result = codec.decode(_json_merge_patch(codec.encode(value), patch))
+    if validate:
+        fondat.validation.validate(result, type)
+    return result
 
 
 def _json_merge_diff(old: Any, new: Any) -> Any:
