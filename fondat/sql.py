@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import fondat.error
 import fondat.patch
 import fondat.security
 import fondat.types
@@ -479,7 +480,8 @@ def row_resource_class(table: Table, cache: bool = True) -> type:
                 raise BadRequestError(f"cannot patch field: {table.pk}")
             async with table.database.transaction():
                 old = await self._read()
-                new = json_merge_patch(value=old, type=table.schema, patch=body)
+                with fondat.error.replace((TypeError, ValueError), BadRequestError):
+                    new = json_merge_patch(value=old, type=table.schema, patch=body)
                 await self._update(old, new)
 
         @operation

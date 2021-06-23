@@ -22,7 +22,7 @@ def test_get_error_http_status():
 
 def test_replace_catch_single():
     with pytest.raises(RuntimeError):
-        with fondat.error.replace_exception(ValueError, RuntimeError):
+        with fondat.error.replace(ValueError, RuntimeError):
             raise ValueError
 
 
@@ -30,11 +30,27 @@ def test_replace_catch_multiple():
     exceptions = (TypeError, ValueError)
     for exception in exceptions:
         with pytest.raises(RuntimeError):
-            with fondat.error.replace_exception(exceptions, RuntimeError):
+            with fondat.error.replace(exceptions, RuntimeError):
                 raise exception
 
 
 def test_replace_catch_none():
     with pytest.raises(ValueError):
-        with fondat.error.replace_exception(TypeError, RuntimeError):
+        with fondat.error.replace(TypeError, RuntimeError):
             raise ValueError
+
+
+def test_replace_args():
+    try:
+        with fondat.error.replace(TypeError, fondat.error.BadRequestError):
+            raise TypeError("error_message")
+    except fondat.error.BadRequestError as bre:
+        assert bre.args[0] == "error_message"
+
+
+def test_append():
+    try:
+        with fondat.error.append(Exception, " in spaaace!"):
+            raise RuntimeError("Pigs")
+    except RuntimeError as re:
+        assert re.args[0] == "Pigs in spaaace!"

@@ -70,38 +70,39 @@ def error_for_status(status: Union[int, http.HTTPStatus], default=InternalServer
 
 
 @contextmanager
-def replace_exception(catch: Union[Exception, tuple[Exception]], throw: Exception, *args):
+def replace(catch: Union[Exception, tuple[Exception]], throw: Exception, *args):
     """
-    Context manager that catches exception(s) and raises a replacement.
+    Context manager that catches exception(s) and raises a replacement exception. The
+    replacement exception's arguments are the arguments of the caught exception, plus
+    optional supplied arguments.
 
     Parameters:
-    • catch: exception class or tuple of exception classes to be caught
+    • catch: exception class or tuple of exception classes to catch
     • throw: exeption class to raise as the replacement
+    • args: optional arguments to add to the thrown exception
     """
     try:
         yield
     except catch as cause:
-        raise throw(*args) from cause
+        raise throw(*cause.args, *args) from cause
 
 
 @contextmanager
-def amend_exception(
-    *,
-    exceptions: Union[Exception, tuple[Exception]],
-    append: str,
-):
+def append(catch: Union[Exception, tuple[Exception]], value: str):
     """
-    Context manager that catches exception(s) and amends the exception's first argument.
+    Context manager that catches exception(s) and appends a string to the exception's message
+    (first argument) and reraises th exception. If the caught exception has no arguments, then
+    its first argument becomes the string to append.
 
     Parameters:
-    • exceptions: exception class or tuple of exception classes to be caught
-    • append: string to append to exception's first argument
+    • catch: exception class or tuple of exception classes to catch
+    • value: string value to append to exception's first argument
     """
     try:
         yield
-    except exceptions as e:
-        if not e.args:
-            e.args = append
+    except catch as cause:
+        if cause.args:
+            cause.args = (f"{cause.args[0]}{value}", *cause.args[1:])
         else:
-            e.args = (f"{e.args[0]} {append}", *e.args[1:])
+            cause.args = value
         raise
