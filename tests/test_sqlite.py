@@ -344,8 +344,15 @@ async def test_table_patch(database):
         await table.insert(DC(id="b", s="aaa"))
         await table.insert(DC(id="c", s="aaa"))
         resource = sql.table_resource_class(table)()
-        await resource.patch([{"id": "a", "s": "bbb"}, {"id": "b", "s": "bbb"}])
+        await resource.patch(
+            [
+                {"id": "a", "s": "bbb"},
+                {"id": "b", "s": "bbb"},
+                {"id": "z", "s": "zzz"},
+            ]
+        )
         assert await table.read("a") == DC(id="a", s="bbb")
         assert await table.read("b") == DC(id="b", s="bbb")
         assert await table.read("c") == DC(id="c", s="aaa")
+        assert await table.read("z") == DC(id="z", s="zzz")
         await table.drop()

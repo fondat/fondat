@@ -535,9 +535,9 @@ def table_resource_class(table: Table, row_resource_type: type = None) -> type:
 
     fondat.types.affix_type_hints(Page, localns=locals())
 
+    dc_codec = get_codec(JSON, table.schema)
     pk_type = table.columns[table.pk]
     pk_codec = get_codec(JSON, pk_type)
-
     cursor_codec = get_codec(Binary, pk_type)
 
     class TableResource:
@@ -571,23 +571,27 @@ def table_resource_class(table: Table, row_resource_type: type = None) -> type:
         @operation
         async def patch(self, body: Iterable[dict[str, Any]]):
             """
-            Modify multiple rows in a single transaction-bound operation.
+            Insert and/or modify multiple rows in a single transaction.
 
-            Patch body is an iterable of JSON Merge Patch documents; each document contains
-            the primary key of the row to be modified.
+            Patch body is an iterable of JSON Merge Patch documents; each document must
+            contain the primary key of its row.
             """
             async with table.database.transaction():
                 for doc in body:
                     with fondat.error.replace((TypeError, ValueError), BadRequestError):
                         pk = doc.get(table.pk)
                         if pk is None:
-                            raise BadRequestError("patch document must contain primary key")
+                            raise ValueError(f"missing primary key: {table.pk}")
                         row = row_resource_type(pk_codec.decode(pk))
-                        with fondat.error.append(NotFoundError, f"; primary key: {pk}"):
+                        try:
                             old = await row._read()
-                        new = json_merge_patch(value=old, type=table.schema, patch=doc)
-                        await row._validate(new)
-                        await row._update(old, new)
+                            new = json_merge_patch(value=old, type=table.schema, patch=doc)
+                            await row._validate(new)
+                            await row._update(old, new)
+                        except NotFoundError:
+                            new = dc_codec.decode(doc)
+                            await row._validate(new)
+                            await row._insert(new)
 
     fondat.types.affix_type_hints(TableResource, localns=locals())
     return TableResource
