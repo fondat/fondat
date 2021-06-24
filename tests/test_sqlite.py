@@ -1,6 +1,7 @@
 import pytest
 
 import asyncio
+import contextlib
 import fondat.error
 import fondat.patch
 import fondat.sql as sql
@@ -330,3 +331,21 @@ async def transaction_decorator(table):
         pass
     async with table.database.transaction():
         assert table.read(key) is None
+
+
+async def test_table_patch(database):
+    DC = make_datacls("DC", (("id", str), ("s", str)))
+    table = sql.Table("dc", database, DC, "id")
+    async with database.transaction():
+        with contextlib.suppress(Exception):
+            await table.drop()
+        await table.create()
+        await table.insert(DC(id="a", s="aaa"))
+        await table.insert(DC(id="b", s="aaa"))
+        await table.insert(DC(id="c", s="aaa"))
+        resource = sql.table_resource_class(table)()
+        await resource.patch([{"id": "a", "s": "bbb"}, {"id": "b", "s": "bbb"}])
+        assert await table.read("a") == DC(id="a", s="bbb")
+        assert await table.read("b") == DC(id="b", s="bbb")
+        assert await table.read("c") == DC(id="c", s="aaa")
+        await table.drop()

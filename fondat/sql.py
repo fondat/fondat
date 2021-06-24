@@ -14,7 +14,7 @@ import wrapt
 from collections.abc import AsyncIterator, Iterable, Sequence
 from copy import deepcopy
 from dataclasses import dataclass, is_dataclass
-from fondat.codec import get_codec, Binary
+from fondat.codec import get_codec, Binary, JSON
 from fondat.data import datacls
 from fondat.error import BadRequestError, NotFoundError
 from fondat.patch import json_merge_patch
@@ -421,6 +421,10 @@ def row_resource_class(table: Table, cache: bool = True) -> type:
             self.pk = pk
             self._cache = None
 
+        async def _validate(self, value: table.schema):
+            """Validate value; raise BadRequestError if invalid."""
+            pass  # implement in subclass
+
         async def _read(self):
             if self._cache:
                 return self._cache
@@ -430,7 +434,16 @@ def row_resource_class(table: Table, cache: bool = True) -> type:
                 return row
             raise NotFoundError
 
+        async def _insert(self, value: table.schema):
+            if getattr(value, table.pk) != self.pk:
+                raise BadRequestError("primary key mismatch")
+            await table.insert(value)
+            if cache:
+                self._cache = deepcopy(value)
+
         async def _update(self, old: table.schema, new: table.schema):
+            if getattr(new, table.pk) != self.pk:
+                raise BadRequestError("primary key mismatch")
             if old != new:
                 stmt = Statement()
                 stmt.text(f"UPDATE {table.name} SET ")
@@ -461,27 +474,24 @@ def row_resource_class(table: Table, cache: bool = True) -> type:
         @operation
         async def put(self, value: table.schema):
             """Insert or update (upsert) row."""
+            await self._validate(value)
             if getattr(value, table.pk) != self.pk:
                 raise BadRequestError("cannot modify primary key")
             async with table.database.transaction():
                 try:
                     old = await self._read()
-                    new = value
-                    await self._update(old, new)
+                    await self._update(old, value)
                 except NotFoundError:
-                    await table.insert(value)
-                    if cache:
-                        self._cache = deepcopy(value)
+                    await self._insert(value)
 
         @operation
         async def patch(self, body: dict[str, Any]):
-            """Modify row."""
-            if table.pk in body:
-                raise BadRequestError(f"cannot patch field: {table.pk}")
+            """Modify row. Patch body is a JSON Merge Patch document."""
             async with table.database.transaction():
                 old = await self._read()
                 with fondat.error.replace((TypeError, ValueError), BadRequestError):
                     new = json_merge_patch(value=old, type=table.schema, patch=body)
+                    await self._validate(new)
                 await self._update(old, new)
 
         @operation
@@ -526,6 +536,8 @@ def table_resource_class(table: Table, row_resource_type: type = None) -> type:
     fondat.types.affix_type_hints(Page, localns=locals())
 
     pk_type = table.columns[table.pk]
+    pk_codec = get_codec(JSON, pk_type)
+
     cursor_codec = get_codec(Binary, pk_type)
 
     class TableResource:
@@ -555,6 +567,27 @@ def table_resource_class(table: Table, row_resource_type: type = None) -> type:
                     else None
                 )
             return Page(items=items, cursor=cursor)
+
+        @operation
+        async def patch(self, body: Iterable[dict[str, Any]]):
+            """
+            Modify multiple rows in a single transaction-bound operation.
+
+            Patch body is an iterable of JSON Merge Patch documents; each document contains
+            the primary key of the row to be modified.
+            """
+            async with table.database.transaction():
+                for doc in body:
+                    with fondat.error.replace((TypeError, ValueError), BadRequestError):
+                        pk = doc.get(table.pk)
+                        if pk is None:
+                            raise BadRequestError("patch document must contain primary key")
+                        row = row_resource_type(pk_codec.decode(pk))
+                        with fondat.error.append(NotFoundError, f"; primary key: {pk}"):
+                            old = await row._read()
+                        new = json_merge_patch(value=old, type=table.schema, patch=doc)
+                        await row._validate(new)
+                        await row._update(old, new)
 
     fondat.types.affix_type_hints(TableResource, localns=locals())
     return TableResource
