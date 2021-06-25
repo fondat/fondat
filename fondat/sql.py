@@ -6,6 +6,7 @@ import fondat.error
 import fondat.patch
 import fondat.security
 import fondat.types
+import fondat.validation
 import functools
 import logging
 import typing
@@ -590,6 +591,7 @@ def table_resource_class(table: Table, row_resource_type: type = None) -> type:
                             await row._update(old, new)
                         except NotFoundError:
                             new = dc_codec.decode(doc)
+                            fondat.validation.validate(new, table.schema)
                             await row._validate(new)
                             await row._insert(new)
 

@@ -355,4 +355,6 @@ async def test_table_patch(database):
         assert await table.read("b") == DC(id="b", s="bbb")
         assert await table.read("c") == DC(id="c", s="aaa")
         assert await table.read("z") == DC(id="z", s="zzz")
+        with pytest.raises(fondat.error.BadRequestError):
+            await resource.patch([{"id": "a", "s": 123}])
         await table.drop()
