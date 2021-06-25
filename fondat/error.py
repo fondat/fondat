@@ -100,9 +100,11 @@ def append(catch: Union[Exception, tuple[Exception]], value: str):
     """
     try:
         yield
-    except catch as cause:
-        if cause.args:
-            cause.args = (f"{cause.args[0]}{value}", *cause.args[1:])
-        else:
-            cause.args = value
+    except catch as c:
+        if value is None:
+            value = ""
+        args = [value if not c.args else f"{c.args[0]}{value}"]
+        if len(c.args) > 1:
+            args += c.args[1:]
+        c.args = tuple(args)
         raise
