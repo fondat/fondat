@@ -87,19 +87,30 @@ class MaxValue(Validator):
 
 
 class Pattern(Validator):
-    """Type annotation that validates a value matches a pattern."""
+    """
+    Type annotation that validates a value matches a pattern.
 
-    __slots__ = ("value",)
+    Parameters:
+    • pattern: pattern object or string to match
+    • message: message to include in raised value error
+    """
 
-    def __init__(self, value: Union[str, re.Pattern]):
-        self.value = re.compile(value) if isinstance(value, str) else value
+    __slots__ = ("pattern", "message")
+
+    def __init__(self, pattern: Union[str, re.Pattern], message: str = None):
+        self.pattern = re.compile(pattern) if isinstance(pattern, str) else pattern
+        self.message = message
 
     def validate(self, value: Any) -> None:
-        if not self.value.match(value):
-            raise ValueError(f"does not match pattern: '{self.value.pattern}'")
+        if not self.pattern.match(value):
+            raise ValueError(
+                self.message
+                if self.message is not None
+                else f"value does not match required pattern"
+            )
 
     def __repr__(self):
-        return f"Pattern({self.value})"
+        return f"Pattern({self.pattern})"
 
 
 def _validate_union(value, args):
