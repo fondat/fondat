@@ -1,10 +1,9 @@
-from fondat.codec import dataclass_codec
 import pytest
 
 from fondat.data import copy_data, datacls, make_datacls, derive_datacls, derive_typeddict
 from fondat.types import is_optional
-from dataclasses import field, fields
-from typing import Annotated, Optional
+from dataclasses import asdict, field, fields
+from typing import Annotated, Optional, TypedDict
 
 
 def test_datacls_optional():
@@ -106,8 +105,7 @@ def test_copy_all():
         "Foo", (("a", Optional[int]), ("b", Optional[str]), ("c", Optional[float]))
     )
     foo = Foo(a=1, b="a", c=2.0)
-    bar = Foo()
-    copy_data(foo, bar)
+    bar = copy_data(foo, Foo)
     assert foo == bar
 
 
@@ -119,9 +117,8 @@ def test_copy_include():
         c: Optional[float]
 
     foo = Foo(a=1, b="a", c=2.0)
-    bar = Foo()
     include = {"a", "b"}
-    copy_data(foo, bar, include=include)
+    bar = copy_data(foo, Foo, include=include)
     for name in bar.__annotations__:
         assert getattr(bar, name) == (getattr(foo, name) if name in include else None)
 
@@ -134,11 +131,58 @@ def test_copy_exclude():
         c: Optional[float]
 
     foo = Foo(a=1, b="a", c=2.0)
-    bar = Foo()
     exclude = {"a"}
-    copy_data(foo, bar, exclude=exclude)
+    bar = copy_data(foo, Foo, exclude=exclude)
     for name in bar.__annotations__:
         assert getattr(bar, name) == (getattr(foo, name) if name not in exclude else None)
+
+
+def test_copy_td_to_dc():
+    fields = (("a", str), ("b", int))
+    DC = make_datacls("DC", fields)
+    TD = TypedDict("TD", fields)
+    td = TD(a="a", b=1)
+    assert copy_data(td, DC) == DC(**td)
+
+
+def test_copy_td_to_dc_include():
+    fields = (("a", Optional[str]), ("b", Optional[int]))
+    DC = make_datacls("DC", fields)
+    TD = TypedDict("TD", fields)
+    td = TD(a="a", b=1)
+    assert copy_data(td, DC, include={"a"}) == DC(a="a")
+
+
+def test_copy_td_to_dc_exclude():
+    fields = (("a", Optional[str]), ("b", Optional[int]))
+    DC = make_datacls("DC", fields)
+    TD = TypedDict("TD", fields)
+    td = TD(a="a", b=1)
+    assert copy_data(td, DC, exclude={"a"}) == DC(b=1)
+
+
+def test_copy_dc_to_td():
+    fields = (("a", str), ("b", int))
+    DC = make_datacls("DC", fields)
+    TD = TypedDict("TD", fields)
+    dc = DC(a="a", b=1)
+    assert copy_data(dc, TD) == asdict(dc)
+
+
+def test_copy_dc_to_td_include():
+    fields = (("a", Optional[str]), ("b", Optional[int]))
+    DC = make_datacls("DC", fields)
+    TD = TypedDict("TD", fields)
+    dc = DC(a="a", b=1)
+    assert copy_data(dc, TD, include={"a"}) == {"a": "a"}
+
+
+def test_copy_dc_to_td_exclude():
+    fields = (("a", Optional[str]), ("b", Optional[int]))
+    DC = make_datacls("DC", fields)
+    TD = TypedDict("TD", fields)
+    dc = DC(a="a", b=1)
+    assert copy_data(dc, TD, exclude={"a"}) == {"b": 1}
 
 
 def test_derive_typeddict_dataclass_simple():

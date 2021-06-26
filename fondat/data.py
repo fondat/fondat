@@ -4,6 +4,7 @@ import dataclasses
 import typing
 
 from collections.abc import Iterable, Mapping
+from dataclasses import is_dataclass
 from fondat.types import is_optional, split_annotated
 from typing import Any, Optional, TypedDict, Union
 
@@ -161,36 +162,6 @@ def derive_datacls(
     return make_datacls(cls_name, fields=fields, **kwargs)
 
 
-def copy_data(
-    source: Any,
-    target: Any,
-    include: set[str] = None,
-    exclude: set[str] = None,
-):
-    """
-    Copy data from a dataclass instance to another.
-
-    Parameters:
-    • source: instance to copy data from
-    • target: instance to copy data to
-    • include: source dataclass fields to include  [all]
-    • exclude: source dataclass fields to exclude  [none]
-
-    If fields to include are not specified, then all fields from the source dataclass will be
-    included. If fields to exclude are not specified, then no fields from the source dataclass
-    will be excluded.
-    """
-
-    if include is None:
-        include = source.__annotations__.keys()
-
-    if exclude is None:
-        exclude = set()
-
-    for field in (f for f in include if f not in exclude):
-        setattr(target, field, getattr(source, field))
-
-
 def derive_typeddict(
     type_name: str,
     source: Any,
@@ -227,3 +198,49 @@ def derive_typeddict(
         },
         total=total,
     )
+
+
+def copy_data(
+    source: Any,
+    target: Any,
+    include: set[str] = None,
+    exclude: set[str] = None,
+) -> Any:
+    """
+    Creates a new instance of the target dataclass or TypedDict data type, populating it with
+    data from the source dataclass or TypedDict instance.
+
+    Parameters:
+    • source: dataclass instance or mapping to copy data from
+    • target: dataclass or TypedDict type or instance to copy data to
+    • include: fields to include  [all]
+    • exclude: fields to exclude  [none]
+
+    If values to include are not specified, then all fields that source and target types have
+    in common are copied. If fields to exclude are not specified, then no fields are excluded.
+
+    This function makes no attempt to ensure that the types of data in source and target match.
+    """
+
+    if is_dataclass(source) and type(source) is not type:
+        getter = lambda key: getattr(source, key, None)
+    elif isinstance(source, Mapping):
+        getter = lambda key: source.get(key, None)
+    else:
+        raise TypeError("source must be dataclass or mapping")
+
+    if not (
+        (is_dataclass(target) and type(target) is type)
+        or (issubclass(target, dict) and hasattr(target, "__annotations__"))
+    ):
+        raise TypeError("target must be dataclass or TypedDict type")
+
+    if include is None:
+        include = source.__annotations__.keys() if is_dataclass(source) else source.keys()
+
+    if exclude is None:
+        exclude = set()
+
+    keys = include & target.__annotations__.keys() - exclude
+    kwargs = {key: getter(key) for key in keys}
+    return target(**kwargs)
