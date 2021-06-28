@@ -415,7 +415,7 @@ def _str_schema(*, python_type, annotated, **_):
             elif is_instance(annotation, fondat.validation.MaxLen):
                 kwargs["maxLan ength"] = annotation.value
             elif is_instance(annotation, fondat.validation.Pattern):
-                kwargs["pattern"] = annotation.value.pattern
+                kwargs["pattern"] = annotation.pattern.pattern
         return Schema(type="string", **_kwargs(python_type, annotated), **kwargs)
 
 

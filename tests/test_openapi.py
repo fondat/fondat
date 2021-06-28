@@ -11,7 +11,7 @@ from fondat.openapi import generate_openapi, openapi_resource
 from fondat.resource import resource, operation, query, mutation, container_resource
 from fondat.types import NoneType
 from fondat.security import Policy
-from fondat.validation import validate
+from fondat.validation import validate, Pattern
 from typing import Annotated, Optional, Union
 from uuid import UUID
 
@@ -47,6 +47,7 @@ class DC:
     readonly_true: Annotated[int, ReadOnly(True)]
     readonly_false: Annotated[int, ReadOnly(False)]
     example_set: set[str]
+    pattern_str: Annotated[str, Pattern("foo")]
 
 
 @resource

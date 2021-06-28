@@ -238,7 +238,7 @@ class Table:
     async def select(
         self,
         *,
-        columns: Union[Iterable[str], str] = None,
+        columns: Union[Sequence[str], str] = None,
         where: Statement = None,
         order: Union[Sequence[str], str] = None,
         limit: int = None,
@@ -373,7 +373,7 @@ class Index:
         self,
         name: str,
         table: Table,
-        keys: Iterable[str],
+        keys: Sequence[str],
         unique: bool = False,
     ):
         self.name = name
