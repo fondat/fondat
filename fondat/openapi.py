@@ -410,7 +410,9 @@ def _str_schema(*, python_type, annotated, **_):
     if is_subclass(python_type, str):
         kwargs = {}
         for annotation in annotated:
-            if is_instance(annotation, fondat.validation.MinLen):
+            if is_instance(annotation, fondat.annotation.Format):
+                kwargs["format"] = annotation.value
+            elif is_instance(annotation, fondat.validation.MinLen):
                 kwargs["minLength"] = annotation.value
             elif is_instance(annotation, fondat.validation.MaxLen):
                 kwargs["maxLan ength"] = annotation.value

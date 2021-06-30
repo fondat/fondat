@@ -4,8 +4,8 @@ import fondat.http
 import fondat.openapi
 
 from datetime import date
-from fondat.annotation import Deprecated, Description, Example, ReadOnly
-from fondat.codec import get_codec, JSON, String
+from fondat.annotation import Deprecated, Description, Example, Format, ReadOnly
+from fondat.codec import get_codec, JSON
 from fondat.data import datacls
 from fondat.openapi import generate_openapi, openapi_resource
 from fondat.resource import resource, operation, query, mutation, container_resource
@@ -48,6 +48,7 @@ class DC:
     readonly_false: Annotated[int, ReadOnly(False)]
     example_set: set[str]
     pattern_str: Annotated[str, Pattern("foo")]
+    password: Annotated[str, Format("password")]
 
 
 @resource
@@ -191,7 +192,7 @@ class ResourceB:
         return "query3"
 
     @mutation
-    async def mutate(self, DC):
+    async def mutate(self, dc: DC):
         """Perform some mutation."""
         pass
 

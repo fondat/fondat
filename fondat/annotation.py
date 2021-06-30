@@ -52,6 +52,21 @@ class Example:
         return str(self.value)
 
 
+class Format:
+    """Type annotation to express string format."""
+
+    __slots__ = ("value",)
+
+    def __init__(self, value: Any):
+        self.value = value
+
+    def __repr__(self):
+        return f"Format({self.value!r})"
+
+    def __str__(self):
+        return str(self.value)
+
+
 class ReadOnly:
     """Type annotation to indicate a value is read-only."""
 
