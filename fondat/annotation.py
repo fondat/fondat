@@ -5,79 +5,61 @@ from fondat.validation import validate_arguments
 from typing import Any
 
 
-class Deprecated:
-    """Type annotation to indicate a value is deprecated."""
+class Annotation:
+    """Base class for annotations."""
 
     __slots__ = ("value",)
+
+    def __repr__(self):
+        return f"{type(self).__name__}({self.value!r})"
+
+    def __str__(self):
+        return str(self.value)
+
+    def __eq__(self, other):
+        return type(self) == type(other) and self.value == other.value
+
+    def __hash__(self):
+        try:
+            return hash((self.__class__, self.value))
+        except:
+            return super().__hash__()
+
+
+class Deprecated(Annotation):
+    """Type annotation to indicate a value is deprecated."""
 
     @validate_arguments
     def __init__(self, value: bool):
         self.value = value
 
-    def __repr__(self):
-        return f"Deprecated({self.value!r})"
 
-    def __str__(self):
-        return str(self.value)
-
-
-class Description:
+class Description(Annotation):
     """Type annotation to provide a textual description."""
-
-    __slots__ = ("value",)
 
     @validate_arguments
     def __init__(self, value: str):
         self.value = value
 
-    def __repr__(self):
-        return f"Description({self.value!r})"
 
-    def __str__(self):
-        return str(self.value)
-
-
-class Example:
+class Example(Annotation):
     """Type annotation to provide an example value."""
 
-    __slots__ = ("value",)
-
     def __init__(self, value: Any):
         self.value = value
 
-    def __repr__(self):
-        return f"Example({self.value!r})"
 
-    def __str__(self):
-        return str(self.value)
-
-
-class Format:
+class Format(Annotation):
     """Type annotation to express string format."""
 
-    __slots__ = ("value",)
-
-    def __init__(self, value: Any):
+    @validate_arguments
+    def __init__(self, value: str):
         self.value = value
 
-    def __repr__(self):
-        return f"Format({self.value!r})"
 
-    def __str__(self):
-        return str(self.value)
-
-
-class ReadOnly:
+class ReadOnly(Annotation):
     """Type annotation to indicate a value is read-only."""
-
-    __slots__ = ("value",)
 
     @validate_arguments
     def __init__(self, value: bool):
         self.value = value
-
-    def __repr__(self):
-        return f"ReadOnly({self.value!r})"
-
-    def __str__(self):
-        return str(self.value)
