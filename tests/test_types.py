@@ -30,6 +30,8 @@ def test_is_optional():
 
 def test_strip_optional():
     assert strip_optional(Optional[str]) is str
+    assert strip_optional(Annotated[Optional[str], ""]) == Annotated[str, ""]
+    assert strip_optional(Optional[Annotated[str, ""]]) == Annotated[str, ""]
     assert (
         strip_optional(Union[str, Annotated[Optional[int], ""]])
         == Union[str, Annotated[int, ""]]
