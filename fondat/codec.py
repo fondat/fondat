@@ -1509,18 +1509,39 @@ def _any(codec_type, python_type):
             return _any_jsoncodec
 
 
-@functools.cache
-def get_codec(codec_type, python_type, annotations=None):
-    """Return a codec compatible with the specified Python type."""
+_cache = {}
 
-    _, args = split_annotated(python_type)
 
-    for arg in args:
-        if isinstance(arg, codec_type):
-            return arg
+def _get_codec(codec_type, python_type, annotations):
+
+    _, annotations = split_annotated(python_type)
+
+    for annotation in annotations:
+        if isinstance(annotation, codec_type):
+            return annotation
 
     for provider in providers:
         if (codec := provider(codec_type, python_type)) is not None:
             return codec
 
     raise TypeError(f"failed to provide {codec_type} for {python_type}")
+
+
+def get_codec(codec_type, python_type, annotations=None):
+    """Return a codec compatible with the specified Python type."""
+
+    cache_key = tuple((type(arg), arg) for arg in (codec_type, python_type, annotations))
+
+    try:
+        return _cache[cache_key]
+    except:
+        pass
+
+    result = _get_codec(codec_type, python_type, annotations)
+
+    try:
+        _cache[cache_key] = result
+    except:  # cache on best-effort basis
+        pass
+
+    return result
