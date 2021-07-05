@@ -79,6 +79,9 @@ class Statement(Iterable):
         """Iterate over fragments of the statement."""
         return iter(self.fragments)
 
+    def __bool__(self):
+        return len(self.fragments) > 0
+
     def text(self, value: str) -> None:
         """Append text to the statement."""
         self.fragments.append(value)
