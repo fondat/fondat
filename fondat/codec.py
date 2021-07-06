@@ -198,7 +198,7 @@ class _Bytes_String(String[Union[bytes, bytearray]]):
         try:
             return base64.b64decode(value)
         except binascii.Error:
-            raise ValueError("expecting a base64-encoded value")
+            raise ValueError(f"expecting a base64-encoded value; received: {value}")
 
 
 _bytes_stringcodec = _Bytes_String()
@@ -297,7 +297,7 @@ class _Int_JSON(JSON[int]):
         if isinstance(result, float):
             result = int(result)
             if result != value:  # 1.0 == 1
-                raise TypeError("expecting integer")
+                raise TypeError(f"expecting integer; received: {value}")
         return result
 
 
@@ -477,7 +477,7 @@ class _NoneType_String(String[NoneType]):
     @validate_arguments
     def decode(self, value: str) -> NoneType:
         if str != "":
-            raise ValueError("expecting empty string")
+            raise ValueError(f"expecting empty string; received: {value}")
         return None
 
 
@@ -498,7 +498,7 @@ class _NoneType_Binary(Binary[NoneType]):
     @validate_arguments
     def decode(self, value: Union[bytes, bytearray]) -> NoneType:
         if value != b"":
-            raise ValueError("expecting empty byte sequence")
+            raise ValueError(f"expecting empty byte sequence received: {value}")
         return None
 
 
@@ -1167,15 +1167,6 @@ def _iterable(codec_type, python_type):
 _dc_kw = {k + "_": k for k in keyword.kwlist}
 
 
-def camel_case(name: str) -> str:
-    """Normalize a name to camel case."""
-
-    stripped = name.lstrip("_")
-    prefix = "_" * (len(name) - len(stripped))
-    split = stripped.split("_")
-    return "".join([prefix, split[0].lower(), *(x.title() for x in split[1:])])
-
-
 @_provider
 def dataclass_codec(codec_type, python_type):
 
@@ -1387,7 +1378,7 @@ def _literal(codec_type, python_type):
                     return v
             except:
                 continue
-        raise ValueError(f"expecting one of: {get_args(python_type)}")
+        raise ValueError(f"expecting one of: {get_args(python_type)}; received: {value}")
 
     if codec_type is String:
 

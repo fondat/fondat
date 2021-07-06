@@ -128,7 +128,7 @@ def _validate_literal(value, args):
     for arg in args:
         if arg == value and type(arg) is type(value):
             return
-    raise ValueError(f"expecting one of: {args}; got: {value}")
+    raise ValueError(f"expecting one of: {args}; received: {value}")
 
 
 def _validate_typeddict(value, python_type):
@@ -183,13 +183,13 @@ def _validate(value, type_hint):
 
     # basic type validation
     if origin and not is_instance(value, origin):
-        raise TypeError(f"expecting {origin.__name__}; got {type(value)}")
+        raise TypeError(f"expecting {origin.__name__}; received {type(value)}")
     elif not origin and not is_instance(value, python_type):
-        raise TypeError(f"expecting {python_type}; got {type(value)}")
+        raise TypeError(f"expecting {python_type}; received {type(value)}")
     elif python_type is int and is_instance(value, bool):  # bool is subclass of int
-        raise TypeError("expecting int; got bool")
+        raise TypeError("expecting int; received bool")
     elif is_subclass(origin, Iterable) and is_instance(value, (str, bytes, bytearray)):
-        raise TypeError(f"expecting Iterable; got {type(value)}")
+        raise TypeError(f"expecting Iterable; received {type(value)}")
 
     # structured type validation
     if is_subclass(python_type, dict) and hasattr(python_type, "__annotations__"):
