@@ -227,3 +227,10 @@ def test_td_columns():
     TD = TypedDict("TD", {"x": str, "y": str})
     tdc = typeddict_codec(typeddict=TD)
     assert tdc.columns == ("x", "y")
+
+
+def test_dc_decode_invalid_empty_column():
+    DC = make_dataclass("DC", (("a", int), ("b", float)))
+    dcc = dataclass_codec(dataclass=DC, columns=["a", "b"])
+    with pytest.raises(ValueError):
+        dcc.decode(["a", ""])

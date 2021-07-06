@@ -180,11 +180,12 @@ def typeddict_codec(
                     try:
                         items[key] = codecs[column].decode(value)
                     except (TypeError, ValueError) as e:
-                        msg = f"in {column}"
+                        msg = f"CSV column {column}"
                         if not e.args:
-                            e.args = msg
+                            e.args = (msg,)
                         else:
-                            e.args[0] += msg
+                            e.args = (f"{msg}: {e.args[0]}", *e.args[1:])
+                        raise
             return typeddict(items)
 
     return TypedDictRowCodec(columns=columns)

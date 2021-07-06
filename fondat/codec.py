@@ -255,7 +255,7 @@ class _Int_String(String[int]):
         try:
             return int(value)
         except:
-            raise ValueError(f"{value} is not a valid integer")
+            raise ValueError(f"invalid integer: '{value}'")
 
 
 _int_stringcodec = _Int_String()
@@ -333,7 +333,7 @@ class _Float_String(String[float]):
         try:
             return float(value)
         except:
-            raise ValueError(f"{value} is not a valid floating point number")
+            raise ValueError(f"invalid floating point number: '{value}'")
 
 
 _float_stringcodec = _Float_String()
@@ -553,7 +553,7 @@ class _Decimal_String(String[Decimal]):
         try:
             return Decimal(value)
         except decimal.InvalidOperation:
-            raise ValueError(f"{value} is not a valid decimal number")
+            raise ValueError(f"invalid decimal number: '{value}'")
 
 
 _decimal_string = _Decimal_String()
@@ -632,7 +632,7 @@ class _Date_String(String[date]):
         try:
             return date.fromisoformat(value)
         except:
-            raise ValueError(f"{value} is not a valid date")
+            raise ValueError(f"invalid date: '{value}'")
 
 
 _date_stringcodec = _Date_String()
@@ -731,7 +731,7 @@ class _Datetime_String(String[datetime]):
         try:
             return _to_utc(iso8601.parse_date(value))
         except:
-            raise ValueError(f"{value} is not a valid datetime")
+            raise ValueError(f"invalid datetime: '{value}'")
 
 
 _datetime_stringcodec = _Datetime_String()
@@ -823,7 +823,7 @@ class _UUID_String(String[UUID]):
         try:
             return UUID(value)
         except Exception as e:
-            raise ValueError(f"{value} is not a valid UUID value")
+            raise ValueError(f"invalid UUID value: '{value}'")
 
 
 _uuid_stringcodec = _UUID_String()

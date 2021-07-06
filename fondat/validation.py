@@ -134,7 +134,7 @@ def _validate_literal(value, args):
 def _validate_typeddict(value, python_type):
     for item_key, item_type in typing.get_type_hints(python_type, include_extras=True).items():
         try:
-            validate(value[item_key], item_type, f" in item: {item_key}")
+            validate(value[item_key], item_type, f"item {item_key}")
         except KeyError:
             if item_key in python_type.__required_keys__:
                 raise ValueError(f"missing required item: {item_key}")
@@ -143,8 +143,8 @@ def _validate_typeddict(value, python_type):
 def _validate_mapping(value, python_type, args):
     key_type, value_type = args
     for key, value in value.items():
-        validate(key, key_type, f" for key: {key}")
-        validate(value, value_type, f" in: {key}")
+        validate(key, key_type, f"mapping key {key}")
+        validate(value, value_type, f"value in {key}")
 
 
 def _validate_iterable(value, python_type, args):
@@ -155,7 +155,7 @@ def _validate_iterable(value, python_type, args):
 
 def _validate_dataclass(value, python_type):
     for attr_name, attr_type in typing.get_type_hints(python_type, include_extras=True).items():
-        validate(getattr(value, attr_name), attr_type, f" in attribute: {attr_name}")
+        validate(getattr(value, attr_name), attr_type, f"attribute {attr_name}")
 
 
 def _validate(value, type_hint):
@@ -205,8 +205,14 @@ def _validate(value, type_hint):
 def validate(value: Any, type_hint: Any, in_: str = None) -> NoneType:
     """Validate a value."""
 
-    with fondat.error.append((TypeError, ValueError), in_):
+    try:
         _validate(value, type_hint)
+    except (TypeError, ValueError) as e:
+        if not e.args:
+            e.args = (in_,)
+        else:
+            e.args = (f"{in_}: {e.args[0]}", *e.args[1:])
+        raise
 
 
 def validate_arguments(callable: Callable):
@@ -230,7 +236,7 @@ def validate_arguments(callable: Callable):
         }
         for param in (p for p in sig.parameters.values() if p.name in params):
             if hint := hints.get(param.name):
-                validate(params[param.name], hint, f" in parameter: {param.name}")
+                validate(params[param.name], hint, f"parameter {param.name}")
 
     if asyncio.iscoroutinefunction(callable):
 
@@ -256,7 +262,7 @@ def validate_return_value(callable: Callable):
 
     def _validate(result):
         if type_ is not None:
-            validate(result, type_, " in return value")
+            validate(result, type_, "return value")
 
     if asyncio.iscoroutinefunction(callable):
 
