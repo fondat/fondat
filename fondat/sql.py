@@ -192,7 +192,7 @@ class Table:
     Parameters and attributes:
     • name: name of database table
     • database: database where table is managed
-    • schema: dataclass or TypedDict representing the table schema
+    • schema: dataclass or TypedDict type representing the table schema
     • pk: column name of primary key
 
     Attributes:

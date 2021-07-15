@@ -156,18 +156,15 @@ def typeddict_codec(
 
         def encode(self, value: typeddict) -> list[str]:
             """
-            Encode from dataclass to row.
-
-            If a field value is None, it will be represented in a column as an empty string.
+            Encode from TypedDict value to CSV row. If a field value is None, it will be
+            represented in a column as an empty string.
             """
             return [codecs[column].encode(value.get(keys[column])) for column in self.columns]
 
         def decode(self, values: list[str]) -> typeddict:
             """
-            Decode from row to dataclass.
-
-            If a column to decode contains an empty string value, it will be represented as
-            None if the associated field is optional.
+            Decode from CSV row to TypedDict value. If a column to decode contains an empty
+            string value, it will be represented as None if the associated field is optional.
             """
             items = {}
             for column, value in zip(self.columns, values):
@@ -224,25 +221,22 @@ def dataclass_codec(
     )
 
     class DataclassRowCodec(Codec[dataclass, list[str]]):
-        """Encodes/decodes a dataclass to/from a CSV row."""
+        """Encodes/decodes a dataclass value to/from a CSV row."""
 
         def __init__(self, columns: Sequence[str]):
             self.columns = columns
 
         def encode(self, value: dataclass) -> list[str]:
             """
-            Encode from dataclass to row.
-
-            If a field value is None, it will be represented in a column as an empty string.
+            Encode from dataclass value to CSV row. If a field value is None, it will be
+            represented in a column as an empty string.
             """
             return td_codec.encode(dataclasses.asdict(value))
 
         def decode(self, values: list[str]) -> dataclass:
             """
-            Decode from row to dataclass.
-
-            If a column to decode contains an empty string value, it will be represented as
-            None if the associated field is optional.
+            Decode from CSV row to dataclass value. If a column to decode contains an empty
+            string value, it will be represented as None if the associated field is optional.
             """
             return dataclass(**td_codec.decode(values))
 

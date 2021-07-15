@@ -13,7 +13,7 @@ class _MISSING:
     pass
 
 
-def _datacls_init(dc):
+def _datacls_init(dc: Any):
 
     fields = {field.name: field for field in dataclasses.fields(dc) if field.init}
 
@@ -58,8 +58,9 @@ def datacls(cls: type, init: bool = True, **kwargs) -> type:
     Decorate a class to be a data class. This decorator wraps the dataclasses.dataclass
     decorator, with the following changes to the generated __init__ method:
 
+    • initialization method only processes keyword arguments
+    • initialization method ignores unexpected keyword arguments
     • fields (with default values or not) can be declared in any order
-    • the __init__ method only accepts keyword arguments
     • Optional[...] fields default to None if no default value is specified
     """
 
@@ -79,8 +80,9 @@ def make_datacls(
     Return a new dataclass. This function wraps the Python dataclasses.make_dataclass
     function, with the following changes to the generated __init__ method:
 
+    • initialization method only processes keyword arguments
+    • initialization method ignores unexpected keyword arguments
     • fields (with default values or not) can be declared in any order
-    • the __init__ method only accepts keyword arguments
     • Optional[...] fields default to None if no default value is specified
 
     Keyword arguments are passed on to the dataclasses.make_dataclass function.
