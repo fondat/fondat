@@ -121,7 +121,7 @@ def _validate_union(value, args):
             return validate(value, arg)
         except (TypeError, ValueError) as e:
             continue
-    raise TypeError(f"Union[{args}]: {value}")
+    raise TypeError(f"expecting type of: Union[{args}]; received: type(value) ({value})")
 
 
 def _validate_literal(value, args):
