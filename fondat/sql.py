@@ -6,20 +6,21 @@ import fondat.error
 import fondat.patch
 import fondat.security
 import fondat.types
-import fondat.validation
 import functools
 import logging
 import typing
 import wrapt
 
 from collections.abc import AsyncIterator, Iterable, Sequence
-from copy import deepcopy
+from contextlib import suppress
 from dataclasses import dataclass, is_dataclass
 from fondat.codec import get_codec, Binary, JSON
 from fondat.data import datacls
 from fondat.error import BadRequestError, NotFoundError
+from fondat.memory import memory_resource
 from fondat.patch import json_merge_patch
 from fondat.resource import resource, operation, query
+from fondat.validation import validate
 from typing import Annotated, Any, Optional, TypedDict, Union
 
 
@@ -152,7 +153,8 @@ class Database:
         are executed.
 
         If a connection context is not established prior to the creation of the transaction
-        context, a connection is made, and is used for the duration of the transaction.
+        context, a connection context is created and is used for the duration of the
+        transaction.
 
         Upon exit of a transaction context, if an exception was raised, changes will be
         rolled back; otherwise changes will be committed.
@@ -405,16 +407,33 @@ class Index:
         await self.table.database.execute(stmt)
 
 
-def row_resource_class(table: Table, cache: bool = True) -> type:
+def row_resource_class(
+    table: Table,
+    cache_size: int = 0,
+    cache_expire: Union[int, float] = 1,
+) -> type:
     """
     Return a base class for a row resource.
 
     Parameters:
     • table: table for which row resource is based
-    • cache: cache row value between operations
+    • cache_size: number of rows to cache (evict least recently cached)
+    • cache_expire: expire time for cached values in seconds
     """
 
     pk_type = table.columns[table.pk]
+
+    cache = (
+        memory_resource(
+            key_type=pk_type,
+            value_type=table.schema,
+            size=cache_size,
+            evict=True,
+            expire=cache_expire,
+        )
+        if cache_size
+        else None
+    )
 
     @resource
     class RowResource:
@@ -423,31 +442,32 @@ def row_resource_class(table: Table, cache: bool = True) -> type:
         def __init__(self, pk: pk_type):
             self.table = table
             self.pk = pk
-            self._cache = None
 
         async def _validate(self, value: table.schema):
             """Validate value; raise BadRequestError if invalid."""
             pass  # implement in subclass
 
         async def _read(self):
-            if self._cache:
-                return self._cache
-            if row := await table.read(self.pk):
-                if cache:
-                    self._cache = deepcopy(row)
-                return row
-            raise NotFoundError
+            if cache:
+                with suppress(NotFoundError):
+                    return await cache[self.pk].get()
+            row = await table.read(self.pk)
+            if not row:
+                raise NotFoundError
+            if cache:
+                await cache[self.pk].put(row)
+            return row
 
         async def _insert(self, value: table.schema):
             if getattr(value, table.pk) != self.pk:
                 raise BadRequestError("primary key mismatch")
             await table.insert(value)
             if cache:
-                self._cache = deepcopy(value)
+                await cache[self.pk].put(value)
 
         async def _update(self, old: table.schema, new: table.schema):
             if getattr(new, table.pk) != self.pk:
-                raise BadRequestError("primary key mismatch")
+                raise BadRequestError("cannot modify primary key")
             if old != new:
                 stmt = Statement()
                 stmt.text(f"UPDATE {table.name} SET ")
@@ -464,23 +484,27 @@ def row_resource_class(table: Table, cache: bool = True) -> type:
                 stmt.text(f" WHERE {table.pk} = ")
                 stmt.param(self.pk, pk_type)
                 await table.database.execute(stmt)
-                if cache:
-                    self._cache = deepcopy(new)
+            if cache:
+                await cache[self.pk].put(new)
 
         @operation
         async def get(self) -> table.schema:
             """Get row from table."""
-            if self._cache:
-                return self._cache
+            if cache:
+                with suppress(NotFoundError):
+                    return await cache[self.pk].get()
             async with table.database.transaction():
-                return await self._read()
+                row = await table.read(self.pk)
+            if not row:
+                raise NotFoundError
+            if cache:
+                await cache[self.pk].put(row)
+            return row
 
         @operation
         async def put(self, value: table.schema):
             """Insert or update (upsert) row."""
             await self._validate(value)
-            if getattr(value, table.pk) != self.pk:
-                raise BadRequestError("cannot modify primary key")
             async with table.database.transaction():
                 try:
                     old = await self._read()
@@ -501,15 +525,19 @@ def row_resource_class(table: Table, cache: bool = True) -> type:
         @operation
         async def delete(self) -> None:
             """Delete row."""
-            self._cache = None
+            if cache:
+                with suppress(NotFoundError):
+                    await cache[self.pk].delete()
             async with table.database.transaction():
                 await table.delete(self.pk)
 
         @query
         async def exists(self) -> bool:
             """Return if row exists."""
-            if self._cache:
-                return True
+            if cache:
+                with suppress(NotFoundError):
+                    cache[self.pk].get()
+                    return True
             where = Statement()
             where.text(f"{table.pk} = ")
             where.param(self.pk, table.columns[table.pk])
@@ -578,7 +606,7 @@ def table_resource_class(table: Table, row_resource_type: type = None) -> type:
             Insert and/or modify multiple rows in a single transaction.
 
             Patch body is an iterable of JSON Merge Patch documents; each document must
-            contain the primary key of its row.
+            contain the primary key of the row to patch.
             """
             async with table.database.transaction():
                 for doc in body:
@@ -594,7 +622,7 @@ def table_resource_class(table: Table, row_resource_type: type = None) -> type:
                             await row._update(old, new)
                         except NotFoundError:
                             new = dc_codec.decode(doc)
-                            fondat.validation.validate(new, table.schema)
+                            validate(new, table.schema)
                             await row._validate(new)
                             await row._insert(new)
 

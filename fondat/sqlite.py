@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import aiosqlite
 import contextvars
 import fondat.codec
@@ -13,14 +12,13 @@ import sqlite3
 import typing
 import uuid
 
-from asyncio.exceptions import CancelledError
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from fondat.codec import Codec, String
 from fondat.types import affix_type_hints, is_subclass, split_annotated
 from fondat.sql import Statement
 from fondat.validation import validate_arguments
-from typing import Annotated, Any, Literal, Optional, Union
+from typing import Any, Literal, Optional, Union
 
 
 _logger = logging.getLogger(__name__)
@@ -289,7 +287,7 @@ class Database(fondat.sql.Database):
             _logger.debug("transaction rollback %s", txid)
             await connection.execute(f"ROLLBACK TO SAVEPOINT {txid};")
 
-        async with (self.connection() if not self._conn.get() else _async_null_context()):
+        async with self.connection():
             connection = self._conn.get()
             await connection.execute(f"SAVEPOINT {txid};")
             try:
@@ -315,10 +313,9 @@ class Database(fondat.sql.Database):
             else:
                 text.append("?")
                 args.append(get_codec(fragment.python_type).encode(fragment.value))
-        async with (self.transaction() if not self._txn.get() else _async_null_context()):
-            results = await self._conn.get().execute("".join(text), args)
-            if statement.result is not None:  # expecting a result
-                return _Results(statement, results.__aiter__())
+        results = await self._conn.get().execute("".join(text), args)
+        if statement.result is not None:  # expecting a result
+            return _Results(statement, results.__aiter__())
 
     def get_codec(self, python_type: Any) -> SQLiteCodec:
         return get_codec(python_type)

@@ -358,3 +358,57 @@ async def test_table_patch(database):
         with pytest.raises(fondat.error.BadRequestError):
             await resource.patch([{"id": "a", "s": 123}])
         await table.drop()
+
+
+async def test_get_cache(table: sql.Table):
+    resource_class = sql.row_resource_class(table, cache_size=10, cache_expire=10)
+    key = UUID("14f6a6b0-e4d7-4f3f-bb8c-66076fd6fce9")
+    row = DC(key=key, str_=str(key))
+    async with table.database.transaction():
+        await table.insert(row)
+    assert await resource_class(key).get() == row  # caches row
+    async with table.database.transaction():
+        await table.delete(key)
+    assert await resource_class(key).get() == row  # still cached
+    async with table.database.transaction():
+        await table.delete(key)
+
+
+async def test_put_get_cache(table: sql.Table):
+    resource_class = sql.row_resource_class(table, cache_size=10, cache_expire=10)
+    key = UUID("b616303b-1278-4209-8397-4fab852c8959")
+    row = DC(key=key, str_=str(key))
+    await resource_class(key).put(row)  # caches row
+    async with table.database.transaction():
+        await table.delete(key)
+    assert await resource_class(key).get() == row  # still cached
+
+
+async def test_delete_cache(table: sql.Table):
+    resource_class = sql.row_resource_class(table, cache_size=10, cache_expire=10)
+    key = UUID("38340a23-e11a-412b-b20a-22dd7fc3d316")
+    row = DC(key=key, str_=str(key))
+    await resource_class(key).put(row)  # caches row
+    await resource_class(key).delete()  # deletes cached row
+    with pytest.raises(fondat.error.NotFoundError):
+        await resource_class(key).get()
+
+
+async def test_get_cache_evict(table: sql.Table):
+    resource_class = sql.row_resource_class(table, cache_size=1, cache_expire=10)
+    key1 = UUID("16ed1e46-a111-414c-b05c-99a8b876afd0")
+    row1 = DC(key=key1, str_=str(key1))
+    async with table.database.transaction():
+        await table.insert(row1)
+    key2 = UUID("6bdba737-0401-4d8b-9a22-d8b6b0f8b5b7")
+    row2 = DC(key=key2, str_=str(key2))
+    async with table.database.transaction():
+        await table.insert(row2)
+    assert await resource_class(key1).get() == row1
+    assert await resource_class(key2).get() == row2
+    async with table.database.transaction():
+        await table.delete(key1)
+        await table.delete(key2)
+    with pytest.raises(fondat.error.NotFoundError):
+        await resource_class(key1).get() == row1  # evicted
+    assert await resource_class(key2).get() == row2  # still cached
