@@ -1,7 +1,7 @@
 import pytest
 
 from dataclasses import make_dataclass
-from fondat.error import BadRequestError, NotFoundError
+from fondat.error import InternalServerError, NotFoundError
 from fondat.memory import memory_resource
 from time import sleep
 
@@ -77,7 +77,7 @@ async def test_clear():
 async def test_size_limit():
     resource = memory_resource(key_type=str, value_type=str, size=1)
     await resource["1"].put("foo")
-    with pytest.raises(BadRequestError):
+    with pytest.raises(InternalServerError):
         await resource["2"].put("bar")
 
 

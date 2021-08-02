@@ -2,23 +2,19 @@
 
 from __future__ import annotations
 
-import copy
 import threading
 
 from collections import namedtuple
 from collections.abc import Iterable
-from datetime import datetime, timedelta, timezone
-from fondat.error import BadRequestError, NotFoundError
+from copy import deepcopy
+from fondat.error import InternalServerError, NotFoundError
 from fondat.http import AsBody
 from fondat.resource import resource, operation, mutation
 from fondat.security import Policy
 from fondat.types import affix_type_hints
+from time import time
 from typing import Annotated, Union
 
-
-_now = lambda: datetime.now(tz=timezone.utc)
-
-_delta = lambda s: timedelta(seconds=s)
 
 _Item = namedtuple("Item", "value,time")
 
@@ -59,12 +55,12 @@ def memory_resource(
         @operation(publish=publish, policies=policies)
         async def get(self) -> list[key_type]:
             """Return list of item keys."""
-            now = _now()
+            now = time()
             with self.lock:
                 return [
                     key
                     for key, item in self.storage.items()
-                    if not self.expire or item.time + _delta(self.expire) <= now
+                    if not self.expire or item.time + self.expire <= now
                 ]
 
         @mutation(publish=publish, policies=policies)
@@ -90,21 +86,21 @@ def memory_resource(
             """Read item."""
             item = self.container.storage.get(self.key)
             if item is None or (
-                self.container.expire and _now() > item.time + _delta(self.container.expire)
+                self.container.expire and time() > item.time + self.container.expire
             ):
                 raise NotFoundError
-            return item.value
+            return deepcopy(item.value)
 
         @operation(publish=publish, policies=policies)
         async def put(self, value: Annotated[value_type, AsBody]) -> None:
             """Write item."""
             with self.container.lock:
-                now = _now()
+                now = time()
                 if self.container.expire:  # purge expired entries; pay the price on puts
                     for key in {
                         k
                         for k, v in self.container.storage.items()
-                        if v.time + _delta(self.container.expire) <= now
+                        if v.time + self.container.expire <= now
                     }:
                         del self.container.storage[self.key]
                 while (
@@ -119,8 +115,8 @@ def memory_resource(
                     if oldest:
                         del self.container.storage[oldest.key]
                 if self.container.size and len(self.container.storage) >= self.container.size:
-                    raise BadRequestError("item size limit reached")
-                self.container.storage[self.key] = _Item(copy.deepcopy(value), now)
+                    raise InternalServerError("item size limit reached")
+                self.container.storage[self.key] = _Item(deepcopy(value), now)
 
         @operation(publish=publish, policies=policies)
         async def delete(self):
