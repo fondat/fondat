@@ -412,3 +412,23 @@ async def test_get_cache_evict(table: sql.Table):
     with pytest.raises(fondat.error.NotFoundError):
         await resource_class(key1).get() == row1  # evicted
     assert await resource_class(key2).get() == row2  # still cached
+
+
+async def test_exists_no_cache(table):
+    resource_class = sql.row_resource_class(table)
+    key = uuid4()
+    resource = resource_class(key)
+    row = DC(key=key, str_=str(key))
+    assert not await resource.exists()
+    await resource.put(row)
+    assert await resource.exists()
+
+
+async def test_exists_cache(table):
+    resource_class = sql.row_resource_class(table, cache_size=10, cache_expire=10)
+    key = uuid4()
+    resource = resource_class(key)
+    row = DC(key=key, str_=str(key))
+    assert not await resource.exists()
+    await resource.put(row)
+    assert await resource.exists()

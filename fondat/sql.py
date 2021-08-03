@@ -536,7 +536,7 @@ def row_resource_class(
             """Return if row exists."""
             if cache:
                 with suppress(NotFoundError):
-                    cache[self.pk].get()
+                    await cache[self.pk].get()
                     return True
             where = Statement()
             where.text(f"{table.pk} = ")
