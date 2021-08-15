@@ -1,18 +1,10 @@
-"""
-Module for resource errors.
-
-Error classes are dynamically generated from all errors in the http.HTTPStatus enum.
-"""
+"""Resource error module."""
 
 import http
 
+from collections.abc import Iterator
 from contextlib import contextmanager
-from fondat.types import is_instance
 from typing import Union
-
-
-# will be appended to during generation
-__all__ = ["Error", "errors", "error_for_status"]
 
 
 class Error(Exception):
@@ -25,59 +17,83 @@ class Error(Exception):
     """
 
 
-_status_errors = {}
-
-
-def _title(s):
-    exclude = {"HTTP", "URI"}
-    return s.title() if s not in exclude else s
-
-
-for status in http.HTTPStatus:
-    globalns = globals()
-    if 400 <= status <= 599:
-        name = "".join([_title(w) for w in status.name.split("_")])
-        if not name.endswith("Error"):
-            name += "Error"
-        doc = status.description or status.phrase.capitalize()
-        if not doc.endswith("."):
-            doc += "."
-        error = type(
-            name,
-            (Error,),
-            {
-                "status": status.value,
-                "phrase": status.phrase,
-                "__doc__": doc,
-            },
-        )
-        globalns[name] = error
-        _status_errors[status.value] = error
-        __all__.append(name)
-
-
-def error_for_status(status: Union[int, http.HTTPStatus], default=InternalServerError):
+class ClientError(Error):
     """
-    Return an error class matching the specified HTTP status.
-
-    Parameters:
-    • status: HTTP status object or integer code
-    • default: default value to return if no matching error class
+    Base class for client resource errors.
     """
-    if is_instance(status, http.HTTPStatus):
-        status = status.value
-    return _status_errors.get(status, default)
+
+
+class ServerError(Error):
+    """
+    Base class for server resource errors.
+    """
+
+
+class _Errors:
+    """
+    Encapsulates resource error exception classes. Errors are dynamically generated from
+    errors in the http.HTTPStatus enum.
+
+    Errors can be accessed by HTTP status code or name.
+    Example: fondat.error.errors[404] == fondat.error.errors.NotFoundError
+    """
+
+    def __init__(self):
+        self._names = {}
+        self._codes = {}
+        for status in (s for s in http.HTTPStatus if 400 <= s.value <= 599):
+            name = "".join(
+                w.title() if w not in {"HTTP", "URI"} else w for w in status.name.split("_")
+            )
+            if not name.endswith("Error"):
+                name += "Error"
+            error = type(
+                name,
+                (ClientError if 400 <= status.value <= 499 else ServerError,),
+                {
+                    "status": status.value,
+                    "phrase": status.phrase,
+                    "__doc__": f"{status.description or status.phrase.capitalize()}.",
+                },
+            )
+            self._names[name] = error
+            self._codes[status.value] = error
+
+    def __getitem__(self, code: int) -> Error:
+        if error := self._codes.get(code):
+            return error
+        return InternalServerError
+
+    def __getattr__(self, name: str) -> Error:
+        if error := self._names.get(name):
+            return error
+        raise AttributeError
+
+    def __iter__(self) -> Iterator[Error]:
+        return iter(self._codes.values())
+
+
+errors = _Errors()
+
+
+# commonly used errors
+BadRequestError = errors.BadRequestError
+ForbiddenError = errors.ForbiddenError
+InternalServerError = errors.InternalServerError
+MethodNotAllowedError = errors.MethodNotAllowedError
+NotFoundError = errors.NotFoundError
+UnauthorizedError = errors.UnauthorizedError
 
 
 @contextmanager
-def replace(catch: Union[Exception, tuple[Exception]], throw: Exception, *args):
+def replace(catch: Union[type, tuple[type]], throw: type, *args):
     """
-    Context manager that catches exception(s) and raises a replacement exception. The
-    replacement exception's arguments are the arguments of the caught exception, plus
-    optional supplied arguments.
+    Return a context manager that catches exception(s) and raises a replacement exception. The
+    replacement exception's arguments are the arguments of the caught exception, plus optional
+    supplied arguments.
 
     Parameters:
-    • catch: exception class or tuple of exception classes to catch
+    • catch: exception class or classes to catch
     • throw: exeption class to raise as the replacement
     • args: optional arguments to add to the thrown exception
     """
@@ -88,14 +104,14 @@ def replace(catch: Union[Exception, tuple[Exception]], throw: Exception, *args):
 
 
 @contextmanager
-def append(catch: Union[Exception, tuple[Exception]], value: str):
+def append(catch: Union[type, tuple[type]], value: str):
     """
-    Context manager that catches exception(s) and appends a string to the exception's message
-    (first argument) and reraises th exception. If the caught exception has no arguments, then
-    its first argument becomes the string to append.
+    Return a context manager that catches exception(s), appends a string to the exception's
+    message (first argument) and reraises the exception. If the caught exception has no
+    arguments, then its first argument becomes the string to append.
 
     Parameters:
-    • catch: exception class or tuple of exception classes to catch
+    • catch: exception class or classes to catch
     • value: string value to append to exception's first argument
     """
     try:
