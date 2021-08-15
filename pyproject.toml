@@ -4,11 +4,11 @@ build-backend = "poetry.masonry.api"
 
 [tool.black]
 line-length = 96
-target-version = ['py38']
+target-version = ['py39']
 
 [tool.poetry]
 name = "fondat-core"
-version = "3.0b86"
+version = "3.0b87"
 description = "A foundation for asynchronous Python resource-oriented applications."
 readme = "README.md"
 authors = ["fondat-core authors"]
