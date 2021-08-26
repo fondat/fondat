@@ -63,3 +63,6 @@ class ReadOnly(Annotation):
     @validate_arguments
     def __init__(self, value: bool):
         self.value = value
+
+
+Password = Format("password")

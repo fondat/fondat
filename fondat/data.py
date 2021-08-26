@@ -1,11 +1,13 @@
 """Dataclass module."""
 
 import dataclasses
+import fondat.annotation
+import functools
 import typing
 
 from collections.abc import Iterable, Mapping
 from dataclasses import is_dataclass
-from fondat.types import is_optional, split_annotated
+from fondat.types import is_optional, is_subclass, split_annotated, strip_optional
 from typing import Any, Optional, TypedDict, Union
 
 
@@ -246,3 +248,32 @@ def copy_data(
     keys = include & target.__annotations__.keys() - exclude
     kwargs = {key: getter(key) for key in keys}
     return target(**kwargs)
+
+
+_format_password = fondat.annotation.Format("password")
+
+
+def redact_passwords(hint: Any, value: Any, redaction: str = "__REDACTED__"):
+    """
+    Redact password fields in dataclass or TypedDict value.
+    """
+    if is_dataclass(value):
+        getter, setter = functools.partial(getattr, value), functools.partial(setattr, value)
+    elif isinstance(value, Mapping):
+        getter, setter = value.get, value.__setitem__
+    else:
+        raise TypeError("type must be dataclass or TypedDict")
+    value_type, _ = split_annotated(strip_optional(hint))
+    for field_name, field_hint in value_type.__annotations__.items():
+        field_type, field_annotations = split_annotated(strip_optional(field_hint))
+        field_value = getter(field_name)
+        if hasattr(field_type, "__annotations__") and (
+            is_dataclass(field_value) or isinstance(field_value, Mapping)
+        ):
+            redact_passwords(field_hint, field_value)
+        elif (
+            field_value is not None
+            and is_subclass(field_type, str)
+            and _format_password in field_annotations
+        ):
+            setter(field_name, redaction)

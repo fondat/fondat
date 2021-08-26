@@ -1,6 +1,14 @@
 import pytest
 
-from fondat.data import copy_data, datacls, make_datacls, derive_datacls, derive_typeddict
+from fondat.annotation import Password
+from fondat.data import (
+    copy_data,
+    datacls,
+    make_datacls,
+    derive_datacls,
+    derive_typeddict,
+    redact_passwords,
+)
 from fondat.types import is_optional
 from dataclasses import asdict, field, fields
 from typing import Annotated, Optional, TypedDict
@@ -210,3 +218,14 @@ def test_derive_typeddict_annotated_dataclass():
     DC = make_datacls("A", (("a", str),))
     TD = derive_typeddict("TD", Annotated[DC, "annotated"])
     assert TD.__annotations__.keys() == DC.__annotations__.keys()
+
+
+def test_redaction():
+    @datacls
+    class DC:
+        username: str
+        password: Annotated[str, Password]
+
+    dc = DC(username="username", password="passsword")
+    redact_passwords(DC, dc)
+    dc == DC(username="username", password="__REDACTED__")
