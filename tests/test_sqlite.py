@@ -240,21 +240,20 @@ async def test_resource_patch_pk(table):
         await resource.patch(patch)
 
 
-def test_consecutive_loop(database):
-    @sql.transaction(database=database)
+def test_consecutive_loops(database):
     async def select():
-        stmt = sql.Statement()
-        stmt.text("SELECT 1 AS foo;")
-        stmt.result = make_datacls("DC", (("foo", int),))
-        result = await (await database.execute(stmt)).__anext__()
-        assert result.foo == 1
+        async with database.transaction():
+            stmt = sql.Statement()
+            stmt.text("SELECT 1 AS foo;")
+            stmt.result = make_datacls("DC", (("foo", int),))
+            result = await (await database.execute(stmt)).__anext__()
+            assert result.foo == 1
 
-    asyncio.run(select())
-    asyncio.run(select())
+        asyncio.run(select())
+        asyncio.run(select())
 
 
 async def test_gather(database):
-    @sql.transaction(database=database)
     async def select(n: int):
         stmt = sql.Statement()
         stmt.text(f"SELECT {n} AS foo;")
@@ -262,7 +261,8 @@ async def test_gather(database):
         result = await (await database.execute(stmt)).__anext__()
         assert result.foo == n
 
-    await asyncio.gather(*[select(n) for n in range(0, 50)])
+    async with database.transaction():
+        await asyncio.gather(*[select(n) for n in range(0, 50)])
 
 
 async def test_resource_list(table):
@@ -303,34 +303,6 @@ async def test_no_transaction(table):
         stmt.text(f"SELECT 1;")
         with pytest.raises(RuntimeError):
             await table.database.execute(stmt)
-
-
-async def connection_decorator(table):
-    @sql.connection
-    async def foo():
-        async with table.database.transaction():
-            key = uuid4()
-            await table.insert(DC(key=key))
-            assert await table.read(key)
-
-    await foo()
-
-
-async def transaction_decorator(table):
-    key = uuid4()
-
-    @sql.transaction
-    async def foo():
-        await table.insert(DC(key=key))
-        assert await table.read(key) is not None
-        raise RuntimeError  # rollback
-
-    try:
-        await foo()
-    except RuntimeError:
-        pass
-    async with table.database.transaction():
-        assert table.read(key) is None
 
 
 async def test_table_patch(database):

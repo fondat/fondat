@@ -6,10 +6,8 @@ import fondat.error
 import fondat.patch
 import fondat.security
 import fondat.types
-import functools
 import logging
 import typing
-import wrapt
 
 from collections.abc import AsyncIterator, Iterable, Sequence
 from contextlib import suppress
@@ -370,6 +368,7 @@ class Index:
     • name: name of index
     • table: table that the index defined for
     • keys: index keys (typically column names with optional order)
+    • unique: is index unique
     """
 
     __slots__ = ("name", "table", "keys", "unique")
@@ -628,31 +627,3 @@ def table_resource_class(table: Table, row_resource_type: type = None) -> type:
 
     fondat.types.affix_type_hints(TableResource, localns=locals())
     return TableResource
-
-
-def connection(wrapped=None, *, database: Database):
-    """Decorate a coroutine function with a database connection context."""
-
-    if wrapped is None:
-        return functools.partial(connection, database=database)
-
-    @wrapt.decorator
-    async def wrapper(wrapped, instance, args, kwargs):
-        async with database.connection():
-            return await wrapped(*args, **kwargs)
-
-    return wrapper(wrapped)
-
-
-def transaction(wrapped=None, *, database: Database):
-    """Decorate a coroutine function with a database transaction context."""
-
-    if wrapped is None:
-        return functools.partial(transaction, database=database)
-
-    @wrapt.decorator
-    async def wrapper(wrapped, instance, args, kwargs):
-        async with database.transaction():
-            return await wrapped(*args, **kwargs)
-
-    return wrapper(wrapped)
