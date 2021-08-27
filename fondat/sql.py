@@ -586,7 +586,7 @@ def table_resource_class(table: Table, row_resource_type: type = None) -> type:
             if cursor is not None:
                 where = Statement()
                 where.text("{table.pk} > ")
-                where.param(pk_type, cursor_codec.decode(cursor))
+                where.param(cursor_codec.decode(cursor), pk_type)
             else:
                 where = None
             async with table.database.transaction():
