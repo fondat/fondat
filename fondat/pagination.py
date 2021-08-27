@@ -33,9 +33,9 @@ The optional "remaining" page attribute contains an estimated number of items re
 the current page. As this value is optional, it may not be returned by the operation.
 """
 
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Coroutine, Iterable
 from dataclasses import make_dataclass, field
-from typing import Optional
+from typing import Any, Optional
 
 
 def make_page_dataclass(class_name: str, item_type: type):
@@ -57,7 +57,7 @@ def make_page_dataclass(class_name: str, item_type: type):
     )
 
 
-async def paginate(operation: Callable, /, *args, **kwargs):
+async def paginate(operation: Callable[..., Coroutine[Any, Any, Any]], /, **kwargs):
     """
     Wraps a paginated resource operation with an asynchronous generator that iterates through
     all values.
@@ -67,7 +67,6 @@ async def paginate(operation: Callable, /, *args, **kwargs):
 
     Parameters:
     • operation: resource operation to wrap with generator
-    • args: positional arguments to pass to resource operation
     • kwargs: keyword arguments to pass to resource operation
     """
 
