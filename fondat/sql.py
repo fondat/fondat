@@ -581,11 +581,11 @@ def table_resource_class(table: Table, row_resource_type: type = None) -> type:
             self.table = table
 
         @operation
-        async def get(self, limit: int = None, cursor: bytes = None) -> Page:
+        async def get(self, limit: int = 1000, cursor: bytes = None) -> Page:
             """Get paginated list of rows, ordered by primary key."""
             if cursor is not None:
                 where = Statement()
-                where.text("{table.pk} > ")
+                where.text(f"{table.pk} > ")
                 where.param(cursor_codec.decode(cursor), pk_type)
             else:
                 where = None
