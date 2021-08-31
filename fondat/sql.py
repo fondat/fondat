@@ -140,8 +140,9 @@ class Database:
     async def connection(self):
         """
         Return a context manager that establishes a connection to the database. If a
-        connection context has already been established, this method has no effect. Upon
-        exit of the outermost connection context, the database connection is closed.
+        connection context has already been established for the current task, this
+        method has no effect. Upon exit of the outermost connection context, the
+        database connection is closed.
         """
         raise NotImplementedError
 

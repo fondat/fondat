@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import aiosqlite
 import contextvars
 import fondat.codec
@@ -253,21 +254,24 @@ class Database(fondat.sql.Database):
         self.path = path
         self._conn = contextvars.ContextVar("fondat_sqlite_conn", default=None)
         self._txn = contextvars.ContextVar("fondat_sqlite_txn", default=None)
+        self._task = contextvars.ContextVar("fondat_sqlite_task", default=None)
 
     @asynccontextmanager
     async def connection(self):
-        if self._conn.get(None):  # connection already established
-            yield
+        task = asyncio.current_task()
+        if self._conn.get() and self._task.get() is task:
+            yield  # connection already established
             return
         _logger.debug("open connection")
+        self._task.set(task)
         connection = await aiosqlite.connect(self.path)
         connection.row_factory = sqlite3.Row
-        token = self._conn.set(connection)
+        self._conn.set(connection)
         try:
             yield
         finally:
             _logger.debug("close connection")
-            self._conn.reset(token)
+            self._conn.set(None)
             try:
                 await connection.close()
             except Exception as e:
