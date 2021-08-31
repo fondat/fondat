@@ -24,7 +24,7 @@ class Resource:
         self.limit = limit
 
     @operation
-    async def get(self, cursor: bytes = None) -> Page:
+    async def get(self, limit: int = None, cursor: bytes = None) -> Page:
         start = int(b64decode(cursor).decode()) if cursor else 0
         stop = min(start + self.limit, len(self.values))
         return Page(
