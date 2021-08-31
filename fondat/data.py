@@ -5,6 +5,7 @@ import fondat.annotation
 import functools
 import typing
 
+from fondat.annotation import Password
 from collections.abc import Iterable, Mapping
 from dataclasses import is_dataclass
 from fondat.types import is_optional, is_subclass, split_annotated, strip_optional
@@ -250,9 +251,6 @@ def copy_data(
     return target(**kwargs)
 
 
-_format_password = fondat.annotation.Format("password")
-
-
 def redact_passwords(hint: Any, value: Any, redaction: str = "__REDACTED__"):
     """
     Redact password fields in dataclass or TypedDict value.
@@ -274,6 +272,6 @@ def redact_passwords(hint: Any, value: Any, redaction: str = "__REDACTED__"):
         elif (
             field_value is not None
             and is_subclass(field_type, str)
-            and _format_password in field_annotations
+            and Password in field_annotations
         ):
             setter(field_name, redaction)
