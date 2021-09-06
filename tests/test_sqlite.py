@@ -401,3 +401,8 @@ async def test_database_select(database: sql.Database):
     finally:
         async with database.transaction():
             await database.execute(sql.Statement("DROP TABLE foo;"))
+
+
+def test_param():
+    assert sql.Param(10).type is int
+    assert sql.Param("", str).type is str

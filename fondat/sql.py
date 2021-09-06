@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 import fondat.error
 import fondat.patch
 import fondat.security
@@ -118,7 +119,7 @@ class Param:
 
     def __init__(self, value: Any, type: Any = None):
         self.value = value
-        self.type = type if type else type(value)
+        self.type = type if type else builtins.type(value)
 
     def __repr__(self) -> str:
         return f"Param(value={self.value}, type={self.type})"
