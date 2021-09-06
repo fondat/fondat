@@ -116,7 +116,7 @@ class Param:
 
     __slots__ = ("value", "type")
 
-    def __init__(self, value: Any, type: Optional[Any]):
+    def __init__(self, value: Any, type: Any = None):
         self.value = value
         self.type = type if type else type(value)
 
