@@ -50,8 +50,8 @@ class Expression(Iterable):
     def __init__(self, *fragments):
         super().__init__()
         self.fragments = []
-        if fragments:
-            self.extend(fragments)
+        for fragment in fragments or ():
+            self += fragment
 
     def __repr__(self) -> str:
         return f"Expression({self.fragments})"
@@ -69,19 +69,22 @@ class Expression(Iterable):
         return len(self.fragments)
 
     def __iadd__(self, value: Any) -> None:
+        """Add a fragment to the expression."""
         if isinstance(value, Expression):
             self.fragments.extend(value.fragments)
         else:
             self.fragments.append(value)
         return self
 
-    def extend(self, value: Iterable[Any], sep: str = None) -> None:
-        _sep = False
+    @staticmethod
+    def join(value: Iterable[Any], sep: str = None) -> Expression:
+        """Join a number of fragments, optinally separated by string."""
+        expr = Expression()
         for item in value:
-            if _sep and sep is not None:
-                self += sep
-            self += item
-            _sep = True
+            if expr and sep:
+                expr += sep
+            expr += item
+        return expr
 
 
 class Statement(Expression):
@@ -229,7 +232,7 @@ class Database:
             if len(v[1]) != 1 or k != v[1].fragments[0]:
                 expr += f" {k}"
             exprs.append(expr)
-        stmt.extend(exprs, ", ")
+        stmt += Expression.join(exprs, ", ")
         if from_ is not None:
             stmt += " FROM "
             stmt += from_
@@ -374,7 +377,7 @@ class Table:
         stmt += f"INSERT INTO {self.name} ("
         stmt += ", ".join(self.columns)
         stmt += ") VALUES ("
-        stmt.extend(
+        stmt += Expression.join(
             (
                 Param(getattr(value, name), python_type)
                 for name, python_type in self.columns.items()
@@ -401,10 +404,8 @@ class Table:
         stmt += f"UPDATE {self.name} SET "
         updates = []
         for name, python_type in self.columns.items():
-            update = Expression(f"{name} = ")
-            update += Param(getattr(value, name), python_type)
-            updates.append(update)
-        stmt.extend(updates, ", ")
+            updates.append(Expression(f"{name} = ", Param(getattr(value, name), python_type)))
+        stmt += Expression.join(updates, ", ")
         stmt += f" WHERE {self.pk} = "
         stmt += Param(key, self.columns[self.pk])
         await self.database.execute(stmt)
@@ -534,11 +535,8 @@ def row_resource_class(
                     ofield = getattr(old, name)
                     nfield = getattr(new, name)
                     if ofield != nfield:
-                        update = Expression()
-                        update += f"{name} = "
-                        update += Param(nfield, python_type)
-                        updates.append(update)
-                stmt.extend(updates, ", ")
+                        updates.append(Expression(f"{name} = ", Param(nfield, python_type)))
+                stmt += Expression.join(updates, ", ")
                 stmt += f" WHERE {table.pk} = "
                 stmt += Param(self.pk, pk_type)
                 await table.database.execute(stmt)
