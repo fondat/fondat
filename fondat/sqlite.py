@@ -17,7 +17,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from fondat.codec import Codec, String
 from fondat.types import affix_type_hints, is_subclass, split_annotated
-from fondat.sql import Statement
+from fondat.sql import Statement, Param
 from fondat.validation import validate_arguments
 from typing import Any, Literal, Optional, Union
 
@@ -314,9 +314,11 @@ class Database(fondat.sql.Database):
         for fragment in statement:
             if isinstance(fragment, str):
                 text.append(fragment)
-            else:
+            elif isinstance(fragment, Param):
                 text.append("?")
-                args.append(get_codec(fragment.python_type).encode(fragment.value))
+                args.append(get_codec(fragment.type).encode(fragment.value))
+            else:
+                raise ValueError(f"unexpected fragment: {fragment}")
         results = await self._conn.get().execute("".join(text), args)
         if statement.result is not None:  # expecting a result
             return _Results(statement, results.__aiter__())

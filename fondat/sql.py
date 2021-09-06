@@ -7,9 +7,10 @@ import fondat.patch
 import fondat.security
 import fondat.types
 import logging
+import re
 import typing
 
-from collections.abc import AsyncIterator, Iterable, Sequence
+from collections.abc import AsyncIterator, Iterable, Iterator, Sequence
 from contextlib import suppress
 from dataclasses import dataclass, is_dataclass
 from fondat.codec import get_codec, Binary, JSON
@@ -40,23 +41,51 @@ def is_nullable(python_type):
     return False
 
 
-@dataclass
-class Parameter:
+class Expression(Iterable):
+    """Represents a SQL expression."""
+
+    slots = ("fragments",)
+
+    def __init__(self, *fragments):
+        super().__init__()
+        self.fragments = []
+        if fragments:
+            self.extend(fragments)
+
+    def __repr__(self) -> str:
+        return f"Expression({self.fragments})"
+
+    def __iter__(self) -> Iterator[Any]:
+        """Iterate over fragments of the statement."""
+        return iter(self.fragments)
+
+    def __bool__(self) -> bool:
+        """Return True if expression contains fragments."""
+        return len(self.fragments) > 0
+
+    def __len__(self) -> int:
+        """Return number of fragments in expression."""
+        return len(self.fragments)
+
+    def __iadd__(self, value: Any) -> None:
+        if isinstance(value, Expression):
+            self.fragments.extend(value.fragments)
+        else:
+            self.fragments.append(value)
+        return self
+
+    def extend(self, value: Iterable[Any], sep: str = None) -> None:
+        _sep = False
+        for item in value:
+            if _sep and sep is not None:
+                self += sep
+            self += item
+            _sep = True
+
+
+class Statement(Expression):
     """
-    Represents a parameterized value to include in a statement.
-
-    Attributes:
-    • value: the value of the parameter to be included
-    • python_type: the type of the pameter to be included
-    """
-
-    value: Any
-    python_type: Any
-
-
-class Statement(Iterable):
-    """
-    Represents a SQL statement.
+    A SQL statement: a SQL expression with an optional expected row result type.
 
     Parameter and attribute:
     • result: the type to return a query result row in
@@ -65,73 +94,40 @@ class Statement(Iterable):
     results in a populated dict object.
     """
 
-    slots = ("fragments", "result")
+    slots = ("result",)
 
-    def __init__(self, result=None):
-        self.fragments = []
+    def __init__(self, *fragments, result: Any = None):
+        super().__init__(*fragments)
         self.result = result
 
     def __repr__(self):
         return f"Statement(fragments={self.fragments}, result={self.result})"
 
-    def __iter__(self):
-        """Iterate over fragments of the statement."""
-        return iter(self.fragments)
 
-    def __bool__(self):
-        return len(self.fragments) > 0
+@dataclass
+class Param:
+    """
+    A parameterized value to include in an expression.
 
-    def text(self, value: str) -> None:
-        """Append text to the statement."""
-        self.fragments.append(value)
+    Attributes:
+    • value: the value of the parameter to be included
+    • python_type: the type of the pameter to be included
+    """
 
-    def param(self, value: Any, python_type: Any = None) -> None:
-        """
-        Append a parameter to the statement.
+    __slots__ = ("value", "type")
 
-        Parameters:
-        • value: parameter value to be appended
-        • python_type: parameter type; inferred from value if None
-        """
-        self.fragments.append(Parameter(value, python_type if python_type else type(value)))
+    def __init__(self, value: Any, type: Optional[Any]):
+        self.value = value
+        self.type = type if type else type(value)
 
-    def parameter(self, parameter: Parameter) -> None:
-        """Append a parameter to the statement."""
-        self.fragments.append(parameter)
+    def __repr__(self) -> str:
+        return f"Param(value={self.value}, type={self.type})"
 
-    def parameters(self, params: Iterable[Parameter], separator: str = None) -> None:
-        """
-        Append parameters to this statement, with optional text separator.
 
-        Parameters:
-        • params: parameters to be appended
-        • separator: separator between parameters
-        """
-        sep = False
-        for param in params:
-            if sep and separator is not None:
-                self.text(separator)
-            self.parameter(param)
-            sep = True
-
-    def statement(self, statement: Statement) -> None:
-        """Append a statement to this statement."""
-        self.fragments += statement.fragments
-
-    def statements(self, statements: Iterable[Statement], separator: str = None) -> None:
-        """
-        Append statements to this statement, with optional text separator.
-
-        Parameters:
-        • statements: statements to be added to the statement
-        • separator: separator between statements
-        """
-        sep = False
-        for statement in statements:
-            if sep and separator is not None:
-                self.text(separator)
-            self.statement(statement)
-            sep = True
+def _to_identifier(value: str):
+    if value.isidentifier():
+        return value
+    return re.sub(r"[^A-Za-z_]", "_", value)
 
 
 class Database:
@@ -163,7 +159,7 @@ class Database:
         """
         raise NotImplementedError
 
-    async def execute(self, statement: Statement) -> Optional[AsyncIterator[Any]]:
+    async def execute(self, statement: Statement) -> Optional[AsyncIterator[dict[str, Any]]]:
         """
         Execute a SQL statement.
 
@@ -184,6 +180,73 @@ class Database:
         corresponding SQL value.
         """
         raise NotImplementedError
+
+    async def select(
+        self,
+        *,
+        columns: Sequence[tuple[str, Expression, Any]],
+        from_: Expression = None,
+        where: Expression = None,
+        order: Expression = None,
+        limit: int = None,
+        offset: int = None,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """
+        Execute a select statement.
+
+        Parameters:
+        • columns: tuple of (key, expression, type)
+        • from_: expression containing tables to select and/or tables to be joined
+        • where: statement containing WHERE expression, or None to match all rows
+        • order: order by expression
+        • limit: limit the number of results returned, or None to not limit
+        • offset: number of rows to skip, or None to skip none
+
+        Each column specified is a tuple with the following values:
+        • key: key to store the value in the row dictionary
+        • expression: expression for the SQL database to process
+        • type: the Python type in which to store the evaluated expression
+
+        Returns an asynchronous iterable containing rows; each row item is a dictionary that
+        maps column name to evaluated expression value.
+
+        This coroutine must be called within a database transaction.
+        """
+        cols = {}
+        for column in columns:
+            name = _to_identifier(column[0])
+            while name in cols:
+                name += "_"
+            cols[name] = column
+        result = TypedDict("Columns", {k: v[2] for k, v in cols.items()})
+        stmt = Statement()
+        stmt += "SELECT "
+        exprs = []
+        for k, v in cols.items():
+            expr = Expression()
+            expr += v[1]
+            if len(v[1]) != 1 or k != v[1].fragments[0]:
+                expr += f" {k}"
+            exprs.append(expr)
+        stmt.extend(exprs, ", ")
+        if from_ is not None:
+            stmt += " FROM "
+            stmt += from_
+        if where is not None:
+            stmt += " WHERE "
+            stmt += where
+        if order is not None:
+            stmt += " ORDER BY "
+            stmt += order
+        if limit:
+            stmt += f" LIMIT {limit}"
+        if offset:
+            stmt += f" OFFSET {offset}"
+        stmt += ";"
+        stmt.result = result
+        results = await self.execute(stmt)
+        async for row in results:
+            yield {cols[k][0]: v for k, v in row.items()}
 
 
 class Table:
@@ -220,7 +283,7 @@ class Table:
     async def create(self):
         """Create table in database."""
         stmt = Statement()
-        stmt.text(f"CREATE TABLE {self.name} (")
+        stmt += f"CREATE TABLE {self.name} ("
         columns = []
         for column_name, column_type in self.columns.items():
             column = [column_name, self.database.get_codec(column_type).sql_type]
@@ -229,28 +292,25 @@ class Table:
             if not is_nullable(column_type):
                 column.append("NOT NULL")
             columns.append(" ".join(column))
-        stmt.text(", ".join(columns))
-        stmt.text(");")
+        stmt += ", ".join(columns)
+        stmt += ");"
         await self.database.execute(stmt)
 
     async def drop(self):
         """Drop table from database."""
-        stmt = Statement()
-        stmt.text(f"DROP TABLE {self.name};")
-        await self.database.execute(stmt)
+        await self.database.execute(Statement(f"DROP TABLE {self.name};"))
 
     async def select(
         self,
         *,
         columns: Union[Sequence[str], str] = None,
-        where: Statement = None,
+        where: Expression = None,
         order: Union[Sequence[str], str] = None,
         limit: int = None,
         offset: int = None,
-    ) -> AsyncIterator[Any]:
+    ) -> AsyncIterator[dict[str, Any]]:
         """
-        Return an asynchronous iterable for rows in table that match the WHERE statement.
-        Each row item is a dictionary that maps column name to value.
+        Execute a SQL statement.
 
         Parameters:
         • columns: columns to return, or None for all columns
@@ -258,6 +318,9 @@ class Table:
         • order: column names to order by, or None to not order results
         • limit: limit the number of results returned, or None to not limit
         • offset: number of rows to skip, or None to skip none
+
+        Returns an asynchronous iterable for rows in table that match the where expression.
+        Each row item is a dictionary that maps column name to value.
 
         This coroutine must be called within a database transaction.
         """
@@ -273,38 +336,33 @@ class Table:
             {column: self.columns[column] for column in columns} if columns else self.columns,
         )
 
-        stmt = Statement()
-        stmt.text("SELECT ")
-        stmt.text(", ".join(typing.get_type_hints(result, include_extras=True).keys()))
-        stmt.text(f" FROM {self.name}")
-        if where:
-            stmt.text(" WHERE ")
-            stmt.statement(where)
-        if order:
-            stmt.text(" ORDER BY ")
-            stmt.text(order)
-        if limit is not None:
-            stmt.text(f" LIMIT {limit}")
-        if offset:
-            stmt.text(f" OFFSET {offset}")
-        stmt.text(";")
-        stmt.result = result
-        return await self.database.execute(stmt)
+        async for row in self.database.select(
+            columns=[
+                (key, Expression(key), type)
+                for key, type in typing.get_type_hints(result, include_extras=True).items()
+            ],
+            from_=Expression(self.name),
+            where=where,
+            order=Expression(order) if order is not None else None,
+            limit=limit,
+            offset=offset,
+        ):
+            yield row
 
-    async def count(self, where: Statement = None) -> int:
+    async def count(self, where: Expression = None) -> int:
         """
         Return the number of rows in the table that match an optional expression.
 
         Parameters:
-        • where: statement containing expression to match; None to match all rows
+        • where: expression to match; None to match all rows
         """
 
         stmt = Statement()
-        stmt.text(f"SELECT COUNT(*) AS count FROM {self.name}")
+        stmt += f"SELECT COUNT(*) AS count FROM {self.name}"
         if where:
-            stmt.text(" WHERE ")
-            stmt.statement(where)
-        stmt.text(";")
+            stmt += " WHERE "
+            stmt += where
+        stmt += ";"
         stmt.result = TypedDict("Result", {"count": int})
         result = await self.database.execute(stmt)
         return (await result.__anext__())["count"]
@@ -312,27 +370,26 @@ class Table:
     async def insert(self, value: Any) -> None:
         """Insert table row."""
         stmt = Statement()
-        stmt.text(f"INSERT INTO {self.name} (")
-        stmt.text(", ".join(self.columns))
-        stmt.text(") VALUES (")
-        stmt.parameters(
+        stmt += f"INSERT INTO {self.name} ("
+        stmt += ", ".join(self.columns)
+        stmt += ") VALUES ("
+        stmt.extend(
             (
-                Parameter(getattr(value, name), python_type)
+                Param(getattr(value, name), python_type)
                 for name, python_type in self.columns.items()
             ),
             ", ",
         )
-        stmt.text(");")
+        stmt += ");"
         await self.database.execute(stmt)
 
     async def read(self, key: Any) -> Any:
         """Return a table row, or None if not found."""
-        where = Statement()
-        where.text(f"{self.pk} = ")
-        where.param(key, self.columns[self.pk])
-        results = await self.select(where=where, limit=1)
+        where = Expression()
+        where += f"{self.pk} = "
+        where += Param(key, self.columns[self.pk])
         try:
-            return self.schema(**await results.__anext__())
+            return self.schema(**await self.select(where=where, limit=1).__anext__())
         except StopAsyncIteration:
             return None
 
@@ -340,25 +397,26 @@ class Table:
         """Update table row."""
         key = getattr(value, self.pk)
         stmt = Statement()
-        stmt.text(f"UPDATE {self.name} SET ")
+        stmt += f"UPDATE {self.name} SET "
         updates = []
         for name, python_type in self.columns.items():
-            update = Statement()
-            update.text(f"{name} = ")
-            update.param(getattr(value, name), python_type)
+            update = Expression(f"{name} = ")
+            update += Param(getattr(value, name), python_type)
             updates.append(update)
-        stmt.statements(updates, ", ")
-        stmt.text(f" WHERE {self.pk} = ")
-        stmt.param(key, self.columns[self.pk])
+        stmt.extend(updates, ", ")
+        stmt += f" WHERE {self.pk} = "
+        stmt += Param(key, self.columns[self.pk])
         await self.database.execute(stmt)
 
     async def delete(self, key: Any) -> None:
         """Delete table row."""
-        stmt = Statement()
-        stmt.text(f"DELETE FROM {self.name} WHERE {self.pk} = ")
-        stmt.param(key, self.columns[self.pk])
-        stmt.text(";")
-        await self.database.execute(stmt)
+        await self.database.execute(
+            Statement(
+                f"DELETE FROM {self.name} WHERE {self.pk} = ",
+                Param(key, self.columns[self.pk]),
+                ";",
+            )
+        )
 
 
 class Index:
@@ -392,18 +450,17 @@ class Index:
     async def create(self):
         """Create index in database."""
         stmt = Statement()
-        stmt.text("CREATE ")
+        stmt += "CREATE "
         if self.unique:
-            stmt.text("UNIQUE ")
-        stmt.text(f"INDEX {self.name} on {self.table.name} (")
-        stmt.text(", ".join(self.keys))
-        stmt.text(");")
+            stmt += "UNIQUE "
+        stmt += f"INDEX {self.name} on {self.table.name} ("
+        stmt += ", ".join(self.keys)
+        stmt += ");"
         await self.table.database.execute(stmt)
 
     async def drop(self):
         """Drop index from database."""
-        stmt = Statement()
-        stmt.text(f"DROP INDEX {self.name};")
+        stmt = Statement(f"DROP INDEX {self.name};")
         await self.table.database.execute(stmt)
 
 
@@ -470,19 +527,19 @@ def row_resource_class(
                 raise BadRequestError("cannot modify primary key")
             if old != new:
                 stmt = Statement()
-                stmt.text(f"UPDATE {table.name} SET ")
+                stmt += f"UPDATE {table.name} SET "
                 updates = []
                 for name, python_type in table.columns.items():
                     ofield = getattr(old, name)
                     nfield = getattr(new, name)
                     if ofield != nfield:
-                        update = Statement()
-                        update.text(f"{name} = ")
-                        update.param(nfield, python_type)
+                        update = Expression()
+                        update += f"{name} = "
+                        update += Param(nfield, python_type)
                         updates.append(update)
-                stmt.statements(updates, ", ")
-                stmt.text(f" WHERE {table.pk} = ")
-                stmt.param(self.pk, pk_type)
+                stmt.extend(updates, ", ")
+                stmt += f" WHERE {table.pk} = "
+                stmt += Param(self.pk, pk_type)
                 await table.database.execute(stmt)
             if cache:
                 await cache[self.pk].put(new)
@@ -538,9 +595,7 @@ def row_resource_class(
                 with suppress(NotFoundError):
                     await cache[self.pk].get()
                     return True
-            where = Statement()
-            where.text(f"{table.pk} = ")
-            where.param(self.pk, table.columns[table.pk])
+            where = Expression(f"{table.pk} = ", Param(self.pk, table.columns[table.pk]))
             async with table.database.transaction():
                 return await table.count(where) != 0
 
@@ -585,14 +640,16 @@ def table_resource_class(table: Table, row_resource_type: type = None) -> type:
         async def get(self, limit: int = 1000, cursor: bytes = None) -> Page:
             """Get paginated list of rows, ordered by primary key."""
             if cursor is not None:
-                where = Statement()
-                where.text(f"{table.pk} > ")
-                where.param(cursor_codec.decode(cursor), pk_type)
+                where = Expression()
+                where += f"{table.pk} > "
+                where += Param(cursor_codec.decode(cursor), pk_type)
             else:
                 where = None
             async with table.database.transaction():
-                results = await table.select(order=table.pk, limit=limit, where=where)
-                items = [table.schema(**result) async for result in results]
+                items = [
+                    table.schema(**result)
+                    async for result in table.select(order=table.pk, limit=limit, where=where)
+                ]
                 cursor = (
                     cursor_codec.encode(getattr(items[-1], table.pk))
                     if limit and len(items)

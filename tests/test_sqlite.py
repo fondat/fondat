@@ -110,7 +110,7 @@ async def test_list(table):
         for _ in range(0, count):
             await table.insert(DC(key=uuid4()))
         assert await table.count() == count
-        async for result in await table.select(columns="key"):
+        async for result in table.select(columns="key"):
             await table.delete(result["key"])
         assert await table.count() == 0
 
@@ -140,16 +140,13 @@ async def test_select_order(table):
         await table.insert(DC(key=uuid4(), str_="B", int_=2))
         await table.insert(DC(key=uuid4(), str_="A"))
         await table.insert(DC(key=uuid4(), str_="C"))
-        keys = [row["str_"] async for row in await table.select(order="str_")]
+        keys = [row["str_"] async for row in table.select(order="str_")]
         assert keys == ["A", "B", "B", "C"]
         keys = [
-            (row["str_"], row["int_"])
-            async for row in await table.select(order=["str_", "int_"])
+            (row["str_"], row["int_"]) async for row in table.select(order=["str_", "int_"])
         ]
         assert keys == [("A", None), ("B", 1), ("B", 2), ("C", None)]
-        keys = [
-            (row["str_"], row["int_"]) async for row in await table.select(order="str_, int_")
-        ]
+        keys = [(row["str_"], row["int_"]) async for row in table.select(order="str_, int_")]
         assert keys == [("A", None), ("B", 1), ("B", 2), ("C", None)]
 
 
@@ -240,24 +237,9 @@ async def test_resource_patch_pk(table):
         await resource.patch(patch)
 
 
-def test_consecutive_loops(database):
-    async def select():
-        async with database.transaction():
-            stmt = sql.Statement()
-            stmt.text("SELECT 1 AS foo;")
-            stmt.result = make_datacls("DC", (("foo", int),))
-            result = await (await database.execute(stmt)).__anext__()
-            assert result.foo == 1
-
-        asyncio.run(select())
-        asyncio.run(select())
-
-
 async def test_gather(database):
     async def select(n: int):
-        stmt = sql.Statement()
-        stmt.text(f"SELECT {n} AS foo;")
-        stmt.result = make_datacls("DC", (("foo", int),))
+        stmt = sql.Statement(f"SELECT {n} AS foo;", result=make_datacls("DC", (("foo", int),)))
         result = await (await database.execute(stmt)).__anext__()
         assert result.foo == n
 
@@ -291,16 +273,14 @@ async def test_nested_transaction(table):
 
 
 async def test_no_connecton(database):
-    stmt = sql.Statement()
-    stmt.text(f"SELECT 1;")
+    stmt = sql.Statement(f"SELECT 1;")
     with pytest.raises(RuntimeError):
         await database.execute(stmt)
 
 
 async def test_no_transaction(table):
     async with table.database.connection():
-        stmt = sql.Statement()
-        stmt.text(f"SELECT 1;")
+        stmt = sql.Statement(f"SELECT 1;")
         with pytest.raises(RuntimeError):
             await table.database.execute(stmt)
 
@@ -404,3 +384,20 @@ async def test_exists_cache(table):
     assert not await resource.exists()
     await resource.put(row)
     assert await resource.exists()
+
+
+async def test_database_select(database: sql.Database):
+    async with database.transaction():
+        await database.execute(sql.Statement("CREATE TABLE foo (n int);"))
+        for n in range(10):
+            await database.execute(sql.Statement(f"INSERT INTO foo VALUES ({n});"))
+    try:
+        async with database.transaction():
+            async for row in database.select(
+                columns=(("name.is.here", sql.Expression("n"), int),),
+                from_=sql.Expression("foo"),
+            ):
+                assert row["name.is.here"] >= 0
+    finally:
+        async with database.transaction():
+            await database.execute(sql.Statement("DROP TABLE foo;"))
