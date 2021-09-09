@@ -2,7 +2,7 @@
 
 import http
 
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from typing import Union
 
@@ -104,22 +104,21 @@ def replace(catch: Union[type, tuple[type]], throw: type, *args):
 
 
 @contextmanager
-def append(catch: Union[type, tuple[type]], value: str):
+def append(catch: Union[type, tuple[type]], *values: Iterable[Union[str, Iterable[str]]]):
     """
-    Return a context manager that catches exception(s), appends a string to the exception's
+    Return a context manager that catches exception(s), appends string(s) to the exception's
     message (first argument) and reraises the exception. If the caught exception has no
-    arguments, then its first argument becomes the string to append.
+    arguments, then its first argument becomes the value to append.
 
     Parameters:
     • catch: exception class or classes to catch
-    • value: string value to append to exception's first argument
+    • value: string value(s) to append to exception's first argument
     """
     try:
         yield
     except catch as c:
-        if value is None:
-            value = ""
-        args = [value if not c.args else f"{c.args[0]}{value}"]
+        values = "".join(values)
+        args = [values if not c.args else f"{c.args[0]}{values}"]
         if len(c.args) > 1:
             args += c.args[1:]
         c.args = tuple(args)
