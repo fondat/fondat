@@ -78,7 +78,7 @@ class Expression(Iterable):
 
     @staticmethod
     def join(value: Iterable[Any], sep: str = None) -> Expression:
-        """Join a number of fragments, optinally separated by string."""
+        """Join a number of fragments, optionally separated by a string value."""
         expr = Expression()
         for item in value:
             if expr and sep:
@@ -191,7 +191,9 @@ class Database:
         columns: Sequence[tuple[str, Expression, Any]],
         from_: Expression = None,
         where: Expression = None,
-        order: Expression = None,
+        group_by: Expression = None,
+        having: Expression = None,
+        order_by: Expression = None,
         limit: int = None,
         offset: int = None,
     ) -> AsyncIterator[dict[str, Any]]:
@@ -200,9 +202,11 @@ class Database:
 
         Parameters:
         • columns: tuple of (key, expression, type)
-        • from_: expression containing tables to select and/or tables to be joined
-        • where: statement containing WHERE expression, or None to match all rows
-        • order: order by expression
+        • from_: FROM expression containing tables to select and/or tables joined
+        • where: WHERE condition expression; None to match all rows
+        • group_by: GROUP BY expression
+        • having: HAVING clause expression
+        • order_by: ORDER BY expression
         • limit: limit the number of results returned, or None to not limit
         • offset: number of rows to skip, or None to skip none
 
@@ -239,9 +243,12 @@ class Database:
         if where is not None:
             stmt += " WHERE "
             stmt += where
-        if order is not None:
+        if group_by is not None:
+            stmt += " GROUP BY "
+            stmt += group_by
+        if order_by is not None:
             stmt += " ORDER BY "
-            stmt += order
+            stmt += order_by
         if limit:
             stmt += f" LIMIT {limit}"
         if offset:
@@ -309,17 +316,17 @@ class Table:
         *,
         columns: Union[Sequence[str], str] = None,
         where: Expression = None,
-        order: Union[Sequence[str], str] = None,
+        order_by: Union[Sequence[str], str] = None,
         limit: int = None,
         offset: int = None,
     ) -> AsyncIterator[dict[str, Any]]:
         """
-        Execute a SQL statement.
+        Execute a SQL statement select rows from the table.
 
         Parameters:
         • columns: columns to return, or None for all columns
         • where: statement containing WHERE expression, or None to match all rows
-        • order: column names to order by, or None to not order results
+        • order_by: column names to order by, or None to not order results
         • limit: limit the number of results returned, or None to not limit
         • offset: number of rows to skip, or None to skip none
 
@@ -332,8 +339,8 @@ class Table:
         if isinstance(columns, str):
             columns = columns.replace(",", " ").split()
 
-        if order is not None and not isinstance(order, str):
-            order = ", ".join(order)
+        if order_by is not None and not isinstance(order_by, str):
+            order_by = ", ".join(order_by)
 
         result = TypedDict(
             "Columns",
@@ -347,7 +354,7 @@ class Table:
             ],
             from_=Expression(self.name),
             where=where,
-            order=Expression(order) if order is not None else None,
+            order_by=Expression(order_by) if order_by is not None else None,
             limit=limit,
             offset=offset,
         ):
@@ -647,7 +654,9 @@ def table_resource_class(table: Table, row_resource_type: type = None) -> type:
             async with table.database.transaction():
                 items = [
                     table.schema(**result)
-                    async for result in table.select(order=table.pk, limit=limit, where=where)
+                    async for result in table.select(
+                        order_by=table.pk, limit=limit, where=where
+                    )
                 ]
                 cursor = (
                     cursor_codec.encode(getattr(items[-1], table.pk))

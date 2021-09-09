@@ -134,19 +134,19 @@ async def test_index(table):
         await index.drop()
 
 
-async def test_select_order(table):
+async def test_select_order_by(table):
     async with table.database.transaction():
         await table.insert(DC(key=uuid4(), str_="B", int_=1))
         await table.insert(DC(key=uuid4(), str_="B", int_=2))
         await table.insert(DC(key=uuid4(), str_="A"))
         await table.insert(DC(key=uuid4(), str_="C"))
-        keys = [row["str_"] async for row in table.select(order="str_")]
+        keys = [row["str_"] async for row in table.select(order_by="str_")]
         assert keys == ["A", "B", "B", "C"]
         keys = [
-            (row["str_"], row["int_"]) async for row in table.select(order=["str_", "int_"])
+            (row["str_"], row["int_"]) async for row in table.select(order_by=["str_", "int_"])
         ]
         assert keys == [("A", None), ("B", 1), ("B", 2), ("C", None)]
-        keys = [(row["str_"], row["int_"]) async for row in table.select(order="str_, int_")]
+        keys = [(row["str_"], row["int_"]) async for row in table.select(order_by="str_, int_")]
         assert keys == [("A", None), ("B", 1), ("B", 2), ("C", None)]
 
 
