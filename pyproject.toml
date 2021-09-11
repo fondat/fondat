@@ -8,7 +8,7 @@ target-version = ['py39']
 
 [tool.poetry]
 name = "fondat-core"
-version = "3.0.0"
+version = "3.0.1"
 description = "A foundation for asynchronous Python resource-oriented applications."
 readme = "README.md"
 authors = ["fondat-core authors"]
