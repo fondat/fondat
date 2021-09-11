@@ -394,7 +394,7 @@ async def test_database_select(database: sql.Database):
     try:
         async with database.transaction():
             async for row in database.select(
-                columns=(("name.is.here", sql.Expression("n"), int),),
+                columns=((sql.Expression("n"), "name.is.here", int),),
                 from_=sql.Expression("foo"),
             ):
                 assert row["name.is.here"] >= 0
@@ -406,3 +406,12 @@ async def test_database_select(database: sql.Database):
 def test_param():
     assert sql.Param(10).type is int
     assert sql.Param("", str).type is str
+
+
+async def test_find_pks(table):
+    resource = sql.table_resource_class(table, sql.row_resource_class(table))()
+    keys = {uuid4() for _ in range(10)}
+    async with table.database.transaction():
+        for key in keys:
+            await table.insert(DC(key=key))
+    assert len(await resource.find_pks(keys)) == 10
