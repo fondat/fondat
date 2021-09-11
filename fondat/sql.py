@@ -129,7 +129,6 @@ class Param:
 
 
 def _to_identifier(value: str):
-    print(f"{value=}")
     if value.isidentifier():
         return value
     return re.sub(r"[^A-Za-z_]", "_", value)
