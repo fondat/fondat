@@ -129,6 +129,7 @@ class Param:
 
 
 def _to_identifier(value: str):
+    print(f"{value=}")
     if value.isidentifier():
         return value
     return re.sub(r"[^A-Za-z_]", "_", value)
@@ -188,7 +189,7 @@ class Database:
     async def select(
         self,
         *,
-        columns: Sequence[tuple[str, Expression, Any]],
+        columns: Sequence[tuple[Expression, str, Any]],
         from_: Expression = None,
         where: Expression = None,
         group_by: Expression = None,
@@ -210,9 +211,9 @@ class Database:
         • limit: limit the number of results returned, or None to not limit
         • offset: number of rows to skip, or None to skip none
 
-        Each column specified is a tuple with the following values:
-        • key: key to store the value in the row dictionary
+        Each column specified is a tuple with the values in this order:
         • expression: expression for the SQL database to process
+        • alias: column alias; key to store the value in the row dictionary
         • type: the Python type in which to store the evaluated expression
 
         Returns an asynchronous iterable containing rows; each row item is a dictionary that
@@ -220,9 +221,10 @@ class Database:
 
         This coroutine must be called within a database transaction.
         """
+
         cols = {}
         for column in columns:
-            name = _to_identifier(column[0])
+            name = _to_identifier(column[1])
             while name in cols:
                 name += "_"
             cols[name] = column
@@ -231,10 +233,9 @@ class Database:
         stmt += "SELECT "
         exprs = []
         for k, v in cols.items():
-            expr = Expression()
-            expr += v[1]
-            if len(v[1]) != 1 or k != v[1].fragments[0]:
-                expr += f" {k}"
+            expr = Expression(v[0])
+            if len(v[0]) != 1 or k != v[0].fragments[0]:
+                expr += f" AS {k}"
             exprs.append(expr)
         stmt += Expression.join(exprs, ", ")
         if from_ is not None:
@@ -246,6 +247,9 @@ class Database:
         if group_by is not None:
             stmt += " GROUP BY "
             stmt += group_by
+        if having is not None:
+            stmt += " HAVING "
+            stmt += having
         if order_by is not None:
             stmt += " ORDER BY "
             stmt += order_by
@@ -257,7 +261,7 @@ class Database:
         stmt.result = result
         results = await self.execute(stmt)
         async for row in results:
-            yield {cols[k][0]: v for k, v in row.items()}
+            yield {cols[k][1]: v for k, v in row.items()}
 
 
 class Table:
@@ -349,7 +353,7 @@ class Table:
 
         async for row in self.database.select(
             columns=[
-                (key, Expression(key), type)
+                (Expression(key), key, type)
                 for key, type in typing.get_type_hints(result, include_extras=True).items()
             ],
             from_=Expression(self.name),
@@ -690,6 +694,25 @@ def table_resource_class(table: Table, row_resource_type: type = None) -> type:
                             validate(new, table.schema)
                             await row._validate(new)
                             await row._insert(new)
+
+        @query
+        async def find_pks(self, pks: set[table.columns[table.pk]]) -> list[table.schema]:
+            """Return rows corresponding to the specified set of primary keys."""
+            if not pks:
+                return []
+            async with table.database.transaction():
+                return [
+                    table.schema(**row)
+                    async for row in table.select(
+                        where=Expression(
+                            f"{table.pk} IN (",
+                            Expression.join(
+                                (Param(pk, table.columns[table.pk]) for pk in pks), ", "
+                            ),
+                            ")",
+                        )
+                    )
+                ]
 
     fondat.types.affix_type_hints(TableResource, localns=locals())
     return TableResource
