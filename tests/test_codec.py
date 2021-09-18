@@ -116,6 +116,133 @@ def test_typeddict_json_decode_error():
         get_codec(JSON, TD).decode(value)
 
 
+# ----- tuple -----
+
+
+def test_tuple_encodings():
+    _test_encoding(tuple[int, str, float], (1, "foo", 2.3))
+
+
+def test_tuple_json_encode_item_type_error():
+    _error(get_codec(JSON, tuple[str, str, str]).encode, (1, 2, 3))
+
+
+def test_tuple_json_decode_success():
+    assert get_codec(JSON, tuple[float, float, float]).decode([1.2, 3.4, 5.6]) == (
+        1.2,
+        3.4,
+        5.6,
+    )
+
+
+def test_tuple_json_decode_error():
+    _error(get_codec(JSON, tuple[str, str, str]).decode, "not_a_tuple")
+
+
+def test_tuple_str_encode_success():
+    assert get_codec(String, tuple[str, str, str]).encode(("a", "b", "c")) == "a,b,c"
+
+
+def test_tuple_str_decode_success():
+    assert get_codec(String, tuple[str, str, str]).decode("a,b,c") == ("a", "b", "c")
+
+
+def test_tuple_bytes_encode_success():
+    assert get_codec(Binary, tuple[str, str, str]).encode(("a", "b", "c")) == b'["a", "b", "c"]'
+
+
+def test_tuple_bytes_decode_success():
+    assert get_codec(Binary, tuple[str, str, str]).decode(b'["a", "b", "c"]') == (
+        "a",
+        "b",
+        "c",
+    )
+
+
+def test_tuple_str_decode_int_success():
+    assert get_codec(String, tuple[int, str, float]).decode("12,foo,3.4") == (12, "foo", 3.4)
+
+
+def test_tuple_str_decode_float_success():
+    assert get_codec(String, tuple[float, float]).decode("12.34,56.78") == (
+        12.34,
+        56.78,
+    )
+
+
+def test_tuple_str_decode_crazy_csv_scenario():
+    assert get_codec(String, tuple[str, str, str, str]).decode('a,"b,c",d,"""e"""') == (
+        "a",
+        "b,c",
+        "d",
+        '"e"',
+    )
+
+
+def test_tuple_str_decode_int_error():
+    _error(get_codec(String, tuple[int, int, int, int]).decode, "12,a,34,56")
+
+
+def test_tuple_ellipsis_encodings():
+    _test_encoding(tuple[int, ...], (1, 2, 3))
+
+
+def test_tuple_ellipsis_json_encode_item_type_error():
+    _error(get_codec(JSON, tuple[str, ...]).encode, (1, 2, 3))
+
+
+def test_tuple_ellipsis_json_decode_success():
+    assert get_codec(JSON, tuple[float, ...]).decode([1.2, 3.4, 5.6]) == (1.2, 3.4, 5.6)
+
+
+def test_tuple_ellipsis_json_decode_error():
+    _error(get_codec(JSON, tuple[str, ...]).decode, "not_a_tuple")
+
+
+def test_tuple_ellipsis_str_encode_success():
+    assert get_codec(String, tuple[str, ...]).encode(("a", "b", "c")) == "a,b,c"
+
+
+def test_tuple_ellipsis_str_decode_success():
+    assert get_codec(String, tuple[str, ...]).decode("a,b,c") == ("a", "b", "c")
+
+
+def test_tuple_ellipsis_bytes_encode_success():
+    assert get_codec(Binary, tuple[str, ...]).encode(("a", "b", "c")) == b'["a", "b", "c"]'
+
+
+def test_tuple_ellipsis_bytes_decode_success():
+    assert get_codec(Binary, tuple[str, ...]).decode(b'["a", "b", "c"]') == (
+        "a",
+        "b",
+        "c",
+    )
+
+
+def test_tuple_ellipsis_str_decode_int_success():
+    assert get_codec(String, tuple[int, ...]).decode("12,34,56") == (12, 34, 56)
+
+
+def test_tuple_ellipsis_str_decode_float_success():
+    assert get_codec(String, tuple[float, ...]).decode("12.34,56.78") == (
+        12.34,
+        56.78,
+    )
+
+
+def test_tuple_ellipsis_str_decode_crazy_csv_scenario():
+    assert get_codec(String, tuple[str, ...]).decode('a,"b,c",d,"""e"""') == (
+        "a",
+        "b,c",
+        "d",
+        '"e"',
+    )
+
+
+def test_tuple_ellipsis_str_decode_int_error():
+    _error(get_codec(String, tuple[int, ...]).decode, "12,a,34,56")
+
+
 # ----- list -----
 
 

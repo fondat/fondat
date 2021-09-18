@@ -978,6 +978,114 @@ def _typeddict(codec_type, python_type):
         return _TypedDict_Binary()
 
 
+# ----- tuple -----
+
+
+@_provider
+def _tuple(codec_type, python_type):
+
+    pytype, _ = split_annotated(python_type)
+
+    if pytype is tuple:
+        origin = tuple
+        args = (Any, ...)
+
+    else:
+        origin = get_origin(pytype)
+        args = get_args(pytype)
+
+    if origin is not tuple:
+        return
+
+    if len(args) != 2 and Ellipsis in args or args[0] is Ellipsis:
+        raise TypeError("unexpected ...")
+
+    varg = args[0] if len(args) == 2 and args[1] is Ellipsis else None
+    args = () if varg else args
+
+    if codec_type is JSON:
+
+        codecs = [get_codec(JSON, arg) for arg in args]
+        vcodec = get_codec(JSON, varg) if varg else None
+
+        @affix_type_hints(localns=locals())
+        class _Tuple_JSON(JSON[python_type]):
+
+            json_type = list[Any]
+
+            def encode(self, value: python_type) -> list[Any]:
+                if not isinstance(value, tuple):
+                    raise TypeError
+                if args and len(value) != len(args):
+                    raise ValueError
+                return (
+                    [vcodec.encode(item) for item in value]
+                    if vcodec
+                    else [codecs[n].encode(value[n]) for n in range(len(codecs))]
+                )
+
+            @validate_arguments
+            def decode(self, value: list[Any]) -> python_type:
+                if args and len(value) != len(args):
+                    raise ValueError
+                return tuple(
+                    [vcodec.decode(item) for item in value]
+                    if vcodec
+                    else [codecs[n].decode(value[n]) for n in range(len(codecs))]
+                )
+
+        return _Tuple_JSON()
+
+    if codec_type is String:
+
+        codecs = [get_codec(String, arg) for arg in args]
+        vcodec = get_codec(String, varg) if varg else None
+
+        @affix_type_hints(localns=locals())
+        class _Tuple_String(String[python_type]):
+            def encode(self, value: python_type) -> str:
+                if not isinstance(value, tuple):
+                    raise TypeError
+                if args and len(value) != len(args):
+                    raise ValueError
+                return _csv_encode(
+                    [vcodec.encode(item) for item in value]
+                    if vcodec
+                    else [codecs[n].encode(value[n]) for n in range(len(codecs))]
+                )
+
+            @validate_arguments
+            def decode(self, value: str) -> python_type:
+                decoded = _csv_decode(value)
+                if args and len(decoded) != len(args):
+                    raise ValueError
+                return tuple(
+                    [vcodec.decode(item) for item in decoded]
+                    if vcodec
+                    else [codecs[n].decode(decoded[n]) for n in range(len(codecs))]
+                )
+
+        return _Tuple_String()
+
+    if codec_type is Binary:
+
+        json_codec = get_codec(JSON, python_type)
+
+        @affix_type_hints(localns=locals())
+        class _Tuple_Binary(Binary[python_type]):
+
+            content_type = "application/json"
+
+            def encode(self, value: python_type) -> bytes:
+                return json.dumps(json_codec.encode(value)).encode()
+
+            @validate_arguments
+            def decode(self, value: Union[bytes, bytearray]) -> python_type:
+                return json_codec.decode(json.loads(value.decode()))
+
+        return _Tuple_Binary()
+
+
 # ----- Mapping -----
 
 
