@@ -13,8 +13,8 @@ def affix_type_hints(obj=None, *, globalns=None, localns=None, attrs: bool = Tru
     into the type's __annotations__ attribute.
 
     This function exists due to PEP 563, in which annotations are stored as strings, are only
-    evaluated when typing.get_type_hints is called; this will be the default behavior of
-    annotations in Python 3.10. The work in PEP 649, if accepted, will likely eliminate the
+    evaluated when typing.get_type_hints is called; this will be the expected behavior of
+    annotations in Python 3.11. The work in PEP 649, if accepted, will likely eliminate the
     need to affix type hints.
 
     This function can be applied as a decorator to a class or function.

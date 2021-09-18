@@ -112,7 +112,7 @@ def append(catch: Union[type, tuple[type]], *values: Iterable[Union[str, Iterabl
 
     Parameters:
     • catch: exception class or classes to catch
-    • value: string value(s) to append to exception's first argument
+    • values: string values to append to exception's first argument
     """
     try:
         yield
