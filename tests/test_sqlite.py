@@ -33,6 +33,8 @@ class DC:
     bytes_: Optional[bytes]
     date_: Optional[date]
     datetime_: Optional[datetime]
+    tuple_: Optional[tuple[str, int, float]]
+    tuple_ellipsis: Optional[tuple[int, ...]]
 
 
 @pytest.fixture(scope="function")  # FIXME: scope to module with event_loop fixture?
@@ -65,6 +67,8 @@ async def test_table_crud(table):
         bytes_=b"12345",
         date_=date.fromisoformat("2019-01-01"),
         datetime_=datetime.fromisoformat("2019-01-01T01:01:01+00:00"),
+        tuple_=("a", 1, 2.3),
+        tuple_ellipsis=(1, 2, 3),
     )
     async with table.database.transaction():
         await table.insert(row)
@@ -78,6 +82,8 @@ async def test_table_crud(table):
         row.bytes_ = None
         row.date_ = None
         row.datetime_ = None
+        row.tuple_ = None
+        row.tuple_ellipsis = None
         await table.update(row)
         assert await table.read(row.key) == row
         await table.delete(row.key)

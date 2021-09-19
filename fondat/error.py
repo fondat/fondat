@@ -4,7 +4,7 @@ import http
 
 from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
-from typing import Union
+from typing import Any, Union
 
 
 class Error(Exception):
@@ -104,22 +104,37 @@ def replace(catch: Union[type, tuple[type]], throw: type, *args):
 
 
 @contextmanager
-def append(catch: Union[type, tuple[type]], *values: Iterable[Union[str, Iterable[str]]]):
-    """
-    Return a context manager that catches exception(s), appends string(s) to the exception's
-    message (first argument) and reraises the exception. If the caught exception has no
-    arguments, then its first argument becomes the value to append.
-
-    Parameters:
-    • catch: exception class or classes to catch
-    • values: string values to append to exception's first argument
-    """
+def _pend(
+    app: bool, catch: Union[type, tuple[type]], *values: Iterable[Union[Any, Iterable[Any]]]
+):
     try:
         yield
     except catch as c:
-        values = "".join(values)
-        args = [values if not c.args else f"{c.args[0]}{values}"]
-        if len(c.args) > 1:
-            args += c.args[1:]
-        c.args = tuple(args)
+        msg = "".join(str(value) for value in values)
+        arg = (msg if not app else "") + (c.args[0] if c.args else "") + (msg if app else "")
+        c.args = (arg, *(c.args[1:] if c.args else []))
         raise
+
+
+def append(catch: Union[type, tuple[type]], *values: Iterable[Union[Any, Iterable[Any]]]):
+    """
+    Return a context manager that catches exception(s), appends string(s) to the exception's
+    message (first argument) and reraises the exception.
+
+    Parameters:
+    • catch: exception class or classes to catch
+    • values: string values to append to exception's message
+    """
+    return _pend(True, catch, *values)
+
+
+def prepend(catch: Union[type, tuple[type]], *values: Iterable[Union[Any, Iterable[Any]]]):
+    """
+    Return a context manager that catches exception(s), prepends value(s) to the exception's
+    message (first argument) and reraises the exception.
+
+    Parameters:
+    • catch: exception class or classes to catch
+    • values: string values to prepend to exception's message
+    """
+    return _pend(False, catch, *values)

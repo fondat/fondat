@@ -229,6 +229,27 @@ def test_dict_error_value_type():
         validate(dict(this="should_not_validate"), dict[str, int])
 
 
+# ----- tuple -----
+
+
+def test_tuple_success():
+    validate(("a", 1, 2.3), tuple[str, int, float])
+
+
+def test_tuple_value_error():
+    with pytest.raises(TypeError):
+        validate(("a", "b", "c"), tuple[str, int, float])
+
+
+def test_tuple_ellipsis_success():
+    validate(("a", "b", "c"), tuple[str, ...])
+
+
+def test_tuple_ellipsis_value_error():
+    with pytest.raises(TypeError):
+        validate(("a", "b", 1), tuple[str, ...])
+
+
 # ----- list -----
 
 

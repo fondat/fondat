@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
+import fondat.error
 import inspect
 import re
 import typing
@@ -146,10 +147,28 @@ def _validate_mapping(value, python_type, args):
         validate(value, value_type, f"value in {key}")
 
 
+def _validate_tuple(value, python_type, args):
+    if len(args) == 2 and args[1] is Ellipsis:
+        item_type = args[0]
+        for item_value in value:
+            validate(item_value, item_type)
+    elif len(value) != len(args):
+        raise ValueError(
+            f"expecting tuple[{', '.join(str(arg) for arg in args)}]; received: {value}"
+        )
+    else:
+        for n in range(len(args)):
+            with fondat.error.prepend((TypeError, ValueError), "[", n, "]: "):
+                validate(value[n], args[n])
+
+
 def _validate_iterable(value, python_type, args):
     item_type = args[0]
+    index = 0
     for item_value in value:
-        validate(item_value, item_type)
+        with fondat.error.prepend((TypeError, ValueError), "[", index, "]: "):
+            validate(item_value, item_type)
+        index += 1
 
 
 def _validate_dataclass(value, python_type):
@@ -160,7 +179,6 @@ def _validate_dataclass(value, python_type):
 def _validate(value, type_hint):
 
     python_type, annotations = split_annotated(type_hint)
-
     origin = typing.get_origin(python_type)
     args = typing.get_args(python_type)
 
@@ -177,6 +195,7 @@ def _validate(value, type_hint):
     elif origin is Literal:
         return _validate_literal(value, args)
 
+    # TypedDict
     if is_subclass(python_type, dict) and hasattr(python_type, "__annotations__"):
         origin = dict
 
@@ -195,6 +214,8 @@ def _validate(value, type_hint):
         return _validate_typeddict(value, python_type)
     elif is_subclass(origin, Mapping):
         return _validate_mapping(value, python_type, args)
+    elif is_subclass(origin, tuple):
+        return _validate_tuple(value, python_type, args)
     elif is_subclass(origin, Iterable):
         return _validate_iterable(value, python_type, args)
     elif dataclasses.is_dataclass(python_type):
@@ -206,11 +227,13 @@ def validate(value: Any, type_hint: Any, in_: str = None) -> NoneType:
 
     try:
         _validate(value, type_hint)
+
     except (TypeError, ValueError) as e:
-        if not e.args:
-            e.args = (in_,)
-        else:
-            e.args = (f"{in_}: {e.args[0]}", *e.args[1:])
+        if in_:
+            if not e.args:
+                e.args = (in_,)
+            else:
+                e.args = (f"{in_}: {e.args[0]}", *e.args[1:])
         raise
 
 
