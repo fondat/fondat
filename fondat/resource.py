@@ -153,7 +153,10 @@ def operation(
     description = wrapped.__doc__ or wrapped.__name__
     summary = _summary(wrapped)
 
-    for p in inspect.signature(wrapped).parameters.values():
+    parameters = inspect.signature(wrapped).parameters
+    if not parameters or iter(parameters).__next__() != "self":
+        raise TypeError("operation first parameter must be self")
+    for p in parameters.values():
         if p.kind is p.VAR_POSITIONAL:
             raise TypeError("operation with *args is not supported")
         elif p.kind is p.VAR_KEYWORD:
