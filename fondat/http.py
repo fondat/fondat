@@ -573,7 +573,14 @@ class Application:
                         raise BadRequestError(f"{tve} in {param_in}")
                     params[name] = param
         result = await operation(**params)
-        validate(result, return_hint)
+        with fondat.error.append(
+            (TypeError, ValueError),
+            " in return value, resource=",
+            resource.__class__.__qualname__,
+            ", operation=",
+            operation.__name__,
+        ):
+            validate(result, return_hint)
         if not is_subclass(return_hint, Stream):
             return_codec = get_codec(Binary, return_hint)
             result = BytesStream(return_codec.encode(result), return_codec.content_type)
