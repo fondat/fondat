@@ -20,7 +20,7 @@ from fondat.error import BadRequestError, NotFoundError
 from fondat.memory import memory_resource
 from fondat.patch import json_merge_patch
 from fondat.resource import resource, operation, query
-from fondat.validation import validate
+from fondat.validation import MinValue, validate
 from typing import Annotated, Any, Optional, TypedDict, Union
 
 
@@ -646,7 +646,11 @@ def table_resource_class(table: Table, row_resource_type: type = None) -> type:
             self.table = table
 
         @operation
-        async def get(self, limit: int = 1000, cursor: bytes = None) -> Page:
+        async def get(
+            self,
+            limit: Annotated[int, MinValue(1)] = 1000,
+            cursor: bytes = None,
+        ) -> Page:
             """Get paginated list of rows, ordered by primary key."""
             if cursor is not None:
                 where = Expression()
@@ -663,7 +667,7 @@ def table_resource_class(table: Table, row_resource_type: type = None) -> type:
                 ]
                 cursor = (
                     cursor_codec.encode(getattr(items[-1], table.pk))
-                    if limit and len(items)
+                    if len(items) == limit
                     else None
                 )
             return Page(items=items, cursor=cursor)
