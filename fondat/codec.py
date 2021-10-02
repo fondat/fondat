@@ -833,16 +833,16 @@ _uuid_stringcodec = _UUID_String()
 class _UUID_Binary(Binary[UUID]):
     """Binary codec for UUID."""
 
-    content_type = "application/octet-stream"
+    content_type = _TEXT_PLAIN
 
     def encode(self, value: UUID) -> bytes:
         if not isinstance(value, UUID):
             raise TypeError
-        return value.bytes
+        return _uuid_stringcodec.encode(value).encode()
 
     @validate_arguments
     def decode(self, value: Union[bytes, bytearray]) -> UUID:
-        return UUID(bytes=value)
+        return _uuid_stringcodec.decode(value.decode())
 
 
 _uuid_binarycodec = _UUID_Binary()
