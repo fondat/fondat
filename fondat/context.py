@@ -14,6 +14,8 @@ import contextvars
 import datetime
 import uuid
 
+from typing import Any, Generator, Optional
+
 
 _stack = contextvars.ContextVar("_fondat_stack")
 
@@ -124,11 +126,11 @@ def push(*args, **kwargs) -> StackContextManager:
     return StackContextManager(token)
 
 
-def find(*args, **kwargs):
+def find(*args, **kwargs) -> Generator[Any, None, None]:
     """
     Return a generator that yields elements on the context stack that match the specified keys
-    and values. Elements are returned in the order of uppermost (last pushed) to lowermost
-    (first pushed).
+    and values. Elements are returned in the order of most recently pushed to least recently
+    pushed.
 
     The elements to match can be expressed as follows:
     • find(mapping): match is expressed as a mapping object's key-value pairs
@@ -137,13 +139,13 @@ def find(*args, **kwargs):
     Supplying no parameters will yield all elements on the stack.
     """
     test = dict(*args, **kwargs).items() or None
-    return (value for value in _stack.get(()) if not test or test <= value.items())
+    return (value for value in _stack.get(()) if test is None or test <= value.items())
 
 
-def first(*args, **kwargs):
+def first(*args, **kwargs) -> Any:
     """
-    Return the first (lowermost) element pushed on to the contact stack that matches the
-    specified keys and values, or None if no such element is found.
+    Return the least recently pushed element on the contact stack that matches the specified
+    keys and values, or None if no such element exists.
 
     The element to match for can be expressed as follows:
     • first(mapping): match is expressed as a mapping object's key-value pairs
@@ -155,10 +157,10 @@ def first(*args, **kwargs):
     return result
 
 
-def last(*args, **kwargs):
+def last(*args, **kwargs) -> Any:
     """
-    Return the last (uppermost) element pushed on to the contact stack that matches the
-    specified keys and values, or None if no such element is found.
+    Return the most recently pushed element on the contact stack that matches the specified
+    keys and values, or None if no such element exists.
 
     The element to match for can be expressed as follows:
     • last(mapping): match is expressed as a mapping object's key-value pairs
