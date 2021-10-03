@@ -1,12 +1,12 @@
 """
 Module to implement resources composed of operations.
 
-A resource is an addressible object that exposes operations through a uniform set of methods.
+A resource is an addressible object that exposes operations through a uniform inteerface.
 
 A resource class contains operation methods, each decorated with the @operation decorator.
 
 A resource can expose subordinate resources through an attribute, method or property that is
-decorated as a resource.
+also decorated as a resource.
 
 For information on how security policies are evaluated, see the authorize function.
 """
@@ -21,6 +21,7 @@ import types
 import wrapt
 
 from collections.abc import Iterable, Mapping
+from copy import deepcopy
 from fondat.error import ForbiddenError, UnauthorizedError
 from fondat.security import Policy
 from fondat.validation import validate_arguments
@@ -116,7 +117,6 @@ def operation(
     policies: Iterable[Policy] = None,
     publish: bool = True,
     deprecated: bool = False,
-    validate: bool = True,
 ):
     """
     Decorate a resource coroutine that performs an operation.
@@ -127,7 +127,10 @@ def operation(
     • policies: security policies for the operation
     • publish: publish the operation in documentation
     • deprecated: declare the operation as deprecated
-    • validate: validate method arguments
+
+    When an operation is called:
+    • its arguments are copied to prevent side effects
+    • its arguments are validated against their type hints
     """
 
     if wrapped is None:
@@ -136,7 +139,6 @@ def operation(
             publish=publish,
             policies=policies,
             deprecated=deprecated,
-            validate=validate,
         )
 
     if not asyncio.iscoroutinefunction(wrapped):
@@ -164,6 +166,7 @@ def operation(
 
     @wrapt.decorator
     async def wrapper(wrapped, instance, args, kwargs):
+        args, kwargs = deepcopy(args), deepcopy(kwargs)  # avoid side effects
         operation = getattr(wrapped, "_fondat_operation")
         resource_name = f"{instance.__class__.__module__}.{instance.__class__.__qualname__}"
         operation_name = wrapped.__name__
@@ -187,9 +190,7 @@ def operation(
         description=description,
     )
 
-    if validate:
-        wrapped = validate_arguments(wrapped)
-
+    wrapped = validate_arguments(wrapped)
     return wrapper(wrapped)
 
 
