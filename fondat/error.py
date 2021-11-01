@@ -77,12 +77,12 @@ errors = _Errors()
 
 
 # commonly used errors
-BadRequestError = errors.BadRequestError
-ForbiddenError = errors.ForbiddenError
-InternalServerError = errors.InternalServerError
-MethodNotAllowedError = errors.MethodNotAllowedError
-NotFoundError = errors.NotFoundError
-UnauthorizedError = errors.UnauthorizedError
+BadRequestError: ClientError = errors.BadRequestError
+ForbiddenError: ClientError = errors.ForbiddenError
+InternalServerError: ServerError = errors.InternalServerError
+MethodNotAllowedError: ClientError = errors.MethodNotAllowedError
+NotFoundError: ClientError = errors.NotFoundError
+UnauthorizedError: ClientError = errors.UnauthorizedError
 
 
 @contextmanager
