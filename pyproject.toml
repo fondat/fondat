@@ -29,11 +29,11 @@ packages = [
 python = "^3.9"
 aiosqlite = "^0.16"
 iso8601 = "^0.1"
-multidict = "^5.1"
-wrapt = "^1.12"
+multidict = "^5.2"
+wrapt = "^1.13"
 
 [tool.poetry.dev-dependencies]
-black = "^21.9b0"
+black = "^21.10b0"
 pre-commit = "^2.15"
 pytest = "^6.2"
 pytest-asyncio = "^0.14"
