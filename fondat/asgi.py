@@ -1,11 +1,15 @@
 """Module to expose resources through ASGI."""
 
 import fondat.http
+import logging
 import urllib.parse
 
 from collections.abc import Awaitable, Callable, Mapping
 from fondat.error import InternalServerError
 from fondat.stream import Stream
+
+
+_logger = logging.getLogger(__name__)
 
 
 def _int(s: str):
@@ -76,6 +80,7 @@ def asgi_app(
             else:
                 raise InternalServerError(f"unknown ASGI lifespan type: {lifespan_type}")
         except Exception as e:
+            _logger.exception(f"ASGI {lifespan_type} failed")
             await send({"type": f"{lifespan_type}.failed", "message": str(e)})
             raise
         await send({"type": f"{lifespan_type}.complete"})
