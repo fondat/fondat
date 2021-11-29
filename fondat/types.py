@@ -45,9 +45,10 @@ def affix_type_hints(obj=None, *, globalns=None, localns=None, attrs: bool = Tru
         obj.__annotations__ = typing.get_type_hints(obj, globalns, localns, include_extras=True)
     if attrs:
         for name in dir(obj):
-            affix_type_hints(
-                getattr(obj, name), globalns=globalns, localns=localns, attrs=False
-            )
+            if not name.startswith("__") and not name.endswith("__"):
+                affix_type_hints(
+                    getattr(obj, name), globalns=globalns, localns=localns, attrs=False
+                )
 
     return obj
 
