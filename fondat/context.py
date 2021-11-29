@@ -14,7 +14,7 @@ import contextvars
 import datetime
 import uuid
 
-from typing import Any, Generator, Optional
+from typing import Any, Generator
 
 
 _stack = contextvars.ContextVar("_fondat_stack")
