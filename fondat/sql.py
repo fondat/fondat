@@ -56,6 +56,9 @@ class Expression(Iterable):
     def __repr__(self) -> str:
         return f"Expression({self.fragments})"
 
+    def __str__(self) -> str:
+        return "".join(str(f) for f in self.fragments)
+
     def __iter__(self) -> Iterator[Any]:
         """Iterate over fragments of the statement."""
         return iter(self.fragments)
@@ -127,6 +130,8 @@ class Param:
     def __repr__(self) -> str:
         return f"Param(value={self.value}, type={self.type})"
 
+    def __str__(self) -> str:
+        return repr(self)
 
 def _to_identifier(value: str):
     if value.isidentifier():
