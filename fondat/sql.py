@@ -133,6 +133,7 @@ class Param:
     def __str__(self) -> str:
         return repr(self)
 
+
 def _to_identifier(value: str):
     if value.isidentifier():
         return value
@@ -233,8 +234,7 @@ class Database:
                 name += "_"
             cols[name] = column
         result = TypedDict("Columns", {k: v[2] for k, v in cols.items()})
-        stmt = Statement()
-        stmt += "SELECT "
+        stmt = Statement("SELECT ")
         exprs = []
         for k, v in cols.items():
             expr = Expression(v[0])
@@ -243,20 +243,15 @@ class Database:
             exprs.append(expr)
         stmt += Expression.join(exprs, ", ")
         if from_ is not None:
-            stmt += " FROM "
-            stmt += from_
+            stmt += Expression(" FROM ", from_)
         if where is not None:
-            stmt += " WHERE "
-            stmt += where
+            stmt += Expression(" WHERE ", where)
         if group_by is not None:
-            stmt += " GROUP BY "
-            stmt += group_by
+            stmt += Expression(" GROUP BY ", group_by)
         if having is not None:
-            stmt += " HAVING "
-            stmt += having
+            stmt += Expression(" HAVING ", having)
         if order_by is not None:
-            stmt += " ORDER BY "
-            stmt += order_by
+            stmt += Expression(" ORDER BY ", order_by)
         if limit:
             stmt += f" LIMIT {limit}"
         if offset:
@@ -311,8 +306,7 @@ class Table:
             if not is_nullable(column_type):
                 column.append("NOT NULL")
             columns.append(" ".join(column))
-        stmt += ", ".join(columns)
-        stmt += ");"
+        stmt += Expression(", ".join(columns), ");")
         await self.database.execute(stmt)
 
     async def drop(self):
@@ -376,11 +370,9 @@ class Table:
         • where: expression to match; None to match all rows
         """
 
-        stmt = Statement()
-        stmt += f"SELECT COUNT(*) AS count FROM {self.name}"
+        stmt = Statement(f"SELECT COUNT(*) AS count FROM {self.name}")
         if where:
-            stmt += " WHERE "
-            stmt += where
+            stmt += Expression(" WHERE ", where)
         stmt += ";"
         stmt.result = TypedDict("Result", {"count": int})
         result = await self.database.execute(stmt)
@@ -388,42 +380,50 @@ class Table:
 
     async def insert(self, value: Any) -> None:
         """Insert table row."""
-        stmt = Statement()
-        stmt += f"INSERT INTO {self.name} ("
-        stmt += ", ".join(self.columns)
-        stmt += ") VALUES ("
-        stmt += Expression.join(
-            (
-                Param(getattr(value, name), python_type)
-                for name, python_type in self.columns.items()
+        stmt = Statement(
+            f"INSERT INTO {self.name} (",
+            ", ".join(self.columns),
+            ") VALUES (",
+            Expression.join(
+                (
+                    Param(getattr(value, name), python_type)
+                    for name, python_type in self.columns.items()
+                ),
+                ", ",
             ),
-            ", ",
+            ");",
         )
-        stmt += ");"
         await self.database.execute(stmt)
 
     async def read(self, key: Any) -> Any:
         """Return a table row, or None if not found."""
-        where = Expression()
-        where += f"{self.pk} = "
-        where += Param(key, self.columns[self.pk])
         try:
-            return self.schema(**await self.select(where=where, limit=1).__anext__())
+            return self.schema(
+                **await self.select(
+                    where=Expression(f"{self.pk} = ", Param(key, self.columns[self.pk])),
+                    limit=1,
+                ).__anext__()
+            )
         except StopAsyncIteration:
             return None
 
     async def update(self, value: Any) -> None:
         """Update table row."""
-        key = getattr(value, self.pk)
-        stmt = Statement()
-        stmt += f"UPDATE {self.name} SET "
-        updates = []
-        for name, python_type in self.columns.items():
-            updates.append(Expression(f"{name} = ", Param(getattr(value, name), python_type)))
-        stmt += Expression.join(updates, ", ")
-        stmt += f" WHERE {self.pk} = "
-        stmt += Param(key, self.columns[self.pk])
-        await self.database.execute(stmt)
+        await self.database.execute(
+            Statement(
+                f"UPDATE {self.name} SET ",
+                Expression.join(
+                    (
+                        Expression(f"{name} = ", Param(getattr(value, name), python_type))
+                        for name, python_type in self.columns.items()
+                    ),
+                    ", ",
+                ),
+                f" WHERE {self.pk} = ",
+                Param(getattr(value, self.pk), self.columns[self.pk]),
+                ";",
+            )
+        )
 
     async def delete(self, key: Any) -> None:
         """Delete table row."""
@@ -466,19 +466,19 @@ class Index:
 
     async def create(self):
         """Create index in database."""
-        stmt = Statement()
-        stmt += "CREATE "
+        stmt = Statement("CREATE ")
         if self.unique:
             stmt += "UNIQUE "
-        stmt += f"INDEX {self.name} on {self.table.name} ("
-        stmt += ", ".join(self.keys)
-        stmt += ");"
+        stmt += Expression(
+            f"INDEX {self.name} ON {self.table.name} (",
+            ", ".join(self.keys),
+            ");",
+        )
         await self.table.database.execute(stmt)
 
     async def drop(self):
         """Drop index from database."""
-        stmt = Statement(f"DROP INDEX {self.name};")
-        await self.table.database.execute(stmt)
+        await self.table.database.execute(Statement(f"DROP INDEX {self.name};"))
 
 
 def row_resource_class(
@@ -543,8 +543,7 @@ def row_resource_class(
             if getattr(new, table.pk) != self.pk:
                 raise BadRequestError("cannot modify primary key")
             if old != new:
-                stmt = Statement()
-                stmt += f"UPDATE {table.name} SET "
+                stmt = Statement(f"UPDATE {table.name} SET ")
                 updates = []
                 for name, python_type in table.columns.items():
                     ofield = getattr(old, name)
@@ -552,8 +551,7 @@ def row_resource_class(
                     if ofield != nfield:
                         updates.append(Expression(f"{name} = ", Param(nfield, python_type)))
                 stmt += Expression.join(updates, ", ")
-                stmt += f" WHERE {table.pk} = "
-                stmt += Param(self.pk, pk_type)
+                stmt += Expression(f" WHERE {table.pk} = ", Param(self.pk, pk_type), ";")
                 await table.database.execute(stmt)
             if cache:
                 await cache[self.pk].put(new)
@@ -658,9 +656,9 @@ def table_resource_class(table: Table, row_resource_type: type = None) -> type:
         ) -> Page:
             """Get paginated list of rows, ordered by primary key."""
             if cursor is not None:
-                where = Expression()
-                where += f"{table.pk} > "
-                where += Param(cursor_codec.decode(cursor), pk_type)
+                where = Expression(
+                    f"{table.pk} > ", Param(cursor_codec.decode(cursor), pk_type)
+                )
             else:
                 where = None
             async with table.database.transaction():
