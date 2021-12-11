@@ -2,8 +2,8 @@ import pytest
 
 from collections.abc import AsyncIterator
 from fondat.stream import BytesStream
-from fondat.types import is_optional, strip_optional
-from typing import Annotated, Optional, Union
+from fondat.types import is_optional, strip_optional, literal_values
+from typing import Annotated, Literal, Optional, Union
 
 
 async def _ajoin(stream: AsyncIterator[bytes]) -> bytes:
@@ -36,3 +36,8 @@ def test_strip_optional():
         strip_optional(Union[str, Annotated[Optional[int], ""]])
         == Union[str, Annotated[int, ""]]
     )
+
+
+def test_literal_values():
+    L = Literal["a", "b", "c", 1, 2, 3]
+    assert literal_values(L) == {"a", "b", "c", 1, 2, 3}

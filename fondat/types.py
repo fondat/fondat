@@ -106,3 +106,8 @@ def is_instance(obj, class_or_tuple):
 def is_typeddict(type):
     """Return if a type is a TypedDict."""
     return is_subclass(type, dict) and getattr(type, "__annotations__", None) is not None
+
+
+def literal_values(type):
+    """Return a set of all values in a Literal type."""
+    return set(typing.get_args(type))
