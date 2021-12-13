@@ -1100,10 +1100,7 @@ def _mapping(codec_type, python_type):
 
     else:
         origin = get_origin(python_type)
-        if (
-            not is_subclass(origin, Mapping)
-            or getattr(python_type, "__annotations__", None) is not None
-        ):
+        if not is_subclass(origin, Mapping) or getattr(python_type, "__annotations__", None):
             return  # not a Mapping
         args = get_args(python_type)
         if len(args) != 2:
