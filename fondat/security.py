@@ -32,7 +32,7 @@ class Policy:
     • ForbiddenError: user is authenticated and is denied access
     """
 
-    __slots__ = ("schemes", "rules")
+    __slots__ = {"schemes", "rules"}
 
     def __init__(
         self,

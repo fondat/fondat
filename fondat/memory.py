@@ -115,7 +115,7 @@ def memory_resource(
                     if oldest:
                         del self.container.storage[oldest.key]
                 if self.container.size and len(self.container.storage) >= self.container.size:
-                    raise InternalServerError("item size limit reached")
+                    raise InternalServerError from RuntimeError("item size limit reached")
                 self.container.storage[self.key] = _Item(value, now)
 
         @operation(publish=publish, policies=policies)

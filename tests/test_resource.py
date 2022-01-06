@@ -4,6 +4,7 @@ import fondat.resource
 
 from dataclasses import dataclass
 from fondat.annotation import Description
+from fondat.error import BadRequestError
 from fondat.resource import resource, operation, query, mutation
 from typing import Annotated, Optional
 from uuid import UUID
@@ -49,7 +50,7 @@ async def test_call():
 
 
 async def test_call_invalid_type():
-    with pytest.raises(TypeError):
+    with pytest.raises(BadRequestError):
         await R1().post(1)
 
 
@@ -62,7 +63,7 @@ async def test_valid_args():
 
 
 async def test_invalid_args():
-    with pytest.raises(TypeError):
+    with pytest.raises(BadRequestError):
         await R1().baz(1, "hello")
 
 

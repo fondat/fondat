@@ -92,7 +92,7 @@ def _stream_resource_class(
                             file.write(block)
                     tmp.replace(self.path)
                 except Exception as e:
-                    raise InternalServerError(f"cannot write file: {self.path}") from e
+                    raise InternalServerError from e
 
             @operation(publish=publish, policies=policies)
             async def delete(self):
@@ -101,6 +101,8 @@ def _stream_resource_class(
                     self.path.unlink()
                 except FileNotFoundError:
                     raise NotFoundError
+                except Exception as e:
+                    raise InternalServerError from e
 
     affix_type_hints(StreamResource, localns=locals())
     StreamResource.__qualname__ = "StreamResource"
@@ -138,7 +140,7 @@ def _file_resource_class(
                 return codec.decode(content)
             except FileNotFoundError:
                 raise NotFoundError
-            except (TypeError, ValueError) as e:
+            except Exception as e:
                 raise InternalServerError from e
 
         if writeable:
@@ -155,7 +157,7 @@ def _file_resource_class(
                         file.write(content)
                     tmp.replace(self.path)
                 except Exception as e:
-                    raise InternalServerError(f"cannot write file: {self.path}") from e
+                    raise InternalServerError from e
 
             @operation(publish=publish, policies=policies)
             async def delete(self):
@@ -276,8 +278,8 @@ def directory_resource(
                             for entry in _path.iterdir()
                             if entry.is_file() and entry.name.endswith(extension)
                         )
-                except FileNotFoundError:
-                    raise InternalServerError(f"directory not found: {_path}")
+                except FileNotFoundError as fnfe:
+                    raise InternalServerError from fnfe
                 page = Page(items=[], cursor=None, remaining=0)
                 for (counter, name) in enumerate(names, 1):
                     if cursor is not None:

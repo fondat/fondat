@@ -8,7 +8,7 @@ from typing import Any
 class Annotation:
     """Base class for annotations."""
 
-    __slots__ = ("value",)
+    __slots__ = {"value"}
 
     def __repr__(self):
         return f"{type(self).__name__}({self.value!r})"

@@ -15,11 +15,11 @@ import keyword
 import logging
 
 from collections.abc import Iterable, Mapping
+from contextlib import contextmanager
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from fondat.types import NoneType
 from fondat.types import affix_type_hints, is_subclass, is_typeddict, split_annotated
-from fondat.validation import validate, validate_arguments
 from typing import Any, Generic, Literal, TypeVar, TypedDict, Union
 from typing import get_origin, get_args, get_type_hints
 from uuid import UUID
@@ -43,6 +43,47 @@ def _provider(wrapped=None):
         return functools.partial(_provider)
     providers.append(wrapped)
     return wrapped
+
+
+class CodecError(ValueError):
+    """
+    Error raised in the event that a value cannot be decoded.
+    """
+
+    __slots__ = {"message", "path"}
+
+    def __init__(self, message: str = None, path: list[Union[str, int]] = None):
+        self.message = message
+        self.path = path
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}({self.message!r}, {self.path!r})"
+
+    def __str__(self):
+        return " ".join(str(s) for s in (self.message, self.path) if s is not None)
+
+    @staticmethod
+    @contextmanager
+    def path_on_error(path: Union[list[Union[str, int]], str, int]):
+        """Context manager to add to error path in the event that a DecodeError is raised."""
+        try:
+            yield
+        except CodecError as ce:
+            if ce.path is None:
+                ce.path = []
+            if isinstance(path, (str, int)):
+                ce.path.insert(0, path)
+            elif isinstance(path, list):
+                ce.path = path + ce.path
+            raise
+
+
+class EncodeError(CodecError):
+    pass
+
+
+class DecodeError(CodecError):
+    pass
 
 
 # ----- base -----
@@ -89,6 +130,32 @@ class JSON(Codec[F, Any]):
     """
 
 
+def _b2s(b):
+    if not isinstance(b, (bytes, bytearray)):
+        raise DecodeError
+    try:
+        return b.decode()
+    except Exception as e:
+        raise DecodeError from e
+
+
+def _s2j(s):
+    if not isinstance(s, str):
+        raise DecodeError
+    try:
+        return json.loads(s)
+    except Exception as e:
+        raise DecodeError from e
+
+
+@contextmanager
+def _wrap(exception):
+    try:
+        yield
+    except Exception as e:
+        raise exception from e
+
+
 # ----- str -----
 
 
@@ -100,12 +167,12 @@ class _Str_Binary(Binary[str]):
 
     def encode(self, value: str) -> bytes:
         if not isinstance(value, str):
-            raise TypeError
-        return value.encode()
+            raise EncodeError
+        with _wrap(EncodeError):
+            return value.encode()
 
-    @validate_arguments
     def decode(self, value: Union[bytes, bytearray]) -> str:
-        return value.decode()
+        return _b2s(value)
 
 
 _str_binarycodec = _Str_Binary()
@@ -117,11 +184,12 @@ class _Str_String(String[str]):
 
     def encode(self, value: str) -> str:
         if not isinstance(value, str):
-            raise TypeError
+            raise EncodeError
         return value
 
-    @validate_arguments
     def decode(self, value: str) -> str:
+        if not isinstance(value, str):
+            raise DecodeError
         return value
 
 
@@ -135,13 +203,10 @@ class _Str_JSON(JSON[str]):
     json_type = str
 
     def encode(self, value: str) -> str:
-        if not isinstance(value, str):
-            raise TypeError
-        return value
+        return _str_stringcodec.encode(value)
 
-    @validate_arguments
     def decode(self, value: str) -> str:
-        return value
+        return _str_stringcodec.decode(value)
 
 
 _str_jsoncodec = _Str_JSON()
@@ -170,11 +235,12 @@ class _Bytes_Binary(Binary[Union[bytes, bytearray]]):
 
     def encode(self, value: Union[bytes, bytearray]) -> Union[bytes, bytearray]:
         if not isinstance(value, (bytes, bytearray)):
-            raise TypeError
+            raise EncodeError
         return value
 
-    @validate_arguments
     def decode(self, value: Union[bytes, bytearray]) -> Union[bytes, bytearray]:
+        if not isinstance(value, (bytes, bytearray)):
+            raise DecodeError
         return value
 
 
@@ -190,15 +256,15 @@ class _Bytes_String(String[Union[bytes, bytearray]]):
 
     def encode(self, value: Union[bytes, bytearray]) -> str:
         if not isinstance(value, (bytes, bytearray)):
-            raise TypeError
-        return base64.b64encode(value).decode()
+            raise EncodeError
+        with _wrap(EncodeError):
+            return base64.b64encode(value).decode()
 
-    @validate_arguments
     def decode(self, value: str) -> bytes:
-        try:
+        if not isinstance(value, str):
+            raise DecodeError
+        with _wrap(DecodeError):
             return base64.b64decode(value)
-        except binascii.Error:
-            raise ValueError(f"expecting a base64-encoded value; received: {value}")
 
 
 _bytes_stringcodec = _Bytes_String()
@@ -214,11 +280,8 @@ class _Bytes_JSON(JSON[Union[bytes, bytearray]]):
     json_type = str
 
     def encode(self, value: Union[bytes, bytearray]) -> str:
-        if not isinstance(value, (bytes, bytearray)):
-            raise TypeError
         return _bytes_stringcodec.encode(value)
 
-    @validate_arguments
     def decode(self, value: str) -> bytes:
         return _bytes_stringcodec.decode(value)
 
@@ -247,15 +310,14 @@ class _Int_String(String[int]):
 
     def encode(self, value: int) -> str:
         if not isinstance(value, int) or isinstance(value, bool):
-            raise TypeError
+            raise EncodeError
         return str(value)
 
-    @validate_arguments
     def decode(self, value: str) -> int:
-        try:
+        if not isinstance(value, str):
+            raise DecodeError
+        with _wrap(DecodeError):
             return int(value)
-        except:
-            raise ValueError(f"invalid integer: '{value}'")
 
 
 _int_stringcodec = _Int_String()
@@ -268,13 +330,10 @@ class _Int_Binary(Binary[int]):
     content_type = _TEXT_PLAIN
 
     def encode(self, value: int) -> bytes:
-        if not isinstance(value, int) or isinstance(value, bool):
-            raise TypeError
         return _int_stringcodec.encode(value).encode()
 
-    @validate_arguments
     def decode(self, value: Union[bytes, bytearray]) -> int:
-        return _int_stringcodec.decode(value.decode())
+        return _int_stringcodec.decode(_b2s(value))
 
 
 _int_binarycodec = _Int_Binary()
@@ -288,16 +347,17 @@ class _Int_JSON(JSON[int]):
 
     def encode(self, value: int) -> int:
         if not isinstance(value, int) or isinstance(value, bool):
-            raise TypeError
+            raise EncodeError
         return value
 
-    @validate_arguments
     def decode(self, value: Union[int, float]) -> int:
+        if not isinstance(value, (int, float)) or isinstance(value, bool):
+            raise DecodeError
         result = value
         if isinstance(result, float):
             result = int(result)
             if result != value:  # 1.0 == 1
-                raise TypeError(f"expecting integer; received: {value}")
+                raise DecodeError
         return result
 
 
@@ -325,15 +385,14 @@ class _Float_String(String[float]):
 
     def encode(self, value: float) -> str:
         if not isinstance(value, float):
-            raise TypeError
+            raise EncodeError
         return str(value)
 
-    @validate_arguments
     def decode(self, value: str) -> float:
-        try:
+        if not isinstance(value, str):
+            raise DecodeError
+        with _wrap(DecodeError):
             return float(value)
-        except:
-            raise ValueError(f"invalid floating point number: '{value}'")
 
 
 _float_stringcodec = _Float_String()
@@ -346,13 +405,10 @@ class _Float_Binary(Binary[float]):
     content_type = _TEXT_PLAIN
 
     def encode(self, value: float) -> bytes:
-        if not isinstance(value, float):
-            raise TypeError
         return _float_stringcodec.encode(value).encode()
 
-    @validate_arguments
     def decode(self, value: Union[bytes, bytearray]) -> float:
-        return _float_stringcodec.decode(value.decode())
+        return _float_stringcodec.decode(_b2s(value))
 
 
 _float_binarycodec = _Float_Binary()
@@ -366,11 +422,12 @@ class _Float_JSON(JSON[float]):
 
     def encode(self, value: float) -> float:
         if not isinstance(value, float):
-            raise TypeError
+            raise EncodeError
         return value
 
-    @validate_arguments
     def decode(self, value: Union[int, float]) -> float:
+        if not isinstance(value, (int, float)) or isinstance(value, bool):
+            raise DecodeError
         return float(value)
 
 
@@ -398,15 +455,16 @@ class _Bool_String(String[bool]):
 
     def encode(self, value: bool) -> str:
         if not isinstance(value, bool):
-            raise TypeError
+            raise EncodeError
         return "true" if value else "false"
 
-    @validate_arguments
     def decode(self, value: str) -> bool:
+        if not isinstance(value, str):
+            raise DecodeError
         try:
             return {"true": True, "false": False}[value]
         except KeyError:
-            raise ValueError(f"{value} must be true or false")
+            raise DecodeError
 
 
 _bool_stringcodec = _Bool_String()
@@ -419,13 +477,10 @@ class _Bool_Binary(Binary[bool]):
     content_type = _TEXT_PLAIN
 
     def encode(self, value: bool) -> bytes:
-        if not isinstance(value, bool):
-            raise TypeError
         return _bool_stringcodec.encode(value).encode()
 
-    @validate_arguments
     def decode(self, value: Union[bytes, bytearray]) -> bool:
-        return _bool_stringcodec.decode(value.decode())
+        return _bool_stringcodec.decode(_b2s(value))
 
 
 _bool_binarycodec = _Bool_Binary()
@@ -439,11 +494,12 @@ class _Bool_JSON(JSON[bool]):
 
     def encode(self, value: bool) -> bool:
         if not isinstance(value, bool):
-            raise TypeError
+            raise EncodeError
         return value
 
-    @validate_arguments
     def decode(self, value: bool) -> bool:
+        if not isinstance(value, bool):
+            raise DecodeError
         return value
 
 
@@ -470,14 +526,13 @@ class _NoneType_String(String[NoneType]):
     """String codec for None value."""
 
     def encode(self, value: NoneType) -> str:
-        if not isinstance(value, NoneType):
-            raise TypeError
+        if value is not None:
+            raise EncodeError
         return ""
 
-    @validate_arguments
     def decode(self, value: str) -> NoneType:
         if str != "":
-            raise ValueError(f"expecting empty string; received: {value}")
+            raise DecodeError
         return None
 
 
@@ -491,14 +546,13 @@ class _NoneType_Binary(Binary[NoneType]):
     content_type = _TEXT_PLAIN
 
     def encode(self, value: NoneType) -> bytes:
-        if not isinstance(value, NoneType):
-            raise TypeError
+        if value is not None:
+            raise EncodeError
         return b""
 
-    @validate_arguments
     def decode(self, value: Union[bytes, bytearray]) -> NoneType:
         if value != b"":
-            raise ValueError(f"expecting empty byte sequence received: {value}")
+            raise DecodeError
         return None
 
 
@@ -512,13 +566,14 @@ class _NoneType_JSON(JSON[NoneType]):
     json_type = NoneType
 
     def encode(self, value: NoneType) -> NoneType:
-        if not isinstance(value, NoneType):
-            raise TypeError
-        return value
+        if value is not None:
+            raise EncodeError
+        return None
 
-    @validate_arguments
     def decode(self, value: NoneType) -> NoneType:
-        return value
+        if value is not None:
+            raise DecodeError
+        return None
 
 
 _nonetype_jsoncodec = _NoneType_JSON()
@@ -545,15 +600,14 @@ class _Decimal_String(String[Decimal]):
 
     def encode(self, value: Decimal) -> str:
         if not isinstance(value, Decimal):
-            raise TypeError
+            raise EncodeError
         return str(value)
 
-    @validate_arguments
     def decode(self, value: str) -> Decimal:
-        try:
+        if not isinstance(value, str):
+            raise DecodeError
+        with _wrap(DecodeError):
             return Decimal(value)
-        except decimal.InvalidOperation:
-            raise ValueError(f"invalid decimal number: '{value}'")
 
 
 _decimal_string = _Decimal_String()
@@ -566,13 +620,10 @@ class _Decimal_Binary(Binary[Decimal]):
     content_type = _TEXT_PLAIN
 
     def encode(self, value: Decimal) -> bytes:
-        if not isinstance(value, Decimal):
-            raise TypeError
         return _decimal_string.encode(value).encode()
 
-    @validate_arguments
     def decode(self, value: Union[bytes, bytearray]) -> Decimal:
-        return _decimal_string.decode(value.decode())
+        return _decimal_string.decode(_b2s(value))
 
 
 _decimal_binary = _Decimal_Binary()
@@ -588,11 +639,8 @@ class _Decimal_JSON(JSON[Decimal]):
     json_type = str
 
     def encode(self, value: Decimal) -> str:
-        if not isinstance(value, Decimal):
-            raise TypeError
         return _decimal_string.encode(value)
 
-    @validate_arguments
     def decode(self, value: str) -> Decimal:
         return _decimal_string.decode(value)
 
@@ -624,15 +672,14 @@ class _Date_String(String[date]):
 
     def encode(self, value: date) -> str:
         if not isinstance(value, date):
-            raise TypeError
+            raise EncodeError
         return value.isoformat()
 
-    @validate_arguments
     def decode(self, value: str) -> date:
-        try:
+        if not isinstance(value, str):
+            raise DecodeError
+        with _wrap(DecodeError):
             return date.fromisoformat(value)
-        except:
-            raise ValueError(f"invalid date: '{value}'")
 
 
 _date_stringcodec = _Date_String()
@@ -648,13 +695,10 @@ class _Date_Binary(Binary[date]):
     content_type = _TEXT_PLAIN
 
     def encode(self, value: date) -> bytes:
-        if not isinstance(value, date):
-            raise TypeError
         return _date_stringcodec.encode(value).encode()
 
-    @validate_arguments
     def decode(self, value: Union[bytes, bytearray]) -> date:
-        return _date_stringcodec.decode(value.decode())
+        return _date_stringcodec.decode(_b2s(value))
 
 
 _date_binarycodec = _Date_Binary()
@@ -670,11 +714,8 @@ class _Date_JSON(JSON[date]):
     json_type = str
 
     def encode(self, value: date) -> str:
-        if not isinstance(value, date):
-            raise TypeError
         return _date_stringcodec.encode(value)
 
-    @validate_arguments
     def decode(self, value: str) -> date:
         return _date_stringcodec.decode(value)
 
@@ -718,7 +759,7 @@ class _Datetime_String(String[datetime]):
 
     def encode(self, value: datetime) -> str:
         if not isinstance(value, datetime):
-            raise TypeError
+            raise EncodeError
         result = _to_utc(value).isoformat()
         if result.endswith("+00:00"):
             result = result[0:-6]
@@ -726,12 +767,11 @@ class _Datetime_String(String[datetime]):
             result = f"{result}Z"
         return result
 
-    @validate_arguments
     def decode(self, value: str) -> datetime:
-        try:
+        if not isinstance(value, str):
+            raise DecodeError
+        with _wrap(DecodeError):
             return _to_utc(iso8601.parse_date(value))
-        except:
-            raise ValueError(f"invalid datetime: '{value}'")
 
 
 _datetime_stringcodec = _Datetime_String()
@@ -754,13 +794,10 @@ class _Datetime_Binary(Binary[datetime]):
     content_type = _TEXT_PLAIN
 
     def encode(self, value: datetime) -> bytes:
-        if not isinstance(value, datetime):
-            raise TypeError
         return _datetime_stringcodec.encode(value).encode()
 
-    @validate_arguments
     def decode(self, value: Union[bytes, bytearray]) -> datetime:
-        return _datetime_stringcodec.decode(value.decode())
+        return _datetime_stringcodec.decode(_b2s(value))
 
 
 _datetime_binarycodec = _Datetime_Binary()
@@ -782,11 +819,8 @@ class _Datetime_JSON(JSON[datetime]):
     json_type = str
 
     def encode(self, value: datetime) -> str:
-        if not isinstance(value, datetime):
-            raise TypeError
         return _datetime_stringcodec.encode(value)
 
-    @validate_arguments
     def decode(self, value: str) -> datetime:
         return _datetime_stringcodec.decode(value)
 
@@ -815,15 +849,14 @@ class _UUID_String(String[UUID]):
 
     def encode(self, value: UUID) -> str:
         if not isinstance(value, UUID):
-            raise TypeError
+            raise EncodeError
         return str(value)
 
-    @validate_arguments
     def decode(self, value: str) -> UUID:
-        try:
+        if not isinstance(value, str):
+            raise DecodeError
+        with _wrap(DecodeError):
             return UUID(value)
-        except Exception as e:
-            raise ValueError(f"invalid UUID value: '{value}'")
 
 
 _uuid_stringcodec = _UUID_String()
@@ -836,13 +869,10 @@ class _UUID_Binary(Binary[UUID]):
     content_type = _TEXT_PLAIN
 
     def encode(self, value: UUID) -> bytes:
-        if not isinstance(value, UUID):
-            raise TypeError
         return _uuid_stringcodec.encode(value).encode()
 
-    @validate_arguments
     def decode(self, value: Union[bytes, bytearray]) -> UUID:
-        return _uuid_stringcodec.decode(value.decode())
+        return _uuid_stringcodec.decode(_b2s(value))
 
 
 _uuid_binarycodec = _UUID_Binary()
@@ -855,11 +885,8 @@ class _UUID_JSON(JSON[UUID]):
     json_type = str
 
     def encode(self, value: UUID) -> str:
-        if not isinstance(value, UUID):
-            raise TypeError
         return _uuid_stringcodec.encode(value)
 
-    @validate_arguments
     def decode(self, value: str) -> UUID:
         return _uuid_stringcodec.decode(value)
 
@@ -911,18 +938,18 @@ def _typeddict(codec_type, python_type):
                 for key in hints:
                     codec = get_codec(JSON, hints[key])
                     try:
-                        result[key] = getattr(codec, method)(value[key])
+                        with CodecError.path_on_error(key):
+                            result[key] = getattr(codec, method)(value[key])
                     except KeyError:
                         continue
                 return result
 
             def encode(self, value: python_type) -> Any:
                 if not isinstance(value, dict):
-                    raise TypeError
+                    raise EncodeError
                 return self._process(value, "encode")
 
             def decode(self, value: Any) -> python_type:
-                validate(value, self.json_type)
                 return self._process(value, "decode")
 
         result = _TypedDict_JSON()
@@ -950,12 +977,11 @@ def _typeddict(codec_type, python_type):
         class _TypedDict_String(String[python_type]):
             def encode(self, value: python_type) -> str:
                 if not isinstance(value, dict):
-                    raise TypeError
+                    raise EncodeError
                 return json.dumps(json_codec.encode(value))
 
-            @validate_arguments
             def decode(self, value: str) -> python_type:
-                return json_codec.decode(json.loads(value))
+                return json_codec.decode(_s2j(value))
 
         return _TypedDict_String()
 
@@ -967,13 +993,10 @@ def _typeddict(codec_type, python_type):
             content_type = "application/json"
 
             def encode(self, value: python_type) -> bytes:
-                if not isinstance(value, dict):
-                    raise TypeError
                 return string_codec.encode(value).encode()
 
-            @validate_arguments
             def decode(self, value: Union[bytes, bytearray]) -> python_type:
-                return string_codec.decode(value.decode())
+                return string_codec.decode(_b2s(value))
 
         return _TypedDict_Binary()
 
@@ -998,7 +1021,7 @@ def _tuple(codec_type, python_type):
         return
 
     if len(args) != 2 and Ellipsis in args or args[0] is Ellipsis:
-        raise TypeError("unexpected ...")
+        raise TypeError("unexpected ellipsis")
 
     varg = args[0] if len(args) == 2 and args[1] is Ellipsis else None
     args = () if varg else args
@@ -1014,20 +1037,19 @@ def _tuple(codec_type, python_type):
             json_type = list[Any]
 
             def encode(self, value: python_type) -> list[Any]:
-                if not isinstance(value, tuple):
-                    raise TypeError
-                if args and len(value) != len(args):
-                    raise ValueError
+                if not isinstance(value, tuple) or (args and len(value) != len(args)):
+                    raise EncodeError
+                # TODO: path
                 return (
                     [vcodec.encode(item) for item in value]
                     if vcodec
                     else [codecs[n].encode(value[n]) for n in range(len(codecs))]
                 )
 
-            @validate_arguments
             def decode(self, value: list[Any]) -> python_type:
-                if args and len(value) != len(args):
-                    raise ValueError
+                if not isinstance(value, list) or (args and len(value) != len(args)):
+                    raise DecodeError
+                # TODO: path
                 return tuple(
                     [vcodec.decode(item) for item in value]
                     if vcodec
@@ -1044,21 +1066,20 @@ def _tuple(codec_type, python_type):
         @affix_type_hints(localns=locals())
         class _Tuple_String(String[python_type]):
             def encode(self, value: python_type) -> str:
-                if not isinstance(value, tuple):
-                    raise TypeError
-                if args and len(value) != len(args):
-                    raise ValueError
+                if not isinstance(value, tuple) or (args and len(value) != len(args)):
+                    raise EncodeError
+                # TODO: path
                 return _csv_encode(
                     [vcodec.encode(item) for item in value]
                     if vcodec
                     else [codecs[n].encode(value[n]) for n in range(len(codecs))]
                 )
 
-            @validate_arguments
             def decode(self, value: str) -> python_type:
                 decoded = _csv_decode(value)
                 if args and len(decoded) != len(args):
-                    raise ValueError
+                    raise DecodeError
+                # TODO: path
                 return tuple(
                     [vcodec.decode(item) for item in decoded]
                     if vcodec
@@ -1079,9 +1100,8 @@ def _tuple(codec_type, python_type):
             def encode(self, value: python_type) -> bytes:
                 return json.dumps(json_codec.encode(value)).encode()
 
-            @validate_arguments
             def decode(self, value: Union[bytes, bytearray]) -> python_type:
-                return json_codec.decode(json.loads(value.decode()))
+                return json_codec.decode(_s2j(_b2s(value)))
 
         return _Tuple_Binary()
 
@@ -1117,14 +1137,23 @@ def _mapping(codec_type, python_type):
 
             def encode(self, value: python_type) -> _json_type:
                 if not isinstance(value, Mapping):
-                    raise TypeError
-                return {key_codec.encode(k): value_codec.encode(v) for k, v in value.items()}
+                    raise EncodeError
+                result = {}
+                for k, v in value.items():
+                    key = key_codec.encode(k)
+                    with CodecError.path_on_error(key):
+                        result[key] = value_codec.encode(v)
+                return result
 
-            @validate_arguments
             def decode(self, value: _json_type) -> python_type:
-                return python_type(
-                    {key_codec.decode(k): value_codec.decode(v) for k, v in value.items()}
-                )
+                if not isinstance(value, Mapping):
+                    raise DecodeError
+                result = {}
+                for k, v in value.items():
+                    key = key_codec.decode(k)
+                    with CodecError.path_on_error(key):
+                        result[key] = value_codec.decode(v)
+                return result
 
         return _Mapping_JSON()
 
@@ -1135,12 +1164,11 @@ def _mapping(codec_type, python_type):
         class _Mapping_String(String[python_type]):
             def encode(self, value: python_type) -> str:
                 if not isinstance(value, Mapping):
-                    raise TypeError
+                    raise EncodeError
                 return json.dumps(json_codec.encode(value))
 
-            @validate_arguments
             def decode(self, value: str) -> python_type:
-                return json_codec.decode(json.loads(value))
+                return json_codec.decode(_s2j(value))
 
         return _Mapping_String()
 
@@ -1155,12 +1183,11 @@ def _mapping(codec_type, python_type):
 
             def encode(self, value: python_type) -> bytes:
                 if not isinstance(value, Mapping):
-                    raise TypeError
+                    raise EncodeError
                 return string_codec.encode(value).encode()
 
-            @validate_arguments
             def decode(self, value: Union[bytes, bytearray]) -> python_type:
-                return string_codec.decode(value.decode())
+                return string_codec.decode(_b2s(value))
 
         return _Mapping_Binary()
 
@@ -1175,6 +1202,8 @@ def _csv_encode(value):
 
 
 def _csv_decode(value):
+    if not isinstance(value, str):
+        raise DecodeError
     return csv.reader([value]).__next__()
 
 
@@ -1215,13 +1244,16 @@ def _iterable(codec_type, python_type):
 
             def encode(self, value: python_type) -> _json_type:
                 if not isinstance(value, Iterable) or isinstance(value, str):
-                    raise TypeError
+                    raise EncodeError
                 if is_set:
                     value = sorted(value)
+                # TODO: path
                 return [item_codec.encode(item) for item in value]
 
-            @validate_arguments
             def decode(self, value: _json_type) -> python_type:
+                if not isinstance(value, list):
+                    raise DecodeError
+                # TODO: path
                 return decode_type((item_codec.decode(item) for item in value))
 
         return _Iterable_JSON()
@@ -1234,13 +1266,13 @@ def _iterable(codec_type, python_type):
         class _Iterable_String(String[python_type]):
             def encode(self, value: python_type) -> str:
                 if not isinstance(value, Iterable) or isinstance(value, str):
-                    raise TypeError
+                    raise EncodeError
                 if is_set:
                     value = sorted(value)
                 return _csv_encode((item_codec.encode(item) for item in value))
 
-            @validate_arguments
             def decode(self, value: str) -> python_type:
+                # TODO: path
                 return decode_type((item_codec.decode(item) for item in _csv_decode(value)))
 
         return _Iterable_String()
@@ -1251,16 +1283,16 @@ def _iterable(codec_type, python_type):
 
         @affix_type_hints(localns=locals())
         class _Iterable_Binary(Binary[python_type]):
+
             content_type = "application/json"
 
             def encode(self, value: python_type) -> bytes:
                 if not isinstance(value, Iterable) or isinstance(value, str):
-                    raise TypeError
+                    raise EncodeError
                 return json.dumps(json_codec.encode(value)).encode()
 
-            @validate_arguments
             def decode(self, value: Union[bytes, bytearray]) -> python_type:
-                return json_codec.decode(json.loads(value.decode()))
+                return json_codec.decode(_s2j(_b2s(value)))
 
         return _Iterable_Binary()
 
@@ -1302,22 +1334,22 @@ def dataclass_codec(codec_type, python_type):
 
             def encode(self, value: python_type) -> Any:
                 if not isinstance(value, dc_type):
-                    raise TypeError
+                    raise EncodeError
                 result = {}
                 for key in hints:
                     v = getattr(value, key)
                     if v is not None:
-                        result[_dc_kw.get(key, key)] = get_codec(JSON, hints[key]).encode(v)
+                        with CodecError.path_on_error(key):
+                            result[_dc_kw.get(key, key)] = get_codec(JSON, hints[key]).encode(v)
                 return result
 
-            @validate_arguments
             def decode(self, value: Any) -> python_type:
-                validate(value, self.json_type)
                 kwargs = {}
                 for key in hints:
                     codec = get_codec(JSON, hints[key])
                     try:
-                        kwargs[key] = codec.decode(value[_dc_kw.get(key, key)])
+                        with CodecError.path_on_error(key):
+                            kwargs[key] = codec.decode(value[_dc_kw.get(key, key)])
                     except KeyError:
                         if key in noneables:
                             kwargs[key] = None
@@ -1353,9 +1385,8 @@ def dataclass_codec(codec_type, python_type):
             def encode(self, value: python_type) -> str:
                 return json.dumps(json_codec.encode(value))
 
-            @validate_arguments
             def decode(self, value: str) -> python_type:
-                return json_codec.decode(json.loads(value))
+                return json_codec.decode(_s2j(value))
 
         return _Dataclass_String()
 
@@ -1371,9 +1402,8 @@ def dataclass_codec(codec_type, python_type):
             def encode(self, value: python_type) -> bytes:
                 return string_codec.encode(value).encode()
 
-            @validate_arguments
             def decode(self, value: Union[bytes, bytearray]) -> python_type:
-                return string_codec.decode(value.decode())
+                return string_codec.decode(_b2s(value))
 
         return _Dataclass_Binary()
 
@@ -1391,37 +1421,39 @@ def _union(codec_type, python_type):
         return
 
     types = get_args(python_type)
+    codecs = [get_codec(codec_type, type) for type in types]
 
-    def process(codecs, method, value):
+    def _encode(value):
         for codec in codecs:
             try:
-                return getattr(codec, method)(value)
-            except (TypeError, ValueError) as e:
+                return codec.encode(value)
+            except EncodeError:
                 continue
-        raise ValueError(
-            f"cannot {method} type: {python_type} as {codec_type} for value: {value}"
-        )
+        raise EncodeError(f"{python_type} as {codec_type} for value: {value}")
+
+    def _decode(value):
+        for codec in codecs:
+            try:
+                return codec.decode(value)
+            except DecodeError:
+                continue
+        raise DecodeError(f"{python_type} as {codec_type} for value: {value}")
 
     if codec_type is String:
-
-        codecs = tuple(get_codec(String, t) for t in types)
 
         @affix_type_hints(localns=locals())
         class _Union_String(String[python_type]):
             def encode(self, value: python_type) -> str:
                 if value is None and NoneType in types:
                     return ""
-                return process(codecs, "encode", value)
+                return _encode(value)
 
-            @validate_arguments
             def decode(self, value: str) -> python_type:
-                return process(codecs, "decode", value)
+                return _decode(value)
 
         return _Union_String()
 
     if codec_type is Binary:
-
-        codecs = tuple(get_codec(Binary, t) for t in types)
 
         @affix_type_hints(localns=locals())
         class _Union_Binary(Binary[python_type]):
@@ -1431,17 +1463,17 @@ def _union(codec_type, python_type):
             def encode(self, value: python_type) -> bytes:
                 if value is None and NoneType in types:
                     return b""
-                return process(codecs, "encode", value)
+                return _encode(value)
 
-            @validate_arguments
             def decode(self, value: Union[bytes, bytearray]) -> python_type:
-                return process(codecs, "decode", value)
+                if not isinstance(value, (bytes, bytearray)):
+                    raise DecodeError
+                return _decode(value)
 
         return _Union_Binary()
 
     if codec_type is JSON:
 
-        codecs = tuple(get_codec(JSON, t) for t in types)
         _json_type = Union[tuple(codec.json_type for codec in codecs)]
 
         @affix_type_hints(localns=locals())
@@ -1452,11 +1484,10 @@ def _union(codec_type, python_type):
             def encode(self, value: python_type) -> _json_type:
                 if value is None and NoneType in types:
                     return None
-                return process(codecs, "encode", value)
+                return _encode(value)
 
-            @validate_arguments
             def decode(self, value: _json_type) -> python_type:
-                return process(codecs, "decode", value)
+                return _decode(value)
 
         return _Union_JSON()
 
@@ -1483,7 +1514,7 @@ def _literal(codec_type, python_type):
                     return v
             except:
                 continue
-        raise ValueError(f"expecting one of: {get_args(python_type)}; received: {value}")
+        raise DecodeError(f"expecting one of: {get_args(python_type)}; received: {value}")
 
     if codec_type is String:
 
@@ -1491,11 +1522,9 @@ def _literal(codec_type, python_type):
 
         @affix_type_hints(localns=locals())
         class _Literal_String(String[python_type]):
-            @validate_arguments
             def encode(self, value: python_type) -> str:
                 return get_codec(String, type(value)).encode(value)
 
-            @validate_arguments
             def decode(self, value: str) -> python_type:
                 return decode(codecs, value)
 
@@ -1510,12 +1539,12 @@ def _literal(codec_type, python_type):
 
             content_type = "application/octet-stream"
 
-            @validate_arguments
             def encode(self, value: python_type) -> bytes:
                 return get_codec(Binary, type(value)).encode(value)
 
-            @validate_arguments
             def decode(self, value: Union[bytes, bytearray]) -> python_type:
+                if not isinstance(value, (bytes, bytearray)):
+                    raise DecodeError
                 return decode(codecs, value)
 
         return _Literal_Binary()
@@ -1530,11 +1559,9 @@ def _literal(codec_type, python_type):
 
             json_type = _json_type
 
-            @validate_arguments
             def encode(self, value: python_type) -> _json_type:
                 return get_codec(JSON, type(value)).encode(value)
 
-            @validate_arguments
             def decode(self, value: _json_type) -> python_type:
                 return decode(codecs, value)
 
@@ -1551,7 +1578,6 @@ class _Any_String(String[Any]):
     def encode(self, value: Any) -> str:
         return get_codec(String, type(value)).encode(value)
 
-    @validate_arguments
     def decode(self, value: str) -> str:
         return value
 
@@ -1568,8 +1594,9 @@ class _Any_Binary(Binary[Any]):
     def encode(self, value: Any) -> bytes:
         return get_codec(Binary, type(value)).encode(value)
 
-    @validate_arguments
     def decode(self, value: Union[bytes, bytearray]) -> Union[bytes, bytearray]:
+        if not isinstance(value, (bytes, bytearray)):
+            raise DecodeError
         return value
 
 
@@ -1585,7 +1612,6 @@ class _Any_JSON(JSON[Any]):
     def encode(self, value: Any) -> Any:
         return get_codec(JSON, type(value)).encode(value)
 
-    @validate_arguments
     def decode(self, value: Any) -> Any:
         return value
 

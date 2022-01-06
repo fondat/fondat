@@ -22,10 +22,10 @@ import wrapt
 
 from collections.abc import Iterable, Mapping
 from copy import deepcopy
-from fondat.error import ForbiddenError, UnauthorizedError
+from fondat.error import BadRequestError, ForbiddenError, UnauthorizedError
 from fondat.security import Policy
-from fondat.validation import validate_arguments
-from typing import Any, Literal
+from fondat.validation import validate_arguments, ValidationError
+from typing import Any, Literal, get_args
 
 
 _logger = logging.getLogger(__name__)
@@ -83,7 +83,7 @@ async def authorize(policies: Iterable[Policy]):
 
 def resource(wrapped: type = None, *, tag: str = None):
     """
-    Decorate a class to be a resource containing operations.
+    Decorate a class as a resource containing operations and/or subordinate resources.
 
     Parameters:
     • tag: tag to group resources  [resource class name]
@@ -95,42 +95,38 @@ def resource(wrapped: type = None, *, tag: str = None):
     return wrapped
 
 
-def is_resource(obj_or_type: Any) -> bool:
-    """Return if object or type represents a resource."""
-    return getattr(obj_or_type, "_fondat_resource", None) is not None
+Method = Literal["get", "put", "post", "delete", "patch"]
 
-
-def is_operation(obj_or_type: Any) -> bool:
-    """Return if object represents a resource operation."""
-    return getattr(obj_or_type, "_fondat_operation", None) is not None
-
-
-_methods = {"get", "put", "post", "delete", "patch"}
+_methods = set(get_args(Method))
 
 
 @validate_arguments
 def operation(
     wrapped=None,
     *,
-    method: Literal[tuple(_methods)] = None,
+    method: Method = None,
     type: Literal["query", "mutation"] = None,
     policies: Iterable[Policy] = None,
     publish: bool = True,
     deprecated: bool = False,
 ):
     """
-    Decorate a resource coroutine that performs an operation.
+    Decorate a resource coroutine as an operation.
 
     Parameters:
-    • method: method of operation  [inferred from wrapped function name]
+    • method: method of operation  [inferred from wrapped coroutine name]
     • type: type of operation  [inferred from method]
     • policies: security policies for the operation
     • publish: publish the operation in documentation
-    • deprecated: declare the operation as deprecated
+    • deprecated: flag the operation as deprecated
 
     When an operation is called:
     • its arguments are copied to prevent side effects
     • its arguments are validated against their type hints
+
+    Exceptions that an operation should raise:
+    • fondat.error.Error (e.g. BadRequestError)
+    • fondat.validation.ValidationError
     """
 
     if wrapped is None:
@@ -178,7 +174,10 @@ def operation(
             async with monitoring.timer({"name": "operation_duration_seconds", **tags}):
                 async with monitoring.counter({"name": "operation_calls_total", **tags}):
                     await authorize(operation.policies)
-                    return await wrapped(*args, **kwargs)
+                    try:
+                        return await wrapped(*args, **kwargs)
+                    except ValidationError as ve:
+                        raise BadRequestError from ve
 
     wrapped._fondat_operation = types.SimpleNamespace(
         method=method,
@@ -243,3 +242,13 @@ def container_resource(resources: Mapping[str, type], tag: str = None):
             return [*super().__dir__(), *resources.keys()]
 
     return Container()
+
+
+def is_resource(obj_or_type: Any) -> bool:
+    """Return if object or type represents a resource."""
+    return getattr(obj_or_type, "_fondat_resource", None) is not None
+
+
+def is_operation(obj_or_type: Any) -> bool:
+    """Return if object represents a resource operation."""
+    return getattr(obj_or_type, "_fondat_operation", None) is not None

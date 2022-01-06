@@ -2,7 +2,7 @@ import pytest
 
 from dataclasses import make_dataclass
 from decimal import Decimal
-from fondat.validation import MinLen, MaxLen, Pattern, MinValue, MaxValue
+from fondat.validation import MinLen, MaxLen, Pattern, MinValue, MaxValue, ValidationError
 from fondat.validation import validate, validate_arguments, validate_return_value
 from datetime import date, datetime, timezone
 from typing import Annotated, Literal, Optional, T, TypedDict, Union
@@ -17,7 +17,7 @@ def test_str_type_success():
 
 
 def test_str_type_error():
-    with pytest.raises(TypeError):
+    with pytest.raises(ValidationError):
         validate(123, str)
 
 
@@ -26,7 +26,7 @@ def test_str_min_length_success():
 
 
 def test_str_min_length_error():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValidationError):
         validate("123", Annotated[str, MinLen(4)])
 
 
@@ -35,7 +35,7 @@ def test_str_max_length_success():
 
 
 def test_str_max_length_error():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValidationError):
         validate("1234567", Annotated[str, MaxLen(6)])
 
 
@@ -44,7 +44,7 @@ def test_str_pattern_success():
 
 
 def test_str_pattern_error():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValidationError):
         validate("ghi", Annotated[str, Pattern(r"^def$")])
 
 
@@ -56,7 +56,7 @@ def test_int_type_success():
 
 
 def test_int_type_error():
-    with pytest.raises(TypeError):
+    with pytest.raises(ValidationError):
         validate(123.45, int)
 
 
@@ -65,7 +65,7 @@ def test_int_min_success():
 
 
 def test_int_minerror():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValidationError):
         validate(1, Annotated[int, MinValue(2)])
 
 
@@ -74,12 +74,12 @@ def test_int_max_success():
 
 
 def test_int_max_error():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValidationError):
         validate(5, Annotated[int, MaxValue(4)])
 
 
 def test_int_reject_bool():
-    with pytest.raises(TypeError):
+    with pytest.raises(ValidationError):
         validate(True, int)
 
 
@@ -91,7 +91,7 @@ def test_float_type_success():
 
 
 def test_float_type_error():
-    with pytest.raises(TypeError):
+    with pytest.raises(ValidationError):
         validate("123.45", float)
 
 
@@ -100,7 +100,7 @@ def test_float_min_success():
 
 
 def test_float_min_error():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValidationError):
         validate(1.9, Annotated[float, MinValue(2.0)])
 
 
@@ -109,7 +109,7 @@ def test_float_max_success():
 
 
 def test_float_max_error():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValidationError):
         validate(4.1, Annotated[float, MaxValue(4.0)])
 
 
@@ -121,7 +121,7 @@ def test_decimal_type_success():
 
 
 def test_decimal_type_error():
-    with pytest.raises(TypeError):
+    with pytest.raises(ValidationError):
         validate("123.45", Decimal)
 
 
@@ -130,7 +130,7 @@ def test_decimal_min_success():
 
 
 def test_decimal_min_error():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValidationError):
         validate(Decimal("1.9"), Annotated[Decimal, MinValue(Decimal("2.0"))])
 
 
@@ -139,7 +139,7 @@ def test_decimal_max_success():
 
 
 def test_decimal_max_error():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValidationError):
         validate(Decimal("4.1"), Annotated[Decimal, MaxValue(Decimal("4.0"))])
 
 
@@ -155,7 +155,7 @@ def test_bool_type_false():
 
 
 def test_bool_type_error():
-    with pytest.raises(TypeError):
+    with pytest.raises(ValidationError):
         validate("foo", bool)
 
 
@@ -167,7 +167,7 @@ def test_date_type_success():
 
 
 def test_date_type_error():
-    with pytest.raises(TypeError):
+    with pytest.raises(ValidationError):
         validate("not_a_date", date)
 
 
@@ -179,7 +179,7 @@ def test_datetime_type_success():
 
 
 def test_datetime_type_error():
-    with pytest.raises(TypeError):
+    with pytest.raises(ValidationError):
         validate("not_a_datetime", datetime)
 
 
@@ -191,7 +191,7 @@ def test_uuid_type_success():
 
 
 def test_uuid_type_error():
-    with pytest.raises(TypeError):
+    with pytest.raises(ValidationError):
         validate("not_a_uuid", UUID)
 
 
@@ -203,7 +203,7 @@ def test_bytes_type_success():
 
 
 def test_bytes_type_error():
-    with pytest.raises(TypeError):
+    with pytest.raises(ValidationError):
         validate("not_a_byte_string", bytes)
 
 
@@ -215,17 +215,17 @@ def test_dict_success():
 
 
 def test_dict_type_error():
-    with pytest.raises(TypeError):
+    with pytest.raises(ValidationError):
         validate("should_not_validate", dict[str, int])
 
 
 def test_dict_error_key_type():
-    with pytest.raises(TypeError):
+    with pytest.raises(ValidationError):
         validate({1: 2}, dict[str, int])
 
 
 def test_dict_error_value_type():
-    with pytest.raises(TypeError):
+    with pytest.raises(ValidationError):
         validate(dict(this="should_not_validate"), dict[str, int])
 
 
@@ -237,7 +237,7 @@ def test_tuple_success():
 
 
 def test_tuple_value_error():
-    with pytest.raises(TypeError):
+    with pytest.raises(ValidationError):
         validate(("a", "b", "c"), tuple[str, int, float])
 
 
@@ -246,7 +246,7 @@ def test_tuple_ellipsis_success():
 
 
 def test_tuple_ellipsis_value_error():
-    with pytest.raises(TypeError):
+    with pytest.raises(ValidationError):
         validate(("a", "b", 1), tuple[str, ...])
 
 
@@ -262,17 +262,17 @@ def test_list_type_int_success():
 
 
 def test_list_type_str_error():
-    with pytest.raises(TypeError):
+    with pytest.raises(ValidationError):
         validate([4, 5, 6], list[str])
 
 
 def test_list_type_int_error():
-    with pytest.raises(TypeError):
+    with pytest.raises(ValidationError):
         validate(["d", "e", "f"], list[int])
 
 
 def test_list_type_error():
-    with pytest.raises(TypeError):
+    with pytest.raises(ValidationError):
         validate("this_is_not_a_list", list[bool])
 
 
@@ -281,7 +281,7 @@ def test_list_min_success():
 
 
 def test_list_min_error():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValidationError):
         validate([1, 2], Annotated[list[int], MinLen(3)])
 
 
@@ -290,7 +290,7 @@ def test_list_max_success():
 
 
 def test_list_max_error():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValidationError):
         validate([1, 2, 3, 4, 5, 6, 7], Annotated[list[int], MaxLen(6)])
 
 
@@ -306,17 +306,17 @@ def test_set_type_int_success():
 
 
 def test_set_type_str_error():
-    with pytest.raises(TypeError):
+    with pytest.raises(ValidationError):
         validate({4, 5, 6}, set[str])
 
 
 def test_set_type_int_error():
-    with pytest.raises(TypeError):
+    with pytest.raises(ValidationError):
         validate({"d", "e", "f"}, set[int])
 
 
 def test_set_type_error():
-    with pytest.raises(TypeError):
+    with pytest.raises(ValidationError):
         validate("not_a_set", set[bool])
 
 
@@ -324,7 +324,7 @@ def test_set_type_error():
 
 
 def test_union_none_match():
-    with pytest.raises(TypeError):
+    with pytest.raises(ValidationError):
         validate(123.45, Union[str, int])
 
 
@@ -338,7 +338,7 @@ def test_optional():
     o = Optional[int]
     validate(1, o)
     validate(None, o)
-    with pytest.raises(TypeError):
+    with pytest.raises(ValidationError):
         validate("1", o)
 
 
@@ -353,9 +353,9 @@ def test_generic_range():
     validate([1, 2], IntRange)
     validate([None, 2], IntRange)
     validate([1, None], IntRange)
-    with pytest.raises(TypeError):
+    with pytest.raises(ValidationError):
         validate(["1", 2], IntRange)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValidationError):
         validate([1, 2, 3], IntRange)
 
 
@@ -371,7 +371,7 @@ def test_literal_match():
 
 def test_literal_not_match():
     l = Literal["a", "b", "c"]
-    with pytest.raises(ValueError):
+    with pytest.raises(ValidationError):
         validate("d", l)
 
 
@@ -380,19 +380,19 @@ def test_literal_bool_int():
     validate(2, l)
     validate(3, l)
     validate(True, l)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValidationError):
         validate(1, l)
 
 
 def test_literal_int_bool():
     l = Literal[1, 2, 3]
-    with pytest.raises(ValueError):
+    with pytest.raises(ValidationError):
         validate(True, l)
 
 
 def test_literal_int_float():
     l = Literal[1, 2, 3]
-    with pytest.raises(ValueError):
+    with pytest.raises(ValidationError):
         validate(1.0, l)
 
 
@@ -406,7 +406,7 @@ def test_dataclass_success():
 
 def test_dataclass_error():
     DC = make_dataclass("DC", [("c", int)])
-    with pytest.raises(TypeError):
+    with pytest.raises(ValidationError):
         validate(DC(c="str"), DC)
 
 
@@ -420,7 +420,7 @@ def test_typeddict_success():
 
 def test_typeddict_error():
     TD = TypedDict("TD", c=int)
-    with pytest.raises(TypeError):
+    with pytest.raises(ValidationError):
         validate(dict(c="str"), TD)
 
 
@@ -431,7 +431,7 @@ def test_typeddict_total_success():
 
 def test_typeddict_total_error():
     TD = TypedDict("TD", f=str)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValidationError):
         validate(dict(), TD)
 
 
@@ -463,7 +463,7 @@ def test_sync_decorator_arguments_error():
     def fn(s: Annotated[str, MinLen(2), MaxLen(2)]):
         pass
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValidationError):
         fn("1")
 
 
@@ -482,7 +482,7 @@ async def test_async_decorator_arguments_error():
     async def fn(s: Annotated[str, MinLen(2), MaxLen(2)]):
         pass
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValidationError):
         await fn("1")
 
 
@@ -499,7 +499,7 @@ def test_sync_decorator_return_error():
     def fn() -> str:
         return 1
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ValidationError):
         fn()
 
 
@@ -518,5 +518,5 @@ async def test_async_decorator_return_error():
     def coro() -> str:
         return 1
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ValidationError):
         await coro()

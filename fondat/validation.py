@@ -4,15 +4,53 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
-import fondat.error
 import inspect
 import re
 import typing
 import wrapt
 
 from collections.abc import Callable, Iterable, Mapping
+from contextlib import contextmanager
 from fondat.types import NoneType, is_instance, is_subclass, split_annotated
 from typing import Any, Literal, Union
+
+
+class ValidationError(ValueError):
+    """
+    Error raised when validation fails.
+    """
+
+    __slots__ = {"message", "path"}
+
+    def __init__(self, message: str = None, path: list[Union[str, int]] = None):
+        self.message = message
+        self.path = path
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}({self.message!r}, {self.path!r})"
+
+    def __str__(self):
+        result = []
+        if self.message is not None:
+            result.append(str(self.message))
+        if self.path:
+            result.append(f"({'.'.join((str(a) for a in self.path))})")
+        return " ".join(result)
+
+    @staticmethod
+    @contextmanager
+    def path_on_error(path: Union[list[Union[str, int]], str, int]):
+        """Context manager to specify error path in the event that a DecodeError is raised."""
+        try:
+            yield
+        except ValidationError as ve:
+            if ve.path is None:
+                ve.path = []
+            if isinstance(path, (str, int)):
+                ve.path.insert(0, path)
+            elif isinstance(path, list):
+                ve.path = path + ve.path
+            raise
 
 
 class Validator:
@@ -25,14 +63,14 @@ class Validator:
 class MinLen(Validator):
     """Type annotation that validates a value has a minimum length."""
 
-    __slots__ = ("value",)
+    __slots__ = {"value"}
 
     def __init__(self, value: int):
         self.value = value
 
     def validate(self, value: Any) -> None:
         if len(value) < self.value:
-            raise ValueError(f"minimum length: {self.value}")
+            raise ValidationError(f"mininum length: {self.value}")
 
     def __repr__(self):
         return f"MinLen({self.value})"
@@ -41,14 +79,14 @@ class MinLen(Validator):
 class MaxLen(Validator):
     """Type annotation that validates a value has a maximum length."""
 
-    __slots__ = ("value",)
+    __slots__ = {"value"}
 
     def __init__(self, value: int):
         self.value = value
 
     def validate(self, value: Any) -> None:
         if len(value) > self.value:
-            raise ValueError(f"maximum length: {self.value}")
+            raise ValidationError(f"maximum length: {self.value}")
 
     def __repr__(self):
         return f"MaxLen({self.value})"
@@ -57,14 +95,14 @@ class MaxLen(Validator):
 class MinValue(Validator):
     """Type annotation that validates a value has a minimum value."""
 
-    __slots__ = ("value",)
+    __slots__ = {"value"}
 
     def __init__(self, value: Any):
         self.value = value
 
     def validate(self, value: Any) -> None:
         if value < self.value:
-            raise ValueError(f"minimum value: {self.value}")
+            raise ValidationError(f"minimum value: {self.value}")
 
     def __repr__(self):
         return f"MinValue({self.value})"
@@ -73,14 +111,14 @@ class MinValue(Validator):
 class MaxValue(Validator):
     """Type annotation that validates a value has a maximum value."""
 
-    __slots__ = ("value",)
+    __slots__ = {"value"}
 
     def __init__(self, value: Any):
         self.value = value
 
     def validate(self, value: Any) -> None:
         if value > self.value:
-            raise ValueError(f"maximum value: {self.value}")
+            raise ValidationError(f"maximum value: {self.value}")
 
     def __repr__(self):
         return f"MaxValue({self.value})"
@@ -92,22 +130,16 @@ class Pattern(Validator):
 
     Parameters:
     • pattern: pattern object or string to match
-    • message: message to include in raised value error
     """
 
-    __slots__ = ("pattern", "message")
+    __slots__ = {"pattern"}
 
-    def __init__(self, pattern: Union[str, re.Pattern], message: str = None):
+    def __init__(self, pattern: Union[str, re.Pattern]):
         self.pattern = re.compile(pattern) if isinstance(pattern, str) else pattern
-        self.message = message
 
     def validate(self, value: Any) -> None:
         if not self.pattern.match(value):
-            raise ValueError(
-                self.message
-                if self.message is not None
-                else f"value does not match required pattern"
-            )
+            raise ValidationError(f"pattern: {self.pattern.pattern}")
 
     def __repr__(self):
         return f"Pattern({self.pattern})"
@@ -119,46 +151,60 @@ def _validate_union(value, args):
     for arg in args:
         try:
             return validate(value, arg)
-        except (TypeError, ValueError) as e:
+        except ValidationError as e:
             continue
-    raise TypeError(f"expecting type of: Union[{args}]; received: {type(value)} ({value})")
+    raise ValidationError(f"expecting: Union[{args}]; received: {type(value)} ({value})")
 
 
 def _validate_literal(value, args):
     for arg in args:
         if arg == value and type(arg) is type(value):
             return
-    raise ValueError(f"expecting one of: {args}; received: {value}")
+    raise ValidationError(f"expecting one of: {args}; received: {value}")
+
+
+@contextmanager
+def validation_error_path(segment: Any):
+    try:
+        yield
+    except ValidationError as ve:
+        ve.path = (ve.path or []).insert(0, segment)
+        raise
 
 
 def _validate_typeddict(value, python_type):
     for item_key, item_type in typing.get_type_hints(python_type, include_extras=True).items():
         try:
-            validate(value[item_key], item_type, f"item {item_key}")
+            with validation_error_path(item_key):
+                validate(value[item_key], item_type)
         except KeyError:
             if item_key in python_type.__required_keys__:
-                raise ValueError(f"missing required item: {item_key}")
+                raise ValidationError("required", path=[item_key])
 
 
 def _validate_mapping(value, python_type, args):
     key_type, value_type = args
     for key, value in value.items():
-        validate(key, key_type, f"mapping key {key}")
-        validate(value, value_type, f"value in {key}")
+        validate(key, key_type)
+        with validation_error_path(key):
+            validate(value, value_type)
 
 
 def _validate_tuple(value, python_type, args):
     if len(args) == 2 and args[1] is Ellipsis:
         item_type = args[0]
-        for item_value in value:
-            validate(item_value, item_type)
+        index = 0
+        for n in range(len(value)):
+            with validation_error_path(n):
+                validate(value[n], item_type)
+        index += 1
     elif len(value) != len(args):
-        raise ValueError(
+        raise ValidationError(
             f"expecting tuple[{', '.join(str(arg) for arg in args)}]; received: {value}"
         )
     else:
         for n in range(len(args)):
-            with fondat.error.prepend((TypeError, ValueError), "[", n, "]: "):
+            with validation_error_path(n):
                 validate(value[n], args[n])
 
 
@@ -166,23 +212,25 @@ def _validate_iterable(value, python_type, args):
     item_type = args[0]
     index = 0
     for item_value in value:
-        with fondat.error.prepend((TypeError, ValueError), "[", index, "]: "):
+        with validation_error_path(index):
             validate(item_value, item_type)
         index += 1
 
 
 def _validate_dataclass(value, python_type):
     for attr_name, attr_type in typing.get_type_hints(python_type, include_extras=True).items():
-        validate(getattr(value, attr_name), attr_type, f"attribute {attr_name}")
+        with validation_error_path(attr_name):
+            validate(getattr(value, attr_name), attr_type)
 
 
-def _validate(value, type_hint):
+def validate(value: Any, type_hint: Any) -> NoneType:
+    """Validate a value."""
 
     python_type, annotations = split_annotated(type_hint)
     origin = typing.get_origin(python_type)
     args = typing.get_args(python_type)
 
-    # validate using specified validator type annotations
+    # validate using specified validator annotations
     for annotation in annotations:
         if isinstance(annotation, Validator):
             annotation.validate(value)
@@ -201,13 +249,13 @@ def _validate(value, type_hint):
 
     # basic type validation
     if origin and not is_instance(value, origin):
-        raise TypeError(f"expecting {origin.__name__}; received {type(value)}")
+        raise ValidationError(f"expecting {origin.__name__}; received {type(value)}")
     elif not origin and not is_instance(value, python_type):
-        raise TypeError(f"expecting {python_type}; received {type(value)}")
+        raise ValidationError(f"expecting {python_type}; received {type(value)}")
     elif python_type is int and is_instance(value, bool):  # bool is subclass of int
-        raise TypeError("expecting int; received bool")
+        raise ValidationError("expecting int; received bool")
     elif is_subclass(origin, Iterable) and is_instance(value, (str, bytes, bytearray)):
-        raise TypeError(f"expecting Iterable; received {type(value)}")
+        raise ValidationError(f"expecting Iterable; received {type(value)}")
 
     # structured type validation
     if is_subclass(python_type, dict) and hasattr(python_type, "__annotations__"):
@@ -220,21 +268,6 @@ def _validate(value, type_hint):
         return _validate_iterable(value, python_type, args)
     elif dataclasses.is_dataclass(python_type):
         return _validate_dataclass(value, python_type)
-
-
-def validate(value: Any, type_hint: Any, in_: str = None) -> NoneType:
-    """Validate a value."""
-
-    try:
-        _validate(value, type_hint)
-
-    except (TypeError, ValueError) as e:
-        if in_:
-            if not e.args:
-                e.args = (in_,)
-            else:
-                e.args = (f"{in_}: {e.args[0]}", *e.args[1:])
-        raise
 
 
 def validate_arguments(callable: Callable):
@@ -258,7 +291,8 @@ def validate_arguments(callable: Callable):
         }
         for param in (p for p in sig.parameters.values() if p.name in params):
             if hint := hints.get(param.name):
-                validate(params[param.name], hint, f"parameter {param.name}")
+                with validation_error_path(param.name):
+                    validate(params[param.name], hint)
 
     if asyncio.iscoroutinefunction(callable):
 
@@ -278,13 +312,14 @@ def validate_arguments(callable: Callable):
 
 
 def validate_return_value(callable: Callable):
-    """Decorate a function or coroutine to validate its return value using type annotations."""
+    """Decorate a function or coroutine to validate its return value using type hints."""
 
-    type_ = typing.get_type_hints(callable, include_extras=True).get("return")
+    return_type = typing.get_type_hints(callable, include_extras=True).get("return")
 
     def _validate(result):
-        if type_ is not None:
-            validate(result, type_, "return value")
+        if return_type is not None:
+            with validation_error_path("return"):
+                validate(result, return_type)
 
     if asyncio.iscoroutinefunction(callable):
 
@@ -310,6 +345,6 @@ def is_valid(value: Any, type_hint: Any) -> bool:
 
     try:
         validate(value, type_hint)
-    except (TypeError, ValueError):
+    except ValidationError:
         return False
     return True

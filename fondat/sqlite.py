@@ -216,7 +216,7 @@ def _text_codec_provider(python_type):
 
 class _Results(AsyncIterator[Any]):
 
-    __slots__ = ("statement", "results", "codecs")
+    __slots__ = {"statement", "results", "codecs"}
 
     def __init__(self, statement, results):
         self.statement = statement
@@ -247,7 +247,7 @@ class Database(fondat.sql.Database):
     • path: path to SQLite database file
     """
 
-    __slots__ = ("path", "_conn", "_txn")
+    __slots__ = {"path", "_conn", "_txn"}
 
     def __init__(self, path: str):
         super().__init__()

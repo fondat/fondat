@@ -359,12 +359,14 @@ def _kwargs(python_type, annotated):
         elif is_instance(annotation, fondat.annotation.Description):
             kwargs["description"] = annotation.value
         elif is_instance(annotation, fondat.annotation.Example):
-            fondat.validation.validate(annotation.value, python_type, " in example")
+            with fondat.validation.validation_error_path("example"):
+                fondat.validation.validate(annotation.value, python_type)
             kwargs["example"] = fondat.codec.get_codec(fondat.codec.JSON, python_type).encode(
                 annotation.value
             )
         elif is_instance(annotation, Default):
-            fondat.validation.validate(annotation.value, python_type, " in default")
+            with fondat.validation.validation_error_path("default"):
+                fondat.validation.validate(annotation.value, python_type)
             kwargs["default"] = fondat.codec.get_codec(fondat.codec.JSON, python_type).encode(
                 annotation.value
             )

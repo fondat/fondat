@@ -37,7 +37,7 @@ class _Element:
     • prev: the element below this elemment on the stack, or None if this is the first element
     """
 
-    __slots__ = ("_value", "_prev", "_len")
+    __slots__ = {"_value", "_prev", "_len"}
 
     def __init__(self, value, prev=None):
         self._value = value
@@ -46,7 +46,7 @@ class _Element:
 
     def __iter__(self):
         class _iter:
-            __slots__ = ("_ptr",)
+            __slots__ = {"_ptr"}
 
             def __init__(self, ptr):
                 self._ptr = ptr
@@ -73,7 +73,7 @@ class StackContextManager:
     a value from the stack upon exit.
     """
 
-    __slots__ = ("_token",)
+    __slots__ = {"_token"}
 
     def __init__(self, token):
         self._token = token

@@ -3,7 +3,7 @@
 import dataclasses
 
 from collections.abc import Mapping, Sequence
-from fondat.codec import Codec, String, get_codec
+from fondat.codec import Codec, String, get_codec, DecodeError
 from fondat.data import derive_typeddict
 from fondat.types import is_optional, is_subclass
 from typing import Any, Optional, get_type_hints
@@ -174,15 +174,8 @@ def typeddict_codec(
                 if value == "" and key in optional_fields:
                     items[key] = None
                 else:
-                    try:
+                    with DecodeError.path_on_error(column):
                         items[key] = codecs[column].decode(value)
-                    except (TypeError, ValueError) as e:
-                        msg = f"CSV column {column}"
-                        if not e.args:
-                            e.args = (msg,)
-                        else:
-                            e.args = (f"{msg}: {e.args[0]}", *e.args[1:])
-                        raise
             return typeddict(items)
 
     return TypedDictRowCodec(columns=columns)

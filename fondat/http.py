@@ -11,19 +11,23 @@ import functools
 import http
 import http.cookies
 import inspect
-import json
 import logging
 import multidict
 import typing
 
 from collections import namedtuple
 from collections.abc import Callable, Iterable, MutableSequence
-from fondat.codec import Binary, String, get_codec
-from fondat.error import BadRequestError, MethodNotAllowedError, NotFoundError
+from fondat.codec import Binary, JSON, String, get_codec, DecodeError
+from fondat.data import datacls
+from fondat.error import (
+    BadRequestError,
+    InternalServerError,
+    MethodNotAllowedError,
+    NotFoundError,
+)
 from fondat.security import Scheme
 from fondat.stream import Stream, BytesStream, stream_bytes
 from fondat.types import is_optional, is_subclass
-from fondat.validation import validate
 from typing import Annotated, Any, Optional, TypedDict
 
 
@@ -339,7 +343,7 @@ class InQuery:
     • name: name of the query string parameter
     """
 
-    __slots__ = ("name",)
+    __slots__ = {"name"}
 
     def __init__(self, name):
         self.name = name
@@ -363,7 +367,7 @@ class InBody:
     • name: name of the body parameter
     """
 
-    __slots__ = ("name",)
+    __slots__ = {"name"}
 
     def __init__(self, name):
         self.name = name
@@ -428,10 +432,10 @@ def get_body_type(operation):
                 required_keys.add(param_in.name)
         elif isinstance(param_in, AsBody):
             if as_body_param:
-                raise TypeError("cannot have multiple AsBody annotated parameters")
+                raise TypeError("multiple AsBody annotated parameters")
             as_body_param = name
     if as_body_param and in_body_params:
-        raise TypeError("cannot mix AsBody and InBody annotated parameters")
+        raise TypeError("mixed AsBody and InBody annotated parameters")
     if as_body_param:
         return type_hints[as_body_param]
     if not in_body_params:
@@ -447,20 +451,18 @@ async def simple_error_filter(request: Request):
     try:
         try:
             yield
-        except Exception as exception:
-            if isinstance(exception, fondat.error.Error):
-                raise
+        except fondat.error.Error:
+            raise
+        except Exception as e:
             _logger.exception("unhandled exception")
-            raise fondat.error.InternalServerError from exception
+            raise InternalServerError from e
     except fondat.error.Error as err:
-        body = json.dumps(
-            {"error": err.status, "detail": str(err.args[0]) if err.args else err.__doc__}
-        ).encode()
+        body = str(err)
         response = Response()
         response.status = err.status
-        response.headers["content-type"] = "application/json"
+        response.headers["content-type"] = "text/plain; charset=UTF-8"
         response.headers["content-length"] = str(len(body))
-        response.body = BytesStream(body)
+        response.body = BytesStream(body.encode())
         yield response
 
 
@@ -473,14 +475,14 @@ async def _decode_body(operation, request):
         return request.body
     content = await stream_bytes(request.body)
     if len(content) == 0:
-        if not is_optional(body_type):
-            raise BadRequestError("request body is required")
         return None  # empty body is no body
     try:
-        result = get_codec(Binary, body_type).decode(content)
-        validate(result, body_type)
-    except (TypeError, ValueError) as e:
-        raise BadRequestError(f"{e} in request body")
+        with DecodeError.path_on_error("«body»"):
+            result = get_codec(Binary, body_type).decode(content)
+    except DecodeError as de:
+        raise BadRequestError from de
+    except Exception as e:
+        raise InternalServerError from e
     return result
 
 
@@ -544,46 +546,42 @@ class Application:
             operation = getattr(resource, method, None)
             if not fondat.resource.is_operation(operation):
                 raise MethodNotAllowedError
-        signature = inspect.signature(operation)
         body = await _decode_body(operation, request)
         params = {}
+        signature = inspect.signature(operation)
         hints = typing.get_type_hints(operation, include_extras=True)
         return_hint = hints.get("return", type(None))
         for name, hint in hints.items():
             if name == "return":
                 continue
+            required = signature.parameters[name].default is inspect.Parameter.empty
             param_in = get_param_in(operation, name, hint)
-            if isinstance(param_in, AsBody):
+            if isinstance(param_in, AsBody) and body is not None:
                 params[name] = body
-            elif isinstance(param_in, InBody):
+            elif isinstance(param_in, InBody) and body is not None:
                 if param_in.name in body:
                     params[name] = body[param_in.name]
             elif isinstance(param_in, InQuery):
-                value = request.query.get(param_in.name)
-                if value is None:
-                    if is_optional(hint):
-                        params[name] = None
-                    elif signature.parameters[name].default is inspect.Parameter.empty:
-                        raise BadRequestError(f"expecting value in {param_in}")
-                else:
+                if param_in.name in request.query:
+                    codec = get_codec(String, hint)
                     try:
-                        param = get_codec(String, hint).decode(value)
-                        validate(param, hint)
-                    except (TypeError, ValueError) as tve:
-                        raise BadRequestError(f"{tve} in {param_in}")
-                    params[name] = param
+                        with DecodeError.path_on_error(param_in.name):
+                            params[name] = codec.decode(request.query[param_in.name])
+                    except DecodeError as de:
+                        raise BadRequestError from de
+            if name not in params and required:
+                if not is_optional(hint):
+                    raise BadRequestError from DecodeError(
+                        "required parameter", ["«params»", name]
+                    )
+                params[name] = None
         result = await operation(**params)
-        with fondat.error.append(
-            (TypeError, ValueError),
-            " in return value, resource=",
-            resource.__class__.__qualname__,
-            ", operation=",
-            operation.__name__,
-        ):
-            validate(result, return_hint)
         if not is_subclass(return_hint, Stream):
             return_codec = get_codec(Binary, return_hint)
-            result = BytesStream(return_codec.encode(result), return_codec.content_type)
+            try:
+                result = BytesStream(return_codec.encode(result), return_codec.content_type)
+            except Exception as e:
+                raise InternalServerError from e
         response.body = result
         response.headers["Content-Type"] = response.body.content_type
         if response.body.content_length is not None:

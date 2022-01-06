@@ -2,8 +2,7 @@ import pytest
 
 from dataclasses import make_dataclass, field
 from fondat.patch import json_merge_patch, json_merge_diff
-from fondat.validation import MaxLen
-from typing import Annotated, Optional
+from typing import Optional
 
 
 def test_merge_patch_rfc_7386_test_cases():
@@ -26,15 +25,9 @@ def test_merge_patch_rfc_7386_test_cases():
     assert json_merge_patch(value={}, patch={"a": {"bb": {"ccc": None}}}) == {"a": {"bb": {}}}
 
 
-def test_merge_patch_dc_flat_success():
+def test_merge_patch_dc_flat():
     DC = make_dataclass("DC", (("a", str),))
     assert json_merge_patch(type=DC, value=DC(a="b"), patch={"a": "c"}) == DC(a="c")
-
-
-def test_merge_patch_dc_flat_error():
-    DC = make_dataclass("DC", (("a", str),))
-    with pytest.raises(TypeError):
-        json_merge_patch(type=DC, value=DC(a="b"), patch={"a": 1})
 
 
 def test_merge_patch_dc_flat_optional():
@@ -80,17 +73,3 @@ def test_merge_diff_rfc_7386_test_cases():
     assert json_merge_diff(old={"a": "foo"}, new="bar") == "bar"
     assert json_merge_diff(old={"e": None}, new={"e": None, "a": 1}) == {"a": 1}
     assert json_merge_diff(old={}, new={"a": {"bb": {}}}) == {"a": {"bb": {}}}
-
-
-def test_merge_patch_validation_fail_type():
-    DC = make_dataclass("DC", (("a", int),))
-    dc = DC(a=1)
-    with pytest.raises(TypeError):
-        json_merge_patch(value=dc, type=DC, patch={"a": "string"})
-
-
-def test_merge_patch_validation_fail_value():
-    DC = make_dataclass("DC", (("a", Annotated[str, MaxLen(3)]),))
-    dc = DC(a="abc")
-    with pytest.raises(ValueError):
-        json_merge_patch(value=dc, type=DC, patch={"a": "abcd"})

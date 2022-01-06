@@ -42,8 +42,8 @@ class ReceiveStream(Stream):
         if event_type == "http.disconnect":
             raise StopAsyncIteration
         if event_type != "http.request":
-            raise InternalServerError(
-                f"expecting http.request event type; received {event_type}"
+            raise InternalServerError from ValueError(
+                "expecting http.request event type; received {event_type}"
             )
         self._more = event.get("more_body", False)
         return event.get("body", b"")
@@ -78,7 +78,7 @@ def asgi_app(
                 if shutdown is not None:
                     await shutdown()
             else:
-                raise InternalServerError(f"unknown ASGI lifespan type: {lifespan_type}")
+                _logger.warn("ignoring ASGI lifespan type: {lifespan_type}")
         except Exception as e:
             _logger.exception(f"ASGI {lifespan_type} failed")
             await send({"type": f"{lifespan_type}.failed", "message": str(e)})
@@ -144,6 +144,6 @@ def asgi_app(
         elif scope_type == "lifespan":
             return await lifespan(scope, receive, send)
         else:
-            raise InternalServerError(f"unknown ASGI scope type: {scope_type}")
+            _logger.warn(f"unrecognized ASGI scope type: {scope_type}")
 
     return app

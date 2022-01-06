@@ -6,7 +6,7 @@ import json
 
 from base64 import b64encode
 from collections.abc import Iterable
-from fondat.codec import get_codec, String, Binary, JSON
+from fondat.codec import get_codec, String, Binary, JSON, DecodeError, EncodeError
 from dataclasses import make_dataclass, field
 from typing import Any, Annotated, Literal, Optional, TypedDict, Union
 from uuid import UUID
@@ -14,11 +14,6 @@ from uuid import UUID
 
 def _equal(fn, val):
     assert val == fn(val)
-
-
-def _error(fn, val):
-    with pytest.raises((TypeError, ValueError)):
-        fn(val)
 
 
 def _test_encoding(python_type, value):
@@ -39,7 +34,7 @@ def test_dict_json_encode_success():
 def test_dict_json_encode_error():
     T = dict[str, int]
     value = dict(a="not int")
-    with pytest.raises(TypeError):
+    with pytest.raises(EncodeError):
         get_codec(JSON, T).encode(value)
 
 
@@ -52,7 +47,7 @@ def test_dict_json_decode_success():
 def test_dict_json_decode_error():
     T = dict[str, str]
     value = dict(a=False)
-    with pytest.raises(TypeError):
+    with pytest.raises(DecodeError):
         get_codec(JSON, T).decode(value)
 
 
@@ -90,7 +85,7 @@ def test_typeddict_json_encode_optional_absent():
 
 def test_typeddict_json_encode_error():
     TD = TypedDict("TD", dict(ejh=int))
-    with pytest.raises(TypeError):
+    with pytest.raises(EncodeError):
         get_codec(JSON, TD).encode(dict(ejh="not an int"))
 
 
@@ -112,7 +107,7 @@ def test_typeddict_json_decode_optional_success():
 def test_typeddict_json_decode_error():
     TD = TypedDict("TD", dict(djx=str))
     value = dict(djx=False)
-    with pytest.raises(TypeError):
+    with pytest.raises(DecodeError):
         get_codec(JSON, TD).decode(value)
 
 
@@ -124,7 +119,8 @@ def test_tuple_encodings():
 
 
 def test_tuple_json_encode_item_type_error():
-    _error(get_codec(JSON, tuple[str, str, str]).encode, (1, 2, 3))
+    with pytest.raises(EncodeError):
+        get_codec(JSON, tuple[str, str, str]).encode((1, 2, 3))
 
 
 def test_tuple_json_decode_success():
@@ -136,7 +132,8 @@ def test_tuple_json_decode_success():
 
 
 def test_tuple_json_decode_error():
-    _error(get_codec(JSON, tuple[str, str, str]).decode, "not_a_tuple")
+    with pytest.raises(DecodeError):
+        get_codec(JSON, tuple[str, str, str]).decode("not_a_tuple")
 
 
 def test_tuple_str_encode_success():
@@ -180,7 +177,8 @@ def test_tuple_str_decode_crazy_csv_scenario():
 
 
 def test_tuple_str_decode_int_error():
-    _error(get_codec(String, tuple[int, int, int, int]).decode, "12,a,34,56")
+    with pytest.raises(DecodeError):
+        get_codec(String, tuple[int, int, int, int]).decode("12,a,34,56")
 
 
 def test_tuple_ellipsis_encodings():
@@ -188,7 +186,8 @@ def test_tuple_ellipsis_encodings():
 
 
 def test_tuple_ellipsis_json_encode_item_type_error():
-    _error(get_codec(JSON, tuple[str, ...]).encode, (1, 2, 3))
+    with pytest.raises(EncodeError):
+        get_codec(JSON, tuple[str, ...]).encode((1, 2, 3))
 
 
 def test_tuple_ellipsis_json_decode_success():
@@ -196,7 +195,8 @@ def test_tuple_ellipsis_json_decode_success():
 
 
 def test_tuple_ellipsis_json_decode_error():
-    _error(get_codec(JSON, tuple[str, ...]).decode, "not_a_tuple")
+    with pytest.raises(DecodeError):
+        get_codec(JSON, tuple[str, ...]).decode("not_a_tuple")
 
 
 def test_tuple_ellipsis_str_encode_success():
@@ -240,7 +240,8 @@ def test_tuple_ellipsis_str_decode_crazy_csv_scenario():
 
 
 def test_tuple_ellipsis_str_decode_int_error():
-    _error(get_codec(String, tuple[int, ...]).decode, "12,a,34,56")
+    with pytest.raises(DecodeError):
+        get_codec(String, tuple[int, ...]).decode("12,a,34,56")
 
 
 # ----- list -----
@@ -251,7 +252,8 @@ def test_list_encodings():
 
 
 def test_list_json_encode_item_type_error():
-    _error(get_codec(JSON, list[str]).encode, [1, 2, 3])
+    with pytest.raises(EncodeError):
+        get_codec(JSON, list[str]).encode([1, 2, 3])
 
 
 def test_list_json_decode_success():
@@ -259,7 +261,8 @@ def test_list_json_decode_success():
 
 
 def test_list_json_decode_error():
-    _error(get_codec(JSON, list[str]).decode, "not_a_list")
+    with pytest.raises(DecodeError):
+        get_codec(JSON, list[str]).decode("not_a_list")
 
 
 def test_list_str_encode_success():
@@ -303,7 +306,8 @@ def test_list_str_decode_crazy_csv_scenario():
 
 
 def test_list_str_decode_int_error():
-    _error(get_codec(String, list[int]).decode, "12,a,34,56")
+    with pytest.raises(DecodeError):
+        get_codec(String, list[int]).decode("12,a,34,56")
 
 
 # ----- set -----
@@ -314,11 +318,13 @@ def test_set_encodings():
 
 
 def test_set_json_encode_type_error():
-    _error(get_codec(JSON, set[str]).encode, "i_am_not_a_set")
+    with pytest.raises(EncodeError):
+        get_codec(JSON, set[str]).encode("i_am_not_a_set")
 
 
 def test_set_json_encode_item_type_error():
-    _error(get_codec(JSON, set[str]).encode, {1, 2, 3})
+    with pytest.raises(EncodeError):
+        get_codec(JSON, set[str]).encode({1, 2, 3})
 
 
 def test_set_json_decode_success():
@@ -330,7 +336,8 @@ def test_set_json_decode_success():
 
 
 def test_set_json_decode_error():
-    _error(get_codec(JSON, set[str]).decode, "not_a_set_either")
+    with pytest.raises(DecodeError):
+        get_codec(JSON, set[str]).decode("not_a_set_either")
 
 
 def test_set_str_decode_str_success():
@@ -362,7 +369,8 @@ def test_set_str_decode_crazy_csv_scenario():
 
 
 def test_set_str_decode_int_error():
-    _error(get_codec(String, set[int]).decode, "12,a,34,56")
+    with pytest.raises(DecodeError):
+        get_codec(String, set[int]).decode("12,a,34,56")
 
 
 def test_set_bytes_encode_success():
@@ -389,7 +397,7 @@ def test_str_json_encode_success():
 
 
 def test_str_json_encode_error():
-    with pytest.raises(TypeError):
+    with pytest.raises(EncodeError):
         get_codec(JSON, str).encode(123)
 
 
@@ -398,7 +406,8 @@ def test_str_json_decode_success():
 
 
 def test_str_json_decode_error():
-    _error(get_codec(JSON, str).decode, 123)
+    with pytest.raises(DecodeError):
+        get_codec(JSON, str).decode(123)
 
 
 def test_str_str_decode_success():
@@ -417,7 +426,8 @@ def test_int_json_encode_success():
 
 
 def test_int_json_encode_error():
-    _error(get_codec(JSON, int).encode, 7.0)
+    with pytest.raises(EncodeError):
+        get_codec(JSON, int).encode(7.0)
 
 
 def test_int_json_decode_success_int():
@@ -429,7 +439,8 @@ def test_int_json_decode_success_round_float():
 
 
 def test_int_json_decode_error_float():
-    _error(get_codec(JSON, int).decode, 9.1)
+    with pytest.raises(DecodeError):
+        get_codec(JSON, int).decode(9.1)
 
 
 def test_int_str_decode_success():
@@ -437,7 +448,8 @@ def test_int_str_decode_success():
 
 
 def test_int_str_decode_error():
-    _error(get_codec(String, int).decode, "11.2")
+    with pytest.raises(DecodeError):
+        get_codec(String, int).decode("11.2")
 
 
 # ----- float -----
@@ -452,7 +464,8 @@ def test_float_json_encode_success():
 
 
 def test_float_json_encode_error():
-    _error(get_codec(JSON, float).encode, 7)
+    with pytest.raises(EncodeError):
+        get_codec(JSON, float).encode(7)
 
 
 def test_float_json_decode_int():
@@ -464,7 +477,8 @@ def test_float_json_decode_float():
 
 
 def test_float_json_decode_error():
-    _error(get_codec(JSON, float).decode, "10.2")
+    with pytest.raises(DecodeError):
+        get_codec(JSON, float).decode("10.2")
 
 
 def test_float_str_decode_float():
@@ -476,7 +490,8 @@ def test_float_str_decode_int():
 
 
 def test_float_str_decode_error():
-    _error(get_codec(String, float).decode, "1,2")
+    with pytest.raises(DecodeError):
+        get_codec(String, float).decode("1,2")
 
 
 # ----- decimal -----
@@ -494,7 +509,8 @@ def test_decimal_json_encode_success():
 
 
 def test_decimal_json_encode_error():
-    _error(get_codec(JSON, D).encode, "7")
+    with pytest.raises(EncodeError):
+        get_codec(JSON, D).encode("7")
 
 
 def test_decimal_json_decode_int():
@@ -506,7 +522,8 @@ def test_decimal_json_decode_decimal():
 
 
 def test_decimal_json_decode_error():
-    _error(get_codec(JSON, D).decode, "err")
+    with pytest.raises(DecodeError):
+        get_codec(JSON, D).decode("err")
 
 
 def test_decimal_str_decode_decimal():
@@ -518,7 +535,8 @@ def test_decimal_str_decode_int():
 
 
 def test_decimal_str_decode_error():
-    _error(get_codec(String, D).decode, "1,2")
+    with pytest.raises(DecodeError):
+        get_codec(String, D).decode("1,2")
 
 
 # ----- bool -----
@@ -538,7 +556,8 @@ def test_bool_json_encode_false():
 
 
 def test_bool_json_encode_error():
-    _error(get_codec(JSON, bool).encode, "bar")
+    with pytest.raises(EncodeError):
+        get_codec(JSON, bool).encode("bar")
 
 
 def test_bool_json_decode_true():
@@ -550,7 +569,8 @@ def test_bool_json_decode_false():
 
 
 def test_bool_json_decode_error():
-    _error(get_codec(JSON, bool).decode, "baz")
+    with pytest.raises(DecodeError):
+        get_codec(JSON, bool).decode("baz")
 
 
 def test_bool_str_encode_true():
@@ -570,7 +590,8 @@ def test_bool_str_decode_false():
 
 
 def test_bool_str_decode_error():
-    _error(get_codec(String, bool).decode, "123")
+    with pytest.raises(DecodeError):
+        get_codec(String, bool).decode("123")
 
 
 # ----- date -----
@@ -589,7 +610,8 @@ def test_date_json_encode_success_aware():
 
 
 def test_date_json_encode_error():
-    _error(get_codec(JSON, datetime.date).encode, "definitely_not_a_date")
+    with pytest.raises(EncodeError):
+        get_codec(JSON, datetime.date).encode("definitely_not_a_date")
 
 
 def test_date_json_decode_z():
@@ -605,11 +627,13 @@ def test_date_json_decode_missing_tz():
 
 
 def test_date_json_decode_error():
-    _error(get_codec(JSON, datetime.date).decode, "14256910")
+    with pytest.raises(DecodeError):
+        get_codec(JSON, datetime.date).decode("14256910")
 
 
 def test_date_str_decode_error():
-    _error(get_codec(String, datetime.date).decode, "14256910")
+    with pytest.raises(DecodeError):
+        get_codec(String, datetime.date).decode("14256910")
 
 
 # ----- datetime -----
@@ -639,7 +663,8 @@ def test_datetime_json_encode_success_aware():
 
 
 def test_datetime_json_encode_error():
-    _error(get_codec(JSON, datetime.datetime).encode, "definitely_not_a_datetime")
+    with pytest.raises(EncodeError):
+        get_codec(JSON, datetime.datetime).encode("definitely_not_a_datetime")
 
 
 def test_datetime_json_decode_z():
@@ -661,7 +686,8 @@ def test_datetime_json_decode_missing_tz():
 
 
 def test_datetime_json_decode_error():
-    _error(get_codec(JSON, datetime.datetime).decode, "1425691090159")
+    with pytest.raises(DecodeError):
+        get_codec(JSON, datetime.datetime).decode("1425691090159")
 
 
 def test_datetime_str_decode_z():
@@ -683,7 +709,8 @@ def test_datetime_json_decode_missing_tz():
 
 
 def test_datetime_str_decode_error():
-    _error(get_codec(String, datetime.datetime).decode, "1425691090160")
+    with pytest.raises(DecodeError):
+        get_codec(String, datetime.datetime).decode("1425691090160")
 
 
 # ----- uuid -----
@@ -699,7 +726,8 @@ def test_uuid_json_encode_success():
 
 
 def test_uuid_json_encode_error():
-    _error(get_codec(JSON, UUID).encode, "definitely_not_a_uuid")
+    with pytest.raises(EncodeError):
+        get_codec(JSON, UUID).encode("definitely_not_a_uuid")
 
 
 def test_uuid_json_decode_success():
@@ -708,7 +736,8 @@ def test_uuid_json_decode_success():
 
 
 def test_uuid_json_decode_error():
-    _error(get_codec(JSON, UUID).decode, "this_is_not_a_uuid_either")
+    with pytest.raises(DecodeError):
+        get_codec(JSON, UUID).decode("this_is_not_a_uuid_either")
 
 
 def test_uuid_str_decode_success():
@@ -717,7 +746,8 @@ def test_uuid_str_decode_success():
 
 
 def test_uuid_str_decode_error():
-    _error(get_codec(String, UUID).decode, "and_neither_is_this")
+    with pytest.raises(DecodeError):
+        get_codec(String, UUID).decode("and_neither_is_this")
 
 
 # ----- bytes -----
@@ -733,7 +763,8 @@ def test_bytes_json_encode_success():
 
 
 def test_bytes_json_encode_error():
-    _error(get_codec(JSON, bytes).encode, "definitely_not_a_bytes_object")
+    with pytest.raises(EncodeError):
+        get_codec(JSON, bytes).encode("definitely_not_a_bytes_object")
 
 
 def test_bytes_json_decode_success():
@@ -742,7 +773,8 @@ def test_bytes_json_decode_success():
 
 
 def test_bytes_json_decode_error():
-    _error(get_codec(JSON, bytes).decode, "this_is_not_a_bytes_object_either")
+    with pytest.raises(DecodeError):
+        get_codec(JSON, bytes).decode("this_is_not_a_bytes_object_either")
 
 
 def test_bytes_str_encode_success():
@@ -756,7 +788,8 @@ def test_bytes_str_decode_success():
 
 
 def test_bytes_str_decode_error():
-    _error(get_codec(String, bytes).decode, 123)
+    with pytest.raises(DecodeError):
+        get_codec(String, bytes).decode(123)
 
 
 # ----- union -----
@@ -810,7 +843,8 @@ def test_dataclass_json_encode_success():
 
 def test_dataclass_json_encode_error():
     DC = make_dataclass("DC", [("ejh", int)])
-    _error(get_codec(JSON, DC).encode, DC(ejh="not an int"))
+    with pytest.raises(EncodeError):
+        get_codec(JSON, DC).encode(DC(ejh="not an int"))
 
 
 def test_dataclass_json_decode_success():
@@ -830,7 +864,8 @@ def test_dataclass_json_decode_optional_success():
 
 def test_dataclass_json_decode_error():
     DC = make_dataclass("DC", [("djx", str)])
-    _error(get_codec(JSON, DC).decode, {"djx": False})
+    with pytest.raises(DecodeError):
+        get_codec(JSON, DC).decode({"djx": False})
 
 
 def test_dataclass_json_encode_decode_keyword():

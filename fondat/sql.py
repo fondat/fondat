@@ -14,13 +14,13 @@ import typing
 from collections.abc import AsyncIterator, Iterable, Iterator, Sequence
 from contextlib import suppress
 from dataclasses import dataclass, is_dataclass
-from fondat.codec import get_codec, Binary, JSON
+from fondat.codec import get_codec, Binary, JSON, DecodeError
 from fondat.data import datacls
 from fondat.error import BadRequestError, NotFoundError
 from fondat.memory import memory_resource
 from fondat.patch import json_merge_patch
 from fondat.resource import resource, operation, query
-from fondat.validation import MinValue, validate
+from fondat.validation import MinValue, validate, ValidationError
 from typing import Annotated, Any, Optional, TypedDict, Union
 
 
@@ -45,7 +45,7 @@ def is_nullable(python_type):
 class Expression(Iterable):
     """Represents a SQL expression."""
 
-    slots = ("fragments",)
+    slots = {"fragments"}
 
     def __init__(self, *fragments):
         super().__init__()
@@ -54,7 +54,7 @@ class Expression(Iterable):
             self += fragment
 
     def __repr__(self) -> str:
-        return f"Expression({self.fragments})"
+        return f"Expression({self.fragments!r})"
 
     def __str__(self) -> str:
         return "".join(str(f) for f in self.fragments)
@@ -101,7 +101,7 @@ class Statement(Expression):
     results in a populated dict object.
     """
 
-    slots = ("result",)
+    slots = {"result"}
 
     def __init__(self, *fragments, result: Any = None):
         super().__init__(*fragments)
@@ -121,7 +121,7 @@ class Param:
     • python_type: the type of the pameter to be included
     """
 
-    __slots__ = ("value", "type")
+    __slots__ = {"value", "type"}
 
     def __init__(self, value: Any, type: Any = None):
         self.value = value
@@ -131,7 +131,7 @@ class Param:
         return f"Param(value={self.value}, type={self.type})"
 
     def __str__(self) -> str:
-        return repr(self)
+        return f"«{self.value}»"
 
 
 def _to_identifier(value: str):
@@ -277,7 +277,7 @@ class Table:
     • columns: mapping of column names to ther associated types
     """
 
-    __slots__ = ("name", "database", "schema", "columns", "pk")
+    __slots__ = {"name", "database", "schema", "columns", "pk"}
 
     def __init__(self, name: str, database: Database, schema: type, pk: str):
         self.name = name
@@ -447,7 +447,7 @@ class Index:
     • unique: is index unique
     """
 
-    __slots__ = ("name", "table", "keys", "unique")
+    __slots__ = {"name", "table", "keys", "unique"}
 
     def __init__(
         self,
@@ -518,8 +518,8 @@ def row_resource_class(
             self.pk = pk
 
         async def _validate(self, value: table.schema):
-            """Validate value; raise BadRequestError if invalid."""
-            pass  # implement in subclass
+            """Validate value; raise ValidationError if invalid."""
+            validate(value, table.schema)
 
         async def _read(self):
             if cache:
@@ -534,14 +534,14 @@ def row_resource_class(
 
         async def _insert(self, value: table.schema):
             if getattr(value, table.pk) != self.pk:
-                raise BadRequestError("primary key mismatch")
+                raise ValidationError("primary key mismatch")
             await table.insert(value)
             if cache:
                 await cache[self.pk].put(value)
 
         async def _update(self, old: table.schema, new: table.schema):
             if getattr(new, table.pk) != self.pk:
-                raise BadRequestError("cannot modify primary key")
+                raise ValidationError("primary key modified")
             if old != new:
                 stmt = Statement(f"UPDATE {table.name} SET ")
                 updates = []
@@ -586,9 +586,11 @@ def row_resource_class(
             """Modify row. Patch body is a JSON Merge Patch document."""
             async with table.database.transaction():
                 old = await self._read()
-                with fondat.error.replace((TypeError, ValueError), BadRequestError):
+                try:
                     new = json_merge_patch(value=old, type=table.schema, patch=body)
-                    await self._validate(new)
+                except DecodeError as de:
+                    raise BadRequestError from de
+                await self._validate(new)
                 await self._update(old, new)
 
         @operation
@@ -685,21 +687,22 @@ def table_resource_class(table: Table, row_resource_type: type = None) -> type:
             """
             async with table.database.transaction():
                 for doc in body:
-                    with fondat.error.replace((TypeError, ValueError), BadRequestError):
-                        pk = doc.get(table.pk)
-                        if pk is None:
-                            raise ValueError(f"missing primary key: {table.pk}")
-                        row = row_resource_type(pk_codec.decode(pk))
+                    pk = doc.get(table.pk)
+                    if pk is None:
+                        raise ValidationError("missing primary key")
+                    row = row_resource_type(pk_codec.decode(pk))
+                    try:
+                        old = await row._read()
                         try:
-                            old = await row._read()
                             new = json_merge_patch(value=old, type=table.schema, patch=doc)
-                            await row._validate(new)
-                            await row._update(old, new)
-                        except NotFoundError:
-                            new = dc_codec.decode(doc)
-                            validate(new, table.schema)
-                            await row._validate(new)
-                            await row._insert(new)
+                        except DecodeError as de:
+                            raise BadRequestError from de
+                        await row._validate(new)
+                        await row._update(old, new)
+                    except NotFoundError:
+                        new = dc_codec.decode(doc)
+                        await row._validate(new)
+                        await row._insert(new)
 
         @query
         async def find_pks(self, pks: set[table.columns[table.pk]]) -> list[table.schema]:
