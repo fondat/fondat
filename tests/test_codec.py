@@ -877,6 +877,12 @@ def test_dataclass_json_encode_decode_keyword():
     assert codec.decode(encoded) == dc
 
 
+def test_dataclass_json_decode_invalid_type():
+    DC = make_dataclass("DC", [("djx", str)])
+    with pytest.raises(DecodeError):
+        get_codec(JSON, DC).decode("not_a_dict")
+
+
 # ----- any -----
 
 

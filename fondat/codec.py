@@ -1344,6 +1344,8 @@ def dataclass_codec(codec_type, python_type):
                 return result
 
             def decode(self, value: Any) -> python_type:
+                if not isinstance(value, dict):
+                    raise DecodeError
                 kwargs = {}
                 for key in hints:
                     codec = get_codec(JSON, hints[key])
