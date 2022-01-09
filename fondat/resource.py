@@ -25,7 +25,7 @@ from copy import deepcopy
 from fondat.error import BadRequestError, ForbiddenError, UnauthorizedError
 from fondat.security import Policy
 from fondat.validation import validate_arguments, ValidationError
-from typing import Any, Literal, get_args
+from typing import Any, Literal, Optional, get_args
 
 
 _logger = logging.getLogger(__name__)
@@ -81,7 +81,7 @@ async def authorize(policies: Iterable[Policy]):
         raise exception
 
 
-def resource(wrapped: type = None, *, tag: str = None):
+def resource(wrapped: Optional[type] = None, *, tag: Optional[str] = None):
     """
     Decorate a class as a resource containing operations and/or subordinate resources.
 
@@ -104,9 +104,9 @@ _methods = set(get_args(Method))
 def operation(
     wrapped=None,
     *,
-    method: Method = None,
-    type: Literal["query", "mutation"] = None,
-    policies: Iterable[Policy] = None,
+    method: Optional[Method] = None,
+    type: Optional[Literal["query", "mutation"]] = None,
+    policies: Optional[Iterable[Policy]] = None,
     publish: bool = True,
     deprecated: bool = False,
 ):
@@ -219,7 +219,7 @@ def mutation(wrapped=None, *, method: str = "post", **kwargs):
     return operation(wrapped, type="mutation", method=method, **kwargs)
 
 
-def container_resource(resources: Mapping[str, type], tag: str = None):
+def container_resource(resources: Mapping[str, type], tag: Optional[str] = None):
     """
     Create a resource to contain subordinate resources.
 

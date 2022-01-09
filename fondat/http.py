@@ -52,9 +52,9 @@ class Message:
     def __init__(
         self,
         *,
-        headers: Headers = None,
-        cookies: Cookies = None,
-        body: Stream = None,
+        headers: Optional[Headers] = None,
+        cookies: Optional[Cookies] = None,
+        body: Optional[Stream] = None,
     ):
         super().__init__()
         self.headers = headers or Headers()
@@ -82,13 +82,13 @@ class Request(Message):
     def __init__(
         self,
         *,
-        headers: Headers = None,
-        cookies: Cookies = None,
-        body: Stream = None,
+        headers: Optional[Headers] = None,
+        cookies: Optional[Cookies] = None,
+        body: Optional[Stream] = None,
         method: str = "GET",
         path: str = "/",
         version: str = "1.1",
-        query: Query = None,
+        query: Optional[Query] = None,
     ):
         super().__init__(headers=headers, cookies=cookies, body=body)
         self.method = method
@@ -118,9 +118,9 @@ class Response(Message):
     def __init__(
         self,
         *,
-        headers: Headers = None,
-        cookies: Cookies = None,
-        body: Stream = None,
+        headers: Optional[Headers] = None,
+        cookies: Optional[Cookies] = None,
+        body: Optional[Stream] = None,
         status: int = http.HTTPStatus.OK.value,
     ):
         super().__init__(headers=headers, cookies=cookies, body=body)
@@ -157,7 +157,9 @@ class Chain:
     • yield a new response; this response is passed back up the chain to the caller
     """
 
-    def __init__(self, *, filters: MutableSequence[Callable] = None, handler: Callable):
+    def __init__(
+        self, *, filters: Optional[MutableSequence[Callable]] = None, handler: Callable
+    ):
         """Initialize a filter chain."""
         self.filters = filters  # concrete and mutable
         self.handler = handler
@@ -242,7 +244,7 @@ class BearerScheme(Scheme):
     • format: identifies how bearer token is formatted
     """
 
-    def __init__(self, *, format: str = None, **kwargs):
+    def __init__(self, *, format: Optional[str] = None, **kwargs):
         super().__init__(**kwargs)
         self.format = format
 

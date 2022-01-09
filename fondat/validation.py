@@ -12,7 +12,7 @@ import wrapt
 from collections.abc import Callable, Iterable, Mapping
 from contextlib import contextmanager
 from fondat.types import NoneType, is_instance, is_subclass, split_annotated
-from typing import Any, Literal, Union
+from typing import Any, Literal, Optional, Union
 
 
 class ValidationError(ValueError):
@@ -22,7 +22,9 @@ class ValidationError(ValueError):
 
     __slots__ = {"message", "path"}
 
-    def __init__(self, message: str = None, path: list[Union[str, int]] = None):
+    def __init__(
+        self, message: Optional[str] = None, path: Optional[list[Union[str, int]]] = None
+    ):
         self.message = message
         self.path = path
 

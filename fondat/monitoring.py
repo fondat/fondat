@@ -266,7 +266,7 @@ class DequeMonitor:
         measurement is expunged.
     """
 
-    def __init__(self, size: int = None, deque: collections.deque = None):
+    def __init__(self, size: Optional[int] = None, deque: Optional[collections.deque] = None):
         super().__init__()
         self.deque = deque if deque is not None else collections.deque()
         self.size = size

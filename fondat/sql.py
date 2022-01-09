@@ -80,7 +80,7 @@ class Expression(Iterable):
         return self
 
     @staticmethod
-    def join(value: Iterable[Any], sep: str = None) -> Expression:
+    def join(value: Iterable[Any], sep: Optional[str] = None) -> Expression:
         """Join a number of fragments, optionally separated by a string value."""
         expr = Expression()
         for item in value:
@@ -195,13 +195,13 @@ class Database:
         self,
         *,
         columns: Sequence[tuple[Expression, str, Any]],
-        from_: Expression = None,
-        where: Expression = None,
-        group_by: Expression = None,
-        having: Expression = None,
-        order_by: Expression = None,
-        limit: int = None,
-        offset: int = None,
+        from_: Optional[Expression] = None,
+        where: Optional[Expression] = None,
+        group_by: Optional[Expression] = None,
+        having: Optional[Expression] = None,
+        order_by: Optional[Expression] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
     ) -> AsyncIterator[dict[str, Any]]:
         """
         Execute a select statement.
@@ -316,11 +316,11 @@ class Table:
     async def select(
         self,
         *,
-        columns: Union[Sequence[str], str] = None,
-        where: Expression = None,
-        order_by: Union[Sequence[str], str] = None,
-        limit: int = None,
-        offset: int = None,
+        columns: Union[Sequence[str], str, None] = None,
+        where: Optional[Expression] = None,
+        order_by: Union[Sequence[str], str, None] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
     ) -> AsyncIterator[dict[str, Any]]:
         """
         Execute a SQL statement select rows from the table.
@@ -362,7 +362,7 @@ class Table:
         ):
             yield row
 
-    async def count(self, where: Expression = None) -> int:
+    async def count(self, where: Optional[Expression] = None) -> int:
         """
         Return the number of rows in the table that match an optional expression.
 
@@ -617,7 +617,7 @@ def row_resource_class(
     return RowResource
 
 
-def table_resource_class(table: Table, row_resource_type: type = None) -> type:
+def table_resource_class(table: Table, row_resource_type: Optional[type] = None) -> type:
     """
     Return a base class for a table resource.
 
@@ -654,7 +654,7 @@ def table_resource_class(table: Table, row_resource_type: type = None) -> type:
         async def get(
             self,
             limit: Annotated[int, MinValue(1)] = 1000,
-            cursor: bytes = None,
+            cursor: Optional[bytes] = None,
         ) -> Page:
             """Get paginated list of rows, ordered by primary key."""
             if cursor is not None:

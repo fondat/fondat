@@ -16,7 +16,7 @@ pytestmark = pytest.mark.asyncio
 @dataclass
 class Body:
     key: Optional[UUID] = None
-    foo: str = None
+    foo: Optional[str] = None
 
 
 @resource

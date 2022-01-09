@@ -24,8 +24,18 @@ from fondat.types import (
     is_typeddict,
     split_annotated,
 )
-from typing import Any, Generic, Literal, TypeVar, TypedDict, Union
-from typing import get_origin, get_args, get_type_hints
+from typing import (
+    Any,
+    Generic,
+    Literal,
+    Optional,
+    TypeVar,
+    TypedDict,
+    Union,
+    get_origin,
+    get_args,
+    get_type_hints,
+)
 from uuid import UUID
 
 
@@ -56,7 +66,9 @@ class CodecError(ValueError):
 
     __slots__ = {"message", "path"}
 
-    def __init__(self, message: str = None, path: list[Union[str, int]] = None):
+    def __init__(
+        self, message: Optional[str] = None, path: Optional[list[Union[str, int]]] = None
+    ):
         self.message = message
         self.path = path
 

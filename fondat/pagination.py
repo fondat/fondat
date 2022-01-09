@@ -16,7 +16,7 @@ class Page:
     remaining: Optional[int] = None
 
 @operation
-async def get(self, ..., limit: int = None, cursor: bytes = None) -> Page:
+async def get(self, ..., limit: Optional[int] = None, cursor: Optional[bytes] = None) -> Page:
     ...
     return Page(...)
 

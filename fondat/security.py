@@ -1,13 +1,13 @@
 """Module for authentication and authorization of resource operations."""
 
 from collections.abc import Callable, Coroutine, Iterable
-from typing import Any
+from typing import Any, Optional
 
 
 class Scheme:
     """Base class for authentication scheme."""
 
-    def __init__(self, *, name: str, description: str = None):
+    def __init__(self, *, name: str, description: Optional[str] = None):
         self.name = name
         self.description = description
 
@@ -36,8 +36,8 @@ class Policy:
 
     def __init__(
         self,
-        schemes: Iterable[Scheme] = None,
-        rules: Iterable[Callable[[], Coroutine[Any, Any, Any]]] = None,
+        schemes: Optional[Iterable[Scheme]] = None,
+        rules: Optional[Iterable[Callable[[], Coroutine[Any, Any, Any]]]] = None,
     ):
         self.schemes = schemes
         self.rules = rules or ()

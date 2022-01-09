@@ -4,6 +4,7 @@ from base64 import b64decode, b64encode
 from dataclasses import dataclass
 from fondat.pagination import make_page_dataclass, paginate
 from fondat.resource import resource, operation
+from typing import Optional
 
 
 pytestmark = pytest.mark.asyncio
@@ -24,7 +25,7 @@ class Resource:
         self.limit = limit
 
     @operation
-    async def get(self, limit: int = None, cursor: bytes = None) -> Page:
+    async def get(self, limit: Optional[int] = None, cursor: Optional[bytes] = None) -> Page:
         start = int(b64decode(cursor).decode()) if cursor else 0
         stop = min(start + self.limit, len(self.values))
         return Page(

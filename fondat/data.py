@@ -26,10 +26,10 @@ def _datacls_init(dc: Any):
 
         for field in fields.values():
             if (value := kwargs.get(field.name, MISSING)) is MISSING:
-                if field.default is not dataclasses.MISSING:
-                    value = field.default
-                elif field.default_factory is not dataclasses.MISSING:
+                if field.default_factory is not dataclasses.MISSING:
                     value = field.default_factory()
+                elif field.default is not dataclasses.MISSING:
+                    value = field.default
                 elif is_optional(hints[field.name]):
                     value = None
                 else:

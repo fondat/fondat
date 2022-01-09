@@ -892,7 +892,7 @@ def openapi_resource(
     resource: type,
     path: str = "/",
     info: Info,
-    policies: Iterable[Policy] = None,
+    policies: Optional[Iterable[Policy]] = None,
     publish: bool = False,
 ):
     """

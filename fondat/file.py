@@ -13,7 +13,7 @@ from fondat.stream import Stream
 from fondat.types import affix_type_hints
 from fondat.security import Policy
 from pathlib import Path
-from typing import Annotated, Any, Union
+from typing import Annotated, Any, Optional, Union
 from urllib.parse import quote, unquote
 
 
@@ -178,7 +178,7 @@ def file_resource(
     compress: Any = None,
     writeable: bool = False,
     publish: bool = True,
-    policies: Iterable[Policy] = None,
+    policies: Optional[Iterable[Policy]] = None,
 ) -> type:
     """
     Return a new resource that manages a file.
@@ -210,12 +210,12 @@ def directory_resource(
     path: Union[Path, str],
     key_type: type = str,
     value_type: type = Stream,
-    extension: str = None,
+    extension: Optional[str] = None,
     compress: Any = None,
     writeable: bool = False,
     index: bool = True,
     publish: bool = True,
-    policies: Iterable[Policy] = None,
+    policies: Optional[Iterable[Policy]] = None,
 ) -> type:
     """
     Return a new resource that manages files in a directory.
@@ -262,7 +262,9 @@ def directory_resource(
         if index:
 
             @operation(publish=publish, policies=policies)
-            async def get(self, limit: int = None, cursor: bytes = None) -> Page:
+            async def get(
+                self, limit: Optional[int] = None, cursor: Optional[bytes] = None
+            ) -> Page:
                 """Return paginated list of file keys."""
                 limit = _limit(limit)
                 if cursor is not None:

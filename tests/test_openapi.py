@@ -34,7 +34,6 @@ class DC:
     d: list[str]
     e: dict[str, str]
     f: Optional[str]
-    g: str = None
     h: Optional[str] = None
     i: Annotated[str, Example("aaa")]
     j: Annotated[date, Example(date(2021, 1, 1))]

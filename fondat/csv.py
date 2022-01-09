@@ -20,7 +20,9 @@ def _round(value: Any, precision: Optional[int]) -> str:
     return f"{{:.{precision}f}}".format(value)
 
 
-def currency_codec(python_type: Any, prefix: str = "", suffix: str = "", precision: int = None):
+def currency_codec(
+    python_type: Any, prefix: str = "", suffix: str = "", precision: Optional[int] = None
+):
     """
     Return a codec that encodes/decodes a number as a currency value; optionally encodes with
     fixed-point precision.
@@ -98,9 +100,9 @@ def fixed_codec(python_type: Any, precision: int):
 
 def typeddict_codec(
     typeddict: Any,
-    columns: Sequence[str] = None,
-    keys: Mapping[str, str] = None,
-    codecs: Mapping[str, Any] = None,
+    columns: Optional[Sequence[str]] = None,
+    keys: Optional[Mapping[str, str]] = None,
+    codecs: Optional[Mapping[str, Any]] = None,
 ):
     """
     Return a codec that encodes/decodes a typed dictionary to/from a CSV row. A CSV row is

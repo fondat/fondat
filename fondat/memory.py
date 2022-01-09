@@ -13,7 +13,7 @@ from fondat.resource import resource, operation, mutation
 from fondat.security import Policy
 from fondat.types import affix_type_hints
 from time import time
-from typing import Annotated, Union
+from typing import Annotated, Optional, Union
 
 
 _Item = namedtuple("Item", "value,time")
@@ -24,11 +24,11 @@ _Oldest = namedtuple("Oldest", "key,time")
 def memory_resource(
     key_type: type,
     value_type: type,
-    size: int = None,
+    size: Optional[int] = None,
     evict: bool = False,
-    expire: Union[int, float] = None,
+    expire: Union[int, float, None] = None,
     publish: bool = True,
-    policies: Iterable[Policy] = None,
+    policies: Optional[Iterable[Policy]] = None,
 ):
     """
     Return a new resource that stores items in memory.
