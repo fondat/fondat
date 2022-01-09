@@ -49,9 +49,9 @@ async def test_call():
     await R1().post(Body(foo="bar"))
 
 
-async def test_call_invalid_type():
+async def test_call_invalid_body_type():
     with pytest.raises(BadRequestError):
-        await R1().post(1)
+        await R1().post(body=1)
 
 
 async def test_query():
@@ -59,12 +59,12 @@ async def test_query():
 
 
 async def test_valid_args():
-    await R1().baz("hello", 1)
+    await R1().baz(x="hello", y=1)
 
 
 async def test_invalid_args():
     with pytest.raises(BadRequestError):
-        await R1().baz(1, "hello")
+        await R1().baz(x=1, y="hello")
 
 
 @resource

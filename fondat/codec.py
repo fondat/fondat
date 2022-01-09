@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import base64
-import binascii
 import csv
 import dataclasses
-import decimal
 import functools
 import io
 import iso8601
@@ -18,8 +16,14 @@ from collections.abc import Iterable, Mapping
 from contextlib import contextmanager
 from datetime import date, datetime, timezone
 from decimal import Decimal
-from fondat.types import NoneType
-from fondat.types import affix_type_hints, is_subclass, is_typeddict, split_annotated
+from fondat.types import (
+    NoneType,
+    affix_type_hints,
+    is_optional,
+    is_subclass,
+    is_typeddict,
+    split_annotated,
+)
 from typing import Any, Generic, Literal, TypeVar, TypedDict, Union
 from typing import get_origin, get_args, get_type_hints
 from uuid import UUID
@@ -1312,20 +1316,14 @@ def dataclass_codec(codec_type, python_type):
     if not dataclasses.is_dataclass(dc_type):
         return
 
+    fields = dataclasses.fields(dc_type)
+
     if codec_type is JSON:
 
         if c := _building.get((codec_type, python_type)):
             return c  # return the (incomplete) outer one still being built
 
         hints = get_type_hints(dc_type, include_extras=True)
-
-        noneables = {
-            name
-            for name, hint in hints.items()
-            if get_origin(hint) is Union
-            and NoneType in get_args(hint)
-            and getattr(dc_type, name, None) is None
-        }
 
         @affix_type_hints(localns=locals())
         class _Dataclass_JSON(JSON[python_type]):
@@ -1336,26 +1334,37 @@ def dataclass_codec(codec_type, python_type):
                 if not isinstance(value, dc_type):
                     raise EncodeError
                 result = {}
-                for key in hints:
-                    v = getattr(value, key)
+                for field in fields:
+                    v = getattr(value, field.name, None)
                     if v is not None:
-                        with CodecError.path_on_error(key):
-                            result[_dc_kw.get(key, key)] = get_codec(JSON, hints[key]).encode(v)
+                        with CodecError.path_on_error(field.name):
+                            result[_dc_kw.get(field.name, field.name)] = get_codec(
+                                JSON, field.type
+                            ).encode(v)
                 return result
 
             def decode(self, value: Any) -> python_type:
                 if not isinstance(value, dict):
                     raise DecodeError
                 kwargs = {}
-                for key in hints:
-                    codec = get_codec(JSON, hints[key])
+                for field in fields:
+                    codec = get_codec(JSON, field.type)
                     try:
-                        with CodecError.path_on_error(key):
-                            kwargs[key] = codec.decode(value[_dc_kw.get(key, key)])
+                        with CodecError.path_on_error(field.name):
+                            kwargs[field.name] = codec.decode(
+                                value[_dc_kw.get(field.name, field.name)]
+                            )
                     except KeyError:
-                        if key in noneables:
-                            kwargs[key] = None
-                return python_type(**kwargs)
+                        if (
+                            is_optional(field.type)
+                            and field.default is dataclasses.MISSING
+                            and field.default_factory is dataclasses.MISSING
+                        ):
+                            kwargs[field.name] = None
+                try:
+                    return python_type(**kwargs)
+                except Exception as e:
+                    raise DecodeError from e
 
         result = _Dataclass_JSON()
         _building[(codec_type, python_type)] = result

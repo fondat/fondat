@@ -7,6 +7,7 @@ import json
 from base64 import b64encode
 from collections.abc import Iterable
 from fondat.codec import get_codec, String, Binary, JSON, DecodeError, EncodeError
+from fondat.data import make_datacls
 from dataclasses import make_dataclass, field
 from typing import Any, Annotated, Literal, Optional, TypedDict, Union
 from uuid import UUID
@@ -881,6 +882,18 @@ def test_dataclass_json_decode_invalid_type():
     DC = make_dataclass("DC", [("djx", str)])
     with pytest.raises(DecodeError):
         get_codec(JSON, DC).decode("not_a_dict")
+
+
+def test_dataclass_json_decode_missing_field():
+    DC = make_dataclass("DC", [("x", str)])
+    with pytest.raises(DecodeError):
+        get_codec(JSON, DC).decode({})
+
+
+def test_datacls_json_decode_missing_field():
+    DC = make_datacls("DC", [("x", str)])
+    with pytest.raises(DecodeError):
+        get_codec(JSON, DC).decode({})
 
 
 # ----- any -----

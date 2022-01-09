@@ -126,7 +126,7 @@ def operation(
 
     Exceptions that an operation should raise:
     • fondat.error.Error (e.g. BadRequestError)
-    • fondat.validation.ValidationError
+    • fondat.validation.ValidationError (automatically reraised as a BadRequestError)
     """
 
     if wrapped is None:

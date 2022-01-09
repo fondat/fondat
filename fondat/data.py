@@ -1,57 +1,40 @@
 """Dataclass module."""
 
 import dataclasses
-import fondat.annotation
 import functools
-import typing
 
 from fondat.annotation import Password
 from collections.abc import Iterable, Mapping
 from dataclasses import is_dataclass
 from fondat.types import is_optional, is_subclass, split_annotated, strip_optional
-from typing import Any, Optional, TypedDict, Union
-
-
-class _MISSING:
-    pass
+from typing import Any, Optional, TypedDict, Union, get_type_hints
 
 
 def _datacls_init(dc: Any):
+    class MISSING:
+        pass
 
     fields = {field.name: field for field in dataclasses.fields(dc) if field.init}
 
     def __init__(self, **kwargs):
-        hints = {k: v for k, v in typing.get_type_hints(dc).items() if k in fields}
-        for key in kwargs:
-            if key not in fields:
-                raise TypeError(f"__init__() got an unexpected keyword argument '{key}'")
-        missing = [
-            f"'{key}'"
-            for key, hint in hints.items()
-            if not is_optional(hint)
-            and key not in kwargs
-            and fields[key].default is dataclasses.MISSING
-            and fields[key].default_factory is dataclasses.MISSING
-        ]
-        if missing:
-            raise TypeError(
-                f"__init__() missing {len(missing)} required keyword-only "
-                + (
-                    f"arguments: {', '.join(missing[0:-1])} and {missing[-1]}"
-                    if len(missing) > 1
-                    else f"argument: {missing[0]}"
-                )
-            )
-        for key, field in fields.items():
-            value = kwargs.get(key, _MISSING)
-            if value is _MISSING:
+
+        hints = get_type_hints(self, include_extras=True)
+
+        for name in kwargs:
+            if name not in fields:
+                raise TypeError(f"unexpected keyword argument: '{name}'")
+
+        for field in fields.values():
+            if (value := kwargs.get(field.name, MISSING)) is MISSING:
                 if field.default is not dataclasses.MISSING:
                     value = field.default
                 elif field.default_factory is not dataclasses.MISSING:
                     value = field.default_factory()
-                else:
+                elif is_optional(hints[field.name]):
                     value = None
-            setattr(self, key, value)
+                else:
+                    raise TypeError(f"missing required keyword argument: '{field.name}'")
+            setattr(self, field.name, value)
 
     return __init__
 

@@ -1,5 +1,6 @@
 """Module to manage types and type hints."""
 
+import dataclasses
 import functools
 import typing
 
@@ -41,8 +42,16 @@ def affix_type_hints(obj=None, *, globalns=None, localns=None, attrs: bool = Tru
             affix_type_hints, globalns=globalns, localns=localns, attrs=attrs
         )
 
+    obj, _ = split_annotated(obj)
+
     if getattr(obj, "__annotations__", None):
         obj.__annotations__ = typing.get_type_hints(obj, globalns, localns, include_extras=True)
+
+    if dataclasses.is_dataclass(obj):
+        for field in dataclasses.fields(obj):
+            if type := obj.__annotations__.get(field.name):
+                field.type = type
+
     if attrs:
         for name in dir(obj):
             if not name.startswith("__") and not name.endswith("__"):
