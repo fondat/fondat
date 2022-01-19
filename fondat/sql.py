@@ -43,7 +43,17 @@ def is_nullable(python_type):
 
 
 class Expression(Iterable):
-    """Represents a SQL expression."""
+    """
+    Represents a SQL expression, composed of one or more fragments.
+
+    A fragment is a string, or parameter (Param).
+
+    An expression can initialized with multiple fragments, consisting of strings, parameters,
+    and/or other expressions/iterables containing string(s) and/or parameter(s).
+
+    An expression can be extended (+=) with a string, parameter, or expression/iterable
+    containing string(s) and/or parameter(s).
+    """
 
     slots = {"fragments"}
 
@@ -65,16 +75,17 @@ class Expression(Iterable):
 
     def __bool__(self) -> bool:
         """Return True if expression contains fragments."""
-        return len(self.fragments) > 0
+        return bool(self.fragments)
 
     def __len__(self) -> int:
         """Return number of fragments in expression."""
         return len(self.fragments)
 
     def __iadd__(self, value: Any) -> None:
-        """Add a fragment to the expression."""
-        if isinstance(value, Expression):
-            self.fragments.extend(value.fragments)
+        """Add fragment(s) to the expression."""
+        if isinstance(value, Iterable) and not isinstance(value, str):
+            for fragment in value:  # potentially recursive
+                self += fragment
         else:
             self.fragments.append(value)
         return self
