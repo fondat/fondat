@@ -4,7 +4,7 @@ import importlib
 import logging
 import threading
 
-from collections.abc import Callable, MutableMapping
+from collections.abc import Callable, Mapping, MutableMapping
 from typing import Any
 
 
@@ -26,7 +26,7 @@ class LazyMap(MutableMapping):
     mapping.
     """
 
-    def __init__(self, init=None):
+    def __init__(self, init: Mapping | None = None):
         super().__init__()
         self._lock = threading.Lock()
         self._store = {}

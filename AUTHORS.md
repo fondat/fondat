@@ -1,4 +1,4 @@
-The following authors have contributed to fondat-core:
+The following authors have contributed to fondat:
 
 - [Paul Bryan](mailto:pbryan@anode.ca)
 - [Ben Siggers](mailto:ben@siggers.ca)

@@ -1,15 +1,14 @@
-import pytest
-
 import datetime
 import decimal
 import json
+import pytest
 
 from base64 import b64encode
 from collections.abc import Iterable
-from fondat.codec import get_codec, String, Binary, JSON, DecodeError, EncodeError
+from dataclasses import field, make_dataclass
+from fondat.codec import JSON, Binary, DecodeError, EncodeError, String, get_codec
 from fondat.data import make_datacls
-from dataclasses import make_dataclass, field
-from typing import Any, Annotated, Literal, Optional, TypedDict, Union
+from typing import Annotated, Any, Literal, Optional, TypedDict, Union
 from uuid import UUID
 
 
@@ -811,6 +810,24 @@ def test_union_optional_none():
     assert get_codec(JSON, Optional[str]).decode(None) is None
 
 
+# ----- union_type -----
+
+
+def test_union_type_encodings():
+    python_type = int | UUID | bool
+    values = [123, UUID("06b959d0-65e0-11e7-866d-6be08781d5cb"), False]
+    for value in values:
+        _test_encoding(python_type, value)
+
+
+def test_union_type_optional_value():
+    assert get_codec(JSON, str | None).decode("string") == "string"
+
+
+def test_union_type_optional_none():
+    assert get_codec(JSON, str | None).decode(None) is None
+
+
 # ----- literal -----
 
 
@@ -859,7 +876,7 @@ def test_dataclass_json_decode_default_success():
 
 
 def test_dataclass_json_decode_optional_success():
-    DC = make_dataclass("DC", (("x", int), ("y", Optional[str])))
+    DC = make_dataclass("DC", (("x", int), ("y", str | None)))
     assert get_codec(JSON, DC).decode({"x": 1}) == DC(x=1, y=None)
 
 

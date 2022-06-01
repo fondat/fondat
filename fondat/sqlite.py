@@ -2,29 +2,29 @@
 
 from __future__ import annotations
 
-import asyncio
 import aiosqlite
+import asyncio
 import contextvars
 import fondat.codec
 import fondat.sql
 import functools
 import logging
 import sqlite3
+import types
 import typing
 import uuid
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from fondat.codec import Codec, String
-from fondat.types import affix_type_hints, is_subclass, split_annotated
-from fondat.sql import Statement, Param
+from fondat.sql import Param, Statement
+from fondat.types import affix_type_hints, is_optional, is_subclass, split_annotated
 from fondat.validation import validate_arguments
-from typing import Any, Literal, Optional, Union
+from types import NoneType
+from typing import Any, Literal
 
 
 _logger = logging.getLogger(__name__)
-
-NoneType = type(None)
 
 
 class SQLiteCodec(Codec[fondat.codec.F, Any]):
@@ -135,22 +135,20 @@ def _real_codec_provider(python_type):
 @_codec_provider
 def _union_codec_provider(python_type):
     """
-    Provides a codec that encodes/decodes a Union or Optional value to/from a compatible
-    SQLite value. For Optional value, will use codec for its type, otherwise it
+    Provides a codec that encodes/decodes a UnionType, Union or Optional value to/from a
+    compatible SQLite value. For optional value, will use codec for its type, otherwise it
     encodes/decodes as TEXT.
     """
 
     origin = typing.get_origin(python_type)
-    if origin is not Union:
+    if origin not in {typing.Union, types.UnionType}:
         return
 
     args = typing.get_args(python_type)
-    is_nullable = NoneType in args
+    is_nullable = is_optional(python_type)
     args = [a for a in args if a is not NoneType]
     codec = (
-        get_codec(args[0])
-        if len(args) == 1  # Optional[T]
-        else _text_codec_provider(python_type)
+        get_codec(args[0]) if len(args) == 1 else _text_codec_provider(python_type)  # optional
     )
 
     @affix_type_hints(localns=locals())
@@ -185,7 +183,7 @@ def _literal_codec_provider(python_type):
     if origin is not Literal:
         return
 
-    return get_codec(Union[tuple(type(arg) for arg in typing.get_args(python_type))])
+    return get_codec(typing.Union[tuple(type(arg) for arg in typing.get_args(python_type))])
 
 
 @_codec_provider
@@ -306,7 +304,7 @@ class Database(fondat.sql.Database):
             finally:
                 self._txn.reset(token)
 
-    async def execute(self, statement: Statement) -> Optional[AsyncIterator[Any]]:
+    async def execute(self, statement: Statement) -> AsyncIterator[Any] | None:
         if not self._txn.get():
             raise RuntimeError("transaction context required to execute statement")
         text = []

@@ -1,5 +1,3 @@
-import pytest
-
 import fondat.error as error
 
 

@@ -8,12 +8,12 @@ from fondat.codec import Binary, String, get_codec
 from fondat.error import InternalServerError, NotFoundError
 from fondat.http import AsBody
 from fondat.pagination import make_page_dataclass
-from fondat.resource import resource, operation
+from fondat.resource import operation, resource
+from fondat.security import Policy
 from fondat.stream import Stream
 from fondat.types import affix_type_hints
-from fondat.security import Policy
 from pathlib import Path
-from typing import Annotated, Any, Optional, Union
+from typing import Annotated, Any
 from urllib.parse import quote, unquote
 
 
@@ -173,12 +173,12 @@ def _file_resource_class(
 
 
 def file_resource(
-    path: Union[Path, str],
+    path: Path | str,
     value_type: type = Stream,
     compress: Any = None,
     writeable: bool = False,
     publish: bool = True,
-    policies: Optional[Iterable[Policy]] = None,
+    policies: Iterable[Policy] | None = None,
 ) -> type:
     """
     Return a new resource that manages a file.
@@ -207,15 +207,15 @@ def _limit(requested):
 
 
 def directory_resource(
-    path: Union[Path, str],
+    path: Path | str,
     key_type: type = str,
     value_type: type = Stream,
-    extension: Optional[str] = None,
+    extension: str | None = None,
     compress: Any = None,
     writeable: bool = False,
     index: bool = True,
     publish: bool = True,
-    policies: Optional[Iterable[Policy]] = None,
+    policies: Iterable[Policy] | None = None,
 ) -> type:
     """
     Return a new resource that manages files in a directory.
@@ -262,9 +262,7 @@ def directory_resource(
         if index:
 
             @operation(publish=publish, policies=policies)
-            async def get(
-                self, limit: Optional[int] = None, cursor: Optional[bytes] = None
-            ) -> Page:
+            async def get(self, limit: int | None = None, cursor: bytes | None = None) -> Page:
                 """Return paginated list of file keys."""
                 limit = _limit(limit)
                 if cursor is not None:

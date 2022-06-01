@@ -7,17 +7,17 @@ line-length = 96
 target-version = ['py310']
 
 [tool.poetry]
-name = "fondat-core"
-version = "3.0.18"
-description = "A foundation for asynchronous Python resource-oriented applications."
+name = "fondat"
+version = "4.0a1"
+description = "A foundation for resource-oriented backend applications."
 readme = "README.md"
-authors = ["fondat-core authors"]
+authors = ["fondat authors"]
 homepage = "https://github.com/fondat/fondat/"
 documentation = "https://github.com/fondat/fondat/tree/main/docs"
 license = "MIT"
-keywords = ["asgi", "framework", "resource", "openapi"]
+keywords = ["asgi", "foundation", "resource", "openapi"]
 classifiers = [
-    "Development Status :: 5 - Production/Stable",
+    "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Topic :: Software Development :: Libraries :: Application Frameworks",
 ]
@@ -26,7 +26,7 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = "^3.10"
 aiosqlite = "^0.16"
 iso8601 = "^0.1"
 multidict = "^5.2"
@@ -34,7 +34,16 @@ wrapt = "^1.13"
 
 [tool.poetry.dev-dependencies]
 black = "^21.12b0"
+isort = "^5.10.1"
 pre-commit = "^2.17"
 pytest = "^6.2"
 pytest-asyncio = "^0.14"
 pytest-cov = "^2.12"
+
+[tool.isort]
+profile = "black"
+lexicographical = true
+lines_after_imports = 2
+lines_between_types = 1
+line_length = 96
+no_sections = true

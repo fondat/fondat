@@ -1,14 +1,13 @@
-import pytest
-
 import fondat.error
 import http
+import pytest
 
 from dataclasses import dataclass
 from fondat.codec import Binary, get_codec
 from fondat.http import Application, AsBody, InBody, Request, Response, simple_error_filter
-from fondat.resource import resource, operation
-from fondat.stream import Stream, BytesStream
-from typing import Annotated, Optional
+from fondat.resource import operation, resource
+from fondat.stream import BytesStream, Stream
+from typing import Annotated
 from uuid import UUID
 
 
@@ -125,7 +124,7 @@ async def test_missing_optional_param():
     @resource
     class Resource:
         @operation
-        async def get(self, foo: Optional[int] = None) -> str:
+        async def get(self, foo: int | None = None) -> str:
             return str(foo)
 
     application = Application(Resource())

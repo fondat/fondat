@@ -6,25 +6,23 @@ import asyncio
 import dataclasses
 import inspect
 import re
+import types
 import typing
 import wrapt
 
 from collections.abc import Callable, Iterable, Mapping
 from contextlib import contextmanager
-from fondat.types import NoneType, is_instance, is_subclass, split_annotated
-from typing import Any, Literal, Optional, Union
+from fondat.types import is_instance, is_subclass, split_annotated
+from types import NoneType
+from typing import Any, Literal
 
 
 class ValidationError(ValueError):
-    """
-    Error raised when validation fails.
-    """
+    """Error raised when validation fails."""
 
     __slots__ = {"message", "path"}
 
-    def __init__(
-        self, message: Optional[str] = None, path: Optional[list[Union[str, int]]] = None
-    ):
+    def __init__(self, message: str | None = None, path: list[str | int] | None = None):
         self.message = message
         self.path = path
 
@@ -41,7 +39,7 @@ class ValidationError(ValueError):
 
     @staticmethod
     @contextmanager
-    def path_on_error(path: Union[list[Union[str, int]], str, int]):
+    def path_on_error(path: list[str | int] | str | int):
         """Context manager to specify error path in the event that a DecodeError is raised."""
         try:
             yield
@@ -136,7 +134,7 @@ class Pattern(Validator):
 
     __slots__ = {"pattern"}
 
-    def __init__(self, pattern: Union[str, re.Pattern]):
+    def __init__(self, pattern: str | re.Pattern):
         self.pattern = re.compile(pattern) if isinstance(pattern, str) else pattern
 
     def validate(self, value: Any) -> None:
@@ -155,7 +153,7 @@ def _validate_union(value, args):
             return validate(value, arg)
         except ValidationError as e:
             continue
-    raise ValidationError(f"expecting: Union[{args}]; received: {type(value)} ({value})")
+    raise ValidationError(f"expecting: union of {args}; received: {type(value)} ({value})")
 
 
 def _validate_literal(value, args):
@@ -240,7 +238,7 @@ def validate(value: Any, type_hint: Any) -> NoneType:
     # aggregate type validation
     if python_type is Any:
         return
-    elif origin is Union:
+    elif origin in {types.UnionType, typing.Union}:
         return _validate_union(value, args)
     elif origin is Literal:
         return _validate_literal(value, args)

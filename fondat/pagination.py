@@ -12,11 +12,11 @@ Example:
 @dataclass
 class Page:
     items: Iterable[ItemType]
-    cursor: Optional[bytes] = None
-    remaining: Optional[int] = None
+    cursor: bytes | None = None
+    remaining: int | None = None
 
 @operation
-async def get(self, ..., limit: Optional[int] = None, cursor: Optional[bytes] = None) -> Page:
+async def get(self, ..., limit: int | None = None, cursor: bytes | None = None) -> Page:
     ...
     return Page(...)
 
@@ -34,27 +34,29 @@ the current page. As this value is optional, it may not be returned by the opera
 """
 
 from collections.abc import Callable, Coroutine, Iterable
-from dataclasses import make_dataclass, field
-from typing import Any, Optional
+from dataclasses import field, make_dataclass
+from typing import Any
 
 
-def make_page_dataclass(class_name: str, item_type: type):
+def make_page_dataclass(class_name: str, item_type: type, remaining: bool = True):
     """
     Return a page dataclass for the specified item type.
 
     Parameters:
     • class_name: the name to assign the dataclass
     • item_type: the type of each item in the page
+    • remaining: include remaining field
     """
 
-    return make_dataclass(
-        class_name,
-        (
-            ("items", Iterable[item_type]),
-            ("cursor", Optional[bytes], field(default=None)),
-            ("remaining", Optional[int], field(default=None)),
-        ),
-    )
+    fields = [
+        ("items", Iterable[item_type]),
+        ("cursor", bytes | None, field(default=None)),
+    ]
+
+    if remaining:
+        fields.append(("remaining", int | None, field(default=None))),
+
+    return make_dataclass(class_name, tuple(fields))
 
 
 async def paginate(operation: Callable[..., Coroutine[Any, Any, Any]], /, **kwargs):

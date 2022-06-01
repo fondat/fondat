@@ -14,7 +14,7 @@ import time
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Literal, Optional, Union
+from typing import Any, Literal
 
 
 _logger = logging.getLogger(__name__)
@@ -38,7 +38,7 @@ class Measurement:
     tags: dict[str, str]
     timestamp: datetime
     type: Literal["counter", "gauge", "absolute"]
-    value: Union[int, float]
+    value: int | float
 
     def __post_init__(self):
         fondat.validation.validate(self, self.__class__)
@@ -64,7 +64,7 @@ class Counter:
         self.timestamp = timestamp
         self.value = 0
 
-    def record(self, value: Union[int, float]):
+    def record(self, value: int | float):
         self.value = max(self.value, value)
 
 
@@ -93,7 +93,7 @@ class Gauge:
         self.count = 0
         self.sum = 0
 
-    def record(self, value: Union[int, float]):
+    def record(self, value: int | float):
         if self.min is None or value < self.min:
             self.min = value
         if self.max is None or value > self.max:
@@ -121,7 +121,7 @@ class Absolute:
         self.timestamp = timestamp
         self.value = 0
 
-    def record(self, value: Union[int, float]):
+    def record(self, value: int | float):
         self.value += value
 
 
@@ -266,7 +266,7 @@ class DequeMonitor:
         measurement is expunged.
     """
 
-    def __init__(self, size: Optional[int] = None, deque: Optional[collections.deque] = None):
+    def __init__(self, size: int | None = None, deque: collections.deque | None = None):
         super().__init__()
         self.deque = deque if deque is not None else collections.deque()
         self.size = size
@@ -336,7 +336,7 @@ class timer:
         self,
         tags: dict[str, str],
         *,
-        monitors: Optional[Iterable[Any]] = None,
+        monitors: Iterable[Any] | None = None,
         status: str = "status",
     ):
         self.tags = tags
@@ -376,7 +376,7 @@ class counter:
         self,
         tags: dict[str, str],
         *,
-        monitors: Optional[Iterable[Any]] = None,
+        monitors: Iterable[Any] | None = None,
         status: str = "status",
     ):
         self.tags = tags
@@ -399,7 +399,7 @@ class counter:
 monitors = []
 
 
-async def record(measurement: Measurement, monitors: Optional[Iterable[Any]] = None):
+async def record(measurement: Measurement, monitors: Iterable[Any] | None = None):
     """
     Record a measurement.
 

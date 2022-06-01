@@ -9,11 +9,11 @@ from collections.abc import Iterable
 from copy import deepcopy
 from fondat.error import InternalServerError, NotFoundError
 from fondat.http import AsBody
-from fondat.resource import resource, operation, mutation
+from fondat.resource import mutation, operation, resource
 from fondat.security import Policy
 from fondat.types import affix_type_hints
 from time import time
-from typing import Annotated, Optional, Union
+from typing import Annotated
 
 
 _Item = namedtuple("Item", "value,time")
@@ -24,11 +24,11 @@ _Oldest = namedtuple("Oldest", "key,time")
 def memory_resource(
     key_type: type,
     value_type: type,
-    size: Optional[int] = None,
+    size: int | None = None,
     evict: bool = False,
-    expire: Union[int, float, None] = None,
+    expire: int | float | None = None,
     publish: bool = True,
-    policies: Optional[Iterable[Policy]] = None,
+    policies: Iterable[Policy] | None = None,
 ):
     """
     Return a new resource that stores items in memory.

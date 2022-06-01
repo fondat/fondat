@@ -12,10 +12,10 @@ For information on how security policies are evaluated, see the authorize functi
 """
 
 import asyncio
-import functools
-import inspect
 import fondat.context as context
 import fondat.monitoring as monitoring
+import functools
+import inspect
 import logging
 import types
 import wrapt
@@ -24,8 +24,8 @@ from collections.abc import Iterable, Mapping
 from copy import deepcopy
 from fondat.error import BadRequestError, ForbiddenError, UnauthorizedError
 from fondat.security import Policy
-from fondat.validation import validate_arguments, ValidationError
-from typing import Any, Literal, Optional, get_args
+from fondat.validation import ValidationError, validate_arguments
+from typing import Any, Literal, get_args
 
 
 _logger = logging.getLogger(__name__)
@@ -81,7 +81,7 @@ async def authorize(policies: Iterable[Policy]):
         raise exception
 
 
-def resource(wrapped: Optional[type] = None, *, tag: Optional[str] = None):
+def resource(wrapped: type | None = None, *, tag: str | None = None):
     """
     Decorate a class as a resource containing operations and/or subordinate resources.
 
@@ -104,9 +104,9 @@ _methods = set(get_args(Method))
 def operation(
     wrapped=None,
     *,
-    method: Optional[Method] = None,
-    type: Optional[Literal["query", "mutation"]] = None,
-    policies: Optional[Iterable[Policy]] = None,
+    method: Method | None = None,
+    type: Literal["query", "mutation"] | None = None,
+    policies: Iterable[Policy] | None = None,
     publish: bool = True,
     deprecated: bool = False,
 ):
@@ -219,7 +219,7 @@ def mutation(wrapped=None, *, method: str = "post", **kwargs):
     return operation(wrapped, type="mutation", method=method, **kwargs)
 
 
-def container_resource(resources: Mapping[str, type], tag: Optional[str] = None):
+def container_resource(resources: Mapping[str, Any], tag: str | None = None):
     """
     Create a resource to contain subordinate resources.
 

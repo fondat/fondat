@@ -1,7 +1,6 @@
 import pytest
 
-from fondat.lazy import LazyMap
-from fondat.lazy import lazy, lazy_import, lazy_import_attr
+from fondat.lazy import LazyMap, lazy, lazy_import, lazy_import_attr
 
 
 @lazy

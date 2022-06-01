@@ -1,12 +1,11 @@
-import pytest
-
 import fondat.http
 import http
+import pytest
 
 from fondat.asgi import asgi_app
 from fondat.http import AsBody
-from fondat.resource import resource, operation
-from typing import Annotated, Any, Optional
+from fondat.resource import operation, resource
+from typing import Annotated, Any
 
 
 pytestmark = pytest.mark.asyncio
@@ -177,7 +176,7 @@ async def test_empty_default_optional_str_body_param():
     @resource
     class Resource:
         @operation
-        async def post(self, foo: Annotated[Optional[str], AsBody] = None) -> str:
+        async def post(self, foo: Annotated[str | None, AsBody] = None) -> str:
             return str(foo)
 
     app = fondat.http.Application(Resource())
@@ -192,7 +191,7 @@ async def test_empty_optional_int_body_param():
     @resource
     class Resource:
         @operation
-        async def post(self, foo: Annotated[Optional[int], AsBody]) -> str:
+        async def post(self, foo: Annotated[int | None, AsBody]) -> str:
             return str(foo)
 
     app = fondat.http.Application(Resource())

@@ -1,17 +1,16 @@
-import pytest
-
 import fondat.http
 import fondat.openapi
+import pytest
 
 from datetime import date
 from fondat.annotation import Deprecated, Description, Example, Format, ReadOnly
-from fondat.codec import get_codec, JSON
+from fondat.codec import JSON, get_codec
 from fondat.data import datacls
 from fondat.openapi import generate_openapi, openapi_resource
-from fondat.resource import resource, operation, query, mutation, container_resource
-from fondat.types import NoneType
+from fondat.resource import container_resource, mutation, operation, query, resource
 from fondat.security import Policy
-from fondat.validation import validate, Pattern
+from fondat.validation import Pattern, validate
+from types import NoneType
 from typing import Annotated, Optional, Union
 from uuid import UUID
 
@@ -33,10 +32,11 @@ class DC:
     c: DB
     d: list[str]
     e: dict[str, str]
-    f: Optional[str]
-    h: Optional[str] = None
+    f: str | None
+    h: str | None = None
     i: Annotated[str, Example("aaa")]
     j: Annotated[date, Example(date(2021, 1, 1))]
+    k: Optional[str]
     example_int: Annotated[int, Example(1)]
     example_str: Annotated[str, Example("value")]
     deprecated_class: Annotated[int, Deprecated]
@@ -128,12 +128,22 @@ class ResourceA:
         pass
 
     @mutation
-    async def return_optional(self) -> Optional[int]:
+    async def return_optional_union(self) -> Optional[int]:
+        """Method optionally returns an int."""
+        return None
+
+    @mutation
+    async def return_optional_union_type(self) -> int | None:
         """Method optionally returns an int."""
         return None
 
     @mutation
     async def return_union(self) -> Union[int, float, None]:
+        """Method returns int, float or None."""
+        return None
+
+    @mutation
+    async def return_union_type(self) -> int | float | None:
         """Method returns int, float or None."""
         return None
 

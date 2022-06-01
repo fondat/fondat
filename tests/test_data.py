@@ -1,16 +1,16 @@
 import pytest
 
+from dataclasses import asdict, field, fields
 from fondat.annotation import Password
 from fondat.data import (
     copy_data,
     datacls,
-    make_datacls,
     derive_datacls,
     derive_typeddict,
+    make_datacls,
     redact_passwords,
 )
 from fondat.types import is_optional
-from dataclasses import asdict, field, fields
 from typing import Annotated, Optional, TypedDict
 
 

@@ -1,9 +1,7 @@
 import pytest
 
-import fondat.context as context
-
-from fondat.error import UnauthorizedError, ForbiddenError
-from fondat.resource import resource, mutation
+from fondat.error import ForbiddenError, UnauthorizedError
+from fondat.resource import mutation, resource
 from fondat.security import Policy
 
 

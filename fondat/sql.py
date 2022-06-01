@@ -14,32 +14,18 @@ import typing
 from collections.abc import AsyncIterator, Iterable, Iterator, Sequence
 from contextlib import suppress
 from dataclasses import dataclass, is_dataclass
-from fondat.codec import get_codec, Binary, JSON, DecodeError
+from fondat.codec import JSON, Binary, DecodeError, get_codec
 from fondat.data import datacls
 from fondat.error import BadRequestError, NotFoundError
 from fondat.memory import memory_resource
 from fondat.patch import json_merge_patch
-from fondat.resource import resource, operation, query
-from fondat.validation import MinValue, validate, ValidationError
-from typing import Annotated, Any, Optional, TypedDict, Union
+from fondat.resource import operation, query, resource
+from fondat.types import is_optional
+from fondat.validation import MinValue, ValidationError, validate
+from typing import Annotated, Any, TypedDict
 
 
 _logger = logging.getLogger(__name__)
-
-
-def is_nullable(python_type):
-    """Return if Python type allows for None value."""
-    NoneType = type(None)
-    if typing.get_origin(python_type) is Annotated:
-        python_type = typing.get_args(python_type)[0]  # strip annotation
-    if python_type is NoneType:
-        return True
-    if typing.get_origin(python_type) is not Union:
-        return False
-    for arg in typing.get_args(python_type):
-        if arg is NoneType:
-            return True
-    return False
 
 
 class Expression(Iterable):
@@ -91,7 +77,7 @@ class Expression(Iterable):
         return self
 
     @staticmethod
-    def join(value: Iterable[Any], sep: Optional[str] = None) -> Expression:
+    def join(value: Iterable[Any], sep: str | None = None) -> Expression:
         """Join a number of fragments, optionally separated by a string value."""
         expr = Expression()
         for item in value:
@@ -180,7 +166,7 @@ class Database:
         """
         raise NotImplementedError
 
-    async def execute(self, statement: Statement) -> Optional[AsyncIterator[dict[str, Any]]]:
+    async def execute(self, statement: Statement) -> AsyncIterator[dict[str, Any]] | None:
         """
         Execute a SQL statement.
 
@@ -206,13 +192,13 @@ class Database:
         self,
         *,
         columns: Sequence[tuple[Expression, str, Any]],
-        from_: Optional[Expression] = None,
-        where: Optional[Expression] = None,
-        group_by: Optional[Expression] = None,
-        having: Optional[Expression] = None,
-        order_by: Optional[Expression] = None,
-        limit: Optional[int] = None,
-        offset: Optional[int] = None,
+        from_: Expression | None = None,
+        where: Expression | None = None,
+        group_by: Expression | None = None,
+        having: Expression | None = None,
+        order_by: Expression | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
     ) -> AsyncIterator[dict[str, Any]]:
         """
         Execute a select statement.
@@ -314,7 +300,7 @@ class Table:
             column = [column_name, self.database.get_codec(column_type).sql_type]
             if column_name == self.pk:
                 column.append("PRIMARY KEY")
-            if not is_nullable(column_type):
+            if not is_optional(column_type):
                 column.append("NOT NULL")
             columns.append(" ".join(column))
         stmt += Expression(", ".join(columns), ");")
@@ -327,11 +313,11 @@ class Table:
     async def select(
         self,
         *,
-        columns: Union[Sequence[str], str, None] = None,
-        where: Optional[Expression] = None,
-        order_by: Union[Sequence[str], str, None] = None,
-        limit: Optional[int] = None,
-        offset: Optional[int] = None,
+        columns: Sequence[str] | str | None = None,
+        where: Expression | None = None,
+        order_by: Sequence[str] | str | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
     ) -> AsyncIterator[dict[str, Any]]:
         """
         Execute a SQL statement select rows from the table.
@@ -373,7 +359,7 @@ class Table:
         ):
             yield row
 
-    async def count(self, where: Optional[Expression] = None) -> int:
+    async def count(self, where: Expression | None = None) -> int:
         """
         Return the number of rows in the table that match an optional expression.
 
@@ -495,7 +481,7 @@ class Index:
 def row_resource_class(
     table: Table,
     cache_size: int = 0,
-    cache_expire: Union[int, float] = 1,
+    cache_expire: int | float = 1,
 ) -> type:
     """
     Return a base class for a row resource.
@@ -628,7 +614,7 @@ def row_resource_class(
     return RowResource
 
 
-def table_resource_class(table: Table, row_resource_type: Optional[type] = None) -> type:
+def table_resource_class(table: Table, row_resource_type: type | None = None) -> type:
     """
     Return a base class for a table resource.
 
@@ -643,7 +629,7 @@ def table_resource_class(table: Table, row_resource_type: Optional[type] = None)
     @datacls
     class Page:
         items: list[table.schema]
-        cursor: Optional[bytes] = None
+        cursor: bytes | None = None
 
     fondat.types.affix_type_hints(Page, localns=locals())
 
@@ -665,7 +651,7 @@ def table_resource_class(table: Table, row_resource_type: Optional[type] = None)
         async def get(
             self,
             limit: Annotated[int, MinValue(1)] = 1000,
-            cursor: Optional[bytes] = None,
+            cursor: bytes | None = None,
         ) -> Page:
             """Get paginated list of rows, ordered by primary key."""
             if cursor is not None:

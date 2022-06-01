@@ -1,7 +1,5 @@
-import pytest
-
-from dataclasses import make_dataclass, field
-from fondat.patch import json_merge_patch, json_merge_diff
+from dataclasses import field, make_dataclass
+from fondat.patch import json_merge_diff, json_merge_patch
 from typing import Optional
 
 
@@ -30,13 +28,18 @@ def test_merge_patch_dc_flat():
     assert json_merge_patch(type=DC, value=DC(a="b"), patch={"a": "c"}) == DC(a="c")
 
 
-def test_merge_patch_dc_flat_optional():
+def test_merge_patch_dc_flat_optional_union():
     DC = make_dataclass("DC", (("a", str), ("b", Optional[str], field(default=None))))
     assert json_merge_patch(type=DC, value=DC(a="b"), patch={"b": "c"}) == DC(a="b", b="c")
 
 
+def test_merge_patch_dc_flat_optional_union_type():
+    DC = make_dataclass("DC", (("a", str), ("b", str | None, field(default=None))))
+    assert json_merge_patch(type=DC, value=DC(a="b"), patch={"b": "c"}) == DC(a="b", b="c")
+
+
 def test_merge_patch_dc_flat_delete():
-    DC = make_dataclass("DC", (("a", str), ("b", Optional[str], field(default=None))))
+    DC = make_dataclass("DC", (("a", str), ("b", str | None, field(default=None))))
     assert json_merge_patch(type=DC, value=DC(a="b", b="c"), patch={"b": None}) == DC(
         a="b", b=None
     )
@@ -51,7 +54,7 @@ def test_merge_patch_dc_nested_add():
 
 
 def test_merge_patch_dc_nested_delete():
-    DC2 = make_dataclass("DC2", (("b", Optional[str]),))
+    DC2 = make_dataclass("DC2", (("b", str | None),))
     DC1 = make_dataclass("DC1", (("a", DC2),))
     assert json_merge_patch(type=DC1, value=DC1(a=DC2(b="c")), patch={"a": {"b": None}}) == DC1(
         a=DC2(b=None)

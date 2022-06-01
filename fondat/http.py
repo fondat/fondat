@@ -17,8 +17,7 @@ import typing
 
 from collections import namedtuple
 from collections.abc import Callable, Iterable, MutableSequence
-from fondat.codec import Binary, JSON, String, get_codec, DecodeError
-from fondat.data import datacls
+from fondat.codec import Binary, DecodeError, String, get_codec
 from fondat.error import (
     BadRequestError,
     InternalServerError,
@@ -26,7 +25,7 @@ from fondat.error import (
     NotFoundError,
 )
 from fondat.security import Scheme
-from fondat.stream import Stream, BytesStream, stream_bytes
+from fondat.stream import BytesStream, Stream, stream_bytes
 from fondat.types import is_optional, is_subclass
 from typing import Annotated, Any, Optional, TypedDict
 
@@ -52,9 +51,9 @@ class Message:
     def __init__(
         self,
         *,
-        headers: Optional[Headers] = None,
-        cookies: Optional[Cookies] = None,
-        body: Optional[Stream] = None,
+        headers: Headers | None = None,
+        cookies: Cookies | None = None,
+        body: Stream | None = None,
     ):
         super().__init__()
         self.headers = headers or Headers()
@@ -82,13 +81,13 @@ class Request(Message):
     def __init__(
         self,
         *,
-        headers: Optional[Headers] = None,
-        cookies: Optional[Cookies] = None,
-        body: Optional[Stream] = None,
+        headers: Headers | None = None,
+        cookies: Cookies | None = None,
+        body: Stream | None = None,
         method: str = "GET",
         path: str = "/",
         version: str = "1.1",
-        query: Optional[Query] = None,
+        query: Query | None = None,
     ):
         super().__init__(headers=headers, cookies=cookies, body=body)
         self.method = method
@@ -118,9 +117,9 @@ class Response(Message):
     def __init__(
         self,
         *,
-        headers: Optional[Headers] = None,
-        cookies: Optional[Cookies] = None,
-        body: Optional[Stream] = None,
+        headers: Headers | None = None,
+        cookies: Cookies | None = None,
+        body: Stream | None = None,
         status: int = http.HTTPStatus.OK.value,
     ):
         super().__init__(headers=headers, cookies=cookies, body=body)
@@ -157,9 +156,7 @@ class Chain:
     • yield a new response; this response is passed back up the chain to the caller
     """
 
-    def __init__(
-        self, *, filters: Optional[MutableSequence[Callable]] = None, handler: Callable
-    ):
+    def __init__(self, *, filters: MutableSequence[Callable] | None = None, handler: Callable):
         """Initialize a filter chain."""
         self.filters = filters  # concrete and mutable
         self.handler = handler
@@ -224,7 +221,7 @@ class BasicScheme(Scheme):
     • description: a short description of authentication scheme
     """
 
-    def extract(self, request: Request) -> Optional[BasicCredentials]:
+    def extract(self, request: Request) -> BasicCredentials | None:
         """Return basic credentials from request if provided, otherwise None."""
         try:
             scheme, credentials = request.headers["Authorization"].split(" ", 1)
@@ -244,11 +241,11 @@ class BearerScheme(Scheme):
     • format: identifies how bearer token is formatted
     """
 
-    def __init__(self, *, format: Optional[str] = None, **kwargs):
+    def __init__(self, *, format: str | None = None, **kwargs):
         super().__init__(**kwargs)
         self.format = format
 
-    def extract(self, request: Request) -> Optional[str]:
+    def extract(self, request: Request) -> str | None:
         """Return bearer token value from request if provided, otherwise None."""
         try:
             name, token = request.headers["Authorization"].split(" ", 1)
@@ -273,7 +270,7 @@ class CookieScheme(Scheme):
         super().__init__(**kwargs)
         self.cookie = cookie
 
-    def extract(self, request: Request) -> Optional[str]:
+    def extract(self, request: Request) -> str | None:
         """Return cookie value from request if provided, otherwise None."""
         try:
             return request.cookies[self.cookie].value
@@ -295,7 +292,7 @@ class HeaderScheme(Scheme):
         super().__init__(**kwargs)
         self.header = header
 
-    def extract(self, request: Request) -> Optional[str]:
+    def extract(self, request: Request) -> str | None:
         """Return header value from request if provided, otherwise None."""
         try:
             return request.headers[self.header]
@@ -336,7 +333,7 @@ async def _subordinate(resource, segment: str):
 class InQuery:
     """
     Annotation to indicate an operation parameter is expected in a request query string
-    parameter.  This is the default annotation for query operation parameters.
+    parameter. This is the default annotation for query operation parameters.
 
     If the InQuery class is used as the annotation instead of an InQuery(name=...) instance,
     then the name of the query string parameter will be the name of the operation parameter.
@@ -347,7 +344,7 @@ class InQuery:
 
     __slots__ = {"name"}
 
-    def __init__(self, name):
+    def __init__(self, name: str):
         self.name = name
 
     def __str__(self):
@@ -371,7 +368,7 @@ class InBody:
 
     __slots__ = {"name"}
 
-    def __init__(self, name):
+    def __init__(self, name: str):
         self.name = name
 
     def __str__(self):
@@ -505,7 +502,7 @@ class Application:
 
     def __init__(
         self,
-        root: type,
+        root: Any,
         *,
         filters: Iterable[Any] = (simple_error_filter,),
         path: str = "/",

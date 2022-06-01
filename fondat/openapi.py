@@ -12,6 +12,7 @@ import functools
 import http
 import inspect
 import keyword
+import types
 import typing
 
 from collections.abc import Iterable, Mapping
@@ -19,8 +20,9 @@ from datetime import date, datetime
 from decimal import Decimal
 from fondat.data import datacls
 from fondat.security import Policy
-from fondat.types import NoneType, is_instance, is_optional, is_subclass
-from typing import Annotated, Any, Literal, Optional, TypedDict, Union
+from fondat.types import is_instance, is_optional, is_subclass
+from types import NoneType
+from typing import Annotated, Any, Literal, TypedDict
 from uuid import UUID
 
 
@@ -63,103 +65,103 @@ _affix(Reference)
 class OpenAPI:
     openapi: str
     info: Info
-    servers: Optional[Iterable[Server]]
+    servers: Iterable[Server] | None
     paths: Paths
-    components: Optional[Components]
-    security: Optional[Iterable[SecurityRequirement]]
-    tags: Optional[Iterable[Tag]]
-    externalDocs: Optional[ExternalDocumentation]
+    components: Components | None
+    security: Iterable[SecurityRequirement] | None
+    tags: Iterable[Tag] | None
+    externalDocs: ExternalDocumentation | None
 
 
 @_datacls
 class Info:
     title: str
-    description: Optional[str]
-    termsOfService: Optional[str]
-    contact: Optional[Contact]
-    license: Optional[License]
+    description: str | None
+    termsOfService: str | None
+    contact: Contact | None
+    license: License | None
     version: str
 
 
 @_datacls
 class Contact:
-    name: Optional[str]
-    url: Optional[str]
-    email: Optional[str]
+    name: str | None
+    url: str | None
+    email: str | None
 
 
 @_datacls
 class License:
     name: str
-    url: Optional[str]
+    url: str | None
 
 
 @_datacls
 class Server:
     url: str
-    description: Optional[str]
+    description: str | None
     variables: Mapping[str, ServerVariable]
 
 
 @_datacls
 class ServerVariable:
-    enum: Optional[Iterable[str]]
+    enum: Iterable[str] | None
     default: str = ""
-    description: Optional[str] = ""
+    description: str | None = ""
 
 
 @_datacls
 class Components:
-    schemas: Optional[Mapping[str, Union[Schema, Reference]]]
-    responses: Optional[Mapping[str, Union[Response, Reference]]]
-    parameters: Optional[Mapping[str, Union[Parameter, Reference]]]
-    examples: Optional[Mapping[str, Union[Example, Reference]]]
-    requestBodies: Optional[Mapping[str, Union[RequestBody, Reference]]]
-    headers: Optional[Mapping[str, Union[Header, Reference]]]
-    securitySchemes: Optional[Mapping[str, Union[SecurityScheme, Reference]]]
-    links: Optional[Mapping[str, Union[Link, Reference]]]
-    callbacks: Optional[Mapping[str, Union[Callback, Reference]]]
+    schemas: Mapping[str, Schema | Reference] | None
+    responses: Mapping[str, Response | Reference] | None
+    parameters: Mapping[str, Parameter | Reference] | None
+    examples: Mapping[str, Example | Reference] | None
+    requestBodies: Mapping[str, RequestBody | Reference] | None
+    headers: Mapping[str, Header | Reference] | None
+    securitySchemes: Mapping[str, SecurityScheme | Reference] | None
+    links: Mapping[str, Link | Reference] | None
+    callbacks: Mapping[str, Callback | Reference] | None
 
 
 @_datacls
 class PathItem:
-    summary: Optional[str]
-    description: Optional[str]
-    get: Optional[Operation]
-    put: Optional[Operation]
-    post: Optional[Operation]
-    delete: Optional[Operation]
-    options: Optional[Operation]
-    head: Optional[Operation]
-    patch: Optional[Operation]
-    trace: Optional[Operation]
-    servers: Optional[Iterable[Server]]
-    parameters: Optional[Iterable[Union[Parameter, Reference]]]
+    summary: str | None
+    description: str | None
+    get: Operation | None
+    put: Operation | None
+    post: Operation | None
+    delete: Operation | None
+    options: Operation | None
+    head: Operation | None
+    patch: Operation | None
+    trace: Operation | None
+    servers: Iterable[Server] | None
+    parameters: Iterable[Parameter | Reference] | None
 
 
-Paths = Mapping[str, Union[PathItem, Reference]]
+Paths = Mapping[str, PathItem | Reference]
 _affix(Paths)
 
 
 @_datacls
 class Operation:
-    tags: Optional[Iterable[str]]
-    summary: Optional[str]
-    description: Optional[str]
-    externalDocs: Optional[ExternalDocumentation]
-    operationId: Optional[str]
-    parameters: Optional[Iterable[Union[Parameter, Reference]]]
-    requestBody: Optional[Union[RequestBody, Reference]]
+    tags: Iterable[str] | None
+    summary: str | None
+    description: str | None
+    externalDocs: ExternalDocumentation | None
+    operationId: str | None
+    parameters: Iterable[Parameter | Reference] | None
+    requestBody: RequestBody | Reference | None
     responses: Responses
-    callbacks: Optional[Mapping[str, Union[Callback, Reference]]]
-    deprecated: Optional[bool]
-    security: Optional[Iterable[SecurityRequirement]]
-    servers: Optional[Iterable[Server]]
+    callbacks: Mapping[str, Callback | Reference] | None
+    deprecated: bool | None
+    security: Iterable[SecurityRequirement] | None
+    servers: Iterable[Server] | None
 
 
 @_datacls
 class ExternalDocumentation:
-    description: Optional[str]
+    description: str | None
     url: str
 
 
@@ -167,52 +169,52 @@ class ExternalDocumentation:
 class Parameter:
     name: str
     in_: Literal["query", "header", "path", "cookie"]
-    description: Optional[str]
-    required: Optional[bool]
-    deprecated: Optional[bool]
-    allowEmptyValue: Optional[bool]
-    style: Optional[str]
-    explode: Optional[bool]
-    allowReserved: Optional[bool]
-    schema: Optional[Union[Schema, Reference]]
-    example: Optional[Any]
-    examples: Optional[Mapping[str, Union[Example, Reference]]]
-    content: Optional[Mapping[str, MediaType]]
+    description: str | None
+    required: bool | None
+    deprecated: bool | None
+    allowEmptyValue: bool | None
+    style: str | None
+    explode: bool | None
+    allowReserved: bool | None
+    schema: Schema | Reference | None
+    example: Any | None
+    examples: Mapping[str, Example | Reference] | None
+    content: Mapping[str, MediaType] | None
 
 
 @_datacls
 class RequestBody:
-    description: Optional[str]
+    description: str | None
     content: Mapping[str, MediaType]
-    required: Optional[bool]
+    required: bool | None
 
 
 @_datacls
 class MediaType:
-    schema: Optional[Union[Schema, Reference]]
-    example: Optional[Any]
-    examples: Optional[Mapping[str, Union[Example, Reference]]]
-    encoding: Optional[Mapping[str, Encoding]]
+    schema: Schema | Reference | None
+    example: Any | None
+    examples: Mapping[str, Example | Reference] | None
+    encoding: Mapping[str, Encoding] | None
 
 
 @_datacls
 class Encoding:
-    contentType: Optional[str]
-    headers: Optional[Mapping[str, Union[Header, Reference]]]
-    style: Optional[str]
-    explode: Optional[bool]
-    allowReserved: Optional[bool]
+    contentType: str | None
+    headers: Mapping[str, Header | Reference] | None
+    style: str | None
+    explode: bool | None
+    allowReserved: bool | None
 
 
 @_datacls
 class Response:
     description: str
-    headers: Optional[Mapping[str, Union[Header, Reference]]]
-    content: Optional[Mapping[str, MediaType]]
-    links: Optional[Mapping[str, Union[Link, Reference]]]
+    headers: Mapping[str, Header | Reference] | None
+    content: Mapping[str, MediaType] | None
+    links: Mapping[str, Link | Reference] | None
 
 
-Responses = Mapping[str, Union[Response, Reference]]
+Responses = Mapping[str, Response | Reference]
 _affix(Responses)
 
 
@@ -222,123 +224,123 @@ _affix(Callback)
 
 @_datacls
 class Example:
-    summary: Optional[str]
-    description: Optional[str]
-    value: Optional[Any]
-    externalValue: Optional[str]
+    summary: str | None
+    description: str | None
+    value: Any | None
+    externalValue: str | None
 
 
 @_datacls
 class Link:
-    operationRef: Optional[str]
-    operationId: Optional[str]
-    parameters: Optional[Mapping[str, Any]]
-    requestBody: Optional[Any]
-    description: Optional[str]
-    server: Optional[Server]
+    operationRef: str | None
+    operationId: str | None
+    parameters: Mapping[str, Any] | None
+    requestBody: Any | None
+    description: str | None
+    server: Server | None
 
 
 @_datacls
 class Header:
-    description: Optional[str]
-    required: Optional[bool]
-    deprecated: Optional[bool]
-    allowEmptyValue: Optional[bool]
-    style: Optional[str]
-    explode: Optional[bool]
-    allowReserved: Optional[bool]
-    schema: Optional[Union[Schema, Reference]]
-    example: Optional[Any]
-    examples: Optional[Mapping[str, Union[Example, Reference]]]
-    content: Optional[Mapping[str, MediaType]]
+    description: str | None
+    required: bool | None
+    deprecated: bool | None
+    allowEmptyValue: bool | None
+    style: str | None
+    explode: bool | None
+    allowReserved: bool | None
+    schema: Schema | Reference | None
+    example: Any | None
+    examples: Mapping[str, Example | Reference] | None
+    content: Mapping[str, MediaType] | None
 
 
 @_datacls
 class Tag:
     name: str
-    description: Optional[str]
-    externalDocs: Optional[ExternalDocumentation]
+    description: str | None
+    externalDocs: ExternalDocumentation | None
 
 
 @_datacls
 class Schema:
-    title: Optional[str]
-    multipleOf: Optional[Union[int, float]]
-    maximum: Optional[Union[int, float]]
-    exclusiveMaximum: Optional[Union[int, float]]
-    minimum: Optional[Union[int, float]]
-    exclusiveMinimum: Optional[Union[int, float]]
-    maxLength: Optional[int]
-    minLength: Optional[int]
-    pattern: Optional[str]
-    maxItems: Optional[int]
-    minItems: Optional[int]
-    uniqueItems: Optional[bool]
-    maxProperties: Optional[int]
-    minProperties: Optional[int]
-    required: Optional[Iterable[str]]
-    enum: Optional[Iterable[Any]]
-    type: Optional[str]
-    allOf: Optional[Iterable[Union[Schema, Reference]]]
-    oneOf: Optional[Iterable[Union[Schema, Reference]]]
-    anyOf: Optional[Iterable[Union[Schema, Reference]]]
-    not_: Optional[Union[Schema, Reference]]
-    items: Optional[Union[Schema, Reference]]
-    properties: Optional[Mapping[str, Union[Schema, Reference]]]
-    additionalProperties: Optional[Union[bool, Union[Schema, Reference]]]
-    description: Optional[str]
-    format: Optional[str]
-    default: Optional[Any]
-    nullable: Optional[bool]
-    discriminator: Optional[Discriminator]
-    readOnly: Optional[bool]
-    writeOnly: Optional[bool]
-    xml: Optional[XML]
-    externalDocs: Optional[ExternalDocumentation]
-    example: Optional[Any]
-    deprecated: Optional[bool]
+    title: str | None
+    multipleOf: int | float | None
+    maximum: int | float | None
+    exclusiveMaximum: int | float | None
+    minimum: int | float | None
+    exclusiveMinimum: int | float | None
+    maxLength: int | None
+    minLength: int | None
+    pattern: str | None
+    maxItems: int | None
+    minItems: int | None
+    uniqueItems: bool | None
+    maxProperties: int | None
+    minProperties: int | None
+    required: Iterable[str] | None
+    enum: Iterable[Any] | None
+    type: str | None
+    allOf: Iterable[Schema | Reference] | None
+    oneOf: Iterable[Schema | Reference] | None
+    anyOf: Iterable[Schema | Reference] | None
+    not_: Schema | Reference | None
+    items: Schema | Reference | None
+    properties: Mapping[str, Schema | Reference] | None
+    additionalProperties: bool | Schema | Reference | None
+    description: str | None
+    format: str | None
+    default: Any | None
+    nullable: bool | None
+    discriminator: Discriminator | None
+    readOnly: bool | None
+    writeOnly: bool | None
+    xml: XML | None
+    externalDocs: ExternalDocumentation | None
+    example: Any | None
+    deprecated: bool | None
 
 
 @_datacls
 class Discriminator:
     propertyName: str
-    mapping: Optional[Mapping[str, str]]
+    mapping: Mapping[str, str] | None
 
 
 @_datacls
 class XML:
-    name: Optional[str]
-    namespace: Optional[str]
-    prefix: Optional[str]
-    attribute: Optional[bool]
-    wrapped: Optional[bool]
+    name: str | None
+    namespace: str | None
+    prefix: str | None
+    attribute: bool | None
+    wrapped: bool | None
 
 
 @_datacls
 class SecurityScheme:
     type: str
-    description: Optional[str]
-    name: Optional[str]
-    in_: Optional[str]
-    scheme: Optional[str]
-    bearerFormat: Optional[str]
-    flows: Optional[OAuthFlows]
-    openIdConnectUrl: Optional[str]
+    description: str | None
+    name: str | None
+    in_: str | None
+    scheme: str | None
+    bearerFormat: str | None
+    flows: OAuthFlows | None
+    openIdConnectUrl: str | None
 
 
 @_datacls
 class OAuthFlows:
-    implicit: Optional[OAuthFlow]
-    password: Optional[OAuthFlow]
-    clientCredentials: Optional[OAuthFlow]
-    authorizationCode: Optional[OAuthFlow]
+    implicit: OAuthFlow | None
+    password: OAuthFlow | None
+    clientCredentials: OAuthFlow | None
+    authorizationCode: OAuthFlow | None
 
 
 @_datacls
 class OAuthFlow:
-    authorizationUrl: Optional[str]
-    tokenUrl: Optional[str]
-    refreshUrl: Optional[str]
+    authorizationUrl: str | None
+    tokenUrl: str | None
+    refreshUrl: str | None
     scopes: Mapping[str, str]
 
 
@@ -578,10 +580,10 @@ def _dataclass_schema(*, python_type, annotated, origin, args, processor, **_):
 
 @_provider
 def _union_schema(*, python_type, annotated, origin, args, processor, **_):
-    if origin is Union:
+    if origin in {types.UnionType, typing.Union}:
         nullable = NoneType in args
         schemas = [processor.schema(arg) for arg in args if arg is not NoneType]
-        if len(schemas) == 1:  # Optional[...]
+        if len(schemas) == 1:  # optional
             schema = schemas[0]
             if not fondat.validation.is_valid(schema, Reference):
                 schema.nullable = True
@@ -751,13 +753,13 @@ class Processor:
                 else:
                     origin = typing.get_origin(python_type)
                     args = typing.get_args(python_type)
-                    if origin is typing.Union and NoneType in args:
+                    if origin in {types.UnionType, typing.Union} and NoneType in args:
                         op.responses[str(http.HTTPStatus.NO_CONTENT.value)] = Response(
                             description="No content.",
                         )
-                        python_type = typing.Union[
-                            tuple(arg for arg in args if arg is not NoneType)
-                        ]
+                        python_type = fondat.types.union_type(
+                            arg for arg in args if arg is not None
+                        )
                         hint = (
                             Annotated[tuple([python_type, *annotated])]
                             if annotated
@@ -892,9 +894,9 @@ def openapi_resource(
     resource: type,
     path: str = "/",
     info: Info,
-    policies: Optional[Iterable[Policy]] = None,
+    policies: Iterable[Policy] | None = None,
     publish: bool = False,
-):
+) -> Any:
     """
     Generate a resource that exposes an OpenAPI document for a given resource.
 

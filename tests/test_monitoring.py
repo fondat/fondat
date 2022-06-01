@@ -1,12 +1,12 @@
-import pytest
-
 import asyncio
 import fondat.codec
 import fondat.monitoring
+import pytest
 
 from datetime import datetime, timedelta, timezone
 from fondat.codec import String, get_codec
 from fondat.monitoring import Measurement
+
 
 _tags = {"name": "test"}
 

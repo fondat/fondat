@@ -1,10 +1,19 @@
 import pytest
 
 from dataclasses import make_dataclass
-from decimal import Decimal
-from fondat.validation import MinLen, MaxLen, Pattern, MinValue, MaxValue, ValidationError
-from fondat.validation import validate, validate_arguments, validate_return_value
 from datetime import date, datetime, timezone
+from decimal import Decimal
+from fondat.validation import (
+    MaxLen,
+    MaxValue,
+    MinLen,
+    MinValue,
+    Pattern,
+    ValidationError,
+    validate,
+    validate_arguments,
+    validate_return_value,
+)
 from typing import Annotated, Literal, Optional, T, TypedDict, Union
 from uuid import UUID
 

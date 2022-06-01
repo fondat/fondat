@@ -3,11 +3,11 @@
 import dataclasses
 import functools
 
-from fondat.annotation import Password
 from collections.abc import Iterable, Mapping
 from dataclasses import is_dataclass
+from fondat.annotation import Password
 from fondat.types import is_optional, is_subclass, split_annotated, strip_optional
-from typing import Any, Optional, TypedDict, Union, get_type_hints
+from typing import Any, TypedDict, get_type_hints
 
 
 def _datacls_init(dc: Any):
@@ -47,9 +47,8 @@ def datacls(cls: type, init: bool = True, **kwargs) -> type:
     • initialization method only processes keyword arguments
     • initialization method ignores unexpected keyword arguments
     • fields (with default values or not) can be declared in any order
-    • Optional[...] fields default to None if no default value is specified
+    • optional fields default to None if no default value is specified
     """
-
     dc = dataclasses.dataclass(cls, init=False, **kwargs)
     if init:
         dc.__init__ = _datacls_init(dc)
@@ -58,7 +57,7 @@ def datacls(cls: type, init: bool = True, **kwargs) -> type:
 
 def make_datacls(
     cls_name: str,
-    fields: Iterable[Union[tuple[str, type], tuple[str, type, dataclasses.Field]]],
+    fields: Iterable[tuple[str, type] | tuple[str, type, dataclasses.Field]],
     init: bool = True,
     **kwargs,
 ) -> type:
@@ -73,7 +72,6 @@ def make_datacls(
 
     Keyword arguments are passed on to the dataclasses.make_dataclass function.
     """
-
     dataclass = dataclasses.make_dataclass(
         cls_name=cls_name,
         fields=fields,
@@ -91,8 +89,8 @@ def derive_datacls(
     *,
     include: set[str] = None,
     exclude: set[str] = None,
-    append: Iterable[Union[tuple[str, type], tuple[str, type, dataclasses.Field]]] = None,
-    optional: Union[set[str], bool] = False,
+    append: Iterable[tuple[str, type] | tuple[str, type, dataclasses.Field]] = None,
+    optional: set[str] | bool = False,
     **kwargs,
 ) -> type:
     """
@@ -120,7 +118,7 @@ def derive_datacls(
 
     def _type(f):
         if optional is True or (optional is not False and f.name in optional):
-            return Optional[f.type]
+            return f.type | None
         return f.type
 
     def _field(f):
@@ -234,9 +232,14 @@ def copy_data(
     return target(**kwargs)
 
 
-def redact_passwords(hint: Any, value: Any, redaction: str = "__REDACTED__"):
+def redact_passwords(hint: Any, value: Any, redaction: str = "__REDACTED__") -> None:
     """
     Redact password fields in dataclass or TypedDict value.
+
+    Parameters:
+    • hint: type hint containing type of value to redact
+    • value: value to be redacted
+    • redaction: string replace redacted values with
     """
     if is_dataclass(value):
         getter, setter = functools.partial(getattr, value), functools.partial(setattr, value)

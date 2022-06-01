@@ -3,13 +3,13 @@
 import dataclasses
 
 from collections.abc import Mapping, Sequence
-from fondat.codec import Codec, String, get_codec, DecodeError
+from fondat.codec import Codec, DecodeError, String, get_codec
 from fondat.data import derive_typeddict
 from fondat.types import is_optional, is_subclass
-from typing import Any, Optional, get_type_hints
+from typing import Any, get_type_hints
 
 
-def _round(value: Any, precision: Optional[int]) -> str:
+def _round(value: Any, precision: int | None) -> str:
     if precision is None:  # floating point
         value = str(value)
         if "." in value:
@@ -21,7 +21,7 @@ def _round(value: Any, precision: Optional[int]) -> str:
 
 
 def currency_codec(
-    python_type: Any, prefix: str = "", suffix: str = "", precision: Optional[int] = None
+    python_type: Any, prefix: str = "", suffix: str = "", precision: int | None = None
 ):
     """
     Return a codec that encodes/decodes a number as a currency value; optionally encodes with
@@ -100,9 +100,9 @@ def fixed_codec(python_type: Any, precision: int):
 
 def typeddict_codec(
     typeddict: Any,
-    columns: Optional[Sequence[str]] = None,
-    keys: Optional[Mapping[str, str]] = None,
-    codecs: Optional[Mapping[str, Any]] = None,
+    columns: Sequence[str] | None = None,
+    keys: Mapping[str, str] | None = None,
+    codecs: Mapping[str, Any] | None = None,
 ):
     """
     Return a codec that encodes/decodes a typed dictionary to/from a CSV row. A CSV row is

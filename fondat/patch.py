@@ -3,7 +3,7 @@
 import collections.abc
 
 from copy import deepcopy
-from fondat.codec import get_codec, JSON
+from fondat.codec import JSON, get_codec
 from typing import Any
 
 
@@ -56,7 +56,7 @@ def _json_merge_diff(old: Any, new: Any) -> Any:
         return new
 
 
-def json_merge_diff(*, old: Any, new: Any, type: type = Any) -> Any:
+def json_merge_diff(*, old: Any, new: Any, type: Any = Any) -> Any:
     """
     Return a JSON Merge Patch document per RFC 7386, the result of comparing the JSON
     representations of specified old and new values.

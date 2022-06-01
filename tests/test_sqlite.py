@@ -1,5 +1,3 @@
-import pytest
-
 import asyncio
 import contextlib
 import fondat.error
@@ -7,11 +5,12 @@ import fondat.patch
 import fondat.sql as sql
 import fondat.sqlite as sqlite
 import logging
+import pytest
 import tempfile
 
 from datetime import date, datetime
 from fondat.data import datacls, make_datacls
-from typing import Optional, TypedDict
+from typing import TypedDict
 from uuid import UUID, uuid4
 
 
@@ -23,18 +22,18 @@ pytestmark = pytest.mark.asyncio
 @datacls
 class DC:
     key: UUID
-    str_: Optional[str]
-    dict_: Optional[TypedDict("TD", {"a": Optional[int], "b": Optional[int]}, total=False)]
-    list_: Optional[list[int]]
-    set_: Optional[set[str]]
-    int_: Optional[int]
-    float_: Optional[float]
-    bool_: Optional[bool]
-    bytes_: Optional[bytes]
-    date_: Optional[date]
-    datetime_: Optional[datetime]
-    tuple_: Optional[tuple[str, int, float]]
-    tuple_ellipsis: Optional[tuple[int, ...]]
+    str_: str | None
+    dict_: TypedDict("TD", {"a": int | None, "b": int | None}, total=False) | None
+    list_: list[int] | None
+    set_: set[str] | None
+    int_: int | None
+    float_: float | None
+    bool_: bool | None
+    bytes_: bytes | None
+    date_: date | None
+    datetime_: datetime | None
+    tuple_: tuple[str, int, float] | None
+    tuple_ellipsis: tuple[int, ...] | None
 
 
 @pytest.fixture(scope="function")  # FIXME: scope to module with event_loop fixture?

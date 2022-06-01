@@ -7,13 +7,12 @@ import urllib.parse
 from collections.abc import Awaitable, Callable, Mapping
 from fondat.error import InternalServerError
 from fondat.stream import Stream
-from typing import Optional
 
 
 _logger = logging.getLogger(__name__)
 
 
-def _int(s: str):
+def _int(s: str) -> int:
     result = None
     if s is not None:
         try:
@@ -51,7 +50,7 @@ class ReceiveStream(Stream):
 
 
 def asgi_app(
-    handler: Callable, startup: Optional[Callable] = None, shutdown: Optional[Callable] = None
+    handler: Callable, startup: Callable | None = None, shutdown: Callable | None = None
 ) -> Callable:
     """
     Expose a Fondat HTTP request handler as an ASGI application.

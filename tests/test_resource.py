@@ -1,12 +1,11 @@
-import pytest
-
 import fondat.resource
+import pytest
 
 from dataclasses import dataclass
 from fondat.annotation import Description
 from fondat.error import BadRequestError
-from fondat.resource import resource, operation, query, mutation
-from typing import Annotated, Optional
+from fondat.resource import mutation, operation, query, resource
+from typing import Annotated
 from uuid import UUID
 
 
@@ -15,8 +14,8 @@ pytestmark = pytest.mark.asyncio
 
 @dataclass
 class Body:
-    key: Optional[UUID] = None
-    foo: Optional[str] = None
+    key: UUID | None = None
+    foo: str | None = None
 
 
 @resource

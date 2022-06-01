@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import csv
 import dataclasses
+import fondat.types
 import functools
 import io
 import iso8601
@@ -17,23 +18,22 @@ from contextlib import contextmanager
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from fondat.types import (
-    NoneType,
     affix_type_hints,
     is_optional,
     is_subclass,
     is_typeddict,
     split_annotated,
 )
+from types import NoneType, UnionType
 from typing import (
     Any,
     Generic,
     Literal,
-    Optional,
-    TypeVar,
     TypedDict,
+    TypeVar,
     Union,
-    get_origin,
     get_args,
+    get_origin,
     get_type_hints,
 )
 from uuid import UUID
@@ -66,9 +66,7 @@ class CodecError(ValueError):
 
     __slots__ = {"message", "path"}
 
-    def __init__(
-        self, message: Optional[str] = None, path: Optional[list[Union[str, int]]] = None
-    ):
+    def __init__(self, message: str | None = None, path: list[str | int] | None = None):
         self.message = message
         self.path = path
 
@@ -80,7 +78,7 @@ class CodecError(ValueError):
 
     @staticmethod
     @contextmanager
-    def path_on_error(path: Union[list[Union[str, int]], str, int]):
+    def path_on_error(path: list[str | int] | str | int) -> None:
         """Context manager to add to error path in the event that a DecodeError is raised."""
         try:
             yield
@@ -125,7 +123,7 @@ class String(Codec[F, str]):
     """Encodes Python types to/from Unicode string representations."""
 
 
-class Binary(Codec[F, Union[bytes, bytearray]]):
+class Binary(Codec[F, bytes | bytearray]):
     """
     Encodes Python types to/from binary representations.
 
@@ -187,7 +185,7 @@ class _Str_Binary(Binary[str]):
         with _wrap(EncodeError):
             return value.encode()
 
-    def decode(self, value: Union[bytes, bytearray]) -> str:
+    def decode(self, value: bytes | bytearray) -> str:
         return _b2s(value)
 
 
@@ -244,17 +242,17 @@ def _str(codec_type, python_type):
 
 
 @affix_type_hints
-class _Bytes_Binary(Binary[Union[bytes, bytearray]]):
+class _Bytes_Binary(Binary[bytes | bytearray]):
     """Binary codec for byte sequences."""
 
     content_type = "application/octet-stream"
 
-    def encode(self, value: Union[bytes, bytearray]) -> Union[bytes, bytearray]:
+    def encode(self, value: bytes | bytearray) -> bytes | bytearray:
         if not isinstance(value, (bytes, bytearray)):
             raise EncodeError
         return value
 
-    def decode(self, value: Union[bytes, bytearray]) -> Union[bytes, bytearray]:
+    def decode(self, value: bytes | bytearray) -> bytes | bytearray:
         if not isinstance(value, (bytes, bytearray)):
             raise DecodeError
         return value
@@ -264,13 +262,13 @@ _bytes_binarycodec = _Bytes_Binary()
 
 
 @affix_type_hints
-class _Bytes_String(String[Union[bytes, bytearray]]):
+class _Bytes_String(String[bytes | bytearray]):
     """
     String codec for byte sequences. A byte sequence is represented in string values as a
     base64-encoded string. Example: "SGVsbG8gRm9uZGF0".
     """
 
-    def encode(self, value: Union[bytes, bytearray]) -> str:
+    def encode(self, value: bytes | bytearray) -> str:
         if not isinstance(value, (bytes, bytearray)):
             raise EncodeError
         with _wrap(EncodeError):
@@ -287,7 +285,7 @@ _bytes_stringcodec = _Bytes_String()
 
 
 @affix_type_hints
-class _Bytes_JSON(JSON[Union[bytes, bytearray]]):
+class _Bytes_JSON(JSON[bytes | bytearray]):
     """
     JSON codec for byte sequences. A byte sequence is represented in JSON values as a
     base64-encoded string. Example: "SGVsbG8gRm9uZGF0".
@@ -295,7 +293,7 @@ class _Bytes_JSON(JSON[Union[bytes, bytearray]]):
 
     json_type = str
 
-    def encode(self, value: Union[bytes, bytearray]) -> str:
+    def encode(self, value: bytes | bytearray) -> str:
         return _bytes_stringcodec.encode(value)
 
     def decode(self, value: str) -> bytes:
@@ -348,7 +346,7 @@ class _Int_Binary(Binary[int]):
     def encode(self, value: int) -> bytes:
         return _int_stringcodec.encode(value).encode()
 
-    def decode(self, value: Union[bytes, bytearray]) -> int:
+    def decode(self, value: bytes | bytearray) -> int:
         return _int_stringcodec.decode(_b2s(value))
 
 
@@ -359,14 +357,14 @@ _int_binarycodec = _Int_Binary()
 class _Int_JSON(JSON[int]):
     """JSON codec for integers."""
 
-    json_type = Union[int, float]
+    json_type = int | float
 
     def encode(self, value: int) -> int:
         if not isinstance(value, int) or isinstance(value, bool):
             raise EncodeError
         return value
 
-    def decode(self, value: Union[int, float]) -> int:
+    def decode(self, value: int | float) -> int:
         if not isinstance(value, (int, float)) or isinstance(value, bool):
             raise DecodeError
         result = value
@@ -423,7 +421,7 @@ class _Float_Binary(Binary[float]):
     def encode(self, value: float) -> bytes:
         return _float_stringcodec.encode(value).encode()
 
-    def decode(self, value: Union[bytes, bytearray]) -> float:
+    def decode(self, value: bytes | bytearray) -> float:
         return _float_stringcodec.decode(_b2s(value))
 
 
@@ -434,14 +432,14 @@ _float_binarycodec = _Float_Binary()
 class _Float_JSON(JSON[float]):
     """JSON codec for floating point numbers."""
 
-    json_type = Union[int, float]
+    json_type = int | float
 
     def encode(self, value: float) -> float:
         if not isinstance(value, float):
             raise EncodeError
         return value
 
-    def decode(self, value: Union[int, float]) -> float:
+    def decode(self, value: int | float) -> float:
         if not isinstance(value, (int, float)) or isinstance(value, bool):
             raise DecodeError
         return float(value)
@@ -495,7 +493,7 @@ class _Bool_Binary(Binary[bool]):
     def encode(self, value: bool) -> bytes:
         return _bool_stringcodec.encode(value).encode()
 
-    def decode(self, value: Union[bytes, bytearray]) -> bool:
+    def decode(self, value: bytes | bytearray) -> bool:
         return _bool_stringcodec.decode(_b2s(value))
 
 
@@ -566,7 +564,7 @@ class _NoneType_Binary(Binary[NoneType]):
             raise EncodeError
         return b""
 
-    def decode(self, value: Union[bytes, bytearray]) -> NoneType:
+    def decode(self, value: bytes | bytearray) -> NoneType:
         if value != b"":
             raise DecodeError
         return None
@@ -638,7 +636,7 @@ class _Decimal_Binary(Binary[Decimal]):
     def encode(self, value: Decimal) -> bytes:
         return _decimal_string.encode(value).encode()
 
-    def decode(self, value: Union[bytes, bytearray]) -> Decimal:
+    def decode(self, value: bytes | bytearray) -> Decimal:
         return _decimal_string.decode(_b2s(value))
 
 
@@ -713,7 +711,7 @@ class _Date_Binary(Binary[date]):
     def encode(self, value: date) -> bytes:
         return _date_stringcodec.encode(value).encode()
 
-    def decode(self, value: Union[bytes, bytearray]) -> date:
+    def decode(self, value: bytes | bytearray) -> date:
         return _date_stringcodec.decode(_b2s(value))
 
 
@@ -812,7 +810,7 @@ class _Datetime_Binary(Binary[datetime]):
     def encode(self, value: datetime) -> bytes:
         return _datetime_stringcodec.encode(value).encode()
 
-    def decode(self, value: Union[bytes, bytearray]) -> datetime:
+    def decode(self, value: bytes | bytearray) -> datetime:
         return _datetime_stringcodec.decode(_b2s(value))
 
 
@@ -887,7 +885,7 @@ class _UUID_Binary(Binary[UUID]):
     def encode(self, value: UUID) -> bytes:
         return _uuid_stringcodec.encode(value).encode()
 
-    def decode(self, value: Union[bytes, bytearray]) -> UUID:
+    def decode(self, value: bytes | bytearray) -> UUID:
         return _uuid_stringcodec.decode(_b2s(value))
 
 
@@ -1011,7 +1009,7 @@ def _typeddict(codec_type, python_type):
             def encode(self, value: python_type) -> bytes:
                 return string_codec.encode(value).encode()
 
-            def decode(self, value: Union[bytes, bytearray]) -> python_type:
+            def decode(self, value: bytes | bytearray) -> python_type:
                 return string_codec.decode(_b2s(value))
 
         return _TypedDict_Binary()
@@ -1116,7 +1114,7 @@ def _tuple(codec_type, python_type):
             def encode(self, value: python_type) -> bytes:
                 return json.dumps(json_codec.encode(value)).encode()
 
-            def decode(self, value: Union[bytes, bytearray]) -> python_type:
+            def decode(self, value: bytes | bytearray) -> python_type:
                 return json_codec.decode(_s2j(_b2s(value)))
 
         return _Tuple_Binary()
@@ -1202,7 +1200,7 @@ def _mapping(codec_type, python_type):
                     raise EncodeError
                 return string_codec.encode(value).encode()
 
-            def decode(self, value: Union[bytes, bytearray]) -> python_type:
+            def decode(self, value: bytes | bytearray) -> python_type:
                 return string_codec.decode(_b2s(value))
 
         return _Mapping_Binary()
@@ -1307,7 +1305,7 @@ def _iterable(codec_type, python_type):
                     raise EncodeError
                 return json.dumps(json_codec.encode(value)).encode()
 
-            def decode(self, value: Union[bytes, bytearray]) -> python_type:
+            def decode(self, value: bytes | bytearray) -> python_type:
                 return json_codec.decode(_s2j(_b2s(value)))
 
         return _Iterable_Binary()
@@ -1425,22 +1423,21 @@ def dataclass_codec(codec_type, python_type):
             def encode(self, value: python_type) -> bytes:
                 return string_codec.encode(value).encode()
 
-            def decode(self, value: Union[bytes, bytearray]) -> python_type:
+            def decode(self, value: bytes | bytearray) -> python_type:
                 return string_codec.decode(_b2s(value))
 
         return _Dataclass_Binary()
 
 
-# ----- Union -----
+# ----- UnionType/Union -----
 
 
 @_provider
 def _union(codec_type, python_type):
 
     python_type, _ = split_annotated(python_type)
-    origin = get_origin(python_type)
 
-    if origin is not Union:
+    if get_origin(python_type) not in {UnionType, Union}:
         return
 
     types = get_args(python_type)
@@ -1488,7 +1485,7 @@ def _union(codec_type, python_type):
                     return b""
                 return _encode(value)
 
-            def decode(self, value: Union[bytes, bytearray]) -> python_type:
+            def decode(self, value: bytes | bytearray) -> python_type:
                 if not isinstance(value, (bytes, bytearray)):
                     raise DecodeError
                 return _decode(value)
@@ -1497,7 +1494,7 @@ def _union(codec_type, python_type):
 
     if codec_type is JSON:
 
-        _json_type = Union[tuple(codec.json_type for codec in codecs)]
+        _json_type = fondat.types.union_type(codec.json_type for codec in codecs)
 
         @affix_type_hints(localns=locals())
         class _Union_JSON(JSON[python_type]):
@@ -1565,7 +1562,7 @@ def _literal(codec_type, python_type):
             def encode(self, value: python_type) -> bytes:
                 return get_codec(Binary, type(value)).encode(value)
 
-            def decode(self, value: Union[bytes, bytearray]) -> python_type:
+            def decode(self, value: bytes | bytearray) -> python_type:
                 if not isinstance(value, (bytes, bytearray)):
                     raise DecodeError
                 return decode(codecs, value)
@@ -1575,7 +1572,7 @@ def _literal(codec_type, python_type):
     if codec_type is JSON:
 
         codecs = tuple(get_codec(JSON, literal[0]) for literal in literals)
-        _json_type = Union[tuple(codec.json_type for codec in codecs)]
+        _json_type = fondat.types.union_type(codec.json_type for codec in codecs)
 
         @affix_type_hints(localns=locals())
         class _Literal_JSON(JSON[python_type]):
@@ -1617,7 +1614,7 @@ class _Any_Binary(Binary[Any]):
     def encode(self, value: Any) -> bytes:
         return get_codec(Binary, type(value)).encode(value)
 
-    def decode(self, value: Union[bytes, bytearray]) -> Union[bytes, bytearray]:
+    def decode(self, value: bytes | bytearray) -> bytes | bytearray:
         if not isinstance(value, (bytes, bytearray)):
             raise DecodeError
         return value

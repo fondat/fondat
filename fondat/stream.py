@@ -1,10 +1,9 @@
 """Module for content streaming."""
 
 from collections.abc import AsyncIterator
-from typing import Union
 
 
-class Stream(AsyncIterator[Union[bytes, bytearray]]):
+class Stream(AsyncIterator[bytes | bytearray]):
     """
     Base class to represent content as an asynchronous stream of bytes.
 
@@ -20,7 +19,7 @@ class Stream(AsyncIterator[Union[bytes, bytearray]]):
     def __aiter__(self):
         return self
 
-    async def __anext__(self) -> Union[bytes, bytearray]:
+    async def __anext__(self) -> bytes | bytearray:
         raise NotImplementedError
 
 
@@ -32,7 +31,7 @@ class BytesStream(Stream):
 
     def __init__(
         self,
-        content: Union[bytes, bytearray],
+        content: bytes | bytearray,
         content_type: str = "application/octet-stream",
     ):
         super().__init__(content_type, len(content))

@@ -3,8 +3,13 @@ import pytest
 from dataclasses import make_dataclass
 from datetime import date
 from decimal import Decimal
-from fondat.csv import currency_codec, fixed_codec, percent_codec
-from fondat.csv import dataclass_codec, typeddict_codec
+from fondat.csv import (
+    currency_codec,
+    dataclass_codec,
+    fixed_codec,
+    percent_codec,
+    typeddict_codec,
+)
 from typing import Optional, TypedDict
 
 

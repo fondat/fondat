@@ -16,7 +16,7 @@ class Annotation:
     def __str__(self):
         return str(self.value)
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any):
         return type(self) == type(other) and self.value == other.value
 
     def __hash__(self):

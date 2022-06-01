@@ -3,7 +3,7 @@
 import re
 
 from collections.abc import Callable, Coroutine
-from typing import Any, Optional
+from typing import Any
 
 
 class Template:
@@ -25,7 +25,7 @@ class Template:
         self.template = template
 
     async def _resolve(
-        self, template: str, resolver: Callable[[str], Coroutine[Any, Any, Optional[str]]]
+        self, template: str, resolver: Callable[[str], Coroutine[Any, Any, str | None]]
     ) -> str:
         segments = []
         for line in template.splitlines(keepends=True):
@@ -44,7 +44,7 @@ class Template:
             segments.append(line[index:])
         return "".join(segments)
 
-    async def resolve(self, resolver: Callable[[str], Coroutine[Any, Any, Optional[str]]]):
+    async def resolve(self, resolver: Callable[[str], Coroutine[Any, Any, str | None]]):
         """
         Return a new string with resolved template substitutions.
 
