@@ -85,10 +85,11 @@ class CodecError(ValueError):
         except CodecError as ce:
             if ce.path is None:
                 ce.path = []
-            if isinstance(path, (str, int)):
-                ce.path.insert(0, path)
-            elif isinstance(path, list):
-                ce.path = path + ce.path
+            match path:
+                case str() | int():
+                    ce.path.insert(0, path)
+                case list():
+                    ce.path = path + ce.path
             raise
 
 

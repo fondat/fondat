@@ -71,14 +71,15 @@ def asgi_app(
         message = await receive()
         lifespan_type = message["type"]
         try:
-            if lifespan_type == "lifespan.startup":
-                if startup is not None:
-                    await startup()
-            elif lifespan_type == "lifespan.shutdown":
-                if shutdown is not None:
-                    await shutdown()
-            else:
-                _logger.warn("ignoring ASGI lifespan type: {lifespan_type}")
+            match lifespan_type:
+                case "lifespan.startup":
+                    if startup is not None:
+                        await startup()
+                case "lifespan.shutdown":
+                    if shutdown is not None:
+                        await shutdown()
+                case _:
+                    _logger.warn("ignoring ASGI lifespan type: {lifespan_type}")
         except Exception as e:
             _logger.exception(f"ASGI {lifespan_type} failed")
             await send({"type": f"{lifespan_type}.failed", "message": str(e)})
@@ -139,11 +140,12 @@ def asgi_app(
     async def app(scope, receive, send):
         """Coroutine that implements ASGI interface."""
         scope_type = scope["type"]
-        if scope_type == "http":
-            return await http(scope, receive, send)
-        elif scope_type == "lifespan":
-            return await lifespan(scope, receive, send)
-        else:
-            _logger.warn(f"unrecognized ASGI scope type: {scope_type}")
+        match scope_type:
+            case "http":
+                return await http(scope, receive, send)
+            case "lifespan":
+                return await lifespan(scope, receive, send)
+            case _:
+                _logger.warn(f"unrecognized ASGI scope type: {scope_type}")
 
     return app

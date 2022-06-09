@@ -46,10 +46,11 @@ class ValidationError(ValueError):
         except ValidationError as ve:
             if ve.path is None:
                 ve.path = []
-            if isinstance(path, (str, int)):
-                ve.path.insert(0, path)
-            elif isinstance(path, list):
-                ve.path = path + ve.path
+            match path:
+                case str() | int():
+                    ve.path.insert(0, path)
+                case list():
+                    ve.path = path + ve.path
             raise
 
 
@@ -238,10 +239,11 @@ def validate(value: Any, type_hint: Any) -> NoneType:
     # aggregate type validation
     if python_type is Any:
         return
-    elif origin in {types.UnionType, typing.Union}:
-        return _validate_union(value, args)
-    elif origin is Literal:
-        return _validate_literal(value, args)
+    match origin:
+        case types.UnionType | typing.Union:
+            return _validate_union(value, args)
+        case typing.Literal:
+            return _validate_literal(value, args)
 
     # TypedDict
     if is_subclass(python_type, dict) and hasattr(python_type, "__annotations__"):

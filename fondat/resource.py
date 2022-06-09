@@ -155,10 +155,11 @@ def operation(
     if not parameters or iter(parameters).__next__() != "self":
         raise TypeError("operation first parameter must be self")
     for p in parameters.values():
-        if p.kind is p.VAR_POSITIONAL:
-            raise TypeError("operation with *args is not supported")
-        elif p.kind is p.VAR_KEYWORD:
-            raise TypeError("operation with **kwargs is not supported")
+        match p:
+            case p.VAR_POSITIONAL:
+                raise TypeError("operation with *args is not supported")
+            case p.VAR_KEYWORD:
+                raise TypeError("operation with **kwargs is not supported")
 
     @wrapt.decorator
     async def wrapper(wrapped, instance, args, kwargs):

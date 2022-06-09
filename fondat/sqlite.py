@@ -310,13 +310,14 @@ class Database(fondat.sql.Database):
         text = []
         args = []
         for fragment in statement:
-            if isinstance(fragment, str):
-                text.append(fragment)
-            elif isinstance(fragment, Param):
-                text.append("?")
-                args.append(get_codec(fragment.type).encode(fragment.value))
-            else:
-                raise ValueError(f"unexpected fragment: {fragment}")
+            match fragment:
+                case str():
+                    text.append(fragment)
+                case Param():
+                    text.append("?")
+                    args.append(get_codec(fragment.type).encode(fragment.value))
+                case _:
+                    raise ValueError(f"unexpected fragment: {fragment}")
         results = await self._conn.get().execute("".join(text), args)
         if statement.result is not None:  # expecting a result
             return _Results(statement, results.__aiter__())

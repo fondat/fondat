@@ -425,14 +425,15 @@ def get_body_type(operation):
         if not isinstance(param_in, (AsBody, InBody)):
             continue
         is_required = signature.parameters[name].default is inspect.Parameter.empty
-        if isinstance(param_in, InBody):
-            in_body_params[param_in.name] = hint
-            if is_required:
-                required_keys.add(param_in.name)
-        elif isinstance(param_in, AsBody):
-            if as_body_param:
-                raise TypeError("multiple AsBody annotated parameters")
-            as_body_param = name
+        match param_in:
+            case InBody():
+                in_body_params[param_in.name] = hint
+                if is_required:
+                    required_keys.add(param_in.name)
+            case AsBody():
+                if as_body_param:
+                    raise TypeError("multiple AsBody annotated parameters")
+                as_body_param = name
     if as_body_param and in_body_params:
         raise TypeError("mixed AsBody and InBody annotated parameters")
     if as_body_param:
@@ -555,13 +556,13 @@ class Application:
                 continue
             required = signature.parameters[name].default is inspect.Parameter.empty
             param_in = get_param_in(operation, name, hint)
-            if isinstance(param_in, AsBody) and body is not None:
-                params[name] = body
-            elif isinstance(param_in, InBody) and body is not None:
-                if param_in.name in body:
-                    params[name] = body[param_in.name]
-            elif isinstance(param_in, InQuery):
-                if param_in.name in request.query:
+            match param_in:
+                case AsBody() if body is not None:
+                    params[name] = body
+                case InBody() if body is not None:
+                    if param_in.name in body:
+                        params[name] = body[param_in.name]
+                case InQuery() if param_in.name in request.query:
                     codec = get_codec(String, hint)
                     try:
                         with DecodeError.path_on_error(param_in.name):

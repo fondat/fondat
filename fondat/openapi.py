@@ -356,30 +356,31 @@ for dc in _to_affix:
 def _kwargs(python_type, annotated):
     kwargs = {}
     for annotation in annotated:
-        if is_instance(annotation, str):
-            kwargs["description"] = annotation
-        elif is_instance(annotation, fondat.annotation.Description):
-            kwargs["description"] = annotation.value
-        elif is_instance(annotation, fondat.annotation.Example):
-            with fondat.validation.validation_error_path("example"):
-                fondat.validation.validate(annotation.value, python_type)
-            kwargs["example"] = fondat.codec.get_codec(fondat.codec.JSON, python_type).encode(
-                annotation.value
-            )
-        elif is_instance(annotation, Default):
-            with fondat.validation.validation_error_path("default"):
-                fondat.validation.validate(annotation.value, python_type)
-            kwargs["default"] = fondat.codec.get_codec(fondat.codec.JSON, python_type).encode(
-                annotation.value
-            )
-        elif is_instance(annotation, fondat.annotation.Deprecated):
-            kwargs["deprecated"] = annotation.value
-        elif annotation is fondat.annotation.Deprecated:
-            kwargs["deprecated"] = True
-        elif is_instance(annotation, fondat.annotation.ReadOnly):
-            kwargs["readOnly"] = annotation.value
-        elif annotation is fondat.annotation.ReadOnly:
-            kwargs["readOnly"] = True
+        match annotation:
+            case str():
+                kwargs["description"] = annotation
+            case fondat.annotation.Description():
+                kwargs["description"] = annotation.value
+            case fondat.annotation.Example():
+                with fondat.validation.validation_error_path("example"):
+                    fondat.validation.validate(annotation.value, python_type)
+                kwargs["example"] = fondat.codec.get_codec(
+                    fondat.codec.JSON, python_type
+                ).encode(annotation.value)
+            case Default():
+                with fondat.validation.validation_error_path("default"):
+                    fondat.validation.validate(annotation.value, python_type)
+                kwargs["default"] = fondat.codec.get_codec(
+                    fondat.codec.JSON, python_type
+                ).encode(annotation.value)
+            case fondat.annotation.Deprecated():
+                kwargs["deprecated"] = annotation.value
+            case fondat.annotation.Deprecated:
+                kwargs["deprecated"] = True
+            case fondat.annotation.ReadOnly():
+                kwargs["readOnly"] = annotation.value
+            case fondat.annotation.ReadOnly:
+                kwargs["readOnly"] = True
     return kwargs
 
 
@@ -414,14 +415,15 @@ def _str_schema(*, python_type, annotated, **_):
     if is_subclass(python_type, str):
         kwargs = {}
         for annotation in annotated:
-            if is_instance(annotation, fondat.annotation.Format):
-                kwargs["format"] = annotation.value
-            elif is_instance(annotation, fondat.validation.MinLen):
-                kwargs["minLength"] = annotation.value
-            elif is_instance(annotation, fondat.validation.MaxLen):
-                kwargs["maxLength"] = annotation.value
-            elif is_instance(annotation, fondat.validation.Pattern):
-                kwargs["pattern"] = annotation.pattern.pattern
+            match annotation:
+                case fondat.annotation.Format():
+                    kwargs["format"] = annotation.value
+                case fondat.validation.MinLen():
+                    kwargs["minLength"] = annotation.value
+                case fondat.validation.MaxLen():
+                    kwargs["maxLength"] = annotation.value
+                case fondat.validation.Pattern():
+                    kwargs["pattern"] = annotation.pattern.pattern
         return Schema(type="string", **_kwargs(python_type, annotated), **kwargs)
 
 
@@ -430,10 +432,11 @@ def _bytes_schema(*, python_type, annotated, **_):
     if is_subclass(python_type, (bytes, bytearray)):
         kwargs = {}
         for annotation in annotated:
-            if is_instance(annotation, fondat.validation.MinLen):
-                kwargs["minLength"] = annotation.value
-            elif is_instance(annotation, fondat.validation.MaxLen):
-                kwargs["maxLength"] = annotation.value
+            match annotation:
+                case fondat.validation.MinLen():
+                    kwargs["minLength"] = annotation.value
+                case fondat.validation.MaxLen():
+                    kwargs["maxLength"] = annotation.value
         return Schema(
             type="string",
             format="binary" if fondat.http.InBody in annotated else "byte",
@@ -447,10 +450,11 @@ def _int_schema(*, python_type, annotated, **_):
     if is_subclass(python_type, int) and not is_subclass(python_type, bool):
         kwargs = {}
         for annotation in annotated:
-            if is_instance(annotation, fondat.validation.MinValue):
-                kwargs["minimum"] = annotation.value
-            elif is_instance(annotation, fondat.validation.MaxValue):
-                kwargs["maximum"] = annotation.value
+            match annotation:
+                case fondat.validation.MinValue():
+                    kwargs["minimum"] = annotation.value
+                case fondat.validation.MaxValue():
+                    kwargs["maximum"] = annotation.value
         return Schema(
             type="integer", format="int64", **_kwargs(python_type, annotated), **kwargs
         )
@@ -461,10 +465,11 @@ def _float_schema(*, python_type, annotated, **_):
     if is_subclass(python_type, float):
         kwargs = {}
         for annotation in annotated:
-            if is_instance(annotation, fondat.validation.MinValue):
-                kwargs["minimum"] = annotation.value
-            elif is_instance(annotation, fondat.validation.MaxValue):
-                kwargs["maximum"] = annotations.value
+            match annotation:
+                case fondat.validation.MinValue():
+                    kwargs["minimum"] = annotation.value
+                case fondat.validation.MaxValue():
+                    kwargs["maximum"] = annotations.value
         return Schema(
             type="number", format="double", **_kwargs(python_type, annotated), **kwargs
         )
@@ -523,10 +528,11 @@ def _iterable_schema(*, python_type, annotated, origin, args, processor, **_):
         if is_subclass(origin, set):
             kwargs["uniqueItems"] = True
         for annotation in annotated:
-            if is_instance(annotation, fondat.validation.MinLen):
-                kwargs["minItems"] = annotation.value
-            elif is_instance(annotation, fondat.validation.MaxLen):
-                kwargs["maxItems"] = annotation.value
+            match annotation:
+                case fondat.validation.MinLen():
+                    kwargs["minItems"] = annotation.value
+                case fondat.validation.MaxLen():
+                    kwargs["maxItems"] = annotation.value
         return Schema(
             type="array",
             items=processor.schema(args[0]),
@@ -681,35 +687,36 @@ class Processor:
                 self.openapi.components.securitySchemes = {}
             for name, scheme in self.schemes.items():
                 if name not in self.openapi.components.securitySchemes:
-                    if isinstance(scheme, fondat.http.BasicScheme):
-                        security_scheme = SecurityScheme(
-                            type="http",
-                            description=scheme.description,
-                            scheme="basic",
-                        )
-                    elif isinstance(scheme, fondat.http.BearerScheme):
-                        security_scheme = SecurityScheme(
-                            type="http",
-                            description=scheme.description,
-                            scheme="bearer",
-                            bearerFormat=scheme.format,
-                        )
-                    elif isinstance(scheme, fondat.http.HeaderScheme):
-                        security_scheme = SecurityScheme(
-                            type="apiKey",
-                            description=scheme.description,
-                            name=scheme.header,
-                            in_="header",
-                        )
-                    elif isinstance(scheme, fondat.http.CookieScheme):
-                        security_scheme = SecurityScheme(
-                            type="apiKey",
-                            description=scheme.description,
-                            name=scheme.cookie,
-                            in_="cookie",
-                        )
-                    else:
-                        raise TypeError(f"unknown scheme type for: {name}")
+                    match scheme:
+                        case fondat.http.BasicScheme():
+                            security_scheme = SecurityScheme(
+                                type="http",
+                                description=scheme.description,
+                                scheme="basic",
+                            )
+                        case fondat.http.BearerScheme():
+                            security_scheme = SecurityScheme(
+                                type="http",
+                                description=scheme.description,
+                                scheme="bearer",
+                                bearerFormat=scheme.format,
+                            )
+                        case fondat.http.HeaderScheme():
+                            security_scheme = SecurityScheme(
+                                type="apiKey",
+                                description=scheme.description,
+                                name=scheme.header,
+                                in_="header",
+                            )
+                        case fondat.http.CookieScheme():
+                            security_scheme = SecurityScheme(
+                                type="apiKey",
+                                description=scheme.description,
+                                name=scheme.cookie,
+                                in_="cookie",
+                            )
+                        case _:
+                            raise TypeError(f"unknown scheme type for: {name}")
                     self.openapi.components.securitySchemes[name] = security_scheme
 
     @staticmethod
@@ -833,10 +840,11 @@ class Processor:
     @staticmethod
     def description(annotated):
         for annotation in annotated:
-            if is_instance(annotation, str):
-                return annotation
-            elif is_instance(annotation, fondat.annotation.Description):
-                return annotation.value
+            match annotation:
+                case str():
+                    return annotation
+                case fondat.annotation.Description():
+                    return annotation.value
 
     def schema(self, type_hint, default=None):
         python_type, annotated = fondat.types.split_annotated(type_hint)
