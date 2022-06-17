@@ -36,6 +36,9 @@ def _datacls_init(dc: Any):
                     raise TypeError(f"missing required keyword argument: '{field.name}'")
             setattr(self, field.name, value)
 
+        if (post_init := getattr(self, "__post_init__", MISSING)) is not MISSING:
+            post_init()
+
     return __init__
 
 
