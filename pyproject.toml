@@ -47,3 +47,6 @@ lines_after_imports = 2
 lines_between_types = 1
 line_length = 96
 no_sections = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
