@@ -13,7 +13,7 @@ For information on how security policies are evaluated, see the authorize functi
 
 import asyncio
 import fondat.context as context
-import fondat.monitoring as monitoring
+import fondat.monitor as monitor
 import functools
 import inspect
 import logging
@@ -172,8 +172,10 @@ def operation(
             "operation: %s.%s(args=%s, kwargs=%s)", resource_name, operation_name, args, kwargs
         )
         with context.push({"context": "fondat.operation", **tags}):
-            async with monitoring.timer({"name": "operation_duration_seconds", **tags}):
-                async with monitoring.counter({"name": "operation_calls_total", **tags}):
+            async with monitor.counter(
+                name="operation_invocations", tags=tags, status="status"
+            ):
+                async with monitor.timer(name="operation_duration", tags=tags):
                     await authorize(operation.policies)
                     try:
                         return await wrapped(*args, **kwargs)
