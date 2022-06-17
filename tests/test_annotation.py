@@ -1,5 +1,3 @@
-import pytest
-
 from fondat.annotation import Description, Example, Format
 
 

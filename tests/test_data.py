@@ -229,3 +229,15 @@ def test_redaction():
     dc = DC(username="username", password="passsword")
     redact_passwords(DC, dc)
     dc == DC(username="username", password="__REDACTED__")
+
+
+def test_datacls_post_init():
+    @datacls
+    class DC:
+        a: int
+
+        def __post_init__(self):
+            raise RuntimeError
+
+    with pytest.raises(RuntimeError):
+        DC(a=1)

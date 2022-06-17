@@ -1,14 +1,10 @@
 import fondat.http
 import http
-import pytest
 
 from fondat.asgi import asgi_app
 from fondat.http import AsBody
 from fondat.resource import operation, resource
 from typing import Annotated, Any
-
-
-pytestmark = pytest.mark.asyncio
 
 
 class Receive:

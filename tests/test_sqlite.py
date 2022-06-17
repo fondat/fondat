@@ -4,7 +4,6 @@ import fondat.error
 import fondat.patch
 import fondat.sql as sql
 import fondat.sqlite as sqlite
-import logging
 import pytest
 import tempfile
 
@@ -12,11 +11,6 @@ from datetime import date, datetime
 from fondat.data import datacls, make_datacls
 from typing import TypedDict
 from uuid import UUID, uuid4
-
-
-_logger = logging.getLogger(__name__)
-
-pytestmark = pytest.mark.asyncio
 
 
 @datacls

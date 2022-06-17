@@ -218,7 +218,6 @@ def test_generate():
     js = get_codec(JSON, fondat.openapi.OpenAPI).encode(doc)
 
 
-@pytest.mark.asyncio
 async def test_resource():
     info = fondat.openapi.Info(title="title", version="version")
     root = Root()
@@ -228,7 +227,6 @@ async def test_resource():
     assert generate_openapi(resource=root, info=info) == result
 
 
-@pytest.mark.asyncio
 async def test_nested_containers():
     @resource
     class R1:

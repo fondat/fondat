@@ -1,5 +1,3 @@
-import pytest
-
 from collections.abc import AsyncIterator
 from fondat.stream import BytesStream
 from fondat.types import is_optional, literal_values, strip_optional, union_type
@@ -14,7 +12,6 @@ async def _ajoin(stream: AsyncIterator[bytes]) -> bytes:
     return b"".join(bees)
 
 
-@pytest.mark.asyncio
 async def test_bytes_stream():
     value = b"hello"
     assert await _ajoin(BytesStream(value)) == value

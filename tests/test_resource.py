@@ -9,9 +9,6 @@ from typing import Annotated
 from uuid import UUID
 
 
-pytestmark = pytest.mark.asyncio
-
-
 @dataclass
 class Body:
     key: UUID | None = None

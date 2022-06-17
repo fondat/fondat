@@ -3,9 +3,6 @@ import pytest
 from fondat.string import Template
 
 
-pytestmark = pytest.mark.asyncio
-
-
 async def test_template_start():
     async def resolver(variable: str) -> str:
         return "World" if variable == "foo" else None

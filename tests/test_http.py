@@ -1,6 +1,5 @@
 import fondat.error
 import http
-import pytest
 
 from dataclasses import dataclass
 from fondat.codec import Binary, get_codec
@@ -9,9 +8,6 @@ from fondat.resource import operation, resource
 from fondat.stream import BytesStream, Stream
 from typing import Annotated
 from uuid import UUID
-
-
-pytestmark = pytest.mark.asyncio
 
 
 async def body(message):

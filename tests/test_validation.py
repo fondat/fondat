@@ -476,7 +476,6 @@ def test_sync_decorator_arguments_error():
         fn("1")
 
 
-@pytest.mark.asyncio
 async def test_async_decorator_arguments_success():
     @validate_arguments
     async def fn(s: Annotated[str, MinLen(2), MaxLen(2)]):
@@ -485,7 +484,6 @@ async def test_async_decorator_arguments_success():
     await fn("12")
 
 
-@pytest.mark.asyncio
 async def test_async_decorator_arguments_error():
     @validate_arguments
     async def fn(s: Annotated[str, MinLen(2), MaxLen(2)]):
@@ -512,7 +510,6 @@ def test_sync_decorator_return_error():
         fn()
 
 
-@pytest.mark.asyncio
 async def test_async_decorator_return_success():
     @validate_return_value
     async def coro() -> str:
@@ -521,7 +518,6 @@ async def test_async_decorator_return_success():
     assert await coro() == "str_ftw"
 
 
-@pytest.mark.asyncio
 async def test_async_decorator_return_error():
     @validate_return_value
     def coro() -> str:

@@ -6,9 +6,6 @@ from fondat.memory import memory_resource
 from time import sleep
 
 
-pytestmark = pytest.mark.asyncio
-
-
 async def test_gpdl_dict():
     DC = make_dataclass("DC", [("foo", str), ("bar", int)])
     resource = memory_resource(key_type=str, value_type=DC)

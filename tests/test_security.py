@@ -5,9 +5,6 @@ from fondat.resource import mutation, resource
 from fondat.security import Policy
 
 
-pytestmark = pytest.mark.asyncio
-
-
 async def authorized_rule():
     pass
 

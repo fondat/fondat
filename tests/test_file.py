@@ -14,9 +14,6 @@ from fondat.stream import BytesStream
 from tempfile import TemporaryDirectory
 
 
-pytestmark = pytest.mark.asyncio
-
-
 async def test_compression(tmp_path):
     DC = make_dataclass("DC", (("key", str), ("foo", str), ("bar", int)))
     for algorithm in (None, bz2, gzip, lzma, zlib):
