@@ -16,9 +16,16 @@ import uuid
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from fondat.codec import Codec, String
+from fondat.codec import Codec, DecodeError, String
 from fondat.sql import Param, Statement
-from fondat.types import affix_type_hints, is_optional, is_subclass, split_annotated
+from fondat.types import (
+    affix_type_hints,
+    is_optional,
+    is_subclass,
+    literal_values,
+    split_annotated,
+    union_type,
+)
 from fondat.validation import validate_arguments
 from types import NoneType
 from typing import Any, Literal
@@ -136,8 +143,8 @@ def _real_codec_provider(python_type):
 def _union_codec_provider(python_type):
     """
     Provides a codec that encodes/decodes a UnionType, Union or Optional value to/from a
-    compatible SQLite value. For optional value, will use codec for its type, otherwise it
-    encodes/decodes as TEXT.
+    compatible SQLite value. For an optional type, it will use the codec for its type,
+    otherwise it will encode/decode as TEXT.
     """
 
     origin = typing.get_origin(python_type)
@@ -147,9 +154,7 @@ def _union_codec_provider(python_type):
     args = typing.get_args(python_type)
     is_nullable = is_optional(python_type)
     args = [a for a in args if a is not NoneType]
-    codec = (
-        get_codec(args[0]) if len(args) == 1 else _text_codec_provider(python_type)  # optional
-    )
+    codec = get_codec(args[0]) if len(args) == 1 else _text_codec_provider(python_type)
 
     @affix_type_hints(localns=locals())
     class UnionCodec(SQLiteCodec[python_type]):
@@ -162,7 +167,6 @@ def _union_codec_provider(python_type):
                 return None
             return codec.encode(value)
 
-        @validate_arguments
         def decode(self, value: Any) -> python_type:
             if value is None and is_nullable:
                 return None
@@ -180,10 +184,35 @@ def _literal_codec_provider(python_type):
     """
 
     origin = typing.get_origin(python_type)
+
     if origin is not Literal:
         return
 
-    return get_codec(typing.Union[tuple(type(arg) for arg in typing.get_args(python_type))])
+    literals = literal_values(python_type)
+    types = list({type(literal) for literal in literals})
+    codec = get_codec(types[0]) if len(types) == 1 else _text_codec_provider(python_type)
+    is_nullable = is_optional(python_type) or None in literals
+
+    @affix_type_hints(localns=locals())
+    class LiteralCodec(SQLiteCodec[python_type]):
+
+        sql_type = codec.sql_type
+
+        @validate_arguments
+        def encode(self, value: python_type) -> Any:
+            if value is None:
+                return None
+            return codec.encode(value)
+
+        def decode(self, value: Any) -> python_type:
+            if value is None and is_nullable:
+                return None
+            result = codec.decode(value)
+            if result not in literals:
+                raise DecodeError
+            return result
+
+    return LiteralCodec()
 
 
 @_codec_provider

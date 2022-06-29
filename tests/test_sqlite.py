@@ -9,7 +9,7 @@ import tempfile
 
 from datetime import date, datetime
 from fondat.data import datacls, make_datacls
-from typing import TypedDict
+from typing import Literal, TypedDict
 from uuid import UUID, uuid4
 
 
@@ -28,6 +28,9 @@ class DC:
     datetime_: datetime | None
     tuple_: tuple[str, int, float] | None
     tuple_ellipsis: tuple[int, ...] | None
+    str_literal: Literal["a", "b", "c"] | None
+    int_literal: Literal[1, 2, 3] | None
+    mixed_literal: Literal["a", 1, True] | None
 
 
 @pytest.fixture(scope="function")  # FIXME: scope to module with event_loop fixture?
@@ -164,6 +167,9 @@ async def test_resource_crud(table):
         bytes_=b"12345",
         date_=date.fromisoformat("2019-01-01"),
         datetime_=datetime.fromisoformat("2019-01-01T01:01:01+00:00"),
+        str_literal="a",
+        int_literal=2,
+        mixed_literal=1,
     )
     await resource.put(row)
     assert await resource.get() == row
@@ -176,6 +182,9 @@ async def test_resource_crud(table):
     row.bytes_ = None
     row.date_ = None
     row.datetime_ = None
+    row.str_literal = None
+    row.int_literal = None
+    row.mixed_literal = None
     await resource.put(row)
     assert await resource.get() == row
     await resource.delete()
@@ -414,3 +423,18 @@ async def test_find_pks(table):
         for key in keys:
             await table.insert(DC(key=key))
     assert len(await resource.find_pks(keys)) == 10
+
+
+async def test_str_literal():
+    codec = sqlite.get_codec(Literal["a", "b", "c"])
+    assert codec.sql_type == "TEXT"
+
+
+async def test_int_literal():
+    codec = sqlite.get_codec(Literal[1, 2, 3])
+    assert codec.sql_type == "INTEGER"
+
+
+async def test_mixed_literal():
+    codec = sqlite.get_codec(Literal["a", 1, True])
+    assert codec.sql_type == "TEXT"
