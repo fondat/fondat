@@ -27,7 +27,7 @@ from fondat.error import (
 from fondat.security import Scheme
 from fondat.stream import BytesStream, Stream, stream_bytes
 from fondat.types import is_optional, is_subclass
-from typing import Annotated, Any, Optional, TypedDict
+from typing import Annotated, Any, TypedDict
 
 
 _logger = logging.getLogger(__name__)

@@ -11,7 +11,6 @@ from fondat.pagination import make_page_dataclass
 from fondat.resource import operation, resource
 from fondat.security import Policy
 from fondat.stream import Stream
-from fondat.types import affix_type_hints
 from pathlib import Path
 from typing import Annotated, Any
 from urllib.parse import quote, unquote
@@ -104,7 +103,6 @@ def _stream_resource_class(
                 except Exception as e:
                     raise InternalServerError from e
 
-    affix_type_hints(StreamResource, localns=locals())
     StreamResource.__qualname__ = "StreamResource"
     return StreamResource
 
@@ -167,7 +165,6 @@ def _file_resource_class(
                 except FileNotFoundError:
                     raise NotFoundError
 
-    affix_type_hints(FileResource, localns=locals())
     FileResource.__qualname__ = "FileResource"
     return FileResource
 
@@ -296,7 +293,6 @@ def directory_resource(
                         break
                 return page
 
-    affix_type_hints(DirectoryResource, localns=locals())
     DirectoryResource.__qualname__ = "DirectoryResource"
 
     return DirectoryResource()

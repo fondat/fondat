@@ -1,7 +1,5 @@
 """Module that support validation of data."""
 
-from __future__ import annotations
-
 import asyncio
 import dataclasses
 import inspect
@@ -14,7 +12,7 @@ from collections.abc import Callable, Iterable, Mapping
 from contextlib import contextmanager
 from fondat.types import is_instance, is_subclass, split_annotated
 from types import NoneType
-from typing import Any, Literal
+from typing import Any
 
 
 class ValidationError(ValueError):

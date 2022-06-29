@@ -1,6 +1,6 @@
 """Module to support encoding and decoding of values."""
 
-from __future__ import annotations
+# from __future__ import annotations
 
 import base64
 import csv
@@ -17,13 +17,7 @@ from collections.abc import Iterable, Mapping
 from contextlib import contextmanager
 from datetime import date, datetime, timezone
 from decimal import Decimal
-from fondat.types import (
-    affix_type_hints,
-    is_optional,
-    is_subclass,
-    is_typeddict,
-    split_annotated,
-)
+from fondat.types import is_optional, is_subclass, is_typeddict, split_annotated
 from types import NoneType, UnionType
 from typing import (
     Any,
@@ -174,7 +168,6 @@ def _wrap(exception):
 # ----- str -----
 
 
-@affix_type_hints
 class _Str_Binary(Binary[str]):
     """Bytes codec for Unicode character strings."""
 
@@ -193,7 +186,6 @@ class _Str_Binary(Binary[str]):
 _str_binarycodec = _Str_Binary()
 
 
-@affix_type_hints
 class _Str_String(String[str]):
     """String codec for Unicode character strings."""
 
@@ -211,7 +203,6 @@ class _Str_String(String[str]):
 _str_stringcodec = _Str_String()
 
 
-@affix_type_hints
 class _Str_JSON(JSON[str]):
     """JSON codec for Unicode character strings."""
 
@@ -242,7 +233,6 @@ def _str(codec_type, python_type):
 # ----- bytes/bytearray -----
 
 
-@affix_type_hints
 class _Bytes_Binary(Binary[bytes | bytearray]):
     """Binary codec for byte sequences."""
 
@@ -262,7 +252,6 @@ class _Bytes_Binary(Binary[bytes | bytearray]):
 _bytes_binarycodec = _Bytes_Binary()
 
 
-@affix_type_hints
 class _Bytes_String(String[bytes | bytearray]):
     """
     String codec for byte sequences. A byte sequence is represented in string values as a
@@ -285,7 +274,6 @@ class _Bytes_String(String[bytes | bytearray]):
 _bytes_stringcodec = _Bytes_String()
 
 
-@affix_type_hints
 class _Bytes_JSON(JSON[bytes | bytearray]):
     """
     JSON codec for byte sequences. A byte sequence is represented in JSON values as a
@@ -319,7 +307,6 @@ def _bytes(codec_type, python_type):
 # ----- int -----
 
 
-@affix_type_hints
 class _Int_String(String[int]):
     """String codec for integers."""
 
@@ -338,7 +325,6 @@ class _Int_String(String[int]):
 _int_stringcodec = _Int_String()
 
 
-@affix_type_hints
 class _Int_Binary(Binary[int]):
     """Binary codec for integers."""
 
@@ -354,7 +340,6 @@ class _Int_Binary(Binary[int]):
 _int_binarycodec = _Int_Binary()
 
 
-@affix_type_hints
 class _Int_JSON(JSON[int]):
     """JSON codec for integers."""
 
@@ -394,7 +379,6 @@ def _int(codec_type, python_type):
 # ----- float -----
 
 
-@affix_type_hints
 class _Float_String(String[float]):
     """String codec for floating point numbers."""
 
@@ -413,7 +397,6 @@ class _Float_String(String[float]):
 _float_stringcodec = _Float_String()
 
 
-@affix_type_hints
 class _Float_Binary(Binary[float]):
     """Binary codec for floating point numbers."""
 
@@ -429,7 +412,6 @@ class _Float_Binary(Binary[float]):
 _float_binarycodec = _Float_Binary()
 
 
-@affix_type_hints
 class _Float_JSON(JSON[float]):
     """JSON codec for floating point numbers."""
 
@@ -464,7 +446,6 @@ def _float(codec_type, python_type):
 # ----- bool -----
 
 
-@affix_type_hints
 class _Bool_String(String[bool]):
     """String codec for boolean values."""
 
@@ -485,7 +466,6 @@ class _Bool_String(String[bool]):
 _bool_stringcodec = _Bool_String()
 
 
-@affix_type_hints
 class _Bool_Binary(Binary[bool]):
     """Binary codec for boolean values."""
 
@@ -501,7 +481,6 @@ class _Bool_Binary(Binary[bool]):
 _bool_binarycodec = _Bool_Binary()
 
 
-@affix_type_hints
 class _Bool_JSON(JSON[bool]):
     """JSON codec for boolean values."""
 
@@ -536,7 +515,6 @@ def _bool(codec_type, python_type):
 # ----- NoneType -----
 
 
-@affix_type_hints
 class _NoneType_String(String[NoneType]):
     """String codec for None value."""
 
@@ -554,7 +532,6 @@ class _NoneType_String(String[NoneType]):
 _nonetype_stringcodec = _NoneType_String()
 
 
-@affix_type_hints
 class _NoneType_Binary(Binary[NoneType]):
     """Binary codec for None value."""
 
@@ -574,7 +551,6 @@ class _NoneType_Binary(Binary[NoneType]):
 _nonetype_binarycodec = _NoneType_Binary()
 
 
-@affix_type_hints
 class _NoneType_JSON(JSON[NoneType]):
     """JSON codec for None value."""
 
@@ -609,7 +585,6 @@ def _NoneType(codec_type, python_type):
 # ----- Decimal -----
 
 
-@affix_type_hints
 class _Decimal_String(String[Decimal]):
     """String codec for Decimal numbers."""
 
@@ -628,7 +603,6 @@ class _Decimal_String(String[Decimal]):
 _decimal_string = _Decimal_String()
 
 
-@affix_type_hints
 class _Decimal_Binary(Binary[Decimal]):
     """Binary codec for Decimal numbers."""
 
@@ -644,7 +618,6 @@ class _Decimal_Binary(Binary[Decimal]):
 _decimal_binary = _Decimal_Binary()
 
 
-@affix_type_hints
 class _Decimal_JSON(JSON[Decimal]):
     """
     JSON codec for Decimal numbers. Decimal numbers are represented in JSON as strings, due to
@@ -678,7 +651,6 @@ def _Decimal(codec_type, python_type):
 # ----- date -----
 
 
-@affix_type_hints
 class _Date_String(String[date]):
     """
     String codec for dates. A date is represented in a string in RFC 3339 format.
@@ -700,7 +672,6 @@ class _Date_String(String[date]):
 _date_stringcodec = _Date_String()
 
 
-@affix_type_hints
 class _Date_Binary(Binary[date]):
     """
     Binary codec for dates. A date is represented in a binary format as an RFC 3339 UTF-8 or
@@ -719,7 +690,6 @@ class _Date_Binary(Binary[date]):
 _date_binarycodec = _Date_Binary()
 
 
-@affix_type_hints
 class _Date_JSON(JSON[date]):
     """
     JSON codec for dates. A date is represented in JSON as an RFC 3339 formatted string.
@@ -759,7 +729,6 @@ def _to_utc(value):
     return value.astimezone(timezone.utc)
 
 
-@affix_type_hints
 class _Datetime_String(String[datetime]):
     """
     String codec for datetime.
@@ -792,7 +761,6 @@ class _Datetime_String(String[datetime]):
 _datetime_stringcodec = _Datetime_String()
 
 
-@affix_type_hints
 class _Datetime_Binary(Binary[datetime]):
     """
     Binary codec for datetime.
@@ -818,7 +786,6 @@ class _Datetime_Binary(Binary[datetime]):
 _datetime_binarycodec = _Datetime_Binary()
 
 
-@affix_type_hints
 class _Datetime_JSON(JSON[datetime]):
     """
     String codec for datetime.
@@ -858,7 +825,6 @@ def _datetime(codec_type, python_type):
 # ----- UUID -----
 
 
-@affix_type_hints
 class _UUID_String(String[UUID]):
     """String codec for UUID."""
 
@@ -877,7 +843,6 @@ class _UUID_String(String[UUID]):
 _uuid_stringcodec = _UUID_String()
 
 
-@affix_type_hints
 class _UUID_Binary(Binary[UUID]):
     """Binary codec for UUID."""
 
@@ -893,7 +858,6 @@ class _UUID_Binary(Binary[UUID]):
 _uuid_binarycodec = _UUID_Binary()
 
 
-@affix_type_hints
 class _UUID_JSON(JSON[UUID]):
     """JSON codec for UUID."""
 
@@ -943,7 +907,6 @@ def _typeddict(codec_type, python_type):
             if type(key) is not str:
                 raise TypeError("codec only supports TypedDict with str keys")
 
-        @affix_type_hints(localns=locals())
         class _TypedDict_JSON(JSON[python_type]):
 
             json_type = dict[str, Any]  # will be replaced below
@@ -988,7 +951,6 @@ def _typeddict(codec_type, python_type):
     if codec_type is String:
         json_codec = get_codec(JSON, python_type)
 
-        @affix_type_hints(localns=locals())
         class _TypedDict_String(String[python_type]):
             def encode(self, value: python_type) -> str:
                 if not isinstance(value, dict):
@@ -1003,7 +965,6 @@ def _typeddict(codec_type, python_type):
     if codec_type is Binary:
         string_codec = get_codec(String, python_type)
 
-        @affix_type_hints(localns=locals())
         class _TypedDict_Binary(Binary[python_type]):
             content_type = "application/json"
 
@@ -1046,7 +1007,6 @@ def _tuple(codec_type, python_type):
         codecs = [get_codec(JSON, arg) for arg in args]
         vcodec = get_codec(JSON, varg) if varg else None
 
-        @affix_type_hints(localns=locals())
         class _Tuple_JSON(JSON[python_type]):
 
             json_type = list[Any]
@@ -1078,7 +1038,6 @@ def _tuple(codec_type, python_type):
         codecs = [get_codec(String, arg) for arg in args]
         vcodec = get_codec(String, varg) if varg else None
 
-        @affix_type_hints(localns=locals())
         class _Tuple_String(String[python_type]):
             def encode(self, value: python_type) -> str:
                 if not isinstance(value, tuple) or (args and len(value) != len(args)):
@@ -1107,7 +1066,6 @@ def _tuple(codec_type, python_type):
 
         json_codec = get_codec(JSON, python_type)
 
-        @affix_type_hints(localns=locals())
         class _Tuple_Binary(Binary[python_type]):
 
             content_type = "application/json"
@@ -1146,7 +1104,6 @@ def _mapping(codec_type, python_type):
         value_codec = get_codec(JSON, args[1])
         _json_type = dict[str, value_codec.json_type]
 
-        @affix_type_hints(localns=locals())
         class _Mapping_JSON(JSON[python_type]):
             json_type = _json_type
 
@@ -1175,7 +1132,6 @@ def _mapping(codec_type, python_type):
     if codec_type is String:
         json_codec = get_codec(JSON, python_type)
 
-        @affix_type_hints(localns=locals())
         class _Mapping_String(String[python_type]):
             def encode(self, value: python_type) -> str:
                 if not isinstance(value, Mapping):
@@ -1191,7 +1147,6 @@ def _mapping(codec_type, python_type):
 
         string_codec = get_codec(String, python_type)
 
-        @affix_type_hints(localns=locals())
         class _Mapping_Binary(Binary[python_type]):
 
             content_type = "application/json"
@@ -1252,7 +1207,6 @@ def _iterable(codec_type, python_type):
         item_codec = get_codec(JSON, item_type)
         _json_type = list[item_codec.json_type]
 
-        @affix_type_hints(localns=locals())
         class _Iterable_JSON(JSON[python_type]):
 
             json_type = _json_type
@@ -1277,7 +1231,6 @@ def _iterable(codec_type, python_type):
 
         item_codec = get_codec(String, item_type)
 
-        @affix_type_hints(localns=locals())
         class _Iterable_String(String[python_type]):
             def encode(self, value: python_type) -> str:
                 if not isinstance(value, Iterable) or isinstance(value, str):
@@ -1296,7 +1249,6 @@ def _iterable(codec_type, python_type):
 
         json_codec = get_codec(JSON, python_type)
 
-        @affix_type_hints(localns=locals())
         class _Iterable_Binary(Binary[python_type]):
 
             content_type = "application/json"
@@ -1336,7 +1288,6 @@ def dataclass_codec(codec_type, python_type):
 
         hints = get_type_hints(dc_type, include_extras=True)
 
-        @affix_type_hints(localns=locals())
         class _Dataclass_JSON(JSON[python_type]):
 
             json_type = dict[str, Any]  # will be replaced below
@@ -1402,7 +1353,6 @@ def dataclass_codec(codec_type, python_type):
 
         json_codec = get_codec(JSON, python_type)
 
-        @affix_type_hints(localns=locals())
         class _Dataclass_String(String[python_type]):
             def encode(self, value: python_type) -> str:
                 return json.dumps(json_codec.encode(value))
@@ -1416,7 +1366,6 @@ def dataclass_codec(codec_type, python_type):
 
         string_codec = get_codec(String, python_type)
 
-        @affix_type_hints(localns=locals())
         class _Dataclass_Binary(Binary[python_type]):
 
             content_type = "application/json"
@@ -1462,7 +1411,6 @@ def _union(codec_type, python_type):
 
     if codec_type is String:
 
-        @affix_type_hints(localns=locals())
         class _Union_String(String[python_type]):
             def encode(self, value: python_type) -> str:
                 if value is None and NoneType in types:
@@ -1476,7 +1424,6 @@ def _union(codec_type, python_type):
 
     if codec_type is Binary:
 
-        @affix_type_hints(localns=locals())
         class _Union_Binary(Binary[python_type]):
 
             content_type = "application/octet-stream"
@@ -1497,7 +1444,6 @@ def _union(codec_type, python_type):
 
         _json_type = fondat.types.union_type(codec.json_type for codec in codecs)
 
-        @affix_type_hints(localns=locals())
         class _Union_JSON(JSON[python_type]):
 
             json_type = _json_type
@@ -1541,7 +1487,6 @@ def _literal(codec_type, python_type):
 
         codecs = tuple(get_codec(String, literal[0]) for literal in literals)
 
-        @affix_type_hints(localns=locals())
         class _Literal_String(String[python_type]):
             def encode(self, value: python_type) -> str:
                 return get_codec(String, type(value)).encode(value)
@@ -1555,7 +1500,6 @@ def _literal(codec_type, python_type):
 
         codecs = tuple(get_codec(Binary, literal[0]) for literal in literals)
 
-        @affix_type_hints(localns=locals())
         class _Literal_Binary(Binary[python_type]):
 
             content_type = "application/octet-stream"
@@ -1575,7 +1519,6 @@ def _literal(codec_type, python_type):
         codecs = tuple(get_codec(JSON, literal[0]) for literal in literals)
         _json_type = fondat.types.union_type(codec.json_type for codec in codecs)
 
-        @affix_type_hints(localns=locals())
         class _Literal_JSON(JSON[python_type]):
 
             json_type = _json_type
@@ -1592,7 +1535,6 @@ def _literal(codec_type, python_type):
 # ----- Any -----
 
 
-@affix_type_hints
 class _Any_String(String[Any]):
     """String codec for Any."""
 
@@ -1606,7 +1548,6 @@ class _Any_String(String[Any]):
 _any_stringcodec = _Any_String()
 
 
-@affix_type_hints
 class _Any_Binary(Binary[Any]):
     """Binary codec for Any."""
 
@@ -1624,7 +1565,6 @@ class _Any_Binary(Binary[Any]):
 _any_binarycodec = _Any_Binary()
 
 
-@affix_type_hints
 class _Any_JSON(JSON[Any]):
     """JSON codec for Any."""
 

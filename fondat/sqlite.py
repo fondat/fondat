@@ -1,7 +1,5 @@
 """Module to manage data in a SQLite database."""
 
-from __future__ import annotations
-
 import aiosqlite
 import asyncio
 import contextvars
@@ -18,14 +16,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from fondat.codec import Codec, DecodeError, String
 from fondat.sql import Param, Statement
-from fondat.types import (
-    affix_type_hints,
-    is_optional,
-    is_subclass,
-    literal_values,
-    split_annotated,
-    union_type,
-)
+from fondat.types import is_optional, is_subclass, literal_values, split_annotated
 from fondat.validation import validate_arguments
 from types import NoneType
 from typing import Any, Literal
@@ -71,7 +62,6 @@ def _blob_codec_provider(python_type):
     if not is_subclass(python_type, (bytes, bytearray)):
         return
 
-    @affix_type_hints(localns=locals())
     class BlobCodec(SQLiteCodec[python_type]):
 
         sql_type = "BLOB"
@@ -97,7 +87,6 @@ def _integer_codec_provider(python_type):
     if not is_subclass(python_type, int):  # includes bool
         return
 
-    @affix_type_hints(localns=locals())
     class IntegerCodec(SQLiteCodec[python_type]):
 
         sql_type = "INTEGER"
@@ -123,7 +112,6 @@ def _real_codec_provider(python_type):
     if not is_subclass(python_type, float):
         return
 
-    @affix_type_hints(localns=locals())
     class RealCodec(SQLiteCodec[python_type]):
 
         sql_type = "REAL"
@@ -156,7 +144,6 @@ def _union_codec_provider(python_type):
     args = [a for a in args if a is not NoneType]
     codec = get_codec(args[0]) if len(args) == 1 else _text_codec_provider(python_type)
 
-    @affix_type_hints(localns=locals())
     class UnionCodec(SQLiteCodec[python_type]):
 
         sql_type = codec.sql_type
@@ -179,8 +166,8 @@ def _union_codec_provider(python_type):
 def _literal_codec_provider(python_type):
     """
     Provides a codec that encodes/decodes a Literal value to/from a compatible SQLite value.
-    If all literal values share the same type, then a codec for that type will be used,
-    otherwise it encodes/decodes as TEXT.
+    If all literal values share the same type, then it will use a codec for that type,
+    otherwise it will encode/decode as TEXT.
     """
 
     origin = typing.get_origin(python_type)
@@ -193,7 +180,6 @@ def _literal_codec_provider(python_type):
     codec = get_codec(types[0]) if len(types) == 1 else _text_codec_provider(python_type)
     is_nullable = is_optional(python_type) or None in literals
 
-    @affix_type_hints(localns=locals())
     class LiteralCodec(SQLiteCodec[python_type]):
 
         sql_type = codec.sql_type
@@ -225,7 +211,6 @@ def _text_codec_provider(python_type):
 
     str_codec = fondat.codec.get_codec(String, python_type)
 
-    @affix_type_hints(localns=locals())
     class TextCodec(SQLiteCodec):
 
         sql_type = "TEXT"
