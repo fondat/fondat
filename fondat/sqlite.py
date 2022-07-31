@@ -15,7 +15,7 @@ import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from fondat.codec import Codec, DecodeError, String
-from fondat.sql import Param, Statement
+from fondat.sql import Expression, Param
 from fondat.types import is_optional, is_subclass, literal_values, split_annotated
 from fondat.validation import validate_arguments
 from types import NoneType
@@ -228,22 +228,23 @@ def _text_codec_provider(python_type):
 
 class _Results(AsyncIterator[Any]):
 
-    __slots__ = {"statement", "results", "codecs"}
+    __slots__ = {"statement", "result", "rows", "codecs"}
 
-    def __init__(self, statement, results):
+    def __init__(self, statement, result, rows):
         self.statement = statement
-        self.results = results
+        self.result = result
+        self.rows = rows
         self.codecs = {
             k: get_codec(t)
-            for k, t in typing.get_type_hints(statement.result, include_extras=True).items()
+            for k, t in typing.get_type_hints(result, include_extras=True).items()
         }
 
     def __aiter__(self):
         return self
 
     async def __anext__(self):
-        row = await self.results.__anext__()
-        return self.statement.result(**{k: self.codecs[k].decode(row[k]) for k in self.codecs})
+        row = await self.rows.__anext__()
+        return self.result(**{k: self.codecs[k].decode(row[k]) for k in self.codecs})
 
 
 @asynccontextmanager
@@ -318,7 +319,11 @@ class Database(fondat.sql.Database):
             finally:
                 self._txn.reset(token)
 
-    async def execute(self, statement: Statement) -> AsyncIterator[Any] | None:
+    async def execute(
+        self,
+        statement: Expression,
+        result: type = None,
+    ) -> AsyncIterator[Any] | None:
         if not self._txn.get():
             raise RuntimeError("transaction context required to execute statement")
         text = []
@@ -333,8 +338,8 @@ class Database(fondat.sql.Database):
                 case _:
                     raise ValueError(f"unexpected fragment: {fragment}")
         results = await self._conn.get().execute("".join(text), args)
-        if statement.result is not None:  # expecting a result
-            return _Results(statement, results.__aiter__())
+        if result is not None:  # expecting a result
+            return _Results(statement, result, results.__aiter__())
 
-    def get_codec(self, python_type: Any) -> SQLiteCodec:
-        return get_codec(python_type)
+    def sql_type(self, type: Any) -> SQLiteCodec:
+        return get_codec(type).sql_type

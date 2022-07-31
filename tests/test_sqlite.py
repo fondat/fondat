@@ -247,8 +247,10 @@ async def test_resource_patch_pk(table):
 
 async def test_gather(database):
     async def select(n: int):
-        stmt = sql.Statement(f"SELECT {n} AS foo;", result=make_datacls("DC", (("foo", int),)))
-        result = await (await database.execute(stmt)).__anext__()
+        stmt = sql.Expression(f"SELECT {n} AS foo;")
+        result = await (
+            await database.execute(stmt, make_datacls("DC", (("foo", int),)))
+        ).__anext__()
         assert result.foo == n
 
     async with database.transaction():
@@ -278,19 +280,6 @@ async def test_nested_transaction(table):
         except RuntimeError:
             pass
         assert await table.count() == 1
-
-
-async def test_no_connecton(database):
-    stmt = sql.Statement(f"SELECT 1;")
-    with pytest.raises(RuntimeError):
-        await database.execute(stmt)
-
-
-async def test_no_transaction(table):
-    async with table.database.connection():
-        stmt = sql.Statement(f"SELECT 1;")
-        with pytest.raises(RuntimeError):
-            await table.database.execute(stmt)
 
 
 async def test_table_patch(database):
@@ -396,19 +385,20 @@ async def test_exists_cache(table):
 
 async def test_database_select(database: sql.Database):
     async with database.transaction():
-        await database.execute(sql.Statement("CREATE TABLE foo (n int);"))
+        await database.execute(sql.Expression("CREATE TABLE foo (n int);"))
         for n in range(10):
-            await database.execute(sql.Statement(f"INSERT INTO foo VALUES ({n});"))
+            await database.execute(sql.Expression(f"INSERT INTO foo VALUES ({n});"))
     try:
         async with database.transaction():
-            async for row in database.select(
+            async for row in sql.select(
+                database=database,
                 columns=((sql.Expression("n"), "name.is.here", int),),
                 from_=sql.Expression("foo"),
             ):
                 assert row["name.is.here"] >= 0
     finally:
         async with database.transaction():
-            await database.execute(sql.Statement("DROP TABLE foo;"))
+            await database.execute(sql.Expression("DROP TABLE foo;"))
 
 
 def test_param():
