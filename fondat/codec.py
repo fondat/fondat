@@ -17,7 +17,7 @@ from collections.abc import Iterable, Mapping
 from contextlib import contextmanager
 from datetime import date, datetime, timezone
 from decimal import Decimal
-from fondat.types import is_optional, is_subclass, is_typeddict, split_annotated
+from fondat.types import is_optional, is_subclass, split_annotated
 from types import NoneType, UnionType
 from typing import (
     Any,
@@ -29,6 +29,7 @@ from typing import (
     get_args,
     get_origin,
     get_type_hints,
+    is_typeddict,
 )
 from uuid import UUID
 
