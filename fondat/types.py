@@ -126,13 +126,6 @@ def is_instance(obj: Any, class_or_tuple: type | tuple[type, ...]) -> bool:
         return False
 
 
-def is_typeddict(type_hint: type) -> bool:
-    """Return if a type is a TypedDict."""
-    return (
-        is_subclass(type_hint, dict) and getattr(type_hint, "__annotations__", None) is not None
-    )
-
-
 def literal_values(literal_type_hint) -> set[Any]:
     """Return a set of all values in a Literal type."""
     return set(typing.get_args(literal_type_hint))
