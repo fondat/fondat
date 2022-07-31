@@ -25,7 +25,8 @@ def _datacls_init(dc: Any):
                 raise TypeError(f"unexpected keyword argument: '{name}'")
 
         for field in fields.values():
-            if (value := kwargs.get(field.name, MISSING)) is MISSING:
+            value = kwargs.get(field.name, MISSING)
+            if value is MISSING:
                 if field.default_factory is not dataclasses.MISSING:
                     value = field.default_factory()
                 elif field.default is not dataclasses.MISSING:
@@ -36,7 +37,8 @@ def _datacls_init(dc: Any):
                     raise TypeError(f"missing required keyword argument: '{field.name}'")
             setattr(self, field.name, value)
 
-        if (post_init := getattr(self, "__post_init__", MISSING)) is not MISSING:
+        post_init = getattr(self, "__post_init__", MISSING)
+        if post_init is not MISSING:
             post_init()
 
     return __init__
