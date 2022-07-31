@@ -341,5 +341,5 @@ class Database(fondat.sql.Database):
         if result is not None:  # expecting a result
             return _Results(statement, result, results.__aiter__())
 
-    def sql_type(self, type: Any) -> SQLiteCodec:
+    def sql_type(self, type: Any) -> str:
         return get_codec(type).sql_type
