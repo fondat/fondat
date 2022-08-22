@@ -1,9 +1,9 @@
 """
 Module to support pagination of items.
 
-For an operation that returns a large set of items, it's can be expensive to return all
-items in a single object. In this case, the operation should return items in pages, requiring
-multiple calls to the operation to retrieve all items.
+For an operation that returns a large set of items, it can be expensive to return all items in
+a single response. In this case, the operation should return items in pages, requiring multiple
+calls to the operation to retrieve all items.
 
 Paginated items are provided through a page dataclass, which minimally contains:
 
@@ -11,14 +11,14 @@ Paginated items are provided through a page dataclass, which minimally contains:
   • an opaque `cursor` value to retrieve the next page
 
 The caller will initially pass no cursor value to an operation, resulting in the first page
-of items. When generating a page, if there are additional items to be returns, the page cursor
-should contain an opaque value that can be used to retrieve the subsequent page. The last
-page should contain no cursor value, indicating there are no further items to retrieve.
+of items. When generating the page, if there are additional items to be returned, the page
+cursor should contain an opaque value that can be used to request the subsequent page. The
+last page should contain no cursor value, indicating there are no further items to request.
 
 An operation should establish a reasonable limit of items it would return in each page. If
 appropriate, the operation can also expose a `limit` parameter, which allows a caller to
 request a number of items to be returned in the page. Regardless of how many items are
-requested, the operation should be free to decide how many items to return.
+requested, the operation should be free to decide how many items to actually return.
 """
 
 from collections.abc import Callable, Coroutine, Iterable
