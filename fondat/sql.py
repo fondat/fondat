@@ -19,7 +19,7 @@ from fondat.codec import JSON, Binary, DecodeError, get_codec
 from fondat.data import datacls
 from fondat.error import BadRequestError, NotFoundError
 from fondat.memory import memory_resource
-from fondat.pagination import Item, Page
+from fondat.pagination import Item, Page, PaginationError
 from fondat.patch import json_merge_patch
 from fondat.resource import operation, query, resource
 from fondat.types import is_optional
@@ -301,7 +301,7 @@ async def select_page(
         validate(item, item_type)
         items.append(item)
 
-    # offset out of sync (database modified since last page)3
+    # offset out of sync (database modified since last page)
     if not items or (hash and hash != hash_item(items[0])):
         items = []
         found = False
@@ -321,6 +321,8 @@ async def select_page(
                 items.append(item)
                 if len(items) >= limit + 1:
                     break
+        if not items:
+            raise PaginationError("lost pagination index")
 
     if len(items) > limit:
         hash = hash_item(items[-1])

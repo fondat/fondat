@@ -26,8 +26,18 @@ from dataclasses import dataclass
 from typing import Any, Generic, TypeVar
 
 
-Item = TypeVar("Item")
+class PaginationError(Exception):
+    """
+    Error raised if pagination could not be performed.
 
+    An example of a pagination error is a loss of indexing: pages have drifted due to changes
+    to the underlying data between page requests, and the continuation point of the next page
+    cannot be reconstructed.
+    """
+
+
+# type aliases
+Item = TypeVar("Item")
 Cursor = bytes | None
 
 

@@ -494,7 +494,7 @@ async def test_select_page_broken_sync(database, table):
         assert len(page.items) == 5
         assert page.items[0].int_ == 1
         assert page.items[-1].int_ == 5
-        await table.delete(page.items[0].key)  # break offset/hash sync
+        await table.delete(page.items[0].key)  # force pagination drift
         page = await sql.select_page(
             database=database,
             columns={"key": "key", "int_": "int_"},
