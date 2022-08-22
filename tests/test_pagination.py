@@ -1,15 +1,12 @@
 from base64 import b64decode, b64encode
 from dataclasses import dataclass
-from fondat.pagination import make_page_dataclass, paginate
+from fondat.pagination import Page, paginate
 from fondat.resource import operation, resource
 
 
 @dataclass
 class Item:
     value: int
-
-
-Page = make_page_dataclass("Page", Item)
 
 
 @resource
@@ -19,13 +16,12 @@ class Resource:
         self.limit = limit
 
     @operation
-    async def get(self, limit: int | None = None, cursor: bytes | None = None) -> Page:
+    async def get(self, limit: int | None = None, cursor: bytes | None = None) -> Page[Item]:
         start = int(b64decode(cursor).decode()) if cursor else 0
         stop = min(start + self.limit, len(self.values))
-        return Page(
+        return Page[Item](
             items=self.values[start:stop],
             cursor=(b64encode(str(stop).encode()) if stop < len(self.values) else None),
-            remaining=len(self.values) - stop,
         )
 
 
@@ -34,7 +30,6 @@ resource = Resource(100, 10)
 
 async def test_page():
     page = await resource.get()
-    assert page.remaining == len(resource.values) - len(page.items)
     last = page.items[-1].value
     page = await resource.get(cursor=page.cursor)
     assert page.items[0].value == last + 1

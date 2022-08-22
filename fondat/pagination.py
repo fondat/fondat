@@ -1,77 +1,54 @@
 """
-Module to support pagination of results.
+Module to support pagination of items.
 
-Results of operations can be returned in cursor-based pages.
+For an operation that returns a large set of items, it's can be expensive to return all
+items in a single object. In this case, the operation should return items in pages, requiring
+multiple calls to the operation to retrieve all items.
 
-An operation returns a paginated result, if it:
-  • accepts an optional "cursor" parameter,
-  • returns a page dataclass that contains "items" and "cursor" attributes.
+Paginated items are provided through a page dataclass, which minimally contains:
 
-Example:
+  • an iterable object of `items` in the page
+  • an opaque `cursor` value to retrieve the next page
 
-@dataclass
-class Page:
-    items: Iterable[ItemType]
-    cursor: bytes | None = None
-    remaining: int | None = None
+The caller will initially pass no cursor value to an operation, resulting in the first page
+of items. When generating a page, if there are additional items to be returns, the page cursor
+should contain an opaque value that can be used to retrieve the subsequent page. The last
+page should contain no cursor value, indicating there are no further items to retrieve.
 
-@operation
-async def get(self, ..., limit: int | None = None, cursor: bytes | None = None) -> Page:
-    ...
-    return Page(...)
-
-An operation should establish an upper limit of items to return in each page. If appropriate,
-the operation can also expose an optional "limit" parameter, which allows a caller to suggest
-the number of items to be returned in the page. The operation is free to decide how many items
-to return.
-
-The "cursor" page attribute contains an opaque value that the caller supplies in a subsequent
-operation call to get the next page of items. If the "cursor" attribute is None, then there are
-no more items (or pages) to be requested.
-
-The optional "remaining" page attribute contains an estimated number of items remaining after
-the current page. As this value is optional, it may not be returned by the operation.
+An operation should establish a reasonable limit of items it would return in each page. If
+appropriate, the operation can also expose a `limit` parameter, which allows a caller to
+request a number of items to be returned in the page. Regardless of how many items are
+requested, the operation should be free to decide how many items to return.
 """
 
 from collections.abc import Callable, Coroutine, Iterable
-from dataclasses import field, make_dataclass
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, Generic, TypeVar
 
 
-def make_page_dataclass(class_name: str, item_type: type, remaining: bool = True):
-    """
-    Return a page dataclass for the specified item type.
+Item = TypeVar("Item")
 
-    Parameters:
-    • class_name: the name to assign the dataclass
-    • item_type: the type of each item in the page
-    • remaining: include remaining field
-    """
+Cursor = bytes | None
 
-    fields = [
-        ("items", Iterable[item_type]),
-        ("cursor", bytes | None, field(default=None)),
-    ]
 
-    if remaining:
-        fields.append(("remaining", int | None, field(default=None))),
+@dataclass
+class Page(Generic[Item]):
+    """A paginated result."""
 
-    return make_dataclass(class_name, tuple(fields))
+    items: Iterable[Item]
+    cursor: Cursor = None
 
 
 async def paginate(operation: Callable[..., Coroutine[Any, Any, Any]], /, **kwargs):
     """
     Wraps a paginated resource operation with an asynchronous generator that iterates through
-    all values.
-
-    The wrapped resource operation must return a page dataclass and accept a "cursor"
-    parameter that takes an optional bytes value.
+    all items. The wrapped resource operation must return a page dataclass and accept a
+    `cursor` parameter.
 
     Parameters:
     • operation: resource operation to wrap with generator
     • kwargs: keyword arguments to pass to resource operation
     """
-
     cursor = {}
     while cursor is not None:
         page = await operation(**kwargs, **cursor)
