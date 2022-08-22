@@ -2,6 +2,7 @@
 
 import asyncio
 import dataclasses
+import fondat.types
 import inspect
 import re
 import types
@@ -12,7 +13,7 @@ from collections.abc import Callable, Iterable, Mapping
 from contextlib import contextmanager
 from fondat.types import is_instance, is_subclass, split_annotated
 from types import NoneType
-from typing import Any
+from typing import Any, TypeVar
 
 
 class ValidationError(ValueError):
@@ -216,10 +217,16 @@ def _validate_iterable(value, python_type, args):
         index += 1
 
 
-def _validate_dataclass(value, python_type):
-    for attr_name, attr_type in typing.get_type_hints(python_type, include_extras=True).items():
-        with validation_error_path(attr_name):
-            validate(getattr(value, attr_name), attr_type)
+def _validate_typevar(value, python_type):
+    validate(value, fondat.types.resolve_typevar(python_type))
+
+
+def _validate_dataclass(value, python_type, origin):
+    dc_type = python_type if not origin else origin
+    with fondat.types.capture_typevars(python_type):
+        for attr_name, attr_type in typing.get_type_hints(dc_type, include_extras=True).items():
+            with validation_error_path(attr_name):
+                validate(getattr(value, attr_name), attr_type)
 
 
 def validate(value: Any, type_hint: Any) -> NoneType:
@@ -234,9 +241,11 @@ def validate(value: Any, type_hint: Any) -> NoneType:
         if isinstance(annotation, Validator):
             annotation.validate(value)
 
-    # aggregate type validation
     if python_type is Any:
         return
+    elif isinstance(python_type, TypeVar):
+        return _validate_typevar(value, python_type)
+
     match origin:
         case types.UnionType | typing.Union:
             return _validate_union(value, args)
@@ -266,8 +275,8 @@ def validate(value: Any, type_hint: Any) -> NoneType:
         return _validate_tuple(value, python_type, args)
     elif is_subclass(origin, Iterable):
         return _validate_iterable(value, python_type, args)
-    elif dataclasses.is_dataclass(python_type):
-        return _validate_dataclass(value, python_type)
+    elif dataclasses.is_dataclass(python_type) or dataclasses.is_dataclass(origin):
+        return _validate_dataclass(value, python_type, origin)
 
 
 def validate_arguments(callable: Callable):

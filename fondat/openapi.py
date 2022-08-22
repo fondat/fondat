@@ -22,7 +22,7 @@ from fondat.data import datacls
 from fondat.security import Policy
 from fondat.types import is_instance, is_optional, is_subclass
 from types import NoneType
-from typing import Annotated, Any, Literal, TypedDict
+from typing import Annotated, Any, Literal, TypedDict, TypeVar
 from uuid import UUID
 
 
@@ -546,28 +546,34 @@ _dc_kw = {k + "_": k for k in keyword.kwlist}
 
 
 @_provider
-def _dataclass_schema(*, python_type, annotated, origin, args, processor, **_):
-    if dataclasses.is_dataclass(python_type):
+def _typevar_schema(*, python_type, processor, **_):
+    if isinstance(python_type, TypeVar):
+        return processor.schema(fondat.types.resolve_typevar(python_type))
+
+
+@_provider
+def _dataclass_schema(*, python_type, annotated, origin, processor, **_):
+    if dataclasses.is_dataclass(python_type) or (origin and dataclasses.is_dataclass(origin)):
         if ref := processor.references.get(python_type):
             return ref
         component_schema = _get_component_schema(annotated)
+        dc_type = origin if origin else python_type
         if component_schema:
-            name = component_schema.name or processor.component_schema_name(
-                python_type.__name__
-            )
+            name = component_schema.name or processor.component_schema_name(dc_type.__name__)
             ref = {"$ref": f"#/components/schemas/{name}"}
             processor.references[python_type] = ref
-        hints = typing.get_type_hints(python_type, include_extras=True)
+        hints = typing.get_type_hints(dc_type, include_extras=True)
         required = {
             f.name
-            for f in dataclasses.fields(python_type)
+            for f in dataclasses.fields(dc_type)
             if f.default is dataclasses.MISSING
             and f.default_factory is dataclasses.MISSING
             and not is_optional(hints[f.name])
         }
-        properties = {
-            _dc_kw.get(key, key): processor.schema(pytype) for key, pytype in hints.items()
-        }
+        with fondat.types.capture_typevars(python_type):
+            properties = {
+                _dc_kw.get(key, key): processor.schema(pytype) for key, pytype in hints.items()
+            }
         for key, schema in properties.items():
             if key not in required and not fondat.validation.is_valid(schema, Reference):
                 schema.nullable = None

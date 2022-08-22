@@ -1,6 +1,6 @@
 import pytest
 
-from dataclasses import make_dataclass
+from dataclasses import dataclass, make_dataclass
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from fondat.validation import (
@@ -14,7 +14,7 @@ from fondat.validation import (
     validate_arguments,
     validate_return_value,
 )
-from typing import Annotated, Literal, Optional, T, TypedDict, Union
+from typing import Annotated, Generic, Literal, Optional, T, TypedDict, TypeVar, Union
 from uuid import UUID
 
 
@@ -525,3 +525,27 @@ async def test_async_decorator_return_error():
 
     with pytest.raises(ValidationError):
         await coro()
+
+
+def test_generic_dataclass():
+
+    T = TypeVar("T")
+    S = TypeVar("S")
+
+    @dataclass
+    class A(Generic[T]):
+        a: list[T]
+
+    @dataclass
+    class B(Generic[S]):
+        b: A[S]
+
+    BB = B[bytes]
+
+    validate(BB(b=A(a=[b"a", b"b"])), BB)
+
+    with pytest.raises(ValidationError):
+        validate(BB(b=1), BB)
+
+    with pytest.raises(ValidationError):
+        validate(BB(b=A(a=1)), BB)

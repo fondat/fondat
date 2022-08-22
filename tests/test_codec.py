@@ -5,15 +5,11 @@ import pytest
 
 from base64 import b64encode
 from collections.abc import Iterable
-from dataclasses import field, make_dataclass
+from dataclasses import dataclass, field, make_dataclass
 from fondat.codec import JSON, Binary, DecodeError, EncodeError, String, get_codec
 from fondat.data import make_datacls
-from typing import Annotated, Any, Literal, Optional, TypedDict, Union
+from typing import Annotated, Any, Generic, Literal, Optional, TypedDict, TypeVar, Union
 from uuid import UUID
-
-
-def _equal(fn, val):
-    assert val == fn(val)
 
 
 def _test_encoding(python_type, value):
@@ -257,7 +253,8 @@ def test_list_json_encode_item_type_error():
 
 
 def test_list_json_decode_success():
-    _equal(get_codec(JSON, list[float]).decode, [1.2, 3.4, 5.6])
+    value = [1.2, 3.4, 5.6]
+    assert get_codec(JSON, list[float]).decode(value) == value
 
 
 def test_list_json_decode_error():
@@ -393,7 +390,8 @@ def test_str_encodings():
 
 
 def test_str_json_encode_success():
-    _equal(get_codec(JSON, str).encode, "foo")
+    value = "foo"
+    assert get_codec(JSON, str).encode(value) == value
 
 
 def test_str_json_encode_error():
@@ -402,7 +400,8 @@ def test_str_json_encode_error():
 
 
 def test_str_json_decode_success():
-    _equal(get_codec(JSON, str).decode, "bar")
+    value = "bar"
+    assert get_codec(JSON, str).decode(value) == value
 
 
 def test_str_json_decode_error():
@@ -411,7 +410,8 @@ def test_str_json_decode_error():
 
 
 def test_str_str_decode_success():
-    _equal(get_codec(String, str).decode, "qux")
+    value = "qux"
+    assert get_codec(String, str).decode(value) == value
 
 
 # ----- int -----
@@ -422,7 +422,8 @@ def test_int_encodings():
 
 
 def test_int_json_encode_success():
-    _equal(get_codec(JSON, int).encode, 6)
+    value = 6
+    assert get_codec(JSON, int).encode(value) == value
 
 
 def test_int_json_encode_error():
@@ -431,11 +432,12 @@ def test_int_json_encode_error():
 
 
 def test_int_json_decode_success_int():
-    _equal(get_codec(JSON, int).decode, 8)
+    value = 8
+    assert get_codec(JSON, int).decode(value) == value
 
 
-def test_int_json_decode_success_round_float():
-    _equal(get_codec(JSON, int).decode, 8.0)
+def test_int_json_decode_success_truncate_float():
+    assert get_codec(JSON, int).decode(8.0) == 8
 
 
 def test_int_json_decode_error_float():
@@ -460,7 +462,8 @@ def test_float_encodings():
 
 
 def test_float_json_encode_success():
-    _equal(get_codec(JSON, float).encode, 6.1)
+    value = 6.1
+    assert get_codec(JSON, float).encode(value) == value
 
 
 def test_float_json_encode_error():
@@ -473,7 +476,8 @@ def test_float_json_decode_int():
 
 
 def test_float_json_decode_float():
-    _equal(get_codec(JSON, float).decode, 9.1)
+    value = 9.1
+    assert get_codec(JSON, float).decode(value) == value
 
 
 def test_float_json_decode_error():
@@ -548,11 +552,13 @@ def test_bool_encodings():
 
 
 def test_bool_json_encode_true():
-    _equal(get_codec(JSON, bool).encode, True)
+    value = True
+    assert get_codec(JSON, bool).encode(value) == value
 
 
 def test_bool_json_encode_false():
-    _equal(get_codec(JSON, bool).encode, False)
+    value = False
+    assert get_codec(JSON, bool).encode(value) == value
 
 
 def test_bool_json_encode_error():
@@ -561,11 +567,13 @@ def test_bool_json_encode_error():
 
 
 def test_bool_json_decode_true():
-    _equal(get_codec(JSON, bool).decode, True)
+    value = True
+    assert get_codec(JSON, bool).decode(value) == value
 
 
 def test_bool_json_decode_false():
-    _equal(get_codec(JSON, bool).decode, False)
+    value = False
+    assert get_codec(JSON, bool).decode(value) == value
 
 
 def test_bool_json_decode_error():
@@ -721,8 +729,8 @@ def test_uuid_encodings():
 
 
 def test_uuid_json_encode_success():
-    val = "e9979b9c-c469-11e4-a0ad-37ff5ce3a7bf"
-    assert get_codec(JSON, UUID).encode(UUID(val)) == val
+    value = "e9979b9c-c469-11e4-a0ad-37ff5ce3a7bf"
+    assert get_codec(JSON, UUID).encode(UUID(value)) == value
 
 
 def test_uuid_json_encode_error():
@@ -731,8 +739,8 @@ def test_uuid_json_encode_error():
 
 
 def test_uuid_json_decode_success():
-    val = "15a64a3a-c46a-11e4-b790-cb538a10de85"
-    assert get_codec(JSON, UUID).decode(val) == UUID(val)
+    value = "15a64a3a-c46a-11e4-b790-cb538a10de85"
+    assert get_codec(JSON, UUID).decode(value) == UUID(value)
 
 
 def test_uuid_json_decode_error():
@@ -741,8 +749,8 @@ def test_uuid_json_decode_error():
 
 
 def test_uuid_str_decode_success():
-    val = "3629cf84-c46a-11e4-9b09-43a2f172bb56"
-    assert get_codec(String, UUID).decode(val) == UUID(val)
+    value = "3629cf84-c46a-11e4-9b09-43a2f172bb56"
+    assert get_codec(String, UUID).decode(value) == UUID(value)
 
 
 def test_uuid_str_decode_error():
@@ -758,8 +766,8 @@ def test_bytes_encodings():
 
 
 def test_bytes_json_encode_success():
-    val = bytes([4, 5, 6])
-    assert get_codec(JSON, bytes).encode(val) == b64encode(val).decode()
+    value = bytes([4, 5, 6])
+    assert get_codec(JSON, bytes).encode(value) == b64encode(value).decode()
 
 
 def test_bytes_json_encode_error():
@@ -768,8 +776,8 @@ def test_bytes_json_encode_error():
 
 
 def test_bytes_json_decode_success():
-    val = bytes([7, 8, 9])
-    assert get_codec(JSON, bytes).decode(b64encode(val).decode()) == val
+    value = bytes([7, 8, 9])
+    assert get_codec(JSON, bytes).decode(b64encode(value).decode()) == value
 
 
 def test_bytes_json_decode_error():
@@ -778,13 +786,13 @@ def test_bytes_json_decode_error():
 
 
 def test_bytes_str_encode_success():
-    val = bytes([0, 2, 4, 6, 8])
-    assert get_codec(String, bytes).encode(val) == b64encode(val).decode()
+    value = bytes([0, 2, 4, 6, 8])
+    assert get_codec(String, bytes).encode(value) == b64encode(value).decode()
 
 
 def test_bytes_str_decode_success():
-    val = bytes([1, 3, 5, 7, 9])
-    assert get_codec(String, bytes).decode(b64encode(val).decode()) == val
+    value = bytes([1, 3, 5, 7, 9])
+    assert get_codec(String, bytes).decode(b64encode(value).decode()) == value
 
 
 def test_bytes_str_decode_error():
@@ -949,6 +957,28 @@ def test_iterable_json_decode():
 
 def test_iterable_string_decode():
     assert get_codec(String, Iterable[int]).decode("1,2,3") == [1, 2, 3]
+
+
+# ----- generics -----
+
+
+def test_generic_dataclass_json():
+    T = TypeVar("T")
+    S = TypeVar("S")
+
+    @dataclass
+    class A(Generic[T]):
+        a: list[T]
+
+    @dataclass
+    class B(Generic[S]):
+        b: A[S]
+
+    BB = B[bytes]
+    bb = BB(b=A(a=[b"a", b"b"]))
+    encoded = get_codec(JSON, BB).encode(bb)
+    decoded = get_codec(JSON, BB).decode(encoded)
+    assert decoded == bb
 
 
 # ----- general -----

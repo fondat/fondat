@@ -1,8 +1,27 @@
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from fondat.stream import BytesStream
-from fondat.types import is_optional, literal_values, strip_optional, union_type
+from fondat.types import (
+    capture_typevars,
+    is_optional,
+    literal_values,
+    resolve_typevar,
+    strip_optional,
+    union_type,
+)
+from sre_constants import ANY
 from types import NoneType, UnionType
-from typing import Annotated, Literal, Optional, Union, get_args, get_origin
+from typing import (
+    Annotated,
+    Any,
+    Generic,
+    Literal,
+    Optional,
+    TypeVar,
+    Union,
+    get_args,
+    get_origin,
+)
 
 
 async def _ajoin(stream: AsyncIterator[bytes]) -> bytes:
@@ -59,3 +78,36 @@ def test_union_type():
     assert get_args(t) == (str, NoneType)
     assert union_type([]) is NoneType
     assert union_type([str]) is str
+
+
+def test_dataclass_typevar():
+
+    A = TypeVar("A")
+    B = TypeVar("B")
+
+    @dataclass
+    class DC1(Generic[A]):
+        a: list[A]
+
+    @dataclass
+    class DC2(Generic[A, B]):
+        a: A
+        s: DC1[str]
+        i: DC1[B]
+
+    DC2X = DC2[bool, int]
+
+    with capture_typevars(DC2X):
+        assert resolve_typevar(A) is bool
+        assert resolve_typevar(B) is int
+        with capture_typevars(get_origin(DC2X).__annotations__["s"]):
+            assert resolve_typevar(A) is str
+        with capture_typevars(get_origin(DC2X).__annotations__["i"]):
+            assert resolve_typevar(A) is int
+
+    with capture_typevars(DC1):
+        assert resolve_typevar(A) is Any
+
+    with capture_typevars(DC2):
+        assert resolve_typevar(A) is Any
+        assert resolve_typevar(B) is Any

@@ -1,13 +1,19 @@
 """Module to manage types and type hints."""
 
+import contextvars
 import dataclasses
 import functools
 import types
 import typing
 
 from collections.abc import Iterable, Mapping
+from contextlib import contextmanager
+from tkinter import N
 from types import NoneType
-from typing import Any
+from typing import Any, TypeVar, get_args, get_origin
+
+
+_typevars = contextvars.ContextVar("_fondat_typevars")
 
 
 def affix_type_hints(
@@ -143,4 +149,37 @@ def union_type(type_hints: Iterable[Any]) -> types.UnionType:
             result |= types.__next__()
         except StopIteration:
             break
+    return result
+
+
+@contextmanager
+def capture_typevars(alias: Any):
+    """
+    Return a context manager that captures type variable substitions in a provided generic
+    alias, to be resolved through calls to `resolve_typevar` within the context. This allows
+    dataclasses to contain generic types, and for them to be resolved at runtime. If the
+    passed value is not an generic alias, nothing is captured.
+    """
+    typevars = None
+    if args := get_args(alias):
+        if params := getattr(get_origin(alias), "__parameters__", None):
+            typevars = {p: a for p, a in zip(params, args) if isinstance(p, TypeVar)}
+    token = None
+    if typevars:
+        if outer := _typevars.get(None):  # nested generic alias
+            typevars = outer | typevars
+        token = _typevars.set(typevars)
+    yield
+    if token:
+        _typevars.reset(token)
+
+
+def resolve_typevar(typevar: TypeVar) -> Any:
+    """
+    Resolve a captured type variable substituion from a containing generic class instance.
+    For more information, see `capture_generic_typevars` function.
+    """
+    result = typevar
+    while isinstance(result, TypeVar):
+        result = _typevars.get({}).get(result) or Any
     return result

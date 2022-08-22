@@ -1,7 +1,7 @@
 import fondat.http
 import fondat.openapi
-import pytest
 
+from dataclasses import dataclass
 from datetime import date
 from fondat.annotation import Deprecated, Description, Example, Format, ReadOnly
 from fondat.codec import JSON, get_codec
@@ -11,7 +11,7 @@ from fondat.resource import container_resource, mutation, operation, query, reso
 from fondat.security import Policy
 from fondat.validation import Pattern, validate
 from types import NoneType
-from typing import Annotated, Optional, Union
+from typing import Annotated, Generic, Optional, TypeVar, Union
 from uuid import UUID
 
 
@@ -253,5 +253,26 @@ def test_openapi_generate_openapi_specification():
     js = get_codec(JSON, fondat.openapi.OpenAPI).encode(result)
 
 
-# import json
-# print(json.dumps(js))
+def test_generic_dataclass():
+
+    T = TypeVar("T")
+
+    @dataclass
+    class C(Generic[T]):
+        a: T
+
+    CI = C[int]
+
+    @resource
+    class R:
+        @operation
+        async def get(self) -> CI:
+            pass
+
+    info = fondat.openapi.Info(title="title", version="version")
+    root = R()
+    doc = generate_openapi(resource=root, info=info)
+    js = get_codec(JSON, fondat.openapi.OpenAPI).encode(doc)
+
+    # import json
+    # print(json.dumps(js))

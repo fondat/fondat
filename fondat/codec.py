@@ -17,7 +17,13 @@ from collections.abc import Iterable, Mapping
 from contextlib import contextmanager
 from datetime import date, datetime, timezone
 from decimal import Decimal
-from fondat.types import is_optional, is_subclass, split_annotated
+from fondat.types import (
+    capture_typevars,
+    is_optional,
+    is_subclass,
+    resolve_typevar,
+    split_annotated,
+)
 from types import NoneType, UnionType
 from typing import (
     Any,
@@ -892,9 +898,9 @@ def _uuid(codec_type, python_type):
 @_provider
 def _typeddict(codec_type, python_type):
 
-    python_type, _ = split_annotated(python_type)
+    td_type, _ = split_annotated(python_type)
 
-    if not is_typeddict(python_type):
+    if not is_typeddict(td_type):
         return
 
     if codec_type is JSON:
@@ -902,7 +908,7 @@ def _typeddict(codec_type, python_type):
         if c := _building.get((codec_type, python_type)):
             return c  # return the (incomplete) outer one still being built
 
-        hints = get_type_hints(python_type, include_extras=True)
+        hints = get_type_hints(td_type, include_extras=True)
 
         for key in hints:
             if type(key) is not str:
@@ -1273,111 +1279,126 @@ _dc_kw = {k + "_": k for k in keyword.kwlist}
 
 
 @_provider
+def typevar_codec(codec_type, python_type):
+    if not isinstance(python_type, TypeVar):
+        return
+    return get_codec(codec_type, resolve_typevar(python_type))
+
+
+@_provider
 def dataclass_codec(codec_type, python_type):
 
     dc_type, _ = split_annotated(python_type)
+    origin = get_origin(dc_type)
 
-    if not dataclasses.is_dataclass(dc_type):
+    if not dataclasses.is_dataclass(dc_type) and (
+        not origin or not dataclasses.is_dataclass(origin)
+    ):
         return
 
-    fields = dataclasses.fields(dc_type)
+    with capture_typevars(dc_type):
 
-    if codec_type is JSON:
+        if origin:
+            dc_type = origin
 
-        if c := _building.get((codec_type, python_type)):
-            return c  # return the (incomplete) outer one still being built
+        fields = dataclasses.fields(dc_type)
 
-        hints = get_type_hints(dc_type, include_extras=True)
+        if codec_type is JSON:
 
-        class _Dataclass_JSON(JSON[python_type]):
+            if c := _building.get((codec_type, python_type)):
+                return c  # return the (incomplete) outer one still being built
 
-            json_type = dict[str, Any]  # will be replaced below
+            hints = get_type_hints(dc_type, include_extras=True)
 
-            def encode(self, value: python_type) -> Any:
-                if not isinstance(value, dc_type):
-                    raise EncodeError
-                result = {}
-                for field in fields:
-                    v = getattr(value, field.name, None)
-                    if v is not None:
-                        with CodecError.path_on_error(field.name):
-                            result[_dc_kw.get(field.name, field.name)] = get_codec(
-                                JSON, field.type
-                            ).encode(v)
-                return result
+            class _Dataclass_JSON(JSON[python_type]):
 
-            def decode(self, value: Any) -> python_type:
-                if not isinstance(value, dict):
-                    raise DecodeError
-                kwargs = {}
-                for field in fields:
-                    codec = get_codec(JSON, field.type)
+                json_type = dict[str, Any]  # will be replaced below
+
+                def encode(self, value: python_type) -> Any:
+                    if not isinstance(value, dc_type):
+                        raise EncodeError
+                    result = {}
+                    for field in fields:
+                        v = getattr(value, field.name, None)
+                        if v is not None:
+                            with CodecError.path_on_error(field.name):
+                                result[_dc_kw.get(field.name, field.name)] = get_codec(
+                                    JSON, field.type
+                                ).encode(v)
+                    return result
+
+                def decode(self, value: Any) -> python_type:
+                    if not isinstance(value, dict):
+                        raise DecodeError
+                    kwargs = {}
+                    for field in fields:
+                        codec = get_codec(JSON, field.type)
+                        try:
+                            with CodecError.path_on_error(field.name):
+                                kwargs[field.name] = codec.decode(
+                                    value[_dc_kw.get(field.name, field.name)]
+                                )
+                        except KeyError:
+                            if (
+                                is_optional(field.type)
+                                and field.default is dataclasses.MISSING
+                                and field.default_factory is dataclasses.MISSING
+                            ):
+                                kwargs[field.name] = None
                     try:
-                        with CodecError.path_on_error(field.name):
-                            kwargs[field.name] = codec.decode(
-                                value[_dc_kw.get(field.name, field.name)]
-                            )
-                    except KeyError:
-                        if (
-                            is_optional(field.type)
-                            and field.default is dataclasses.MISSING
-                            and field.default_factory is dataclasses.MISSING
-                        ):
-                            kwargs[field.name] = None
-                try:
-                    return python_type(**kwargs)
-                except Exception as e:
-                    raise DecodeError from e
+                        return python_type(**kwargs)
+                    except Exception as e:
+                        raise DecodeError from e
 
-        result = _Dataclass_JSON()
-        _building[(codec_type, python_type)] = result
+            result = _Dataclass_JSON()
+            _building[(codec_type, python_type)] = result
 
-        try:
-            json_type = TypedDict(
-                "_TypedDict",
-                {key: get_codec(JSON, hints[key]).json_type for key in hints},
-                total=False,
-            )
+            try:
+                json_type = TypedDict(
+                    "_TypedDict",
+                    {key: get_codec(JSON, hints[key]).json_type for key in hints},
+                    total=False,
+                )
 
-            # workaround for https://bugs.python.org/issue42059
-            json_type.__required_keys__ = frozenset()
-            json_type.__optional_keys__ = frozenset(hints)
+                # workaround for https://bugs.python.org/issue42059
+                json_type.__required_keys__ = frozenset()
+                json_type.__optional_keys__ = frozenset(hints)
 
-            result.json_type = result.__class__.json_type = json_type
+                result.json_type = result.__class__.json_type = json_type
 
-        finally:
-            del _building[(codec_type, python_type)]
+            finally:
+                del _building[(codec_type, python_type)]
 
-        return result
+            return result
 
-    if codec_type is String:
+        if codec_type is String:
 
-        json_codec = get_codec(JSON, python_type)
+            json_codec = get_codec(JSON, python_type)
 
-        class _Dataclass_String(String[python_type]):
-            def encode(self, value: python_type) -> str:
-                return json.dumps(json_codec.encode(value))
+            class _Dataclass_String(String[python_type]):
+                def encode(self, value: python_type) -> str:
+                    return json.dumps(json_codec.encode(value))
 
-            def decode(self, value: str) -> python_type:
-                return json_codec.decode(_s2j(value))
+                def decode(self, value: str) -> python_type:
+                    return json_codec.decode(_s2j(value))
 
-        return _Dataclass_String()
+            return _Dataclass_String()
 
-    if codec_type is Binary:
+        if codec_type is Binary:
 
-        string_codec = get_codec(String, python_type)
+            string_codec = get_codec(String, python_type)
 
-        class _Dataclass_Binary(Binary[python_type]):
+            class _Dataclass_Binary(Binary[python_type]):
 
-            content_type = "application/json"
+                content_type = "application/json"
 
-            def encode(self, value: python_type) -> bytes:
-                return string_codec.encode(value).encode()
+                def encode(self, value: python_type) -> bytes:
+                    return string_codec.encode(value).encode()
 
-            def decode(self, value: bytes | bytearray) -> python_type:
-                return string_codec.decode(_b2s(value))
+                def decode(self, value: bytes | bytearray) -> python_type:
+                    return string_codec.decode(_b2s(value))
 
-        return _Dataclass_Binary()
+            return _Dataclass_Binary()
 
 
 # ----- UnionType/Union -----
