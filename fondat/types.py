@@ -8,7 +8,6 @@ import typing
 
 from collections.abc import Iterable, Mapping
 from contextlib import contextmanager
-from tkinter import N
 from types import NoneType
 from typing import Any, TypeVar, get_args, get_origin
 
