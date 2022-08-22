@@ -7,7 +7,7 @@ from collections.abc import Iterable
 from fondat.codec import Binary, String, get_codec
 from fondat.error import InternalServerError, NotFoundError
 from fondat.http import AsBody
-from fondat.pagination import make_page_dataclass
+from fondat.pagination import Page
 from fondat.resource import operation, resource
 from fondat.security import Policy
 from fondat.stream import Stream
@@ -244,7 +244,6 @@ def directory_resource(
 
     codec = get_codec(String, key_type)
 
-    Page = make_page_dataclass("Page", key_type)
     FileResource = _file_resource_class(value_type, compress, writeable, publish, policies)
 
     @resource
@@ -259,7 +258,11 @@ def directory_resource(
         if index:
 
             @operation(publish=publish, policies=policies)
-            async def get(self, limit: int | None = None, cursor: bytes | None = None) -> Page:
+            async def get(
+                self,
+                limit: int | None = None,
+                cursor: bytes | None = None,
+            ) -> Page[key_type]:
                 """Return paginated list of file keys."""
                 limit = _limit(limit)
                 if cursor is not None:
@@ -277,7 +280,7 @@ def directory_resource(
                         )
                 except FileNotFoundError as fnfe:
                     raise InternalServerError from fnfe
-                page = Page(items=[], cursor=None, remaining=0)
+                page = Page[key_type](items=[], cursor=None)
                 for (counter, name) in enumerate(names, 1):
                     if cursor is not None:
                         if name <= cursor:
@@ -289,7 +292,6 @@ def directory_resource(
                         continue  # ignore name that cannot be decoded
                     if len(page.items) == limit and counter < len(names):
                         page.cursor = name.encode()
-                        page.remaining = len(names) - counter
                         break
                 return page
 
