@@ -161,10 +161,8 @@ async def test_pagination(tmp_path):
     dr = directory_resource(path=dir, value_type=str, extension=".txt", writeable=True)
     page = await dr.get(limit=100)
     assert len(page.items) == 100
-    assert page.remaining == count - 100
     page = await dr.get(limit=100, cursor=page.cursor)
     assert len(page.items) == 100
-    assert page.remaining == count - 200
     assert len([v async for v in paginate(dr.get)]) == count
 
 

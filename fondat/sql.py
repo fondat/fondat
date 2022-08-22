@@ -7,6 +7,7 @@ import fondat.error
 import fondat.patch
 import fondat.security
 import fondat.types
+import hashlib
 import logging
 import re
 import typing
@@ -18,11 +19,12 @@ from fondat.codec import JSON, Binary, DecodeError, get_codec
 from fondat.data import datacls
 from fondat.error import BadRequestError, NotFoundError
 from fondat.memory import memory_resource
+from fondat.pagination import Item, Page
 from fondat.patch import json_merge_patch
 from fondat.resource import operation, query, resource
 from fondat.types import is_optional
 from fondat.validation import MinValue, ValidationError, validate
-from typing import Annotated, Any, Protocol, TypedDict
+from typing import Annotated, Any, Protocol, TypedDict, TypeVar
 
 
 _logger = logging.getLogger(__name__)
@@ -179,8 +181,8 @@ async def select(
     group_by: Expression | None = None,
     having: Expression | None = None,
     order_by: Expression | None = None,
-    limit: int | None = None,
     offset: int | None = None,
+    limit: int | None = None,
 ) -> AsyncIterator[dict[str, Any]]:
     """
     Execute a select statement.
@@ -192,8 +194,8 @@ async def select(
     • group_by: GROUP BY expression
     • having: HAVING clause expression
     • order_by: ORDER BY expression
-    • limit: limit the number of rows returned, or None to select all
     • offset: number of rows to skip, or None to skip none
+    • limit: limit the number of rows returned, or None to select all
 
     Each column specified is a tuple with the values in this order:
     • expression: expression for the SQL database to process
@@ -203,7 +205,7 @@ async def select(
     Returns an asynchronous iterable containing rows; each row item is a dictionary that
     maps column name to evaluated expression value.
 
-    This coroutine must be called within a database transaction.
+    This coroutine must be called within a database transaction context.
     """
 
     cols = {}
@@ -240,6 +242,95 @@ async def select(
     )
     async for row in rows:
         yield {cols[k][1]: v for k, v in row.items()}
+
+
+async def select_page(
+    *,
+    database: Database,
+    columns: dict[str, Expression],
+    from_: Expression | None = None,
+    where: Expression | None = None,
+    order_by: Expression,
+    limit: int = 100,
+    cursor: bytes | None = None,
+    item_type: type[Item],
+) -> Page[Item]:
+    """
+    Execute a select statement, paginating results.
+
+    Parameters:
+    • columns: column names and expressions to select
+    • from_: FROM expression containing tables to select and/or tables joined
+    • where: WHERE condition expression; None to match all rows
+    • order_by: ORDER BY expression
+    • limit: limit the number of rows returned, or None to select all
+    • item_type: type to return for each item in the page
+
+    The return item type can be either a dataclass or a typed dictionary. The name of each
+    value in the item must correlate with the name of a result column. In order for pagination
+    to operate correctly, each item must be unique.
+
+    This coroutine must be called within a database transaction context.
+    """
+
+    cursor_codec = get_codec(Binary, tuple[int, bytes])
+    item_codec = get_codec(Binary, item_type)
+
+    def hash_item(item: Item) -> bytes:
+        return hashlib.sha256(item_codec.encode(item)).digest()
+
+    select_columns = [
+        (expression, name, item_type.__annotations__.get(name))
+        for name, expression in columns.items()
+    ]
+
+    (offset, hash) = cursor_codec.decode(cursor) if cursor else (None, None)
+
+    items = []
+
+    async for row in select(
+        database=database,
+        columns=select_columns,
+        from_=from_,
+        where=where,
+        order_by=order_by,
+        offset=offset,
+        limit=limit + 1,
+    ):
+        item = item_type(**row)
+        validate(item, item_type)
+        items.append(item)
+
+    # offset out of sync (database modified since last page)3
+    if not items or (hash and hash != hash_item(items[0])):
+        items = []
+        found = False
+        async for row in select(
+            database=database,
+            columns=select_columns,
+            from_=from_,
+            where=where,
+            order_by=order_by,
+        ):
+            item = item_type(**row)
+            if not found:
+                h = hash_item(item)
+                if hash == h:
+                    found = True
+            if found:
+                items.append(item)
+                if len(items) >= limit + 1:
+                    break
+
+    if len(items) > limit:
+        hash = hash_item(items[-1])
+        del items[-1]
+        offset = (offset or 0) + len(items)
+        cursor = cursor_codec.encode((offset, hash))
+    else:
+        cursor = None
+
+    return Page[item_type](items, cursor)
 
 
 class Table:

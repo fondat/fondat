@@ -9,6 +9,7 @@ import tempfile
 
 from datetime import date, datetime
 from fondat.data import datacls, make_datacls
+from fondat.sql import Expression
 from typing import Literal, TypedDict
 from uuid import UUID, uuid4
 
@@ -428,3 +429,94 @@ async def test_int_literal():
 async def test_mixed_literal():
     codec = sqlite.get_codec(Literal["a", 1, True])
     assert codec.sql_type == "TEXT"
+
+
+async def test_select_page_synced(database, table):
+    Item = make_datacls("Item", fields=[("key", UUID), ("int_plus_one", int)])
+    resource = sql.table_resource_class(table, sql.row_resource_class(table))()
+    async with database.transaction():
+        for n in range(12):
+            key = uuid4()
+            await resource[key].put(DC(key=key, int_=n))
+        page = await sql.select_page(
+            database=database,
+            columns={"key": "key", "int_plus_one": Expression("int_ + 1")},
+            from_="foo",
+            order_by=Expression("int_"),
+            limit=5,
+            item_type=Item,
+        )
+        assert len(page.items) == 5
+        assert page.items[0].int_plus_one == 1
+        assert page.items[-1].int_plus_one == 5
+        page = await sql.select_page(
+            database=database,
+            columns={"key": "key", "int_plus_one": Expression("int_ + 1")},
+            from_="foo",
+            order_by=Expression("int_"),
+            limit=5,
+            cursor=page.cursor,
+            item_type=Item,
+        )
+        assert len(page.items) == 5
+        assert page.items[0].int_plus_one == 6
+        assert page.items[-1].int_plus_one == 10
+        page = await sql.select_page(
+            database=database,
+            columns={"key": "key", "int_plus_one": Expression("int_ + 1")},
+            from_="foo",
+            order_by=Expression("int_"),
+            limit=50,
+            cursor=page.cursor,
+            item_type=Item,
+        )
+        assert len(page.items) == 2
+        assert page.items[0].int_plus_one == 11
+        assert page.items[-1].int_plus_one == 12
+        assert page.cursor is None
+
+
+async def test_select_page_broken_sync(database, table):
+    Item = make_datacls("Item", fields=[("key", UUID), ("int_", int)])
+    resource = sql.table_resource_class(table, sql.row_resource_class(table))()
+    async with database.transaction():
+        for n in range(1, 13):
+            key = uuid4()
+            await resource[key].put(DC(key=key, int_=n))
+        page = await sql.select_page(
+            database=database,
+            columns={"key": "key", "int_": "int_"},
+            from_="foo",
+            order_by=Expression("int_"),
+            limit=5,
+            item_type=Item,
+        )
+        assert len(page.items) == 5
+        assert page.items[0].int_ == 1
+        assert page.items[-1].int_ == 5
+        await table.delete(page.items[0].key)  # break offset/hash sync
+        page = await sql.select_page(
+            database=database,
+            columns={"key": "key", "int_": "int_"},
+            from_="foo",
+            order_by=Expression("int_"),
+            limit=5,
+            cursor=page.cursor,
+            item_type=Item,
+        )
+        assert len(page.items) == 5
+        assert page.items[0].int_ == 6
+        assert page.items[-1].int_ == 10
+        page = await sql.select_page(
+            database=database,
+            columns={"key": "key", "int_": "int_"},
+            from_="foo",
+            order_by=Expression("int_"),
+            limit=50,
+            cursor=page.cursor,
+            item_type=Item,
+        )
+        assert len(page.items) == 2
+        assert page.items[0].int_ == 11
+        assert page.items[-1].int_ == 12
+        assert page.cursor is None
