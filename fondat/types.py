@@ -156,8 +156,8 @@ def capture_typevars(alias: Any):
     """
     Return a context manager that captures type variable substitions in a provided generic
     alias, to be resolved through calls to `resolve_typevar` within the context. This allows
-    dataclasses to contain generic types, and for them to be resolved at runtime. If the
-    passed value is not an generic alias, nothing is captured.
+    dataclasses to contain generic types, and for those types to be resolved at runtime. If
+    the passed value is not a generic alias, nothing is captured.
     """
     typevars = None
     if args := get_args(alias):
@@ -176,7 +176,7 @@ def capture_typevars(alias: Any):
 def resolve_typevar(typevar: TypeVar) -> Any:
     """
     Resolve a captured type variable substituion from a containing generic class instance.
-    For more information, see `capture_generic_typevars` function.
+    For more information, see `capture_typevars` function.
     """
     result = typevar
     while isinstance(result, TypeVar):
