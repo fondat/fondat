@@ -431,6 +431,44 @@ async def test_mixed_literal():
     assert codec.sql_type == "TEXT"
 
 
+async def test_select_page_iterator(database, table):
+    Item = make_datacls("Item", fields=[("key", UUID), ("int_", int)])
+    resource = sql.table_resource_class(table, sql.row_resource_class(table))()
+    async with database.transaction():
+        for n in range(12):
+            key = uuid4()
+            await resource[key].put(DC(key=key, int_=n))
+        rows = [
+            row
+            async for row in sql.select_iterator(
+                database=database,
+                columns={"key": "key", "int_": "int_"},
+                from_="foo",
+                row_type=Item,
+            )
+        ]
+        assert len(rows) == 12
+
+
+async def test_select_page_iterator_alias(database, table):
+    Item = TypedDict("Item", {"key": UUID, "not-identifier": int})
+    resource = sql.table_resource_class(table, sql.row_resource_class(table))()
+    async with database.transaction():
+        for n in range(12):
+            key = uuid4()
+            await resource[key].put(DC(key=key, int_=n))
+        rows = [
+            row
+            async for row in sql.select_iterator(
+                database=database,
+                columns={"key": "key", "not-identifier": "int_"},
+                from_="foo",
+                row_type=Item,
+            )
+        ]
+        assert len(rows) == 12
+
+
 async def test_select_page_synced(database, table):
     Item = make_datacls("Item", fields=[("key", UUID), ("int_plus_one", int)])
     resource = sql.table_resource_class(table, sql.row_resource_class(table))()

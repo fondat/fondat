@@ -12,22 +12,27 @@ import logging
 import re
 import typing
 
-from collections.abc import AsyncIterator, Iterable
-from contextlib import AbstractAsyncContextManager, nullcontext, suppress
+from collections.abc import AsyncIterator, Iterable, Mapping
+from contextlib import AbstractAsyncContextManager, suppress
 from dataclasses import dataclass, is_dataclass
 from fondat.codec import JSON, Binary, DecodeError, get_codec
 from fondat.data import datacls
 from fondat.error import BadRequestError, NotFoundError
 from fondat.memory import memory_resource
-from fondat.pagination import Item, Page, PaginationError
+from fondat.pagination import Page, PaginationError
 from fondat.patch import json_merge_patch
 from fondat.resource import operation, query, resource
 from fondat.types import is_optional
 from fondat.validation import MinValue, ValidationError, validate
+from functools import partial
 from typing import Annotated, Any, Protocol, TypedDict, TypeVar
 
 
 _logger = logging.getLogger(__name__)
+
+
+Item = TypeVar("Item")
+Row = TypeVar("Row")
 
 
 @dataclass
@@ -110,6 +115,9 @@ class Expression(Iterable[Fragment]):
                 raise ValueError
         return self
 
+    def __getitem__(self, key):
+        return self.fragments[key]
+
     @staticmethod
     def join(
         value: Iterable[Expression | Fragment],
@@ -136,21 +144,20 @@ class Database(Protocol):
     async def execute(
         self,
         statement: Expression | str,
-        result: type | None = None,
-    ) -> AsyncIterator[Any] | None:
+        result: type[Row] | None = None,
+    ) -> AsyncIterator[Row] | None:
         """
         Execute a SQL statement.
 
         Parameter:
         • statement: SQL statement to excute
-        • result: the type to return a query result row as
+        • result: the type to return a query result row
 
-        If the statement is a query that expects results, each row can be returned in
-        a dataclass or dict object, whose type is specifed in the result parameter.
+        If the statement is a query that generates results, each row can be returned in
+        a dataclass or dict object, whose type is specifed in the `result` parameter.
         Rows are provided via a returned asynchronous iterator.
 
-        A database may require that execution of a statement be performed within a transaction.
-        If so and a transaction context is not present, a RuntimeError will be raised.
+        Must be called within a database transaction context.
         """
         raise NotImplementedError
 
@@ -159,11 +166,6 @@ class Database(Protocol):
         Return an asynchronous context manager, which scopes a transaction in which
         statement(s) are executed. Upon exit of the context, if an exception was raised,
         changes will be rolled back; otherwise changes will be committed.
-
-        Some databases may support nesting of transactions.
-
-        For databases that do not support transactions, calling this method will raise
-        NotImplementedError.
         """
         raise NotImplementedError
 
@@ -184,29 +186,7 @@ async def select(
     offset: int | None = None,
     limit: int | None = None,
 ) -> AsyncIterator[dict[str, Any]]:
-    """
-    Execute a select statement.
-
-    Parameters:
-    • columns: iterable of tuple of (expression, alias, type)
-    • from_: FROM expression containing tables to select and/or tables joined
-    • where: WHERE condition expression; None to match all rows
-    • group_by: GROUP BY expression
-    • having: HAVING clause expression
-    • order_by: ORDER BY expression
-    • offset: number of rows to skip, or None to skip none
-    • limit: limit the number of rows returned, or None to select all
-
-    Each column specified is a tuple with the values in this order:
-    • expression: expression for the SQL database to process
-    • alias: column alias; key to store the value in the row dictionary
-    • type: the Python type in which to store the evaluated expression
-
-    Returns an asynchronous iterable containing rows; each row item is a dictionary that
-    maps column name to evaluated expression value.
-
-    This coroutine must be called within a database transaction context.
-    """
+    """DEPRECATED: USE `select_iterator` OR `select_page`."""
 
     cols = {}
     for column in columns:
@@ -244,14 +224,102 @@ async def select(
         yield {cols[k][1]: v for k, v in row.items()}
 
 
+async def select_iterator(
+    *,
+    database: Database,
+    columns: Mapping[str, Expression],
+    from_: Expression | None = None,
+    where: Expression | None = None,
+    group_by: Expression | None = None,
+    having: Expression | None = None,
+    order_by: Expression | None = None,
+    offset: int | None = None,
+    limit: int | None = None,
+    row_type: type[Row],
+) -> AsyncIterator[Row]:
+    """
+    Execute a select statement, returning results through aynchronous row iterator.
+
+    Parameters:
+    • columns: mapping of row column names to select expressions
+    • from_: FROM expression containing tables to select and/or tables joined
+    • where: WHERE condition expression; None to match all rows
+    • group_by: GROUP BY expression
+    • having: HAVING clause expression
+    • order_by: ORDER BY expression
+    • offset: number of rows to skip, or None to skip none
+    • limit: limit the number of rows returned, or None to select all
+    • row_type: type to return for each row
+
+    The row type can be either a dataclass or a typed dictionary. The name of each
+    value in the row must correlate with the name of a result column.
+
+    Must be called within a database transaction context.
+    """
+
+    aliases = {}
+    for name in columns:
+        alias = name
+        if not alias.isidentifier():
+            alias = re.sub(r"[^A-Za-z_]", "_", alias)
+        while alias in aliases.values():
+            alias += "_"
+        if alias != name:
+            aliases[name] = alias
+
+    stmt = Expression("SELECT ")
+
+    exprs = []
+    for name, expr in columns.items():
+        name = aliases.get(name, name)
+        exprs.append(
+            expr if len(expr) == 1 and expr[0] == name else Expression(expr, " AS ", name)
+        )
+    stmt += Expression.join(exprs, ",")
+
+    if from_ is not None:
+        stmt += Expression(" FROM ", from_)
+    if where is not None:
+        stmt += Expression(" WHERE ", where)
+    if group_by is not None:
+        stmt += Expression(" GROUP BY ", group_by)
+    if having is not None:
+        stmt += Expression(" HAVING ", having)
+    if order_by is not None:
+        stmt += Expression(" ORDER BY ", order_by)
+    if limit:
+        stmt += f" LIMIT {limit}"
+    if offset:
+        stmt += f" OFFSET {offset}"
+
+    stmt += ";"
+
+    result_type = (
+        row_type
+        if not aliases
+        else TypedDict(
+            "Row",
+            **{
+                aliases.get(name, name): type for name, type in row_type.__annotations__.items()
+            },
+        )
+    )
+
+    async for row in await database.execute(stmt, result_type):
+        if result_type is not row_type:
+            row = row_type(**{name: row[aliases.get(name, name)] for name in columns})
+        validate(row, row_type)
+        yield row
+
+
 async def select_page(
     *,
     database: Database,
-    columns: dict[str, Expression],
+    columns: Mapping[str, Expression],
     from_: Expression | None = None,
     where: Expression | None = None,
     order_by: Expression,
-    limit: int = 100,
+    limit: int = 1000,
     cursor: bytes | None = None,
     item_type: type[Item],
 ) -> Page[Item]:
@@ -259,18 +327,18 @@ async def select_page(
     Execute a select statement, paginating results.
 
     Parameters:
-    • columns: column names and expressions to select
+    • columns: mapping of item column names to select expressions
     • from_: FROM expression containing tables to select and/or tables joined
     • where: WHERE condition expression; None to match all rows
     • order_by: ORDER BY expression
     • limit: limit the number of rows returned, or None to select all
     • item_type: type to return for each item in the page
 
-    The return item type can be either a dataclass or a typed dictionary. The name of each
-    value in the item must correlate with the name of a result column. In order for pagination
-    to operate correctly, each item must be unique.
+    The item type can be either a dataclass or a typed dictionary. The name of each value in
+    the item must correlate with the name of a result column. In order for pagination to
+    operate safely, each returned item must be unique.
 
-    This coroutine must be called within a database transaction context.
+    Must be called within a database transaction context.
     """
 
     cursor_codec = get_codec(Binary, tuple[int, bytes])
@@ -279,50 +347,34 @@ async def select_page(
     def hash_item(item: Item) -> bytes:
         return hashlib.sha256(item_codec.encode(item)).digest()
 
-    select_columns = [
-        (expression, name, item_type.__annotations__.get(name))
-        for name, expression in columns.items()
-    ]
-
     (offset, hash) = cursor_codec.decode(cursor) if cursor else (None, None)
 
-    items = []
-
-    async for row in select(
+    _select = partial(
+        select_iterator,
         database=database,
-        columns=select_columns,
+        columns=columns,
         from_=from_,
         where=where,
         order_by=order_by,
-        offset=offset,
-        limit=limit + 1,
-    ):
-        item = item_type(**row)
-        validate(item, item_type)
-        items.append(item)
+        row_type=item_type,
+    )
 
-    # offset out of sync (database modified since last page)
-    if not items or (hash and hash != hash_item(items[0])):
+    items = [item async for item in _select(offset=offset, limit=limit + 1)]
+
+    if not items or (hash and hash != hash_item(items[0])):  # page drift
         items = []
         found = False
-        async for row in select(
-            database=database,
-            columns=select_columns,
-            from_=from_,
-            where=where,
-            order_by=order_by,
-        ):
-            item = item_type(**row)
+        async for item in _select():  # iterate all
             if not found:
                 h = hash_item(item)
-                if hash == h:
+                if hash == h:  # index found
                     found = True
             if found:
                 items.append(item)
-                if len(items) >= limit + 1:
+                if len(items) > limit:
                     break
         if not items:
-            raise PaginationError("lost pagination index")
+            raise PaginationError("pagination index lost")
 
     if len(items) > limit:
         hash = hash_item(items[-1])
@@ -367,7 +419,9 @@ class Table:
         return f"Table(name={self.name}, schema={self.schema}, pk={self.pk})"
 
     async def create(self, execute: bool = True) -> Expression:
-        """Create table in database."""
+        """
+        Create table in database. Must be called within a database transaction context.
+        """
         stmt = Expression(f"CREATE TABLE {self.name} (")
         columns = []
         for column_name, column_type in self.columns.items():
@@ -383,7 +437,9 @@ class Table:
         return stmt
 
     async def drop(self, execute: bool = True) -> Expression:
-        """Drop table from database."""
+        """
+        Drop table from database. Must be called within a database transaction context.
+        """
         stmt = Expression(f"DROP TABLE {self.name};")
         if execute:
             await self.database.execute(stmt)
@@ -411,7 +467,7 @@ class Table:
         Returns an asynchronous iterable for rows in table that match the where expression.
         Each row item is a dictionary that maps column name to value.
 
-        This coroutine must be called within a database transaction.
+        Must be called within a database transaction context.
         """
 
         if isinstance(columns, str):
@@ -442,6 +498,7 @@ class Table:
     async def count(self, where: Expression | None = None) -> int:
         """
         Return the number of rows in the table that match an optional expression.
+        Must be called within a database transaction context.
 
         Parameters:
         • where: expression to match; None to match all rows
@@ -455,7 +512,9 @@ class Table:
         return (await result.__anext__())["count"]
 
     async def insert(self, value: Any) -> None:
-        """Insert table row."""
+        """
+        Insert table row. Must be called within a database transaction context.
+        """
         stmt = Expression(
             f"INSERT INTO {self.name} (",
             ", ".join(self.columns),
@@ -472,7 +531,10 @@ class Table:
         await self.database.execute(stmt)
 
     async def read(self, key: Any) -> Any:
-        """Return a table row, or None if not found."""
+        """
+        Return a table row, or None if not found. Must be called within a database transaction
+        context.
+        """
         try:
             return self.schema(
                 **await self.select(
@@ -484,7 +546,9 @@ class Table:
             return None
 
     async def update(self, value: Any) -> None:
-        """Update table row."""
+        """
+        Update table row. Must be called within a database transaction context.
+        """
         await self.database.execute(
             Expression(
                 f"UPDATE {self.name} SET ",
@@ -502,7 +566,9 @@ class Table:
         )
 
     async def delete(self, key: Any) -> None:
-        """Delete table row."""
+        """
+        Delete table row. Must be called within a database transaction context.
+        """
         await self.database.execute(
             Expression(
                 f"DELETE FROM {self.name} WHERE {self.pk} = ",
@@ -541,7 +607,9 @@ class Index:
         return f"Index(name={self.name}, table={self.table}, keys={self.keys}, unique={self.unique})"
 
     async def create(self, execute: bool = True) -> Expression:
-        """Create index in database."""
+        """
+        Create index in database. Must be called within a database transaction context.
+        """
         stmt = Expression("CREATE ")
         if self.unique:
             stmt += "UNIQUE "
@@ -555,7 +623,9 @@ class Index:
         return stmt
 
     async def drop(self, execute: bool = True) -> Expression:
-        """Drop index from database."""
+        """
+        Drop index from database. Must be called within a database transaction context.
+        """
         stmt = Expression(f"DROP INDEX {self.name};")
         if execute:
             await self.table.database.execute(stmt)
