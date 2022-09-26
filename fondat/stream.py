@@ -1,18 +1,25 @@
 """Module for content streaming."""
 
+import mimetypes
+
 from collections.abc import AsyncIterator
+from pathlib import Path
 
 
 class Stream(AsyncIterator[bytes | bytearray]):
     """
     Base class to represent content as an asynchronous stream of bytes.
 
-    Parameter and attribute:
+    Parameters and attributes:
     • content_type: the media type of the stream
     • content_length: the length of the content, if known
     """
 
-    def __init__(self, content_type: str = "application/octet-stream", content_length=None):
+    def __init__(
+        self,
+        content_type: str = "application/octet-stream",
+        content_length: int | None = None,
+    ):
         self.content_type = content_type
         self.content_length = content_length
 
@@ -25,8 +32,12 @@ class Stream(AsyncIterator[bytes | bytearray]):
 
 class BytesStream(Stream):
     """
-    Expose a bytes object as an asynchronous byte stream. All bytes are returned in a single
-    iteration.
+    Represents a bytes or bytearray object as an asynchronous byte stream. All bytes are
+    returned in a single iteration.
+
+    Parameters:
+    • content: ...
+    • content_type: ...
     """
 
     def __init__(

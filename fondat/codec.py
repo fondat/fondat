@@ -105,8 +105,8 @@ class DecodeError(CodecError):
 # ----- base -----
 
 
-F = TypeVar("F")
-T = TypeVar("T")
+F = TypeVar("F")  # from
+T = TypeVar("T")  # to
 
 
 class Codec(Generic[F, T]):

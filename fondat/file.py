@@ -1,22 +1,25 @@
-"""Module to store resource items in files."""
+"""File I/O module."""
 
+import builtins
 import logging
 import mimetypes
 
-from collections.abc import Iterable
-from fondat.codec import Binary, String, get_codec
-from fondat.error import InternalServerError, NotFoundError
+from contextlib import suppress
+from fondat.codec import Binary, DecodeError, String, get_codec
+from fondat.error import ConflictError, InternalServerError, NotFoundError
 from fondat.http import AsBody
-from fondat.pagination import Page
 from fondat.resource import operation, resource
-from fondat.security import Policy
 from fondat.stream import Stream
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Generic, TypeVar
 from urllib.parse import quote, unquote
 
 
 _logger = logging.getLogger(__name__)
+
+
+K = TypeVar("K")
+V = TypeVar("V")
 
 
 _content_encoding_map = {
@@ -37,264 +40,157 @@ def _content_type(url: str) -> str:
     return "application/octet-stream"
 
 
-class _ReadFileStream(Stream):
-    def __init__(self, path: Path, block_size: int = 131072):
-        super().__init__(
-            content_type=_content_type(path.name), content_length=path.stat().st_size
-        )
-        self.path = path
-        self.block_size = block_size
-        self.position = 0
-
-    async def __anext__(self) -> bytes:
-        if not self.path:
-            raise StopAsyncIteration
-        with self.path.open("rb") as file:
-            file.seek(self.position)
-            block = file.read1(self.block_size)
-        if len(block) == 0:
-            raise StopAsyncIteration
-        self.position += len(block)
-        return block
-
-
-def _tmp_path(path: Path):
-    return path.with_name(f"{path.name}.__tmp__")
-
-
-def _stream_resource_class(
-    writeable: bool,
-    publish: bool,
-    policies: Iterable[Policy],
-):
-    @resource
-    class StreamResource:
-        def __init__(self, path: Path):
-            self.path = path
-
-        @operation(publish=publish, policies=policies)
-        async def get(self) -> Stream:
-            """Read resource."""
-            if not self.path.is_file():
-                raise NotFoundError
-            return _ReadFileStream(self.path)
-
-        if writeable:
-
-            @operation(publish=publish, policies=policies)
-            async def put(self, value: Annotated[Stream, AsBody]):
-                """Write resource."""
-                tmp = _tmp_path(self.path)
-                try:
-                    with tmp.open("xb") as file:
-                        async for block in value:
-                            file.write(block)
-                    tmp.replace(self.path)
-                except Exception as e:
-                    raise InternalServerError from e
-
-            @operation(publish=publish, policies=policies)
-            async def delete(self):
-                """Delete resource."""
-                try:
-                    self.path.unlink()
-                except FileNotFoundError:
-                    raise NotFoundError
-                except Exception as e:
-                    raise InternalServerError from e
-
-    StreamResource.__qualname__ = "StreamResource"
-    return StreamResource
-
-
-def _file_resource_class(
-    value_type: type,
-    compress: Any,
-    writeable: bool,
-    publish: bool,
-    policies: Iterable[Policy],
-):
-
-    if value_type is Stream:
-        if compress is not None:
-            raise TypeError("file resources does not support compression of streams")
-        return _stream_resource_class(writeable, publish, policies)
-
-    codec = get_codec(Binary, value_type)
-
-    @resource
-    class FileResource:
-        def __init__(self, path: Path):
-            self.path = path
-
-        @operation(publish=publish, policies=policies)
-        async def get(self) -> value_type:
-            """Read resource."""
-            try:
-                with self.path.open("rb") as file:
-                    content = file.read()
-                if compress:
-                    content = compress.decompress(content)
-                return codec.decode(content)
-            except FileNotFoundError:
-                raise NotFoundError
-            except Exception as e:
-                raise InternalServerError from e
-
-        if writeable:
-
-            @operation(publish=publish, policies=policies)
-            async def put(self, value: Annotated[value_type, AsBody]):
-                """Write resource."""
-                content = codec.encode(value)
-                if compress:
-                    content = compress.compress(content)
-                tmp = _tmp_path(self.path)
-                try:
-                    with tmp.open("xb") as file:
-                        file.write(content)
-                    tmp.replace(self.path)
-                except Exception as e:
-                    raise InternalServerError from e
-
-            @operation(publish=publish, policies=policies)
-            async def delete(self):
-                """Delete resource."""
-                try:
-                    self.path.unlink()
-                except FileNotFoundError:
-                    raise NotFoundError
-
-    FileResource.__qualname__ = "FileResource"
-    return FileResource
-
-
-def file_resource(
-    path: Path | str,
-    value_type: type = Stream,
-    compress: Any = None,
-    writeable: bool = False,
-    publish: bool = True,
-    policies: Iterable[Policy] | None = None,
-) -> type:
+class FileStream(Stream):
     """
-    Return a new resource that manages a file.
+    Represents a file as an asynchronous byte stream.
 
     Parameters:
-    • path: path of file
-    • value_type: type of value stored in file
-    • compress: algorithm to compress and decompress file content
-    • writeable: can file be written or deleted
-    • publish: publish the operation in documentation
-    • policies: security policies to apply to file operations
+    • path: ...
+    • content_type: ...
 
-    Compression algorithm is any object or module that exposes callable "compress" and
-    "decompress" attributes. Examples: bz2, gzip, lzma, zlib.
+    If content_type is not specified, this class will attempt to guess the content type
+    from the filename extension.
     """
-    if isinstance(path, str):
-        path = Path(path)
-    return _file_resource_class(value_type, compress, writeable, publish, policies)(path)
+
+    def __init__(self, path: Path, content_type: str | None = None):
+        super().__init__(
+            content_type=content_type or _content_type(path.name),
+            content_length=path.stat().st_size,
+        )
+        self.file = path.expanduser().open("rb")
+
+    async def __anext__(self) -> bytes:
+        if not self.file:
+            raise StopAsyncIteration
+        chunk = self.file.read1(1048576)  # 1 MiB
+        if len(chunk) == 0:
+            with suppress(Exception):
+                self.file.close()
+            self.file = None
+            raise StopAsyncIteration
+        return chunk
+
+    def __del__(self):
+        if self.file:
+            with suppress(Exception):
+                self.file.close()
+        self.file = None
 
 
-def _limit(requested):
-    upper = 1000
-    if not requested or requested < 0:
-        return upper
-    return min(requested, upper)
-
-
-def directory_resource(
-    path: Path | str,
-    key_type: type = str,
-    value_type: type = Stream,
-    extension: str | None = None,
-    compress: Any = None,
-    writeable: bool = False,
-    index: bool = True,
-    publish: bool = True,
-    policies: Iterable[Policy] | None = None,
-) -> type:
+@resource
+class DirectoryResource(Generic[K, V]):
     """
-    Return a new resource that manages files in a directory.
+    Resource that represents files in a directory.
 
     Parameters:
     • path: path to directory where files are stored
-    • key_type: type of key to identify file
+    • key_type: type of key to identify each file
     • value_type: type of value stored in each file
     • extenson: filename extension to append (including dot)
-    • compress: algorithm to compress and decompress file content
-    • writeable: can files be written or deleted
-    • index: provide index of files with get method
-    • publish: publish the operation in documentation
-    • policies: Security requirements to apply to all operations
-
-    Compression algorithm is any object or module that exposes callable "compress" and
-    "decompress" attributes. Examples: bz2, gzip, lzma, zlib. Compression is not supported for
-    value_type of Stream.
-
-    The index parameter can be one of the following:
-    • key_type: identifies a file in the directory to provide as the index
-    • None: generates a paginated list of file keys as the index
     """
 
-    _path = (Path(path) if isinstance(path, str) else path).expanduser()
+    def __init__(
+        self,
+        path: Path,
+        key_type: type[K] = str,
+        value_type: type[V] = Stream,
+        extension: str | None = None,
+    ):
+        self.path = path.expanduser()
+        if not self.path.is_dir():
+            raise FileNotFoundError(f"directory not found: {self.path}")
+        if not getattr(key_type, "__hash__", None):
+            raise TypeError("invalid key_type: {key_type}")
+        self.key_type = key_type
+        self.value_type = value_type
+        self.extension = extension
+        self.key_codec = get_codec(String, key_type)
 
-    if not _path.is_dir():
-        raise FileNotFoundError(f"directory not found: {_path}")
-
-    codec = get_codec(String, key_type)
-
-    FileResource = _file_resource_class(value_type, compress, writeable, publish, policies)
-
-    @resource
-    class DirectoryResource:
-        def __getitem__(self, key: key_type) -> FileResource:
-            return FileResource(
-                _path.joinpath(
-                    f"{quote(codec.encode(key), safe='')}{extension if extension else ''}"
-                )
-            )
-
-        if index:
-
-            @operation(publish=publish, policies=policies)
-            async def get(
-                self,
-                limit: int | None = None,
-                cursor: bytes | None = None,
-            ) -> Page[key_type]:
-                """Return paginated list of file keys."""
-                limit = _limit(limit)
-                if cursor is not None:
-                    cursor = cursor.decode()
+    @operation
+    async def get(self) -> set[K]:
+        """Return list of file keys."""
+        try:
+            keys = set()
+            for name in (
+                path.name[: -len(self.extension)] if self.extension else path.name
+                for path in self.path.iterdir()
+                if path.is_file()
+                and not path.name.endswith(".__tmp__")
+                and (not self.extension or path.name.endswith(self.extension))
+            ):
                 try:
-                    if not extension:
-                        names = sorted(
-                            entry.name for entry in _path.iterdir() if entry.is_file()
-                        )
-                    else:
-                        names = sorted(
-                            entry.name[: -len(extension)]
-                            for entry in _path.iterdir()
-                            if entry.is_file() and entry.name.endswith(extension)
-                        )
-                except FileNotFoundError as fnfe:
-                    raise InternalServerError from fnfe
-                page = Page[key_type](items=[], cursor=None)
-                for (counter, name) in enumerate(names, 1):
-                    if cursor is not None:
-                        if name <= cursor:
-                            continue
-                        cursor = None
-                    try:
-                        page.items.append(codec.decode(unquote(name)))
-                    except ValueError:
-                        continue  # ignore name that cannot be decoded
-                    if len(page.items) == limit and counter < len(names):
-                        page.cursor = name.encode()
-                        break
-                return page
+                    keys.add(self.key_codec.decode(unquote(name)))
+                except DecodeError:
+                    pass  # ignore incompatible file names
+            return keys
+        except Exception as e:
+            raise InternalServerError from e
 
-    DirectoryResource.__qualname__ = "DirectoryResource"
+    def __getitem__(self, key: K) -> "FileResource[V]":
+        return FileResource(
+            self.path.joinpath(
+                quote(self.key_codec.encode(key), safe="") + (self.extension or "")
+            ),
+            self.value_type,
+        )
 
-    return DirectoryResource()
+
+@resource
+class FileResource(Generic[V]):
+    """
+    Resource that represents a file.
+
+    Parameters:
+    • path: location of file
+    • type: type of value stored in file
+    """
+
+    def __init__(
+        self,
+        path: Path,
+        type: builtins.type[V] = Stream,
+    ):
+        self.path = path
+        self.type = type
+        self.codec = get_codec(Binary, type) if type is not Stream else None
+
+    @operation
+    async def get(self) -> V:
+        """Read resource."""
+        try:
+            with self.path.open("rb") as file:
+                if self.type is Stream:
+                    return FileStream(self.path)
+                else:
+                    return self.codec.decode(file.read())
+        except FileNotFoundError as fnfe:
+            raise NotFoundError from fnfe
+        except Exception as e:
+            raise InternalServerError from e
+
+    @operation
+    async def put(self, value: Annotated[V, AsBody]):
+        """Write resource."""
+        try:
+            tmp = self.path.with_name(f"{self.path.name}.__tmp__")
+            with tmp.open("xb") as file:
+                if self.type is Stream:
+                    async for block in value:
+                        file.write(block)
+                else:
+                    file.write(self.codec.encode(value))
+            tmp.replace(self.path)
+        except FileExistsError as e:
+            raise ConflictError from e
+        except Exception as e:
+            raise InternalServerError from e
+
+    @operation
+    async def delete(self):
+        """Delete resource."""
+        try:
+            self.path.unlink()
+        except FileNotFoundError as fnfe:
+            raise NotFoundError from fnfe
+        except Exception as e:
+            raise InternalServerError from e

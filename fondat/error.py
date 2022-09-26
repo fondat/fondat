@@ -78,6 +78,7 @@ errors = _Errors()
 
 # commonly used errors
 BadRequestError: ClientError = errors.BadRequestError
+ConflictError: ClientError = errors.ConflictError
 ForbiddenError: ClientError = errors.ForbiddenError
 InternalServerError: ServerError = errors.InternalServerError
 MethodNotAllowedError: ClientError = errors.MethodNotAllowedError

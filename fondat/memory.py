@@ -2,132 +2,122 @@
 
 from __future__ import annotations
 
-import threading
+import fondat.error
 
 from collections import namedtuple
-from collections.abc import Iterable
 from copy import deepcopy
-from fondat.error import InternalServerError, NotFoundError
+from fondat.error import NotFoundError
 from fondat.http import AsBody
 from fondat.resource import mutation, operation, resource
-from fondat.security import Policy
-from fondat.types import affix_type_hints
+from fondat.stream import Stream
 from time import time
-from typing import Annotated
+from typing import Annotated, Generic, TypeVar
+
+
+K = TypeVar("K")
+V = TypeVar("V")
 
 
 _Item = namedtuple("Item", "value,time")
 
-_Oldest = namedtuple("Oldest", "key,time")
 
-
-def memory_resource(
-    key_type: type,
-    value_type: type,
-    size: int | None = None,
-    evict: bool = False,
-    expire: int | float | None = None,
-    publish: bool = True,
-    policies: Iterable[Policy] | None = None,
-):
+@resource
+class MemoryResource(Generic[K, V]):
     """
-    Return a new resource that stores items in memory.
+    Represents a collection of items in memory.
+
+    • key_type: type of item key
+    • value_type: type of each item
+    • size: maximum number of items to store  [unlimited]
+    • evict: evict oldest item to make room for new item
+    • expire: time to expire items in seconds  [unlimited]
+    """
+
+    def __init__(
+        self,
+        key_type: type[K],
+        value_type: type[V],
+        size: int | None = None,
+        evict: bool = False,
+        expire: int | float | None = None,
+    ):
+        if not getattr(key_type, "__hash__", None):
+            raise TypeError("invalid key_type: {key_type}")
+        self.key_type = key_type
+        if value_type is Stream:
+            raise TypeError("value type not supported: {value_type}")
+        self.value_type = value_type
+        self.size = size
+        self.evict = evict
+        self.expire = expire
+        self._storage: dict[K, _Item] = {}
+
+    @operation
+    async def get(self) -> set[K]:
+        """Return collection item keys."""
+        now = time()
+        return {
+            key
+            for key, item in self._storage.items()
+            if not self.expire or item.time + self.expire <= now
+        }
+
+    @mutation
+    async def clear(self) -> None:
+        """Remove all items from collection."""
+        self._storage.clear()
+
+    def __getitem__(self, key: K) -> "ItemResource[K, V]":
+        return ItemResource(self, key)
+
+
+@resource
+class ItemResource(Generic[K, V]):
+    """
+    Represents an item in memory.
 
     Parameters:
-    • key_type: type for the key for each item
-    • value_type: type for value stored in each item
-    • size: maximum number of items to store  [unlimited]
-    • evict: should oldest item be evicted to make room for a new item
-    • expire: expire time for each value in seconds  [unlimited]
-    • publish: publish the operation in documentation
-    • policies: security policies to apply to all operations
+    • memory: resource where item resides
+    • key: item key in collection
     """
 
-    @resource
-    class MemoryResource:
-        def __init__(self):
-            self.storage = {}
-            self.lock = threading.Lock()
+    def __init__(self, memory: MemoryResource, key: K):
+        self.memory = memory
+        self.key = key
 
-        def __getitem__(self, key: key_type) -> Item:
-            return Item(self, key)
+    @operation
+    async def get(self) -> V:
+        """Get item."""
+        item = self.memory._storage.get(self.key)
+        if not item or (self.memory.expire and time() > item.time + self.memory.expire):
+            raise NotFoundError
+        return deepcopy(item.value)
 
-        @operation(publish=publish, policies=policies)
-        async def get(self) -> list[key_type]:
-            """Return list of item keys."""
-            now = time()
-            with self.lock:
-                return [
-                    key
-                    for key, item in self.storage.items()
-                    if not self.expire or item.time + self.expire <= now
-                ]
+    @operation
+    async def put(self, value: Annotated[V, AsBody]) -> None:
+        """Store item."""
+        now = time()
+        if self.memory.expire:  # purge expired entries
+            for key in {
+                k for k, v in self.memory._storage.items() if v.time + self.memory.expire <= now
+            }:
+                self.memory._storage.pop(key, None)
+        if self.memory.size and self.memory.evict:  # evict oldest entry
+            Oldest = namedtuple("Oldest", "key,time")
+            self.memory._storage.pop(self.key, None)
+            while len(self.memory._storage) >= self.memory.size:
+                oldest = None
+                for key, item in self.memory._storage.items():
+                    if not oldest or item.time < oldest.time:
+                        oldest = Oldest(key, item.time)
+                if oldest:
+                    self.memory._storage.pop(oldest.key, None)
+        if self.memory.size and len(self.memory._storage) >= self.memory.size:
+            raise fondat.error.errors.InsufficientStorageError
+        self.memory._storage[self.key] = _Item(value, now)
 
-        @mutation(publish=publish, policies=policies)
-        async def clear(self) -> None:
-            """Remove all items."""
-            with self.lock:
-                self.storage.clear()
-
-    MemoryResource.key_type = key_type
-    MemoryResource.value_type = value_type
-    MemoryResource.size = size
-    MemoryResource.evict = evict
-    MemoryResource.expire = expire
-
-    @resource
-    class Item:
-        def __init__(self, container: MemoryResource, key: key_type):
-            self.container = container
-            self.key = key
-
-        @operation(publish=publish, policies=policies)
-        async def get(self) -> value_type:
-            """Read item."""
-            item = self.container.storage.get(self.key)
-            if item is None or (
-                self.container.expire and time() > item.time + self.container.expire
-            ):
-                raise NotFoundError
-            return deepcopy(item.value)
-
-        @operation(publish=publish, policies=policies)
-        async def put(self, value: Annotated[value_type, AsBody]) -> None:
-            """Write item."""
-            with self.container.lock:
-                now = time()
-                if self.container.expire:  # purge expired entries; pay the price on puts
-                    for key in {
-                        k
-                        for k, v in self.container.storage.items()
-                        if v.time + self.container.expire <= now
-                    }:
-                        del self.container.storage[key]
-                while (
-                    self.container.evict
-                    and self.container.size
-                    and len(self.container.storage) >= self.container.size
-                ):  # evict oldest entry
-                    oldest = None
-                    for _key, _item in self.container.storage.items():
-                        if not oldest or _item.time < oldest.time:
-                            oldest = _Oldest(_key, _item.time)
-                    if oldest:
-                        del self.container.storage[oldest.key]
-                if self.container.size and len(self.container.storage) >= self.container.size:
-                    raise InternalServerError from RuntimeError("item size limit reached")
-                self.container.storage[self.key] = _Item(value, now)
-
-        @operation(publish=publish, policies=policies)
-        async def delete(self):
-            """Delete item."""
-            await self.get()  # ensure item exists and has not expired
-            with self.container.lock:
-                self.container.storage.pop(self.key, None)
-
-    affix_type_hints(MemoryResource, localns=locals())
-    affix_type_hints(Item, localns=locals())
-
-    MemoryResource.__qualname__ = "MemoryResource"
-
-    return MemoryResource()
+    @operation
+    async def delete(self):
+        """Delete item."""
+        await self.get()  # ensure item exists and has not expired
+        self.memory._storage.pop(self.key, None)
