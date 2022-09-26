@@ -18,7 +18,7 @@ from dataclasses import dataclass, is_dataclass
 from fondat.codec import JSON, Binary, DecodeError, get_codec
 from fondat.data import datacls
 from fondat.error import BadRequestError, NotFoundError
-from fondat.memory import memory_resource
+from fondat.memory import MemoryResource
 from fondat.pagination import Page, PaginationError
 from fondat.patch import json_merge_patch
 from fondat.resource import operation, query, resource
@@ -649,7 +649,7 @@ def row_resource_class(
     pk_type = table.columns[table.pk]
 
     cache = (
-        memory_resource(
+        MemoryResource(
             key_type=pk_type,
             value_type=table.schema,
             size=cache_size,
