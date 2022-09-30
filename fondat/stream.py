@@ -1,9 +1,6 @@
 """Module for content streaming."""
 
-import mimetypes
-
 from collections.abc import AsyncIterator
-from pathlib import Path
 
 
 class Stream(AsyncIterator[bytes | bytearray]):

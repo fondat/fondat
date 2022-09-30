@@ -353,9 +353,9 @@ for dc in _to_affix:
     fondat.types.affix_type_hints(dc)
 
 
-def _kwargs(python_type, annotated):
+def _kwargs(python_type, annotations):
     kwargs = {}
-    for annotation in annotated:
+    for annotation in annotations:
         match annotation:
             case str():
                 kwargs["description"] = annotation
@@ -364,15 +364,15 @@ def _kwargs(python_type, annotated):
             case fondat.annotation.Example():
                 with fondat.validation.validation_error_path("example"):
                     fondat.validation.validate(annotation.value, python_type)
-                kwargs["example"] = fondat.codec.get_codec(
-                    fondat.codec.JSON, python_type
-                ).encode(annotation.value)
+                kwargs["example"] = fondat.codec.JSONCodec.get(python_type).encode(
+                    annotation.value
+                )
             case Default():
                 with fondat.validation.validation_error_path("default"):
                     fondat.validation.validate(annotation.value, python_type)
-                kwargs["default"] = fondat.codec.get_codec(
-                    fondat.codec.JSON, python_type
-                ).encode(annotation.value)
+                kwargs["default"] = fondat.codec.JSONCodec.get(python_type).encode(
+                    annotation.value
+                )
             case fondat.annotation.Deprecated():
                 kwargs["deprecated"] = annotation.value
             case fondat.annotation.Deprecated:
@@ -396,10 +396,10 @@ def _provider(wrapped=None):
 
 def _simple_schema(pytype, schema_type, schema_format=None):
     @_provider
-    def simple(*, python_type, annotated, **_):
+    def simple(*, python_type, annotations, **_):
         if python_type is pytype:
             return Schema(
-                type=schema_type, format=schema_format, **_kwargs(python_type, annotated)
+                type=schema_type, format=schema_format, **_kwargs(python_type, annotations)
             )
 
 
@@ -411,10 +411,10 @@ _simple_schema(UUID, "string", "uuid")
 
 
 @_provider
-def _str_schema(*, python_type, annotated, **_):
+def _str_schema(*, python_type, annotations, **_):
     if is_subclass(python_type, str):
         kwargs = {}
-        for annotation in annotated:
+        for annotation in annotations:
             match annotation:
                 case fondat.annotation.Format():
                     kwargs["format"] = annotation.value
@@ -424,14 +424,14 @@ def _str_schema(*, python_type, annotated, **_):
                     kwargs["maxLength"] = annotation.value
                 case fondat.validation.Pattern():
                     kwargs["pattern"] = annotation.pattern.pattern
-        return Schema(type="string", **_kwargs(python_type, annotated), **kwargs)
+        return Schema(type="string", **_kwargs(python_type, annotations), **kwargs)
 
 
 @_provider
-def _bytes_schema(*, python_type, annotated, **_):
+def _bytes_schema(*, python_type, annotations, **_):
     if is_subclass(python_type, (bytes, bytearray)):
         kwargs = {}
-        for annotation in annotated:
+        for annotation in annotations:
             match annotation:
                 case fondat.validation.MinLen():
                     kwargs["minLength"] = annotation.value
@@ -439,54 +439,54 @@ def _bytes_schema(*, python_type, annotated, **_):
                     kwargs["maxLength"] = annotation.value
         return Schema(
             type="string",
-            format="binary" if fondat.http.InBody in annotated else "byte",
-            **_kwargs(python_type, annotated),
+            format="binary" if fondat.http.InBody in annotations else "byte",
+            **_kwargs(python_type, annotations),
             **kwargs,
         )
 
 
 @_provider
-def _int_schema(*, python_type, annotated, **_):
+def _int_schema(*, python_type, annotations, **_):
     if is_subclass(python_type, int) and not is_subclass(python_type, bool):
         kwargs = {}
-        for annotation in annotated:
+        for annotation in annotations:
             match annotation:
                 case fondat.validation.MinValue():
                     kwargs["minimum"] = annotation.value
                 case fondat.validation.MaxValue():
                     kwargs["maximum"] = annotation.value
         return Schema(
-            type="integer", format="int64", **_kwargs(python_type, annotated), **kwargs
+            type="integer", format="int64", **_kwargs(python_type, annotations), **kwargs
         )
 
 
 @_provider
-def _float_schema(*, python_type, annotated, **_):
+def _float_schema(*, python_type, annotations, **_):
     if is_subclass(python_type, float):
         kwargs = {}
-        for annotation in annotated:
+        for annotation in annotations:
             match annotation:
                 case fondat.validation.MinValue():
                     kwargs["minimum"] = annotation.value
                 case fondat.validation.MaxValue():
                     kwargs["maximum"] = annotations.value
         return Schema(
-            type="number", format="double", **_kwargs(python_type, annotated), **kwargs
+            type="number", format="double", **_kwargs(python_type, annotations), **kwargs
         )
 
 
-def _get_component_schema(annotated):
-    for annotation in annotated:
+def _get_component_schema(annotations):
+    for annotation in annotations:
         if annotation is ComponentSchema or is_instance(annotation, ComponentSchema):
             return annotation
 
 
 @_provider
-def _typeddict_schema(*, python_type, annotated, origin, args, processor, **_):
+def _typeddict_schema(*, python_type, annotations, origin, args, processor, **_):
     if is_subclass(python_type, dict) and hasattr(python_type, "__annotations__"):
         if ref := processor.references.get(python_type):
             return ref
-        component_schema = _get_component_schema(annotated)
+        component_schema = _get_component_schema(annotations)
         if component_schema:
             name = component_schema.name or processor.component_schema_name(
                 python_type.__name__
@@ -500,7 +500,7 @@ def _typeddict_schema(*, python_type, annotated, origin, args, processor, **_):
             properties={key: processor.schema(pytype) for key, pytype in hints.items()},
             required=required,
             additionalProperties=False,
-            **_kwargs(python_type, annotated),
+            **_kwargs(python_type, annotations),
         )
         if component_schema:
             processor.openapi.components.schemas[name] = schema
@@ -509,7 +509,7 @@ def _typeddict_schema(*, python_type, annotated, origin, args, processor, **_):
 
 
 @_provider
-def _mapping_schema(*, python_type, annotated, origin, args, processor, **_):
+def _mapping_schema(*, python_type, annotations, origin, args, processor, **_):
     if is_subclass(origin, Mapping) and len(args) == 2:
         if args[0] is not str:
             raise TypeError("Mapping[k, v] only supports str keys")
@@ -517,17 +517,17 @@ def _mapping_schema(*, python_type, annotated, origin, args, processor, **_):
             type="object",
             properties={},
             additionalProperties=processor.schema(args[1]),
-            **_kwargs(python_type, annotated),
+            **_kwargs(python_type, annotations),
         )
 
 
 @_provider
-def _iterable_schema(*, python_type, annotated, origin, args, processor, **_):
+def _iterable_schema(*, python_type, annotations, origin, args, processor, **_):
     if is_subclass(origin, Iterable) and not is_subclass(origin, Mapping) and len(args) == 1:
         kwargs = {}
         if is_subclass(origin, set):
             kwargs["uniqueItems"] = True
-        for annotation in annotated:
+        for annotation in annotations:
             match annotation:
                 case fondat.validation.MinLen():
                     kwargs["minItems"] = annotation.value
@@ -536,7 +536,7 @@ def _iterable_schema(*, python_type, annotated, origin, args, processor, **_):
         return Schema(
             type="array",
             items=processor.schema(args[0]),
-            **_kwargs(python_type, annotated),
+            **_kwargs(python_type, annotations),
             **kwargs,
         )
 
@@ -552,11 +552,11 @@ def _typevar_schema(*, python_type, processor, **_):
 
 
 @_provider
-def _dataclass_schema(*, python_type, annotated, origin, processor, **_):
+def _dataclass_schema(*, python_type, annotations, origin, processor, **_):
     if dataclasses.is_dataclass(python_type) or (origin and dataclasses.is_dataclass(origin)):
         if ref := processor.references.get(python_type):
             return ref
-        component_schema = _get_component_schema(annotated)
+        component_schema = _get_component_schema(annotations)
         dc_type = origin if origin else python_type
         if component_schema:
             name = component_schema.name or processor.component_schema_name(dc_type.__name__)
@@ -582,7 +582,7 @@ def _dataclass_schema(*, python_type, annotated, origin, processor, **_):
             properties=properties,
             required=required or None,
             additionalProperties=False,
-            **_kwargs(python_type, annotated),
+            **_kwargs(python_type, annotations),
         )
         if component_schema:
             processor.openapi.components.schemas[name] = schema
@@ -591,7 +591,7 @@ def _dataclass_schema(*, python_type, annotated, origin, processor, **_):
 
 
 @_provider
-def _union_schema(*, python_type, annotated, origin, args, processor, **_):
+def _union_schema(*, python_type, annotations, origin, args, processor, **_):
     if origin in {types.UnionType, typing.Union}:
         nullable = NoneType in args
         schemas = [processor.schema(arg) for arg in args if arg is not NoneType]
@@ -600,11 +600,11 @@ def _union_schema(*, python_type, annotated, origin, args, processor, **_):
             if not fondat.validation.is_valid(schema, Reference):
                 schema.nullable = True
             return schema
-        return Schema(anyOf=schemas, nullable=nullable, **_kwargs(python_type, annotated))
+        return Schema(anyOf=schemas, nullable=nullable, **_kwargs(python_type, annotations))
 
 
 @_provider
-def _literal_schema(*, python_type, annotated, origin, args, processor, **_):
+def _literal_schema(*, python_type, annotations, origin, args, processor, **_):
     if origin is Literal:
         nullable = None in args
         types = tuple({type(literal) for literal in args if literal is not None})
@@ -622,15 +622,15 @@ def _literal_schema(*, python_type, annotated, origin, args, processor, **_):
             schema = Schema(  # heterogeneus
                 anyOf=list(schemas.values()),
                 nullable=nullable,
-                **_kwargs(python_type, annotated),
+                **_kwargs(python_type, annotations),
             )
         return schema
 
 
 @_provider
-def _any_schema(*, python_type, annotated, origin, args, **_):
+def _any_schema(*, python_type, annotations, origin, args, **_):
     if python_type is Any:
-        return Schema(**_kwargs(python_type, annotated))
+        return Schema(**_kwargs(python_type, annotations))
 
 
 class Processor:
@@ -757,7 +757,7 @@ class Processor:
         hints = typing.get_type_hints(method, include_extras=True)
         parameters = inspect.signature(method).parameters
         for name, hint in hints.items():
-            python_type, annotated = fondat.types.split_annotated(hint)
+            python_type, annotations = fondat.types.split_annotations(hint)
             if name == "return":
                 if python_type is NoneType:
                     op.responses[str(http.HTTPStatus.NO_CONTENT.value)] = Response(
@@ -774,16 +774,16 @@ class Processor:
                             arg for arg in args if arg is not None
                         )
                         hint = (
-                            Annotated[tuple([python_type, *annotated])]
-                            if annotated
+                            Annotated[tuple([python_type, *annotations])]
+                            if annotations
                             else python_type
                         )
                     op.responses[str(http.HTTPStatus.OK.value)] = Response(
-                        description=self.description(annotated) or "Response.",
+                        description=self.description(annotations) or "Response.",
                         content={
-                            fondat.codec.get_codec(
-                                fondat.codec.Binary, hint
-                            ).content_type: MediaType(schema=self.schema(hint))
+                            fondat.codec.BinaryCodec.get(hint).content_type: MediaType(
+                                schema=self.schema(hint)
+                            )
                         },
                     )
             else:
@@ -802,7 +802,7 @@ class Processor:
                     Parameter(
                         name=name,
                         in_=in_,
-                        description=self.description(annotated),
+                        description=self.description(annotations),
                         required=param.default is param.empty,
                         schema=self.schema(hint),
                         style=style,
@@ -811,13 +811,13 @@ class Processor:
                 )
         body_type = fondat.http.get_body_type(method)
         if body_type:
-            python_type, annotated = fondat.types.split_annotated(body_type)
+            python_type, annotations = fondat.types.split_annotations(body_type)
             op.requestBody = RequestBody(
-                description=self.description(annotated),
+                description=self.description(annotations),
                 content={
-                    fondat.codec.get_codec(
-                        fondat.codec.Binary, body_type
-                    ).content_type: MediaType(schema=self.schema(body_type))
+                    fondat.codec.BinaryCodec.get(body_type).content_type: MediaType(
+                        schema=self.schema(body_type)
+                    )
                 },
                 required=True,
             )
@@ -844,8 +844,8 @@ class Processor:
         return result if result else None
 
     @staticmethod
-    def description(annotated):
-        for annotation in annotated:
+    def description(annotations):
+        for annotation in annotations:
             match annotation:
                 case str():
                     return annotation
@@ -853,14 +853,14 @@ class Processor:
                     return annotation.value
 
     def schema(self, type_hint, default=None):
-        python_type, annotated = fondat.types.split_annotated(type_hint)
+        python_type, annotations = fondat.types.split_annotations(type_hint)
         origin = typing.get_origin(python_type)
         args = typing.get_args(python_type)
         for provider in providers:
             if (
                 schema := provider(
                     python_type=python_type,
-                    annotated=annotated,
+                    annotations=annotations,
                     origin=origin,
                     args=args,
                     processor=self,

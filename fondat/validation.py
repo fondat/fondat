@@ -11,7 +11,7 @@ import wrapt
 
 from collections.abc import Callable, Iterable, Mapping
 from contextlib import contextmanager
-from fondat.types import is_instance, is_subclass, split_annotated
+from fondat.types import is_instance, is_subclass, split_annotations
 from types import NoneType
 from typing import Any, TypeVar
 
@@ -232,7 +232,7 @@ def _validate_dataclass(value, python_type, origin):
 def validate(value: Any, type_hint: Any) -> NoneType:
     """Validate a value."""
 
-    python_type, annotations = split_annotated(type_hint)
+    python_type, annotations = split_annotations(type_hint)
     origin = typing.get_origin(python_type)
     args = typing.get_args(python_type)
 

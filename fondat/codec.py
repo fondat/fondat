@@ -1,63 +1,86 @@
 """Module to support encoding and decoding of values."""
 
-# from __future__ import annotations
-
 import base64
 import csv
 import dataclasses
 import fondat.types
-import functools
 import io
 import iso8601
 import json
 import keyword
 import logging
+import typing
 
-from collections.abc import Iterable, Mapping
-from contextlib import contextmanager
+from collections import namedtuple
+from collections.abc import Iterable, Mapping, Set
+from contextlib import contextmanager, suppress
 from datetime import date, datetime, timezone
 from decimal import Decimal
-from fondat.types import (
-    capture_typevars,
-    is_optional,
-    is_subclass,
-    resolve_typevar,
-    split_annotated,
-)
+from fondat.types import is_optional, is_subclass, strip_annotations
 from types import NoneType, UnionType
-from typing import (
-    Any,
-    Generic,
-    Literal,
-    TypedDict,
-    TypeVar,
-    Union,
-    get_args,
-    get_origin,
-    get_type_hints,
-    is_typeddict,
-)
+from typing import Any, Generic, Literal, TypeVar, Union, get_args, get_origin
 from uuid import UUID
 
 
 _logger = logging.getLogger(__name__)
 
 
-providers = []
+# ----- content types -----
 
 
-_TEXT_PLAIN = "text/plain; charset=UTF-8"
+APPLICATION_JSON = "application/json"
+APPLICATION_OCTET_STREAM = "application/octet-stream"
+TEXT_PLAIN = "text/plain; charset=UTF-8"
 
 
-# tracks types being built to deal with recursion (cyclic graphs)
-_building = {}
+# ----- type aliases -----
 
 
-def _provider(wrapped=None):
-    if wrapped is None:
-        return functools.partial(_provider)
-    providers.append(wrapped)
-    return wrapped
+BinaryType = bytes | bytearray
+JSONType = Any
+StringType = str
+
+
+# ----- utilities -----
+
+
+@contextmanager
+def _wrap(exception):
+    try:
+        yield
+    except Exception as e:
+        if isinstance(e, exception):
+            raise
+        raise exception from e
+
+
+def _csv_encode(value):
+    sio = io.StringIO()
+    csv.writer(sio).writerow(value)
+    return sio.getvalue().rstrip("\r\n")
+
+
+def _csv_decode(value):
+    if not isinstance(value, str):
+        raise DecodeError
+    return csv.reader([value]).__next__()
+
+
+def _b2s(b):
+    if not isinstance(b, bytes | bytearray):
+        raise DecodeError
+    with _wrap(DecodeError):
+        return b.decode()
+
+
+def _s2j(s):
+    if not isinstance(s, str):
+        raise DecodeError
+    with _wrap(DecodeError):
+        return json.loads(s)
+
+
+# ----- errors -----
 
 
 class CodecError(ValueError):
@@ -95,270 +118,297 @@ class CodecError(ValueError):
 
 
 class EncodeError(CodecError):
-    pass
+    """..."""
 
 
 class DecodeError(CodecError):
-    pass
+    """..."""
 
 
 # ----- base -----
 
 
-F = TypeVar("F")  # from
-T = TypeVar("T")  # to
+PT = TypeVar("PT")  # Python type hint
+TT = TypeVar("TT")  # target type hint
 
 
-class Codec(Generic[F, T]):
-    """Base class for all things encode and decode."""
+class Codec(Generic[PT, TT]):
+    """
+    Base class for all things encode and decode.
+    """
 
-    def encode(self, value: F) -> T:
+    def __init__(self, python_type: Any):
+        self.python_type = python_type
+
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        """Return True if the codec handles the specified Python type."""
+        raise NotImplementedError
+
+    @classmethod
+    def get(cls, python_type: Any) -> "Codec[PT, TT]":
+        """
+        Return a codec that handles the specified Python type.
+
+        If the subclass contains a `_cache` attribute, and does not
+
+        """
+        if cls is Codec:
+            raise NotImplementedError
+        with suppress(AttributeError, KeyError):
+            return cls._cache[python_type]
+        for codec_class in cls.__subclasses__():
+            if codec_class.handles(python_type):
+                codec = codec_class(python_type)
+                with suppress(AttributeError):
+                    cache = getattr(codec, "_cache", False)
+                    if isinstance(cache, Mapping):
+                        cache[python_type] = codec
+                return codec
+        raise TypeError(f"no codec for {python_type}")
+
+    def encode(self, value: PT) -> TT:
         """Encode value from F type to T type."""
         raise NotImplementedError
 
-    def decode(self, value: T) -> F:
+    def decode(self, value: TT) -> PT:
         """Decode value from T type to F type."""
         raise NotImplementedError
 
 
-class String(Codec[F, str]):
+class StringCodec(Codec[PT, StringType]):
     """Encodes Python types to/from Unicode string representations."""
 
+    _cache = {}
 
-class Binary(Codec[F, bytes | bytearray]):
-    """
-    Encodes Python types to/from binary representations.
+    def encode(self, value: PT) -> StringType:
+        """Encode value from Python type to string type."""
+        raise NotImplementedError
+
+    def decode(self, value: StringType) -> PT:
+        """Decode value from string type to Python type."""
+        raise NotImplementedError
+
+
+class BinaryCodec(Codec[PT, BinaryType]):
+    """Encodes Python types to/from binary representations.
 
     Attribute:
     • content_type: string containing the media type of the binary representation
     """
 
+    content_type = APPLICATION_OCTET_STREAM
 
-class JSON(Codec[F, Any]):
-    """
-    Encodes Python types to/from the JSON representations.
+    _cache = {}
 
-    The JSON object model is strictly composed of the following types: dict, list, str, int,
-    float, bool, NoneType.
+    def encode(self, value: PT) -> BinaryType:
+        """Encode value from Python type to binary type."""
+        raise NotImplementedError
 
-    Attribute:
-    • json_type: the JSON object model type encoded/decoded by the codec
-    """
-
-
-def _b2s(b):
-    if not isinstance(b, (bytes, bytearray)):
-        raise DecodeError
-    try:
-        return b.decode()
-    except Exception as e:
-        raise DecodeError from e
+    def decode(self, value: BinaryType) -> PT:
+        """Decode value from binary type to Python type."""
+        raise NotImplementedError
 
 
-def _s2j(s):
-    if not isinstance(s, str):
-        raise DecodeError
-    try:
-        return json.loads(s)
-    except Exception as e:
-        raise DecodeError from e
+class JSONCodec(Codec[PT, JSONType]):
+    """Encodes Python types to/from the JSON representations."""
 
+    _cache = {}
 
-@contextmanager
-def _wrap(exception):
-    try:
-        yield
-    except Exception as e:
-        raise exception from e
+    def encode(self, value: PT) -> JSONType:
+        """Encode value from Python type to binary type."""
+        raise NotImplementedError
+
+    def decode(self, value: JSONType) -> PT:
+        """Decode value from binary type to Python type."""
+        raise NotImplementedError
 
 
 # ----- str -----
 
 
-class _Str_Binary(Binary[str]):
+class StrBinaryCodec(BinaryCodec[str]):
     """Bytes codec for Unicode character strings."""
 
-    content_type = _TEXT_PLAIN
+    content_type = TEXT_PLAIN
 
-    def encode(self, value: str) -> bytes:
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        python_type = strip_annotations(python_type)
+        return is_subclass(python_type, str)
+
+    def encode(self, value: str) -> BinaryType:
         if not isinstance(value, str):
             raise EncodeError
         with _wrap(EncodeError):
             return value.encode()
 
-    def decode(self, value: bytes | bytearray) -> str:
+    def decode(self, value: BinaryType) -> str:
         return _b2s(value)
 
 
-_str_binarycodec = _Str_Binary()
-
-
-class _Str_String(String[str]):
+class StrStringCodec(StringCodec[str]):
     """String codec for Unicode character strings."""
 
-    def encode(self, value: str) -> str:
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        python_type = strip_annotations(python_type)
+        return is_subclass(python_type, str)
+
+    def encode(self, value: str) -> StringType:
         if not isinstance(value, str):
             raise EncodeError
         return value
 
-    def decode(self, value: str) -> str:
+    def decode(self, value: StringType) -> str:
         if not isinstance(value, str):
             raise DecodeError
         return value
 
 
-_str_stringcodec = _Str_String()
-
-
-class _Str_JSON(JSON[str]):
+class StrJSONCodec(JSONCodec[str]):
     """JSON codec for Unicode character strings."""
 
-    json_type = str
+    def __init__(self, python_type: Any):
+        super().__init__(python_type)
+        self.codec = StrStringCodec(python_type)
 
-    def encode(self, value: str) -> str:
-        return _str_stringcodec.encode(value)
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        return StrStringCodec.handles(python_type)
 
-    def decode(self, value: str) -> str:
-        return _str_stringcodec.decode(value)
+    def encode(self, value: str) -> JSONType:
+        return self.codec.encode(value)
 
-
-_str_jsoncodec = _Str_JSON()
-
-
-@_provider
-def _str(codec_type, python_type):
-    python_type, _ = split_annotated(python_type)
-    if is_subclass(python_type, str):
-        if codec_type is Binary:
-            return _str_binarycodec
-        if codec_type is String:
-            return _str_stringcodec
-        if codec_type is JSON:
-            return _str_jsoncodec
+    def decode(self, value: JSONType) -> str:
+        if not isinstance(value, str):
+            raise DecodeError
+        return self.codec.decode(value)
 
 
 # ----- bytes/bytearray -----
 
 
-class _Bytes_Binary(Binary[bytes | bytearray]):
+class BytesBinaryCodec(BinaryCodec[bytes | bytearray]):
     """Binary codec for byte sequences."""
 
-    content_type = "application/octet-stream"
+    content_type = APPLICATION_OCTET_STREAM
 
-    def encode(self, value: bytes | bytearray) -> bytes | bytearray:
-        if not isinstance(value, (bytes, bytearray)):
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        python_type = strip_annotations(python_type)
+        return is_subclass(python_type, bytes | bytearray)
+
+    def encode(self, value: bytes | bytearray) -> BinaryType:
+        if not isinstance(value, bytes | bytearray):
             raise EncodeError
         return value
 
-    def decode(self, value: bytes | bytearray) -> bytes | bytearray:
-        if not isinstance(value, (bytes, bytearray)):
+    def decode(self, value: BinaryType) -> bytes | bytearray:
+        if not isinstance(value, BinaryType):
             raise DecodeError
         return value
 
 
-_bytes_binarycodec = _Bytes_Binary()
-
-
-class _Bytes_String(String[bytes | bytearray]):
+class BytesStringCodec(StringCodec[bytes | bytearray]):
     """
     String codec for byte sequences. A byte sequence is represented in string values as a
     base64-encoded string. Example: "SGVsbG8gRm9uZGF0".
     """
 
-    def encode(self, value: bytes | bytearray) -> str:
-        if not isinstance(value, (bytes, bytearray)):
-            raise EncodeError
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        python_type = strip_annotations(python_type)
+        return is_subclass(python_type, BinaryType)
+
+    def encode(self, value: bytes | bytearray) -> StringType:
         with _wrap(EncodeError):
             return base64.b64encode(value).decode()
 
-    def decode(self, value: str) -> bytes:
-        if not isinstance(value, str):
-            raise DecodeError
+    def decode(self, value: StringType) -> bytes | bytearray:
         with _wrap(DecodeError):
             return base64.b64decode(value)
 
 
-_bytes_stringcodec = _Bytes_String()
-
-
-class _Bytes_JSON(JSON[bytes | bytearray]):
+class BytesJSONCodec(JSONCodec[bytes | bytearray]):
     """
     JSON codec for byte sequences. A byte sequence is represented in JSON values as a
     base64-encoded string. Example: "SGVsbG8gRm9uZGF0".
     """
 
-    json_type = str
+    def __init__(self, python_type: Any):
+        super().__init__(python_type)
+        self.codec = BytesStringCodec(python_type)
 
-    def encode(self, value: bytes | bytearray) -> str:
-        return _bytes_stringcodec.encode(value)
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        return BytesStringCodec.handles(python_type)
 
-    def decode(self, value: str) -> bytes:
-        return _bytes_stringcodec.decode(value)
+    def encode(self, value: JSONType) -> bytes | bytearray:
+        return self.codec.encode(value)
 
-
-_bytes_jsoncodec = _Bytes_JSON()
-
-
-@_provider
-def _bytes(codec_type, python_type):
-    python_type, _ = split_annotated(python_type)
-    if is_subclass(python_type, (bytes, bytearray)):
-        if codec_type is Binary:
-            return _bytes_binarycodec
-        if codec_type is String:
-            return _bytes_stringcodec
-        if codec_type is JSON:
-            return _bytes_jsoncodec
+    def decode(self, value: bytes | bytearray) -> JSONType:
+        return self.codec.decode(value)
 
 
 # ----- int -----
 
 
-class _Int_String(String[int]):
+class IntStringCodec(StringCodec[int]):
     """String codec for integers."""
 
-    def encode(self, value: int) -> str:
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        python_type = strip_annotations(python_type)
+        return is_subclass(python_type, int) and not is_subclass(python_type, bool)
+
+    def encode(self, value: int) -> StringType:
         if not isinstance(value, int) or isinstance(value, bool):
             raise EncodeError
         return str(value)
 
-    def decode(self, value: str) -> int:
+    def decode(self, value: StringType) -> int:
         if not isinstance(value, str):
             raise DecodeError
         with _wrap(DecodeError):
             return int(value)
 
 
-_int_stringcodec = _Int_String()
-
-
-class _Int_Binary(Binary[int]):
+class IntBinaryCodec(BinaryCodec[int]):
     """Binary codec for integers."""
 
-    content_type = _TEXT_PLAIN
+    content_type = TEXT_PLAIN
 
-    def encode(self, value: int) -> bytes:
-        return _int_stringcodec.encode(value).encode()
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        return IntStringCodec.handles(python_type)
 
-    def decode(self, value: bytes | bytearray) -> int:
-        return _int_stringcodec.decode(_b2s(value))
+    def __init__(self, python_type: Any):
+        super().__init__(python_type)
+        self.codec = IntStringCodec(python_type)
+
+    def encode(self, value: int) -> BinaryType:
+        return self.codec.encode(value).encode()
+
+    def decode(self, value: BinaryType) -> int:
+        return self.codec.decode(_b2s(value))
 
 
-_int_binarycodec = _Int_Binary()
-
-
-class _Int_JSON(JSON[int]):
+class IntJSONCodec(JSONCodec[int]):
     """JSON codec for integers."""
 
-    json_type = int | float
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        python_type = strip_annotations(python_type)
+        return is_subclass(python_type, int) and not is_subclass(python_type, bool)
 
-    def encode(self, value: int) -> int:
+    def encode(self, value: int) -> JSONType:
         if not isinstance(value, int) or isinstance(value, bool):
             raise EncodeError
         return value
 
-    def decode(self, value: int | float) -> int:
-        if not isinstance(value, (int, float)) or isinstance(value, bool):
+    def decode(self, value: JSONType) -> int:
+        if not isinstance(value, int | float) or isinstance(value, bool):
             raise DecodeError
         result = value
         if isinstance(result, float):
@@ -368,100 +418,86 @@ class _Int_JSON(JSON[int]):
         return result
 
 
-_int_jsoncodec = _Int_JSON()
-
-
-@_provider
-def _int(codec_type, python_type):
-    python_type, _ = split_annotated(python_type)
-    if is_subclass(python_type, int) and not is_subclass(python_type, bool):
-        if codec_type is Binary:
-            return _int_binarycodec
-        if codec_type is String:
-            return _int_stringcodec
-        if codec_type is JSON:
-            return _int_jsoncodec
-
-
 # ----- float -----
 
 
-class _Float_String(String[float]):
+class FloatStringCodec(StringCodec[float]):
     """String codec for floating point numbers."""
 
-    def encode(self, value: float) -> str:
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        python_type = strip_annotations(python_type)
+        return is_subclass(python_type, float)
+
+    def encode(self, value: float) -> StringType:
         if not isinstance(value, float):
             raise EncodeError
         return str(value)
 
-    def decode(self, value: str) -> float:
+    def decode(self, value: StringType) -> float:
         if not isinstance(value, str):
             raise DecodeError
         with _wrap(DecodeError):
             return float(value)
 
 
-_float_stringcodec = _Float_String()
-
-
-class _Float_Binary(Binary[float]):
+class FloatBinaryCodec(BinaryCodec[float]):
     """Binary codec for floating point numbers."""
 
-    content_type = _TEXT_PLAIN
+    content_type = TEXT_PLAIN
 
-    def encode(self, value: float) -> bytes:
-        return _float_stringcodec.encode(value).encode()
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        return FloatStringCodec.handles(python_type)
 
-    def decode(self, value: bytes | bytearray) -> float:
-        return _float_stringcodec.decode(_b2s(value))
+    def __init__(self, python_type: Any):
+        super().__init__(python_type)
+        self.codec = FloatStringCodec(python_type)
+
+    def encode(self, value: float) -> BinaryType:
+        with _wrap(EncodeError):
+            return self.codec.encode(value).encode()
+
+    def decode(self, value: BinaryType) -> float:
+        return self.codec.decode(_b2s(value))
 
 
-_float_binarycodec = _Float_Binary()
-
-
-class _Float_JSON(JSON[float]):
+class FloatJSONCodec(JSONCodec[float]):
     """JSON codec for floating point numbers."""
 
-    json_type = int | float
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        python_type = strip_annotations(python_type)
+        return is_subclass(python_type, float)
 
-    def encode(self, value: float) -> float:
+    def encode(self, value: float) -> JSONType:
         if not isinstance(value, float):
             raise EncodeError
         return value
 
-    def decode(self, value: int | float) -> float:
-        if not isinstance(value, (int, float)) or isinstance(value, bool):
+    def decode(self, value: JSONType) -> float:
+        if not isinstance(value, int | float) or isinstance(value, bool):
             raise DecodeError
         return float(value)
-
-
-_float_jsoncodec = _Float_JSON()
-
-
-@_provider
-def _float(codec_type, python_type):
-    python_type, _ = split_annotated(python_type)
-    if is_subclass(python_type, float):
-        if codec_type is Binary:
-            return _float_binarycodec
-        if codec_type is String:
-            return _float_stringcodec
-        if codec_type is JSON:
-            return _float_jsoncodec
 
 
 # ----- bool -----
 
 
-class _Bool_String(String[bool]):
+class BoolStringCodec(StringCodec[bool]):
     """String codec for boolean values."""
 
-    def encode(self, value: bool) -> str:
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        python_type = strip_annotations(python_type)
+        return is_subclass(python_type, bool)
+
+    def encode(self, value: bool) -> StringType:
         if not isinstance(value, bool):
             raise EncodeError
         return "true" if value else "false"
 
-    def decode(self, value: str) -> bool:
+    def decode(self, value: StringType) -> bool:
         if not isinstance(value, str):
             raise DecodeError
         try:
@@ -470,261 +506,240 @@ class _Bool_String(String[bool]):
             raise DecodeError
 
 
-_bool_stringcodec = _Bool_String()
-
-
-class _Bool_Binary(Binary[bool]):
+class BoolBinaryCodec(BinaryCodec[bool]):
     """Binary codec for boolean values."""
 
-    content_type = _TEXT_PLAIN
+    content_type = TEXT_PLAIN
 
-    def encode(self, value: bool) -> bytes:
-        return _bool_stringcodec.encode(value).encode()
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        return BoolStringCodec.handles(python_type)
 
-    def decode(self, value: bytes | bytearray) -> bool:
-        return _bool_stringcodec.decode(_b2s(value))
+    def __init__(self, python_type: Any):
+        super().__init__(python_type)
+        self.codec = BoolStringCodec(python_type)
+
+    def encode(self, value: bool) -> BinaryType:
+        with _wrap(EncodeError):
+            return self.codec.encode(value).encode()
+
+    def decode(self, value: BinaryType) -> bool:
+        return self.codec.decode(_b2s(value))
 
 
-_bool_binarycodec = _Bool_Binary()
-
-
-class _Bool_JSON(JSON[bool]):
+class BoolJSONCodec(JSONCodec[bool]):
     """JSON codec for boolean values."""
 
-    json_type = bool
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        python_type = strip_annotations(python_type)
+        return is_subclass(python_type, bool)
 
-    def encode(self, value: bool) -> bool:
+    def encode(self, value: bool) -> JSONType:
         if not isinstance(value, bool):
             raise EncodeError
         return value
 
-    def decode(self, value: bool) -> bool:
+    def decode(self, value: JSONType) -> bool:
         if not isinstance(value, bool):
             raise DecodeError
         return value
-
-
-_bool_jsoncodec = _Bool_JSON()
-
-
-@_provider
-def _bool(codec_type, python_type):
-    python_type, _ = split_annotated(python_type)
-    if is_subclass(python_type, bool):
-        if codec_type is Binary:
-            return _bool_binarycodec
-        if codec_type is String:
-            return _bool_stringcodec
-        if codec_type is JSON:
-            return _bool_jsoncodec
 
 
 # ----- NoneType -----
 
 
-class _NoneType_String(String[NoneType]):
+class NoneTypeStringCodec(StringCodec[NoneType]):
     """String codec for None value."""
 
-    def encode(self, value: NoneType) -> str:
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        python_type = strip_annotations(python_type)
+        return python_type is NoneType
+
+    def encode(self, value: NoneType) -> StringType:
         if value is not None:
             raise EncodeError
         return ""
 
-    def decode(self, value: str) -> NoneType:
-        if str != "":
+    def decode(self, value: StringType) -> NoneType:
+        if value != "":
             raise DecodeError
         return None
 
 
-_nonetype_stringcodec = _NoneType_String()
-
-
-class _NoneType_Binary(Binary[NoneType]):
+class NoneTypeBinaryCodec(BinaryCodec[NoneType]):
     """Binary codec for None value."""
 
-    content_type = _TEXT_PLAIN
+    content_type = TEXT_PLAIN
 
-    def encode(self, value: NoneType) -> bytes:
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        python_type = strip_annotations(python_type)
+        return python_type is NoneType
+
+    def encode(self, value: NoneType) -> BinaryType:
         if value is not None:
             raise EncodeError
         return b""
 
-    def decode(self, value: bytes | bytearray) -> NoneType:
+    def decode(self, value: BinaryType) -> NoneType:
         if value != b"":
             raise DecodeError
         return None
 
 
-_nonetype_binarycodec = _NoneType_Binary()
-
-
-class _NoneType_JSON(JSON[NoneType]):
+class NoneTypeJSONCodec(JSONCodec[NoneType]):
     """JSON codec for None value."""
 
-    json_type = NoneType
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        python_type = strip_annotations(python_type)
+        return python_type is NoneType
 
-    def encode(self, value: NoneType) -> NoneType:
+    def encode(self, value: NoneType) -> JSONType:
         if value is not None:
             raise EncodeError
         return None
 
-    def decode(self, value: NoneType) -> NoneType:
+    def decode(self, value: JSONType) -> NoneType:
         if value is not None:
             raise DecodeError
         return None
 
 
-_nonetype_jsoncodec = _NoneType_JSON()
-
-
-@_provider
-def _NoneType(codec_type, python_type):
-    python_type, _ = split_annotated(python_type)
-    if python_type is NoneType:
-        if codec_type is Binary:
-            return _nonetype_binarycodec
-        if codec_type is String:
-            return _nonetype_stringcodec
-        if codec_type is JSON:
-            return _nonetype_jsoncodec
-
-
 # ----- Decimal -----
 
 
-class _Decimal_String(String[Decimal]):
+class DecimalStringCodec(StringCodec[Decimal]):
     """String codec for Decimal numbers."""
 
-    def encode(self, value: Decimal) -> str:
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        python_type = strip_annotations(python_type)
+        return is_subclass(python_type, Decimal)
+
+    def encode(self, value: Decimal) -> StringType:
         if not isinstance(value, Decimal):
             raise EncodeError
         return str(value)
 
-    def decode(self, value: str) -> Decimal:
+    def decode(self, value: StringType) -> Decimal:
         if not isinstance(value, str):
             raise DecodeError
         with _wrap(DecodeError):
             return Decimal(value)
 
 
-_decimal_string = _Decimal_String()
-
-
-class _Decimal_Binary(Binary[Decimal]):
+class DecimalBinaryCodec(BinaryCodec[Decimal]):
     """Binary codec for Decimal numbers."""
 
-    content_type = _TEXT_PLAIN
+    content_type = TEXT_PLAIN
 
-    def encode(self, value: Decimal) -> bytes:
-        return _decimal_string.encode(value).encode()
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        return DecimalStringCodec.handles(python_type)
 
-    def decode(self, value: bytes | bytearray) -> Decimal:
-        return _decimal_string.decode(_b2s(value))
+    def __init__(self, python_type: Any):
+        super().__init__(python_type)
+        self.codec = DecimalStringCodec(python_type)
+
+    def encode(self, value: Decimal) -> BinaryType:
+        return self.codec.encode(value).encode()
+
+    def decode(self, value: BinaryType) -> Decimal:
+        return self.codec.decode(_b2s(value))
 
 
-_decimal_binary = _Decimal_Binary()
-
-
-class _Decimal_JSON(JSON[Decimal]):
+class DecimalJSONCodec(JSONCodec[Decimal]):
     """
     JSON codec for Decimal numbers. Decimal numbers are represented in JSON as strings, due to
     the imprecision of floating point numbers.
     """
 
-    json_type = str
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        return DecimalStringCodec.handles(python_type)
 
-    def encode(self, value: Decimal) -> str:
-        return _decimal_string.encode(value)
+    def __init__(self, python_type: Any):
+        super().__init__(python_type)
+        self.codec = DecimalStringCodec(python_type)
 
-    def decode(self, value: str) -> Decimal:
-        return _decimal_string.decode(value)
+    def encode(self, value: Decimal) -> JSONType:
+        return self.codec.encode(value)
 
-
-_decimal_json = _Decimal_JSON()
-
-
-@_provider
-def _Decimal(codec_type, python_type):
-    python_type, _ = split_annotated(python_type)
-    if is_subclass(python_type, Decimal):
-        if codec_type is Binary:
-            return _decimal_binary
-        if codec_type is String:
-            return _decimal_string
-        if codec_type is JSON:
-            return _decimal_json
+    def decode(self, value: JSONType) -> Decimal:
+        return self.codec.decode(value)
 
 
 # ----- date -----
 
 
-class _Date_String(String[date]):
+class DateStringCodec(StringCodec[date]):
     """
     String codec for dates. A date is represented in a string in RFC 3339 format.
     Example: "2018-06-16".
     """
 
-    def encode(self, value: date) -> str:
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        python_type = strip_annotations(python_type)
+        return is_subclass(python_type, date) and not is_subclass(python_type, datetime)
+
+    def encode(self, value: date) -> StringType:
         if not isinstance(value, date):
             raise EncodeError
         return value.isoformat()
 
-    def decode(self, value: str) -> date:
+    def decode(self, value: StringType) -> date:
         if not isinstance(value, str):
             raise DecodeError
         with _wrap(DecodeError):
             return date.fromisoformat(value)
 
 
-_date_stringcodec = _Date_String()
-
-
-class _Date_Binary(Binary[date]):
+class DateBinaryCodec(BinaryCodec[date]):
     """
     Binary codec for dates. A date is represented in a binary format as an RFC 3339 UTF-8 or
     ASCII encoded string. Example: "2018-06-16".
     """
 
-    content_type = _TEXT_PLAIN
+    content_type = TEXT_PLAIN
 
-    def encode(self, value: date) -> bytes:
-        return _date_stringcodec.encode(value).encode()
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        return DateStringCodec.handles(python_type)
 
-    def decode(self, value: bytes | bytearray) -> date:
-        return _date_stringcodec.decode(_b2s(value))
+    def __init__(self, python_type: Any):
+        super().__init__(python_type)
+        self.codec = DateStringCodec(python_type)
+
+    def encode(self, value: date) -> BinaryType:
+        return self.codec.encode(value).encode()
+
+    def decode(self, value: BinaryType) -> date:
+        return self.codec.decode(_b2s(value))
 
 
-_date_binarycodec = _Date_Binary()
-
-
-class _Date_JSON(JSON[date]):
+class DateJSONCodec(JSONCodec[date]):
     """
     JSON codec for dates. A date is represented in JSON as an RFC 3339 formatted string.
     Example: "2018-06-16".
     """
 
-    json_type = str
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        return DateStringCodec.handles(python_type)
 
-    def encode(self, value: date) -> str:
-        return _date_stringcodec.encode(value)
+    def __init__(self, python_type: Any):
+        super().__init__(python_type)
+        self.codec = DateStringCodec(python_type)
 
-    def decode(self, value: str) -> date:
-        return _date_stringcodec.decode(value)
+    def encode(self, value: date) -> JSONType:
+        return self.codec.encode(value)
 
-
-_date_jsoncodec = _Date_JSON()
-
-
-@_provider
-def _date(codec_type, python_type):
-    python_type, _ = split_annotated(python_type)
-    if is_subclass(python_type, date) and not is_subclass(python_type, datetime):
-        if codec_type is Binary:
-            return _date_binarycodec
-        if codec_type is String:
-            return _date_stringcodec
-        if codec_type is JSON:
-            return _date_jsoncodec
+    def decode(self, value: JSONType) -> date:
+        return self.codec.decode(value)
 
 
 # ----- datetime -----
@@ -736,7 +751,7 @@ def _to_utc(value):
     return value.astimezone(timezone.utc)
 
 
-class _Datetime_String(String[datetime]):
+class DatetimeStringCodec(StringCodec[datetime]):
     """
     String codec for datetime.
 
@@ -748,7 +763,12 @@ class _Datetime_String(String[datetime]):
     Example: "2020-04-07T12:34:56.789012Z".
     """
 
-    def encode(self, value: datetime) -> str:
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        python_type = strip_annotations(python_type)
+        return is_subclass(python_type, datetime)
+
+    def encode(self, value: datetime) -> StringType:
         if not isinstance(value, datetime):
             raise EncodeError
         result = _to_utc(value).isoformat()
@@ -758,17 +778,14 @@ class _Datetime_String(String[datetime]):
             result = f"{result}Z"
         return result
 
-    def decode(self, value: str) -> datetime:
+    def decode(self, value: StringType) -> datetime:
         if not isinstance(value, str):
             raise DecodeError
         with _wrap(DecodeError):
             return _to_utc(iso8601.parse_date(value))
 
 
-_datetime_stringcodec = _Datetime_String()
-
-
-class _Datetime_Binary(Binary[datetime]):
+class DatetimeBinaryCodec(BinaryCodec[datetime]):
     """
     Binary codec for datetime.
 
@@ -781,19 +798,24 @@ class _Datetime_Binary(Binary[datetime]):
     Example: b"2020-04-07T12:34:56.789012Z".
     """
 
-    content_type = _TEXT_PLAIN
+    content_type = TEXT_PLAIN
 
-    def encode(self, value: datetime) -> bytes:
-        return _datetime_stringcodec.encode(value).encode()
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        return DatetimeStringCodec.handles(python_type)
 
-    def decode(self, value: bytes | bytearray) -> datetime:
-        return _datetime_stringcodec.decode(_b2s(value))
+    def __init__(self, python_type: Any):
+        super().__init__(python_type)
+        self.codec = DatetimeStringCodec(python_type)
+
+    def encode(self, value: datetime) -> BinaryType:
+        return self.codec.encode(value).encode()
+
+    def decode(self, value: BinaryType) -> datetime:
+        return self.codec.decode(_b2s(value))
 
 
-_datetime_binarycodec = _Datetime_Binary()
-
-
-class _Datetime_JSON(JSON[datetime]):
+class DatetimeJSONCodec(JSONCodec[datetime]):
     """
     String codec for datetime.
 
@@ -805,848 +827,788 @@ class _Datetime_JSON(JSON[datetime]):
     Example: "2020-04-07T12:34:56.789012Z".
     """
 
-    json_type = str
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        return DatetimeStringCodec.handles(python_type)
 
-    def encode(self, value: datetime) -> str:
-        return _datetime_stringcodec.encode(value)
+    def __init__(self, python_type: Any):
+        super().__init__(python_type)
+        self.codec = DatetimeStringCodec(python_type)
 
-    def decode(self, value: str) -> datetime:
-        return _datetime_stringcodec.decode(value)
+    def encode(self, value: datetime) -> JSONType:
+        return self.codec.encode(value)
 
-
-_datetime_jsoncodec = _Datetime_JSON()
-
-
-@_provider
-def _datetime(codec_type, python_type):
-    python_type, _ = split_annotated(python_type)
-    if is_subclass(python_type, datetime):
-        if codec_type is Binary:
-            return _datetime_binarycodec
-        if codec_type is String:
-            return _datetime_stringcodec
-        if codec_type is JSON:
-            return _datetime_jsoncodec
+    def decode(self, value: JSONType) -> datetime:
+        return self.codec.decode(value)
 
 
 # ----- UUID -----
 
 
-class _UUID_String(String[UUID]):
+class UUIDStringCodec(StringCodec[UUID]):
     """String codec for UUID."""
 
-    def encode(self, value: UUID) -> str:
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        python_type = strip_annotations(python_type)
+        return is_subclass(python_type, UUID)
+
+    def encode(self, value: UUID) -> StringType:
         if not isinstance(value, UUID):
             raise EncodeError
         return str(value)
 
-    def decode(self, value: str) -> UUID:
+    def decode(self, value: StringType) -> UUID:
         if not isinstance(value, str):
             raise DecodeError
         with _wrap(DecodeError):
             return UUID(value)
 
 
-_uuid_stringcodec = _UUID_String()
-
-
-class _UUID_Binary(Binary[UUID]):
+class UUIDBinaryCodec(BinaryCodec[UUID]):
     """Binary codec for UUID."""
 
-    content_type = _TEXT_PLAIN
+    content_type = TEXT_PLAIN
 
-    def encode(self, value: UUID) -> bytes:
-        return _uuid_stringcodec.encode(value).encode()
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        return UUIDStringCodec.handles(python_type)
 
-    def decode(self, value: bytes | bytearray) -> UUID:
-        return _uuid_stringcodec.decode(_b2s(value))
+    def __init__(self, python_type: Any):
+        super().__init__(python_type)
+        self.codec = UUIDStringCodec(python_type)
+
+    def encode(self, value: UUID) -> BinaryType:
+        return self.codec.encode(value).encode()
+
+    def decode(self, value: BinaryType) -> UUID:
+        return self.codec.decode(_b2s(value))
 
 
-_uuid_binarycodec = _UUID_Binary()
-
-
-class _UUID_JSON(JSON[UUID]):
+class UUIDJSONCodec(JSONCodec[UUID]):
     """JSON codec for UUID."""
 
-    json_type = str
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        return UUIDStringCodec.handles(python_type)
 
-    def encode(self, value: UUID) -> str:
-        return _uuid_stringcodec.encode(value)
+    def __init__(self, python_type: Any):
+        super().__init__(python_type)
+        self.codec = UUIDStringCodec(python_type)
 
-    def decode(self, value: str) -> UUID:
-        return _uuid_stringcodec.decode(value)
+    def encode(self, value: UUID) -> JSONType:
+        return self.codec.encode(value)
 
-
-_uuid_jsoncodec = _UUID_JSON()
-
-
-@_provider
-def _uuid(codec_type, python_type):
-    python_type, _ = split_annotated(python_type)
-    if is_subclass(python_type, UUID):
-        if codec_type is Binary:
-            return _uuid_binarycodec
-        if codec_type is String:
-            return _uuid_stringcodec
-        if codec_type is JSON:
-            return _uuid_jsoncodec
+    def decode(self, value: JSONType) -> UUID:
+        return self.codec.decode(value)
 
 
 # ----- TypedDict -----
 
 
-@_provider
-def _typeddict(codec_type, python_type):
+class TypedDictJSONCodec(JSONCodec[PT]):
+    """..."""
 
-    python_type, _ = split_annotated(python_type)
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        python_type = strip_annotations(python_type)
+        return typing.is_typeddict(python_type)
 
-    if not is_typeddict(python_type):
-        return
+    def __init__(self, python_type: Any):
+        super().__init__(python_type)
+        python_type = strip_annotations(python_type)
+        self.hints = typing.get_type_hints(python_type, include_extras=True)
+        if {type(k) for k in self.hints.keys()} != {str}:
+            raise TypeError("codec only supports TypedDict with str keys")
 
-    if codec_type is JSON:
-
-        if c := _building.get((codec_type, python_type)):
-            return c  # return the (incomplete) outer one still being built
-
-        hints = get_type_hints(python_type, include_extras=True)
-
-        for key in hints:
-            if type(key) is not str:
-                raise TypeError("codec only supports TypedDict with str keys")
-
-        class _TypedDict_JSON(JSON[python_type]):
-
-            json_type = dict[str, Any]  # will be replaced below
-
-            def _process(self, value, method):
-                result = {}
-                for key in hints:
-                    codec = get_codec(JSON, hints[key])
-                    try:
-                        with CodecError.path_on_error(key):
-                            result[key] = getattr(codec, method)(value[key])
-                    except KeyError:
-                        continue
-                return result
-
-            def encode(self, value: python_type) -> Any:
-                if not isinstance(value, dict):
-                    raise EncodeError
-                return self._process(value, "encode")
-
-            def decode(self, value: Any) -> python_type:
-                return self._process(value, "decode")
-
-        result = _TypedDict_JSON()
-        _building[(codec_type, python_type)] = result
-
-        try:
-            json_type = TypedDict(
-                "_TypedDict",
-                {key: get_codec(JSON, hints[key]).json_type for key in hints},
-                total=python_type.__total__,
-            )
-            json_type.__required_keys__ = python_type.__required_keys__
-            json_type.__optional_keys__ = python_type.__optional_keys__
-            result.json_type = result.__class__.json_type = json_type
-
-        finally:
-            del _building[(codec_type, python_type)]
-
+    def _process(self, value: dict[str, Any], method) -> dict[str, Any]:
+        result = {}
+        for key in self.hints:
+            codec = JSONCodec.get(self.hints[key])
+            with suppress(KeyError):
+                with CodecError.path_on_error(key):
+                    result[key] = getattr(codec, method)(value[key])
         return result
 
-    if codec_type is String:
-        json_codec = get_codec(JSON, python_type)
+    def encode(self, value: PT) -> JSONType:
+        if not isinstance(value, dict):
+            raise EncodeError
+        return self._process(value, "encode")
 
-        class _TypedDict_String(String[python_type]):
-            def encode(self, value: python_type) -> str:
-                if not isinstance(value, dict):
-                    raise EncodeError
-                return json.dumps(json_codec.encode(value))
+    def decode(self, value: JSONType) -> PT:
+        return self._process(value, "decode")
 
-            def decode(self, value: str) -> python_type:
-                return json_codec.decode(_s2j(value))
 
-        return _TypedDict_String()
+class TypedDictStringCodec(StringCodec[PT]):
+    """..."""
 
-    if codec_type is Binary:
-        string_codec = get_codec(String, python_type)
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        return TypedDictJSONCodec.handles(python_type)
 
-        class _TypedDict_Binary(Binary[python_type]):
-            content_type = "application/json"
+    def __init__(self, python_type: Any):
+        super().__init__(python_type)
+        self.codec = TypedDictJSONCodec(python_type)
 
-            def encode(self, value: python_type) -> bytes:
-                return string_codec.encode(value).encode()
+    def encode(self, value: PT) -> StringType:
+        if not isinstance(value, dict):
+            raise EncodeError
+        return json.dumps(self.codec.encode(value))
 
-            def decode(self, value: bytes | bytearray) -> python_type:
-                return string_codec.decode(_b2s(value))
+    def decode(self, value: StringType) -> PT:
+        return self.codec.decode(_s2j(value))
 
-        return _TypedDict_Binary()
+
+class TypedDictBinaryCodec(BinaryCodec[PT]):
+    """..."""
+
+    content_type = APPLICATION_JSON
+
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        return TypedDictStringCodec.handles(python_type)
+
+    def __init__(self, python_type: Any):
+        super().__init__(python_type)
+        self.codec = TypedDictStringCodec(python_type)
+
+    def encode(self, value: PT) -> BinaryType:
+        return self.codec.encode(value).encode()
+
+    def decode(self, value: BinaryType) -> PT:
+        return self.codec.decode(_b2s(value))
 
 
 # ----- tuple -----
 
 
-@_provider
-def _tuple(codec_type, python_type):
+class _TupleCodec(Codec[PT, TT]):
+    @classmethod
+    def handles(cls, python_type: Any) -> bool:
+        python_type = strip_annotations(python_type)
+        return is_subclass(python_type, tuple) or is_subclass(get_origin(python_type), tuple)
 
-    pytype, _ = split_annotated(python_type)
+    def __init__(self, python_type: Any, base_codec_type: type[Codec[PT, TT]]):
+        python_type = strip_annotations(python_type)
+        args = get_args(python_type) or (Any, ...)
+        if len(args) != 2 and Ellipsis in args or args[0] is Ellipsis:
+            raise TypeError(f"unexpected ellipsis in tuple[{', '.join(args)}]")
+        self.varg = args[0] if len(args) == 2 and args[1] is Ellipsis else None
+        self.args = () if self.varg else args
+        self.codecs = [base_codec_type.get(arg) for arg in self.args]
+        self.vcodec = base_codec_type.get(self.varg) if self.varg else None
 
-    if pytype is tuple:
-        origin = tuple
-        args = (Any, ...)
+    def _encode(self, value: PT) -> list[Any]:
+        if not isinstance(value, tuple) or (self.args and len(value) != len(self.args)):
+            raise EncodeError
+        # TODO: path
+        return list(
+            (self.vcodec.encode(item) for item in value)
+            if self.vcodec
+            else (self.codecs[n].encode(value[n]) for n in range(len(self.codecs)))
+        )
 
-    else:
-        origin = get_origin(pytype)
-        args = get_args(pytype)
+    def _decode(self, value: list[Any]) -> PT:
+        if not isinstance(value, list) or (self.args and len(value) != len(self.args)):
+            raise DecodeError
+        # TODO: path
+        return tuple(
+            (self.vcodec.decode(item) for item in value)
+            if self.vcodec
+            else (self.codecs[n].decode(value[n]) for n in range(len(self.codecs)))
+        )
 
-    if origin is not tuple:
-        return
 
-    if len(args) != 2 and Ellipsis in args or args[0] is Ellipsis:
-        raise TypeError("unexpected ellipsis")
+class TupleJSONCodec(_TupleCodec[PT, JSONType], JSONCodec[PT]):
+    """..."""
 
-    varg = args[0] if len(args) == 2 and args[1] is Ellipsis else None
-    args = () if varg else args
+    def __init__(self, python_type: Any):
+        _TupleCodec.__init__(self, python_type, JSONCodec)
+        JSONCodec.__init__(self, python_type)
 
-    if codec_type is JSON:
+    def encode(self, value: PT) -> JSONType:
+        return self._encode(value)
 
-        codecs = [get_codec(JSON, arg) for arg in args]
-        vcodec = get_codec(JSON, varg) if varg else None
+    def decode(self, value: JSONType) -> PT:
+        return self._decode(value)
 
-        class _Tuple_JSON(JSON[python_type]):
 
-            json_type = list[Any]
+class TupleStringCodec(_TupleCodec[PT, StringType], StringCodec[PT]):
+    """..."""
 
-            def encode(self, value: python_type) -> list[Any]:
-                if not isinstance(value, tuple) or (args and len(value) != len(args)):
-                    raise EncodeError
-                # TODO: path
-                return (
-                    [vcodec.encode(item) for item in value]
-                    if vcodec
-                    else [codecs[n].encode(value[n]) for n in range(len(codecs))]
-                )
+    def __init__(self, python_type: Any):
+        _TupleCodec.__init__(self, python_type, StringCodec)
+        StringCodec.__init__(self, python_type)
 
-            def decode(self, value: list[Any]) -> python_type:
-                if not isinstance(value, list) or (args and len(value) != len(args)):
-                    raise DecodeError
-                # TODO: path
-                return tuple(
-                    [vcodec.decode(item) for item in value]
-                    if vcodec
-                    else [codecs[n].decode(value[n]) for n in range(len(codecs))]
-                )
+    def encode(self, value: PT) -> StringType:
+        return _csv_encode(self._encode(value))
 
-        return _Tuple_JSON()
+    def decode(self, value: StringType) -> PT:
+        return self._decode(_csv_decode(value))
 
-    if codec_type is String:
 
-        codecs = [get_codec(String, arg) for arg in args]
-        vcodec = get_codec(String, varg) if varg else None
+class TupleBinaryCodec(BinaryCodec[PT]):
+    """..."""
 
-        class _Tuple_String(String[python_type]):
-            def encode(self, value: python_type) -> str:
-                if not isinstance(value, tuple) or (args and len(value) != len(args)):
-                    raise EncodeError
-                # TODO: path
-                return _csv_encode(
-                    [vcodec.encode(item) for item in value]
-                    if vcodec
-                    else [codecs[n].encode(value[n]) for n in range(len(codecs))]
-                )
+    content_type = APPLICATION_JSON
 
-            def decode(self, value: str) -> python_type:
-                decoded = _csv_decode(value)
-                if args and len(decoded) != len(args):
-                    raise DecodeError
-                # TODO: path
-                return tuple(
-                    [vcodec.decode(item) for item in decoded]
-                    if vcodec
-                    else [codecs[n].decode(decoded[n]) for n in range(len(codecs))]
-                )
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        return TupleJSONCodec.handles(python_type)
 
-        return _Tuple_String()
+    def __init__(self, python_type: Any):
+        super().__init__(python_type)
+        self.codec = TupleJSONCodec(python_type)
 
-    if codec_type is Binary:
+    def encode(self, value: PT) -> BinaryType:
+        return json.dumps(self.codec.encode(value)).encode()
 
-        json_codec = get_codec(JSON, python_type)
-
-        class _Tuple_Binary(Binary[python_type]):
-
-            content_type = "application/json"
-
-            def encode(self, value: python_type) -> bytes:
-                return json.dumps(json_codec.encode(value)).encode()
-
-            def decode(self, value: bytes | bytearray) -> python_type:
-                return json_codec.decode(_s2j(_b2s(value)))
-
-        return _Tuple_Binary()
+    def decode(self, value: BinaryType) -> PT:
+        return self.codec.decode(_s2j(_b2s(value)))
 
 
 # ----- Mapping -----
 
 
-@_provider
-def _mapping(codec_type, python_type):
+class MappingJSONCodec(JSONCodec[PT]):
+    """..."""
 
-    python_type, _ = split_annotated(python_type)
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        python_type = strip_annotations(python_type)
+        origin = get_origin(python_type) or python_type
+        return is_subclass(origin, Mapping) and not getattr(origin, "__annotations__", None)
 
-    if is_subclass(python_type, Mapping):
-        origin = Mapping
-        args = [Any, Any]
-
-    else:
-        origin = get_origin(python_type)
-        if not is_subclass(origin, Mapping) or getattr(python_type, "__annotations__", None):
-            return  # not a Mapping
-        args = get_args(python_type)
+    def __init__(self, python_type: Any):
+        super().__init__(python_type)
+        python_type = strip_annotations(python_type)
+        args = get_args(python_type) or (Any, Any)
         if len(args) != 2:
             raise TypeError("expecting Mapping[KT, VT]")
+        self.key_codec = StringCodec.get(args[0])
+        self.value_codec = JSONCodec.get(args[1])
 
-    if codec_type is JSON:
-        key_codec = get_codec(String, args[0])
-        value_codec = get_codec(JSON, args[1])
-        _json_type = dict[str, value_codec.json_type]
+    def encode(self, value: PT) -> JSONType:
+        if not isinstance(value, Mapping):
+            raise EncodeError
+        result = {}
+        for k, v in value.items():
+            key = self.key_codec.encode(k)
+            with CodecError.path_on_error(key):
+                result[key] = self.value_codec.encode(v)
+        return result
 
-        class _Mapping_JSON(JSON[python_type]):
-            json_type = _json_type
+    def decode(self, value: JSONType) -> PT:
+        if not isinstance(value, Mapping):
+            raise DecodeError
+        result = {}
+        for k, v in value.items():
+            key = self.key_codec.decode(k)
+            with CodecError.path_on_error(key):
+                result[key] = self.value_codec.decode(v)
+        return result
 
-            def encode(self, value: python_type) -> _json_type:
-                if not isinstance(value, Mapping):
-                    raise EncodeError
-                result = {}
-                for k, v in value.items():
-                    key = key_codec.encode(k)
-                    with CodecError.path_on_error(key):
-                        result[key] = value_codec.encode(v)
-                return result
 
-            def decode(self, value: _json_type) -> python_type:
-                if not isinstance(value, Mapping):
-                    raise DecodeError
-                result = {}
-                for k, v in value.items():
-                    key = key_codec.decode(k)
-                    with CodecError.path_on_error(key):
-                        result[key] = value_codec.decode(v)
-                return result
+class MappingStringCodec(StringCodec[PT]):
+    """..."""
 
-        return _Mapping_JSON()
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        return MappingJSONCodec.handles(python_type)
 
-    if codec_type is String:
-        json_codec = get_codec(JSON, python_type)
+    def __init__(self, python_type: Any):
+        super().__init__(python_type)
+        self.codec = MappingJSONCodec(python_type)
 
-        class _Mapping_String(String[python_type]):
-            def encode(self, value: python_type) -> str:
-                if not isinstance(value, Mapping):
-                    raise EncodeError
-                return json.dumps(json_codec.encode(value))
+    def encode(self, value: PT) -> StringType:
+        return json.dumps(self.codec.encode(value))
 
-            def decode(self, value: str) -> python_type:
-                return json_codec.decode(_s2j(value))
+    def decode(self, value: StringType) -> PT:
+        return self.codec.decode(_s2j(value))
 
-        return _Mapping_String()
 
-    if codec_type is Binary:
+class MappingBinaryCodec(BinaryCodec[PT]):
+    """..."""
 
-        string_codec = get_codec(String, python_type)
+    content_type = APPLICATION_JSON
 
-        class _Mapping_Binary(Binary[python_type]):
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        return MappingStringCodec.handles(python_type)
 
-            content_type = "application/json"
+    def __init__(self, python_type: Any):
+        super().__init__(python_type)
+        self.codec = MappingStringCodec(python_type)
 
-            def encode(self, value: python_type) -> bytes:
-                if not isinstance(value, Mapping):
-                    raise EncodeError
-                return string_codec.encode(value).encode()
+    def encode(self, value: PT) -> BinaryType:
+        if not isinstance(value, Mapping):
+            raise EncodeError
+        return self.codec.encode(value).encode()
 
-            def decode(self, value: bytes | bytearray) -> python_type:
-                return string_codec.decode(_b2s(value))
-
-        return _Mapping_Binary()
+    def decode(self, value: BinaryType) -> PT:
+        return self.codec.decode(_b2s(value))
 
 
 # ----- Iterable -----
 
 
-def _csv_encode(value):
-    sio = io.StringIO()
-    csv.writer(sio).writerow(value)
-    return sio.getvalue().rstrip("\r\n")
+class _IterableCodec(Codec[PT, TT]):
+    """..."""
+
+    _AVOID = str | bytes | bytearray | Mapping | tuple
+
+    @classmethod
+    def handles(cls, python_type: Any) -> bool:
+        python_type = strip_annotations(python_type)
+        origin = get_origin(python_type) or python_type
+        return is_subclass(origin, Iterable) and not is_subclass(origin, _IterableCodec._AVOID)
+
+    def __init__(self, python_type: Any, base_codec_type: type[Codec[PT, TT]]):
+        python_type = strip_annotations(python_type)
+        origin = get_origin(python_type) or python_type
+        args = get_args(python_type) or (Any,)
+        if len(args) != 1:
+            raise TypeError("expecting Iterable[T]")
+        self.decode_type = list if origin is Iterable else python_type
+        self.codec = base_codec_type.get(args[0])
+        self.is_set = is_subclass(origin, Set)
+
+    def _encode(self, value: PT) -> list[Any]:
+        if not isinstance(value, Iterable) or isinstance(value, _IterableCodec._AVOID):
+            raise EncodeError
+        if self.is_set:
+            value = sorted(value)
+        # TODO: path
+        return [self.codec.encode(item) for item in value]
+
+    def _decode(self, value: list[Any]) -> PT:
+        if not isinstance(value, list):
+            raise DecodeError
+        # TODO: path
+        return self.decode_type((self.codec.decode(item) for item in value))
 
 
-def _csv_decode(value):
-    if not isinstance(value, str):
-        raise DecodeError
-    return csv.reader([value]).__next__()
+class IterableJSONCodec(_IterableCodec[PT, JSONType], JSONCodec[PT]):
+    """..."""
+
+    def __init__(self, python_type: Any):
+        JSONCodec.__init__(self, python_type)
+        _IterableCodec.__init__(self, python_type, JSONCodec)
+
+    def encode(self, value: PT) -> JSONType:
+        return self._encode(value)
+
+    def decode(self, value: JSONType) -> PT:
+        return self._decode(value)
 
 
-@_provider
-def _iterable(codec_type, python_type):
+class IterableStringCodec(_IterableCodec[PT, StringType], StringCodec[PT]):
+    """..."""
 
-    decode_type = list if get_origin(python_type) is Iterable else python_type
+    def __init__(self, python_type: Any):
+        JSONCodec.__init__(self, python_type)
+        _IterableCodec.__init__(self, python_type, StringCodec)
 
-    python_type, _ = split_annotated(python_type)
+    def encode(self, value: PT) -> StringType:
+        return _csv_encode(self._encode(value))
 
-    if is_subclass(python_type, Iterable) and not is_subclass(
-        python_type, (str, bytes, bytearray)
-    ):
-        origin = python_type
-        args = (Any,)
+    def decode(self, value: StringType) -> PT:
+        return self._decode(_csv_decode(value))
 
-    else:
-        origin = get_origin(python_type)
-        if not is_subclass(origin, Iterable) or is_subclass(origin, Mapping):
-            return
-        args = get_args(python_type)
 
-    if len(args) != 1:
-        raise TypeError("expecting Iterable[T]")
+class IterableBinaryCodec(BinaryCodec[PT]):
+    """..."""
 
-    item_type = args[0]
-    is_set = is_subclass(origin, set)
+    content_type = APPLICATION_JSON
 
-    if codec_type is JSON:
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        return IterableJSONCodec.handles(python_type)
 
-        item_codec = get_codec(JSON, item_type)
-        _json_type = list[item_codec.json_type]
+    def __init__(self, python_type: Any):
+        super().__init__(python_type)
+        self.codec = IterableJSONCodec(python_type)
 
-        class _Iterable_JSON(JSON[python_type]):
+    def encode(self, value: PT) -> BinaryType:
+        return json.dumps(self.codec.encode(value)).encode()
 
-            json_type = _json_type
+    def decode(self, value: BinaryType) -> PT:
+        return self.codec.decode(_s2j(_b2s(value)))
 
-            def encode(self, value: python_type) -> _json_type:
-                if not isinstance(value, Iterable) or isinstance(value, str):
-                    raise EncodeError
-                if is_set:
-                    value = sorted(value)
-                # TODO: path
-                return [item_codec.encode(item) for item in value]
 
-            def decode(self, value: _json_type) -> python_type:
-                if not isinstance(value, list):
-                    raise DecodeError
-                # TODO: path
-                return decode_type((item_codec.decode(item) for item in value))
+# ----- Generic -----
 
-        return _Iterable_JSON()
 
-    if codec_type is String:
+class _GenericCodec(Generic[PT, TT]):
+    """..."""
 
-        item_codec = get_codec(String, item_type)
+    @classmethod
+    def handles(cls, python_type: Any) -> bool:
+        python_type = strip_annotations(python_type)
+        with suppress(AttributeError):
+            return Generic in get_origin(python_type).__bases__
+        return False
 
-        class _Iterable_String(String[python_type]):
-            def encode(self, value: python_type) -> str:
-                if not isinstance(value, Iterable) or isinstance(value, str):
-                    raise EncodeError
-                if is_set:
-                    value = sorted(value)
-                return _csv_encode((item_codec.encode(item) for item in value))
+    def __init__(self, python_type: Any, base_codec_type: type[Codec[PT, TT]]):
+        self.raw_type = strip_annotations(python_type)
+        self.base_codec_type = base_codec_type
 
-            def decode(self, value: str) -> python_type:
-                # TODO: path
-                return decode_type((item_codec.decode(item) for item in _csv_decode(value)))
+    @property
+    def _codec(self) -> Codec[PT, TT]:
+        return self.base_codec_type.get(get_origin(self.raw_type))
 
-        return _Iterable_String()
+    def encode(self, value: PT) -> TT:
+        with fondat.types.capture_typevars(self.raw_type):
+            return self._codec.encode(value)
 
-    if codec_type is Binary:
+    def decode(self, value: PT) -> TT:
+        with fondat.types.capture_typevars(self.raw_type):
+            return self._codec.decode(value)
 
-        json_codec = get_codec(JSON, python_type)
 
-        class _Iterable_Binary(Binary[python_type]):
+class GenericJSONCodec(_GenericCodec[PT, JSONType], JSONCodec[PT]):
+    def __init__(self, python_type: Any):
+        JSONCodec.__init__(self, python_type)
+        _GenericCodec.__init__(self, python_type, JSONCodec)
 
-            content_type = "application/json"
 
-            def encode(self, value: python_type) -> bytes:
-                if not isinstance(value, Iterable) or isinstance(value, str):
-                    raise EncodeError
-                return json.dumps(json_codec.encode(value)).encode()
+class GenericStringCodec(_GenericCodec[PT, StringType], StringCodec[PT]):
+    def __init__(self, python_type: Any):
+        StringCodec.__init__(self, python_type)
+        _GenericCodec.__init__(self, python_type, StringCodec)
 
-            def decode(self, value: bytes | bytearray) -> python_type:
-                return json_codec.decode(_s2j(_b2s(value)))
 
-        return _Iterable_Binary()
+class GenericBinaryCodec(_GenericCodec[PT, BinaryType], BinaryCodec[PT]):
+    def __init__(self, python_type: Any):
+        BinaryCodec.__init__(self, python_type)
+        _GenericCodec.__init__(self, python_type, BinaryCodec)
+
+
+# ----- TypeVar -----
+
+
+class _TypeVarCodec(Generic[PT, TT]):
+    """..."""
+
+    _cache = False  # TypeVars can be reused
+
+    @classmethod
+    def handles(cls, python_type: Any) -> bool:
+        python_type = strip_annotations(python_type)
+        return isinstance(python_type, TypeVar)
+
+    def __init__(self, python_type: Any, base_codec_type: type[Codec[PT, TT]]):
+        self.raw_type = strip_annotations(python_type)
+        self.base_codec_type = base_codec_type
+
+    @property
+    def _codec(self) -> Codec[PT, TT]:
+        resolved = fondat.types.resolve_typevar(self.raw_type)
+        return self.base_codec_type.get(resolved)
+
+    def encode(self, value: PT) -> TT:
+        return self._codec.encode(value)
+
+    def decode(self, value: TT) -> PT:
+        return self._codec.decode(value)
+
+
+class TypeVarJSONCodec(_TypeVarCodec[PT, JSONType], JSONCodec[PT]):
+    """..."""
+
+    def __init__(self, python_type: Any):
+        JSONCodec.__init__(self, python_type)
+        _TypeVarCodec.__init__(self, python_type, JSONCodec)
+
+
+class TypeVarStringCodec(_TypeVarCodec[PT, StringType], StringCodec[PT]):
+    """..."""
+
+    def __init__(self, python_type: Any):
+        StringCodec.__init__(self, python_type)
+        _TypeVarCodec.__init__(self, python_type, StringCodec)
+
+
+class TypeVarBinaryCodec(_TypeVarCodec[PT, BinaryType], BinaryCodec[PT]):
+    """..."""
+
+    def __init__(self, python_type: Any):
+        BinaryCodec.__init__(self, python_type)
+        _TypeVarCodec.__init__(self, python_type, BinaryCodec)
+        self.content_type = self.codec.content_type
 
 
 # ----- dataclass -----
 
 
-# keywords have _ suffix in dataclass fields (e.g. "in_", "for_", ...)
-_dc_kw = {k + "_": k for k in keyword.kwlist}
+class DataclassJSONCodec(JSONCodec[PT]):
 
+    # keywords have _ suffix in dataclass fields (e.g. "in_", "for_", ...)
+    _dc_kw = {k + "_": k for k in keyword.kwlist}
 
-@_provider
-def typevar_codec(codec_type, python_type):
-    if not isinstance(python_type, TypeVar):
-        return
-    return get_codec(codec_type, resolve_typevar(python_type))
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        python_type = strip_annotations(python_type)
+        return dataclasses.is_dataclass(python_type)
 
+    def __init__(self, python_type: Any):
+        super().__init__(python_type)
+        self.raw_type = strip_annotations(python_type)
+        self.hints = typing.get_type_hints(self.raw_type, include_extras=True)
 
-@_provider
-def dataclass_codec(codec_type, python_type):
+    @property
+    def _codecs(self) -> Iterable[JSONCodec[Any]]:
+        return {key: JSONCodec.get(hint) for key, hint in self.hints.items()}
 
-    dc_type, _ = split_annotated(python_type)
-    origin = get_origin(dc_type)
+    def encode(self, value: PT) -> JSONType:
+        if not isinstance(value, self.raw_type):
+            raise EncodeError
+        result = {}
+        for field in dataclasses.fields(self.raw_type):
+            v = getattr(value, field.name, None)
+            if v is not None:
+                with CodecError.path_on_error(field.name):
+                    result[
+                        DataclassJSONCodec._dc_kw.get(field.name, field.name)
+                    ] = self._codecs[field.name].encode(v)
+        return result
 
-    if not dataclasses.is_dataclass(dc_type) and (
-        not origin or not dataclasses.is_dataclass(origin)
-    ):
-        return
-
-    with capture_typevars(dc_type):
-
-        if origin:
-            dc_type = origin
-
-        fields = dataclasses.fields(dc_type)
-
-        if codec_type is JSON:
-
-            if c := _building.get((codec_type, python_type)):
-                return c  # return the (incomplete) outer one still being built
-
-            hints = get_type_hints(dc_type, include_extras=True)
-
-            class _Dataclass_JSON(JSON[python_type]):
-
-                json_type = dict[str, Any]  # will be replaced below
-
-                def encode(self, value: python_type) -> Any:
-                    if not isinstance(value, dc_type):
-                        raise EncodeError
-                    result = {}
-                    for field in fields:
-                        v = getattr(value, field.name, None)
-                        if v is not None:
-                            with CodecError.path_on_error(field.name):
-                                result[_dc_kw.get(field.name, field.name)] = get_codec(
-                                    JSON, field.type
-                                ).encode(v)
-                    return result
-
-                def decode(self, value: Any) -> python_type:
-                    if not isinstance(value, dict):
-                        raise DecodeError
-                    kwargs = {}
-                    for field in fields:
-                        codec = get_codec(JSON, field.type)
-                        try:
-                            with CodecError.path_on_error(field.name):
-                                kwargs[field.name] = codec.decode(
-                                    value[_dc_kw.get(field.name, field.name)]
-                                )
-                        except KeyError:
-                            if (
-                                is_optional(field.type)
-                                and field.default is dataclasses.MISSING
-                                and field.default_factory is dataclasses.MISSING
-                            ):
-                                kwargs[field.name] = None
-                    try:
-                        return python_type(**kwargs)
-                    except Exception as e:
-                        raise DecodeError from e
-
-            result = _Dataclass_JSON()
-            _building[(codec_type, python_type)] = result
-
+    def decode(self, value: JSONType) -> PT:
+        if not isinstance(value, dict):
+            raise DecodeError
+        kwargs = {}
+        for field in dataclasses.fields(self.raw_type):
             try:
-                json_type = TypedDict(
-                    "_TypedDict",
-                    {key: get_codec(JSON, hints[key]).json_type for key in hints},
-                    total=False,
-                )
+                with CodecError.path_on_error(field.name):
+                    kwargs[field.name] = self._codecs[field.name].decode(
+                        value[DataclassJSONCodec._dc_kw.get(field.name, field.name)]
+                    )
+            except KeyError:
+                if (
+                    is_optional(field.type)
+                    and field.default is dataclasses.MISSING
+                    and field.default_factory is dataclasses.MISSING
+                ):
+                    kwargs[field.name] = None
+        with _wrap(DecodeError):
+            return self.raw_type(**kwargs)
 
-                # workaround for https://bugs.python.org/issue42059
-                json_type.__required_keys__ = frozenset()
-                json_type.__optional_keys__ = frozenset(hints)
 
-                result.json_type = result.__class__.json_type = json_type
+class DataclassStringCodec(StringCodec[PT]):
+    """..."""
 
-            finally:
-                del _building[(codec_type, python_type)]
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        return DataclassJSONCodec.handles(python_type)
 
-            return result
+    def __init__(self, python_type: Any):
+        super().__init__(python_type)
+        self.codec = DataclassJSONCodec(python_type)
 
-        if codec_type is String:
+    def encode(self, value: PT) -> StringType:
+        return json.dumps(self.codec.encode(value))
 
-            json_codec = get_codec(JSON, python_type)
+    def decode(self, value: StringType) -> PT:
+        return self.codec.decode(_s2j(value))
 
-            class _Dataclass_String(String[python_type]):
-                def encode(self, value: python_type) -> str:
-                    return json.dumps(json_codec.encode(value))
 
-                def decode(self, value: str) -> python_type:
-                    return json_codec.decode(_s2j(value))
+class DataclassBinaryCodec(BinaryCodec[PT]):
+    """..."""
 
-            return _Dataclass_String()
+    content_type = APPLICATION_JSON
 
-        if codec_type is Binary:
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        return DataclassStringCodec.handles(python_type)
 
-            string_codec = get_codec(String, python_type)
+    def __init__(self, python_type: Any):
+        super().__init__(python_type)
+        self.codec = DataclassStringCodec(python_type)
 
-            class _Dataclass_Binary(Binary[python_type]):
+    def encode(self, value: PT) -> BinaryType:
+        return self.codec.encode(value).encode()
 
-                content_type = "application/json"
-
-                def encode(self, value: python_type) -> bytes:
-                    return string_codec.encode(value).encode()
-
-                def decode(self, value: bytes | bytearray) -> python_type:
-                    return string_codec.decode(_b2s(value))
-
-            return _Dataclass_Binary()
+    def decode(self, value: BinaryType) -> PT:
+        return self.codec.decode(_b2s(value))
 
 
 # ----- UnionType/Union -----
 
 
-@_provider
-def _union(codec_type, python_type):
+class _UnionCodec(Codec[PT, TT]):
+    """..."""
 
-    python_type, _ = split_annotated(python_type)
+    @classmethod
+    def handles(cls, python_type: Any) -> bool:
+        python_type = strip_annotations(python_type)
+        return get_origin(python_type) in {UnionType, Union}
 
-    if get_origin(python_type) not in {UnionType, Union}:
-        return
+    def __init__(self, python_type: Any, base_codec_type: type[Codec[PT, TT]]):
+        python_type = strip_annotations(python_type)
+        self.codecs = tuple(base_codec_type.get(type) for type in set(get_args(python_type)))
 
-    types = get_args(python_type)
-    codecs = [get_codec(codec_type, type) for type in types]
-
-    def _encode(value):
-        for codec in codecs:
-            try:
+    def encode(self, value: PT) -> TT:
+        for codec in self.codecs:
+            with suppress(EncodeError):
                 return codec.encode(value)
-            except EncodeError:
-                continue
-        raise EncodeError(f"{python_type} as {codec_type} for value: {value}")
+        raise EncodeError
 
-    def _decode(value):
-        for codec in codecs:
-            try:
+    def decode(self, value: TT) -> PT:
+        for codec in self.codecs:
+            with suppress(DecodeError):
                 return codec.decode(value)
-            except DecodeError:
-                continue
-        raise DecodeError(f"{python_type} as {codec_type} for value: {value}")
+        raise DecodeError
 
-    if codec_type is String:
 
-        class _Union_String(String[python_type]):
-            def encode(self, value: python_type) -> str:
-                if value is None and NoneType in types:
-                    return ""
-                return _encode(value)
+class UnionJSONCodec(_UnionCodec[PT, Any], JSONCodec[PT]):
+    """..."""
 
-            def decode(self, value: str) -> python_type:
-                return _decode(value)
+    def __init__(self, python_type: Any):
+        JSONCodec.__init__(self, python_type)
+        _UnionCodec.__init__(self, python_type, JSONCodec)
 
-        return _Union_String()
 
-    if codec_type is Binary:
+class UnionStringCodec(_UnionCodec[PT, str], StringCodec[PT]):
+    """..."""
 
-        class _Union_Binary(Binary[python_type]):
+    def __init__(self, python_type: Any):
+        StringCodec.__init__(self, python_type)
+        _UnionCodec.__init__(self, python_type, StringCodec)
 
-            content_type = "application/octet-stream"
 
-            def encode(self, value: python_type) -> bytes:
-                if value is None and NoneType in types:
-                    return b""
-                return _encode(value)
+class UnionBinaryCodec(_UnionCodec[PT, bytes | bytearray], BinaryCodec[PT]):
+    """..."""
 
-            def decode(self, value: bytes | bytearray) -> python_type:
-                if not isinstance(value, (bytes, bytearray)):
-                    raise DecodeError
-                return _decode(value)
+    content_type = APPLICATION_OCTET_STREAM
 
-        return _Union_Binary()
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        return _UnionCodec.handles(python_type)
 
-    if codec_type is JSON:
-
-        _json_type = fondat.types.union_type(codec.json_type for codec in codecs)
-
-        class _Union_JSON(JSON[python_type]):
-
-            json_type = _json_type
-
-            def encode(self, value: python_type) -> _json_type:
-                if value is None and NoneType in types:
-                    return None
-                return _encode(value)
-
-            def decode(self, value: _json_type) -> python_type:
-                return _decode(value)
-
-        return _Union_JSON()
+    def __init__(self, python_type: Any):
+        BinaryCodec.__init__(self, python_type)
+        _UnionCodec.__init__(self, python_type, JSONCodec)
 
 
 # ----- Literal -----
 
 
-@_provider
-def _literal(codec_type, python_type):
+_VT = namedtuple("VT", "value,type")
 
-    python_type, _ = split_annotated(python_type)
-    origin = get_origin(python_type)
 
-    if origin is not Literal:
-        return
+class _LiteralCodec(Codec[PT, TT]):
+    """..."""
 
-    literals = {(type(l), l) for l in get_args(python_type)}
+    @classmethod
+    def handles(cls, python_type: Any) -> bool:
+        python_type = strip_annotations(python_type)
+        return get_origin(python_type) is Literal
 
-    def decode(codecs, value):
-        for codec in codecs:
-            try:
-                v = getattr(codec, "decode")(value)
-                if (type(v), v) in literals:
-                    return v
-            except:
-                continue
-        raise DecodeError(f"expecting one of: {get_args(python_type)}; received: {value}")
+    def __init__(self, python_type: Any, base_codec_type: type[Codec[PT, TT]]):
+        python_type = strip_annotations(python_type)
+        self.vts = {_VT(v, type(v)) for v in fondat.types.literal_values(python_type)}
+        self.codecs = {vt: base_codec_type.get(vt.type) for vt in self.vts}
 
-    if codec_type is String:
+    def encode(self, value: PT) -> TT:
+        with _wrap(EncodeError):
+            return self.codecs[_VT(value, type(value))].encode(value)
+        raise EncodeError
 
-        codecs = tuple(get_codec(String, literal[0]) for literal in literals)
+    def decode(self, value: TT) -> PT:
+        for codec in self.codecs.values():
+            with suppress(DecodeError):
+                decoded = codec.decode(value)
+                if _VT(decoded, type(decoded)) in self.vts:
+                    return decoded
+        raise DecodeError
 
-        class _Literal_String(String[python_type]):
-            def encode(self, value: python_type) -> str:
-                return get_codec(String, type(value)).encode(value)
 
-            def decode(self, value: str) -> python_type:
-                return decode(codecs, value)
+class LiteralStringCodec(_LiteralCodec[PT, StringType], StringCodec[PT]):
+    """..."""
 
-        return _Literal_String()
+    def __init__(self, python_type: Any):
+        StringCodec.__init__(self, python_type)
+        _LiteralCodec.__init__(self, python_type, StringCodec)
 
-    if codec_type is Binary:
 
-        codecs = tuple(get_codec(Binary, literal[0]) for literal in literals)
+class LiteralBinaryCodec(_LiteralCodec[PT, BinaryType], BinaryCodec[PT]):
+    """..."""
 
-        class _Literal_Binary(Binary[python_type]):
+    content_type = APPLICATION_OCTET_STREAM
 
-            content_type = "application/octet-stream"
+    def __init__(self, python_type: Any):
+        StringCodec.__init__(self, python_type)
+        _LiteralCodec.__init__(self, python_type, BinaryCodec)
 
-            def encode(self, value: python_type) -> bytes:
-                return get_codec(Binary, type(value)).encode(value)
 
-            def decode(self, value: bytes | bytearray) -> python_type:
-                if not isinstance(value, (bytes, bytearray)):
-                    raise DecodeError
-                return decode(codecs, value)
+class LiteralJSONCodec(_LiteralCodec[PT, JSONType], JSONCodec[PT]):
+    """..."""
 
-        return _Literal_Binary()
-
-    if codec_type is JSON:
-
-        codecs = tuple(get_codec(JSON, literal[0]) for literal in literals)
-        _json_type = fondat.types.union_type(codec.json_type for codec in codecs)
-
-        class _Literal_JSON(JSON[python_type]):
-
-            json_type = _json_type
-
-            def encode(self, value: python_type) -> _json_type:
-                return get_codec(JSON, type(value)).encode(value)
-
-            def decode(self, value: _json_type) -> python_type:
-                return decode(codecs, value)
-
-        return _Literal_JSON()
+    def __init__(self, python_type: Any):
+        JSONCodec.__init__(self, python_type)
+        _LiteralCodec.__init__(self, python_type, JSONCodec)
 
 
 # ----- Any -----
 
 
-class _Any_String(String[Any]):
+class AnyStringCodec(StringCodec[Any]):
     """String codec for Any."""
 
-    def encode(self, value: Any) -> str:
-        return get_codec(String, type(value)).encode(value)
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        python_type = strip_annotations(python_type)
+        return python_type is Any
 
-    def decode(self, value: str) -> str:
+    def encode(self, value: Any) -> StringType:
+        return StringCodec.get(type(value)).encode(value)
+
+    def decode(self, value: StringType) -> Any:
         return value
 
 
-_any_stringcodec = _Any_String()
-
-
-class _Any_Binary(Binary[Any]):
+class AnyBinaryCodec(BinaryCodec[Any]):
     """Binary codec for Any."""
 
-    content_type = "application/octet-stream"
+    content_type = APPLICATION_OCTET_STREAM
 
-    def encode(self, value: Any) -> bytes:
-        return get_codec(Binary, type(value)).encode(value)
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        python_type = strip_annotations(python_type)
+        return python_type is Any
 
-    def decode(self, value: bytes | bytearray) -> bytes | bytearray:
+    def encode(self, value: Any) -> BinaryType:
+        return BinaryCodec.get(type(value)).encode(value)
+
+    def decode(self, value: BinaryType) -> Any:
         if not isinstance(value, (bytes, bytearray)):
             raise DecodeError
         return value
 
 
-_any_binarycodec = _Any_Binary()
-
-
-class _Any_JSON(JSON[Any]):
+class AnyJSONCodec(JSONCodec[Any]):
     """JSON codec for Any."""
 
-    json_type = Any
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        python_type = strip_annotations(python_type)
+        return python_type is Any
 
     def encode(self, value: Any) -> Any:
-        return get_codec(JSON, type(value)).encode(value)
+        return JSONCodec.get(type(value)).encode(value)
 
     def decode(self, value: Any) -> Any:
         return value
 
 
-_any_jsoncodec = _Any_JSON()
+# ----- deprecated -----
 
 
-@_provider
-def _any(codec_type, python_type):
-    python_type, _ = split_annotated(python_type)
-    if python_type is Any:
-        if codec_type is Binary:
-            return _any_binarycodec
-        if codec_type is String:
-            return _any_stringcodec
-        if codec_type is JSON:
-            return _any_jsoncodec
+def get_codec(codec_type: type[Codec], python_type: Any):
+    """Deprecated. Use XxxCodec.get(python_type)."""
+    return codec_type.get(python_type)
 
 
-_cache = {}
-
-
-def _get_codec(codec_type, python_type, annotations):
-
-    _, annotations = split_annotated(python_type)
-
-    for annotation in annotations:
-        if isinstance(annotation, codec_type):
-            return annotation
-
-    for provider in providers:
-        if (codec := provider(codec_type, python_type)) is not None:
-            return codec
-
-    raise TypeError(f"failed to provide {codec_type} for {python_type}")
-
-
-def get_codec(codec_type, python_type, annotations=None):
-    """Return a codec compatible with the specified Python type."""
-
-    cache_key = tuple((type(arg), arg) for arg in (codec_type, python_type, annotations))
-
-    try:
-        return _cache[cache_key]
-    except:
-        pass
-
-    result = _get_codec(codec_type, python_type, annotations)
-
-    try:
-        _cache[cache_key] = result
-    except:  # cache on best-effort basis
-        pass
-
-    return result
+Binary = BinaryCodec
+String = StringCodec
+JSON = JSONCodec

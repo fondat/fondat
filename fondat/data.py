@@ -6,7 +6,7 @@ import functools
 from collections.abc import Iterable, Mapping
 from dataclasses import is_dataclass
 from fondat.annotation import Password
-from fondat.types import is_optional, is_subclass, split_annotated, strip_optional
+from fondat.types import is_optional, is_subclass, split_annotations, strip_optional
 from typing import Any, TypedDict, get_type_hints
 
 
@@ -172,7 +172,7 @@ def derive_typeddict(
     • total: must all keys be present in the TypedDict
     """
 
-    source, _ = split_annotated(source)
+    source, _ = split_annotations(source)
 
     if include is None:
         include = source.__annotations__.keys()
@@ -252,9 +252,9 @@ def redact_passwords(hint: Any, value: Any, redaction: str = "__REDACTED__") -> 
         getter, setter = value.get, value.__setitem__
     else:
         raise TypeError("type must be dataclass or TypedDict")
-    value_type, _ = split_annotated(strip_optional(hint))
+    value_type, _ = split_annotations(strip_optional(hint))
     for field_name, field_hint in value_type.__annotations__.items():
-        field_type, field_annotations = split_annotated(strip_optional(field_hint))
+        field_type, field_annotations = split_annotations(strip_optional(field_hint))
         field_value = getter(field_name)
         if hasattr(field_type, "__annotations__") and (
             is_dataclass(field_value) or isinstance(field_value, Mapping)

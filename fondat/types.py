@@ -8,7 +8,7 @@ import typing
 
 from collections.abc import Iterable, Mapping
 from contextlib import contextmanager
-from types import NoneType
+from types import NoneType, UnionType
 from typing import Any, TypeVar, get_args, get_origin
 
 
@@ -55,7 +55,7 @@ def affix_type_hints(
             affix_type_hints, globalns=globalns, localns=localns, attrs=attrs
         )
 
-    obj, _ = split_annotated(obj)
+    obj = strip_annotations(obj)
 
     if getattr(obj, "__annotations__", None):
         obj.__annotations__ = typing.get_type_hints(obj, globalns, localns, include_extras=True)
@@ -75,12 +75,19 @@ def affix_type_hints(
     return obj
 
 
-def split_annotated(type_hint: Any) -> tuple[Any, tuple[Any, ...]]:
+def split_annotations(type_hint: Any) -> tuple[Any, tuple[Any, ...]]:
     """Return a tuple separating the python type and annotations."""
-    if not typing.get_origin(type_hint) is typing.Annotated:
+    if typing.get_origin(type_hint) is not typing.Annotated:
         return type_hint, ()
     args = typing.get_args(type_hint)
     return args[0], args[1:]
+
+
+def strip_annotations(type_hint: Any) -> tuple[Any, tuple[Any, ...]]:
+    """Return type hint with typing annotations stripped."""
+    if typing.get_origin(type_hint) is not typing.Annotated:
+        return type_hint
+    return typing.get_args(type_hint)[0]
 
 
 def is_optional(type_hint: Any) -> bool:
@@ -93,7 +100,7 @@ def is_optional(type_hint: Any) -> bool:
     • Union[..., None]
     • ... | None
     """
-    python_type, _ = split_annotated(type_hint)
+    python_type = strip_annotations(type_hint)
     if not typing.get_origin(python_type) in {types.UnionType, typing.Union}:
         return python_type is NoneType
     for arg in typing.get_args(python_type):
@@ -104,7 +111,7 @@ def is_optional(type_hint: Any) -> bool:
 
 def strip_optional(type_hint):
     """Return a union type with optionality stripped."""
-    python_type, annotations = split_annotated(type_hint)
+    python_type, annotations = split_annotations(type_hint)
     origin = typing.get_origin(python_type)
     if origin not in {types.UnionType, typing.Union}:
         return type_hint
@@ -115,25 +122,26 @@ def strip_optional(type_hint):
     return typing.Annotated[tuple([python_type, *annotations])]
 
 
-def is_subclass(cls: Any, class_or_tuple: type | tuple[type, ...]) -> bool:
+def is_subclass(cls: Any, classinfo: type | tuple[type, ...] | UnionType) -> bool:
     """A more forgiving issubclass."""
     try:
-        return issubclass(cls, class_or_tuple)
+        return issubclass(cls, classinfo)
     except:
         return False
 
 
-def is_instance(obj: Any, class_or_tuple: type | tuple[type, ...]) -> bool:
+def is_instance(obj: Any, classinfo: type | tuple[type, ...] | UnionType) -> bool:
     """A more forgiving isinstance."""
     try:
-        return isinstance(obj, class_or_tuple)
+        return isinstance(obj, classinfo)
     except:
         return False
 
 
-def literal_values(literal_type_hint) -> set[Any]:
+def literal_values(literal_type_hint) -> tuple[Any]:
     """Return a set of all values in a Literal type."""
-    return set(typing.get_args(literal_type_hint))
+    raw_type = strip_annotations(literal_type_hint)
+    return typing.get_args(raw_type)
 
 
 def union_type(type_hints: Iterable[Any]) -> types.UnionType:
@@ -156,7 +164,7 @@ def capture_typevars(alias: Any):
     """
     Return a context manager that captures type variable substitions in a provided generic
     alias, to be resolved through calls to `resolve_typevar` within the context. This allows
-    dataclasses to contain generic types, and for those types to be resolved at runtime. If
+    classes to contain generic types, and for those types to be resolved at runtime. If
     the passed value is not a generic alias, nothing is captured.
     """
     typevars = None
@@ -182,3 +190,11 @@ def resolve_typevar(typevar: TypeVar) -> Any:
     while isinstance(result, TypeVar):
         result = _typevars.get({}).get(result) or Any
     return result
+
+
+# ----- deprecated -----
+
+
+def split_annotated(type_hint: Any) -> tuple[Any, tuple[Any, ...]]:
+    """Deprecated. Use `split_annotations(...)`."""
+    return split_annotations(type_hint)

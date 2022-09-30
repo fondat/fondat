@@ -24,8 +24,9 @@ from collections.abc import Iterable, Mapping
 from copy import deepcopy
 from fondat.error import BadRequestError, ForbiddenError, UnauthorizedError
 from fondat.security import Policy
+from fondat.types import literal_values
 from fondat.validation import ValidationError, validate_arguments
-from typing import Any, Literal, get_args
+from typing import Any, Literal
 
 
 _logger = logging.getLogger(__name__)
@@ -97,7 +98,7 @@ def resource(wrapped: type | None = None, *, tag: str | None = None):
 
 Method = Literal["get", "put", "post", "delete", "patch"]
 
-_methods = set(get_args(Method))
+_methods = literal_values(Method)
 
 
 @validate_arguments

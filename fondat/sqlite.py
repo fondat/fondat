@@ -5,7 +5,6 @@ import asyncio
 import contextvars
 import fondat.codec
 import fondat.sql
-import functools
 import logging
 import sqlite3
 import types
@@ -14,216 +13,186 @@ import uuid
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from fondat.codec import Codec, DecodeError, String
+from fondat.codec import Codec, DecodeError, EncodeError
 from fondat.sql import Expression, Param
-from fondat.types import is_optional, is_subclass, literal_values, split_annotated
-from fondat.validation import validate_arguments
+from fondat.types import is_optional, is_subclass, literal_values, strip_annotations
 from types import NoneType
-from typing import Any, Literal
+from typing import Any, Literal, TypeVar
 
 
 _logger = logging.getLogger(__name__)
 
 
-class SQLiteCodec(Codec[fondat.codec.F, Any]):
+PT = TypeVar("PT")  # Python type hint
+ST = TypeVar("ST")  # SQL type hint
+
+
+class SQLiteCodec(Codec[PT, ST]):
     """Base class for SQLite codecs."""
 
-
-codec_providers = []
-
-
-@functools.cache
-def get_codec(python_type: Any) -> SQLiteCodec:
-    """Return a codec compatible with the specified Python type."""
-
-    python_type, _ = split_annotated(python_type)
-
-    for provider in codec_providers:
-        if (codec := provider(python_type)) is not None:
-            return codec
-
-    raise TypeError(f"failed to provide SQLite codec for {python_type}")
+    _cache = {}
 
 
-def _codec_provider(wrapped=None):
-    if wrapped is None:
-        return functools.partial(_codec_provider)
-    codec_providers.append(wrapped)
-    return wrapped
-
-
-@_codec_provider
-def _blob_codec_provider(python_type):
+class BlobCodec(SQLiteCodec[bytes | bytearray, bytes]):
     """
-    Provides a codec that encodes/decodes a value to/from a SQLite BLOB. Supports the
-    following types: bytes, bytearray.
+    Codec that encodes/decodes a value to/from a SQLite BLOB. Supports the following types:
+    bytes, bytearray.
     """
 
-    if not is_subclass(python_type, (bytes, bytearray)):
-        return
+    sql_type = "BLOB"
 
-    class BlobCodec(SQLiteCodec[python_type]):
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        python_type = strip_annotations(python_type)
+        return is_subclass(python_type, bytes | bytearray)
 
-        sql_type = "BLOB"
+    def encode(self, value: bytes | bytearray) -> bytes:
+        if not isinstance(value, bytes | bytearray):
+            raise EncodeError
+        return bytes(value)
 
-        @validate_arguments
-        def encode(self, value: python_type) -> bytes:
-            return bytes(value)
-
-        @validate_arguments
-        def decode(self, value: bytes) -> python_type:
-            return python_type(value)
-
-    return BlobCodec()
+    def decode(self, value: bytes) -> bytes | bytearray:
+        if not isinstance(value, bytes):
+            raise DecodeError
+        return self.python_type(value)
 
 
-@_codec_provider
-def _integer_codec_provider(python_type):
+class IntegerCodec(SQLiteCodec[int | bool, int]):
     """
-    Provides a codec that encodes/decodes a value to/from a SQLite INTEGER. Supports the
-    following types: int, bool.
+    Codec that encodes/decodes a value to/from a SQLite INTEGER. Supports the following types:
+    int, bool.
     """
 
-    if not is_subclass(python_type, int):  # includes bool
-        return
+    sql_type = "INTEGER"
 
-    class IntegerCodec(SQLiteCodec[python_type]):
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        python_type = strip_annotations(python_type)
+        return is_subclass(python_type, int | bool)
 
-        sql_type = "INTEGER"
+    def encode(self, value: int | bool) -> int:
+        if not isinstance(value, int | bool):
+            raise EncodeError
+        return int(value)
 
-        @validate_arguments
-        def encode(self, value: python_type) -> int:
-            return int(value)
-
-        @validate_arguments
-        def decode(self, value: int) -> python_type:
-            return python_type(value)
-
-    return IntegerCodec()
+    def decode(self, value: int) -> int | bool:
+        if not isinstance(value, int):
+            raise DecodeError
+        return self.python_type(value)
 
 
-@_codec_provider
-def _real_codec_provider(python_type):
+class RealCodec(SQLiteCodec[float, float]):
     """
-    Provides a codec that encodes/decodes a value to/from a SQLite REAL. Supports the
+    Codec that encodes/decodes a value to/from a SQLite REAL. Supports the
     following type: float.
     """
 
-    if not is_subclass(python_type, float):
-        return
+    sql_type = "REAL"
 
-    class RealCodec(SQLiteCodec[python_type]):
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        python_type = strip_annotations(python_type)
+        return is_subclass(python_type, float)
 
-        sql_type = "REAL"
+    def encode(self, value: float) -> float:
+        if not isinstance(value, float):
+            raise EncodeError
+        return value
 
-        @validate_arguments
-        def encode(self, value: python_type) -> float:
-            return float(value)
-
-        @validate_arguments
-        def decode(self, value: float) -> python_type:
-            return python_type(value)
-
-    return RealCodec()
+    def decode(self, value: float) -> float:
+        if not isinstance(value, float):
+            raise DecodeError
+        return value
 
 
-@_codec_provider
-def _union_codec_provider(python_type):
+class UnionCodec(SQLiteCodec[PT, Any]):
     """
-    Provides a codec that encodes/decodes a UnionType, Union or Optional value to/from a
-    compatible SQLite value. For an optional type, it will use the codec for its type,
-    otherwise it will encode/decode as TEXT.
-    """
-
-    origin = typing.get_origin(python_type)
-    if origin not in {typing.Union, types.UnionType}:
-        return
-
-    args = typing.get_args(python_type)
-    is_nullable = is_optional(python_type)
-    args = [a for a in args if a is not NoneType]
-    codec = get_codec(args[0]) if len(args) == 1 else _text_codec_provider(python_type)
-
-    class UnionCodec(SQLiteCodec[python_type]):
-
-        sql_type = codec.sql_type
-
-        @validate_arguments
-        def encode(self, value: python_type) -> Any:
-            if value is None:
-                return None
-            return codec.encode(value)
-
-        def decode(self, value: Any) -> python_type:
-            if value is None and is_nullable:
-                return None
-            return codec.decode(value)
-
-    return UnionCodec()
-
-
-@_codec_provider
-def _literal_codec_provider(python_type):
-    """
-    Provides a codec that encodes/decodes a Literal value to/from a compatible SQLite value.
-    If all literal values share the same type, then it will use a codec for that type,
-    otherwise it will encode/decode as TEXT.
+    Codec that encodes/decodes a UnionType, Union or Optional value to/from a compatible SQLite
+    value. For an optional type, it will use the codec for its type, otherwise it will
+    encode/decode as TEXT.
     """
 
-    origin = typing.get_origin(python_type)
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        python_type = strip_annotations(python_type)
+        return typing.get_origin(python_type) in {typing.Union, types.UnionType}
 
-    if origin is not Literal:
-        return
+    def __init__(self, python_type: type[PT]):
+        super().__init__(python_type)
+        raw_type = strip_annotations(python_type)
+        args = typing.get_args(raw_type)
+        self.is_nullable = is_optional(raw_type)
+        args = [a for a in args if a is not NoneType]
+        self.codec = SQLiteCodec.get(args[0]) if len(args) == 1 else TextCodec(python_type)
+        self.sql_type = self.codec.sql_type
 
-    literals = literal_values(python_type)
-    types = list({type(literal) for literal in literals})
-    codec = get_codec(types[0]) if len(types) == 1 else _text_codec_provider(python_type)
-    is_nullable = is_optional(python_type) or None in literals
+    def encode(self, value: PT) -> Any:
+        if value is None:
+            return None
+        return self.codec.encode(value)
 
-    class LiteralCodec(SQLiteCodec[python_type]):
-
-        sql_type = codec.sql_type
-
-        @validate_arguments
-        def encode(self, value: python_type) -> Any:
-            if value is None:
-                return None
-            return codec.encode(value)
-
-        def decode(self, value: Any) -> python_type:
-            if value is None and is_nullable:
-                return None
-            result = codec.decode(value)
-            if result not in literals:
-                raise DecodeError
-            return result
-
-    return LiteralCodec()
+    def decode(self, value: Any) -> PT:
+        if value is None and self.is_nullable:
+            return None
+        return self.codec.decode(value)
 
 
-@_codec_provider
-def _text_codec_provider(python_type):
+class LiteralCodec(SQLiteCodec[PT, Any]):
     """
-    Provides a codec that encodes/decodes a value to/from a SQLite TEXT. It unconditionally
-    returns the codec, regardless of Python type. It should be the last provider in the
-    providers list to serve as a catch-all.
+    Codec that encodes/decodes a Literal value to/from a compatible SQLite value. If all
+    literal values share the same type, then it will use a codec for that type, otherwise it
+    will encode/decode as TEXT.
     """
 
-    str_codec = fondat.codec.get_codec(String, python_type)
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        python_type = strip_annotations(python_type)
+        return typing.get_origin(python_type) is Literal
 
-    class TextCodec(SQLiteCodec):
+    def __init__(self, python_type: type[PT]):
+        super().__init__(python_type)
+        self.literals = literal_values(python_type)
+        types = list({type(literal) for literal in self.literals})
+        self.codec = SQLiteCodec.get(types[0]) if len(types) == 1 else TextCodec(python_type)
+        self.is_nullable = is_optional(python_type) or None in self.literals
+        self.sql_type = self.codec.sql_type
 
-        sql_type = "TEXT"
+    def encode(self, value: PT) -> Any:
+        if value is None:
+            return None
+        return self.codec.encode(value)
 
-        @validate_arguments
-        def encode(self, value: python_type) -> str:
-            return str_codec.encode(value)
+    def decode(self, value: Any) -> PT:
+        if value is None and self.is_nullable:
+            return None
+        result = self.codec.decode(value)
+        if result not in self.literals:
+            raise DecodeError
+        return result
 
-        @validate_arguments
-        def decode(self, value: str) -> python_type:
-            return str_codec.decode(value)
 
-    return TextCodec()
+class TextCodec(SQLiteCodec[PT, Any]):
+    """Codec that encodes/decodes a value to/from a SQLite TEXT."""
+
+    sql_type = "TEXT"
+
+    @staticmethod
+    def handles(python_type: Any) -> bool:
+        python_type = strip_annotations(python_type)
+        for other in (c for c in SQLiteCodec.__subclasses__() if c is not TextCodec):
+            if other.handles(python_type):
+                return False
+        return True
+
+    def __init__(self, python_type):
+        super().__init__(python_type)
+        self.string_codec = fondat.codec.StringCodec.get(python_type)
+
+    def encode(self, value: PT) -> str:
+        return self.string_codec.encode(value)
+
+    def decode(self, value: str) -> PT:
+        return self.string_codec.decode(value)
 
 
 class _Results(AsyncIterator[Any]):
@@ -235,7 +204,7 @@ class _Results(AsyncIterator[Any]):
         self.result = result
         self.rows = rows
         self.codecs = {
-            k: get_codec(t)
+            k: SQLiteCodec.get(t)
             for k, t in typing.get_type_hints(result, include_extras=True).items()
         }
 
@@ -334,7 +303,7 @@ class Database(fondat.sql.Database):
                     text.append(fragment)
                 case Param():
                     text.append("?")
-                    args.append(get_codec(fragment.type).encode(fragment.value))
+                    args.append(SQLiteCodec.get(fragment.type).encode(fragment.value))
                 case _:
                     raise ValueError(f"unexpected fragment: {fragment}")
         results = await self._conn.get().execute("".join(text), args)
@@ -342,4 +311,4 @@ class Database(fondat.sql.Database):
             return _Results(statement, result, results.__aiter__())
 
     def sql_type(self, type: Any) -> str:
-        return get_codec(type).sql_type
+        return SQLiteCodec.get(type).sql_type

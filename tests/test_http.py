@@ -2,7 +2,7 @@ import fondat.error
 import http
 
 from dataclasses import dataclass
-from fondat.codec import Binary, get_codec
+from fondat.codec import BinaryCodec
 from fondat.http import Application, AsBody, InBody, Request, Response, simple_error_filter
 from fondat.resource import operation, resource
 from fondat.stream import BytesStream, Stream
@@ -175,7 +175,7 @@ async def test_request_body_dataclass():
 
     application = Application(Resource())
     m = Model(a=1, b="s")
-    codec = get_codec(Binary, Model)
+    codec = BinaryCodec.get(Model)
     request = Request(method="POST", path="/", body=BytesStream(codec.encode(m)))
     response = await application(request)
     assert response.status == http.HTTPStatus.OK.value

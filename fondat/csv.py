@@ -3,7 +3,7 @@
 import dataclasses
 
 from collections.abc import Mapping, Sequence
-from fondat.codec import Codec, DecodeError, String, get_codec
+from fondat.codec import DecodeError, StringCodec
 from fondat.data import derive_typeddict
 from fondat.types import is_optional, is_subclass
 from typing import Any, get_type_hints
@@ -34,9 +34,9 @@ def currency_codec(
     • precision: round encoded value to number of digits  [floating point]
     """
 
-    codec = get_codec(String, python_type)
+    codec = StringCodec.get(python_type)
 
-    class CurrencyCodec(String[python_type]):
+    class CurrencyCodec:
         def encode(self, value: python_type) -> str:
             return f"{prefix}{_round(value, precision)}{suffix}" if value is not None else ""
 
@@ -59,9 +59,9 @@ def percent_codec(python_type: Any, precision: int):
     • precision: round encoded value to number of digits
     """
 
-    codec = get_codec(String, python_type)
+    codec = StringCodec.get(python_type)
 
-    class PercentCodec(String[python_type]):
+    class PercentCodec:
         def encode(self, value: python_type) -> str:
             return f"{_round(value * 100, precision)}%"
 
@@ -83,9 +83,9 @@ def fixed_codec(python_type: Any, precision: int):
     • precision: round encoded value to number of digits
     """
 
-    codec = get_codec(String, python_type)
+    codec = StringCodec.get(python_type)
 
-    class FixedCodec(String[python_type]):
+    class FixedCodec:
         def encode(self, value: Any) -> str:
             return _round(value, precision) if value is not None else ""
 
@@ -143,14 +143,14 @@ def typeddict_codec(
         codecs = {}
 
     codecs = {
-        column: codecs.get(column, get_codec(String, hints[keys[column]]))
+        column: codecs.get(column, StringCodec.get(hints[keys[column]]))
         for column in columns
         if column in keys
     }
 
     optional_fields = {key for key in keys if is_optional(hints[key])}
 
-    class TypedDictRowCodec(Codec[typeddict, list[str]]):
+    class TypedDictRowCodec:
         """Encodes/decodes a dataclass to/from a CSV row."""
 
         def __init__(self, columns: Sequence[str]):
@@ -215,7 +215,7 @@ def dataclass_codec(
         derive_typeddict("TD", dataclass), columns=columns, keys=fields, codecs=codecs
     )
 
-    class DataclassRowCodec(Codec[dataclass, list[str]]):
+    class DataclassRowCodec:
         """Encodes/decodes a dataclass value to/from a CSV row."""
 
         def __init__(self, columns: Sequence[str]):

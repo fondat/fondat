@@ -9,7 +9,6 @@ from fondat.types import (
     strip_optional,
     union_type,
 )
-from sre_constants import ANY
 from types import NoneType, UnionType
 from typing import (
     Annotated,
@@ -69,7 +68,7 @@ def test_strip_optional():
 
 def test_literal_values():
     L = Literal["a", "b", "c", 1, 2, 3]
-    assert literal_values(L) == {"a", "b", "c", 1, 2, 3}
+    assert literal_values(L) == ("a", "b", "c", 1, 2, 3)
 
 
 def test_union_type():

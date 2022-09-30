@@ -417,17 +417,17 @@ async def test_find_pks(table):
 
 
 async def test_str_literal():
-    codec = sqlite.get_codec(Literal["a", "b", "c"])
+    codec = sqlite.SQLiteCodec.get(Literal["a", "b", "c"])
     assert codec.sql_type == "TEXT"
 
 
 async def test_int_literal():
-    codec = sqlite.get_codec(Literal[1, 2, 3])
+    codec = sqlite.SQLiteCodec.get(Literal[1, 2, 3])
     assert codec.sql_type == "INTEGER"
 
 
 async def test_mixed_literal():
-    codec = sqlite.get_codec(Literal["a", 1, True])
+    codec = sqlite.SQLiteCodec.get(Literal["a", 1, True])
     assert codec.sql_type == "TEXT"
 
 

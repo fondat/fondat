@@ -4,7 +4,7 @@ import fondat.openapi
 from dataclasses import dataclass
 from datetime import date
 from fondat.annotation import Deprecated, Description, Example, Format, ReadOnly
-from fondat.codec import JSON, get_codec
+from fondat.codec import JSONCodec
 from fondat.data import datacls
 from fondat.openapi import generate_openapi, openapi_resource
 from fondat.resource import container_resource, mutation, operation, query, resource
@@ -215,7 +215,7 @@ def test_generate():
         resource=Root(), info=fondat.openapi.Info(title="title", version="version")
     )
     validate(doc, fondat.openapi.OpenAPI)
-    js = get_codec(JSON, fondat.openapi.OpenAPI).encode(doc)
+    js = JSONCodec.get(fondat.openapi.OpenAPI).encode(doc)
 
 
 async def test_resource():
@@ -242,7 +242,7 @@ async def test_nested_containers():
     c1_r1 = doc.paths.get("/c1/r1")
     assert c1_r1 is not None
     assert c1_r1.get is not None
-    js = get_codec(JSON, fondat.openapi.OpenAPI).encode(doc)
+    js = JSONCodec.get(fondat.openapi.OpenAPI).encode(doc)
 
 
 def test_openapi_generate_openapi_specification():
@@ -250,7 +250,7 @@ def test_openapi_generate_openapi_specification():
     root = openapi_resource(resource=None, info=info, publish=True)
     result = generate_openapi(resource=root, info=info)
     validate(result, fondat.openapi.OpenAPI)
-    js = get_codec(JSON, fondat.openapi.OpenAPI).encode(result)
+    js = JSONCodec.get(fondat.openapi.OpenAPI).encode(result)
 
 
 def test_generic_dataclass():
@@ -272,7 +272,7 @@ def test_generic_dataclass():
     info = fondat.openapi.Info(title="title", version="version")
     root = R()
     doc = generate_openapi(resource=root, info=info)
-    js = get_codec(JSON, fondat.openapi.OpenAPI).encode(doc)
+    js = JSONCodec.get(fondat.openapi.OpenAPI).encode(doc)
 
     # import json
     # print(json.dumps(js))

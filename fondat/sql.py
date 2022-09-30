@@ -15,7 +15,7 @@ import typing
 from collections.abc import AsyncIterator, Iterable, Mapping
 from contextlib import AbstractAsyncContextManager, suppress
 from dataclasses import dataclass, is_dataclass
-from fondat.codec import JSON, Binary, DecodeError, get_codec
+from fondat.codec import BinaryCodec, DecodeError, JSONCodec
 from fondat.data import datacls
 from fondat.error import BadRequestError, NotFoundError
 from fondat.memory import MemoryResource
@@ -341,8 +341,8 @@ async def select_page(
     Must be called within a database transaction context.
     """
 
-    cursor_codec = get_codec(Binary, tuple[int, bytes])
-    item_codec = get_codec(Binary, item_type)
+    cursor_codec = BinaryCodec.get(tuple[int, bytes])
+    item_codec = BinaryCodec.get(item_type)
 
     def hash_item(item: Item) -> bytes:
         return hashlib.sha256(item_codec.encode(item)).digest()
@@ -406,7 +406,7 @@ class Table:
     def __init__(self, name: str, database: Database, schema: type, pk: str):
         self.name = name
         self.database = database
-        schema, _ = fondat.types.split_annotated(schema)
+        schema = fondat.types.strip_annotations(schema)
         if not is_dataclass(schema):
             raise TypeError("table schema must be a dataclass")
         self.schema = schema
@@ -787,10 +787,10 @@ def table_resource_class(table: Table, row_resource_type: type | None = None) ->
 
     fondat.types.affix_type_hints(Page, localns=locals())
 
-    dc_codec = get_codec(JSON, table.schema)
+    dc_codec = JSONCodec.get(table.schema)
     pk_type = table.columns[table.pk]
-    pk_codec = get_codec(JSON, pk_type)
-    cursor_codec = get_codec(Binary, pk_type)
+    pk_codec = JSONCodec.get(pk_type)
+    cursor_codec = BinaryCodec.get(pk_type)
 
     class TableResource:
         """Table resource."""

@@ -17,7 +17,7 @@ import typing
 
 from collections import namedtuple
 from collections.abc import Callable, Iterable, MutableSequence
-from fondat.codec import Binary, DecodeError, String, get_codec
+from fondat.codec import BinaryCodec, DecodeError, StringCodec
 from fondat.error import (
     BadRequestError,
     InternalServerError,
@@ -322,7 +322,7 @@ async def _subordinate(resource, segment: str):
         name = next(iter(hints))
         if name == "return":
             raise NotFoundError
-        item = resource[get_codec(String, hints[name]).decode(segment)]
+        item = resource[StringCodec.get(hints[name]).decode(segment)]
         if not fondat.resource.is_resource(item):
             raise NotFoundError
         return item
@@ -470,7 +470,7 @@ async def _decode_body(operation, request):
     body_type = get_body_type(operation)
     if not body_type:
         return None
-    python_type, _ = fondat.types.split_annotated(body_type)
+    python_type = fondat.types.strip_annotations(body_type)
     if is_subclass(python_type, Stream):
         return request.body
     content = await stream_bytes(request.body)
@@ -478,7 +478,7 @@ async def _decode_body(operation, request):
         return None  # empty body is no body
     try:
         with DecodeError.path_on_error("«body»"):
-            result = get_codec(Binary, body_type).decode(content)
+            result = BinaryCodec.get(body_type).decode(content)
     except DecodeError as de:
         raise BadRequestError from de
     except Exception as e:
@@ -563,7 +563,7 @@ class Application:
                     if param_in.name in body:
                         params[name] = body[param_in.name]
                 case InQuery() if param_in.name in request.query:
-                    codec = get_codec(String, hint)
+                    codec = StringCodec.get(hint)
                     try:
                         with DecodeError.path_on_error(param_in.name):
                             params[name] = codec.decode(request.query[param_in.name])
@@ -577,7 +577,7 @@ class Application:
                 params[name] = None
         result = await operation(**params)
         if not is_subclass(return_hint, Stream):
-            return_codec = get_codec(Binary, return_hint)
+            return_codec = BinaryCodec.get(return_hint)
             try:
                 result = BytesStream(return_codec.encode(result), return_codec.content_type)
             except Exception as e:

@@ -5,7 +5,7 @@ import logging
 import mimetypes
 
 from contextlib import suppress
-from fondat.codec import Binary, DecodeError, String, get_codec
+from fondat.codec import BinaryCodec, DecodeError, StringCodec
 from fondat.error import ConflictError, InternalServerError, NotFoundError
 from fondat.http import AsBody
 from fondat.resource import operation, resource
@@ -104,7 +104,7 @@ class DirectoryResource(Generic[K, V]):
         self.key_type = key_type
         self.value_type = value_type
         self.extension = extension
-        self.key_codec = get_codec(String, key_type)
+        self.key_codec = StringCodec.get(key_type)
 
     @operation
     async def get(self) -> set[K]:
@@ -152,7 +152,7 @@ class FileResource(Generic[V]):
     ):
         self.path = path
         self.type = type
-        self.codec = get_codec(Binary, type) if type is not Stream else None
+        self.codec = BinaryCodec.get(type) if type is not Stream else None
 
     @operation
     async def get(self) -> V:
