@@ -178,4 +178,5 @@ async def test_content_length(tmp_path):
         file.write(b"x" * file_size)
     resource = FileResource(path)
     stream = await resource.get()
-    assert stream.content_length == file_size
+    with stream:
+        assert stream.content_length == file_size

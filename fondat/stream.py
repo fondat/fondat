@@ -68,7 +68,8 @@ class BytesStream(Stream):
 
 async def read_stream(stream: Stream, limit: int | None = None) -> bytearray:
     """
-    Read a stream and return the contents in a byte array.
+    Read a stream and return the contents in a byte array. This function closes the stream
+    after all bytes are read.
 
     Parameters:
     • stream: stream to read binary data from
