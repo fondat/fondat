@@ -35,7 +35,7 @@ class SQLiteCodec(Codec[PT, ST]):
 
 class BlobCodec(SQLiteCodec[bytes | bytearray, bytes]):
     """
-    Codec that encodes/decodes a value to/from a SQLite BLOB. Supports the following types:
+    Codec that encodes/decodes a value to/from a SQL BLOB. Supports the following types:
     bytes, bytearray.
     """
 
@@ -59,7 +59,7 @@ class BlobCodec(SQLiteCodec[bytes | bytearray, bytes]):
 
 class IntegerCodec(SQLiteCodec[int | bool, int]):
     """
-    Codec that encodes/decodes a value to/from a SQLite INTEGER. Supports the following types:
+    Codec that encodes/decodes a value to/from a SQL INTEGER. Supports the following types:
     int, bool.
     """
 
@@ -83,8 +83,7 @@ class IntegerCodec(SQLiteCodec[int | bool, int]):
 
 class RealCodec(SQLiteCodec[float, float]):
     """
-    Codec that encodes/decodes a value to/from a SQLite REAL. Supports the
-    following type: float.
+    Codec that encodes/decodes a value to/from a SQL REAL. Supports the following type: float.
     """
 
     sql_type = "REAL"
@@ -107,7 +106,7 @@ class RealCodec(SQLiteCodec[float, float]):
 
 class UnionCodec(SQLiteCodec[PT, Any]):
     """
-    Codec that encodes/decodes a UnionType, Union or optional value to/from a compatible SQLite
+    Codec that encodes/decodes a UnionType, Union or optional value to/from a compatible SQL
     value. For an optional type, it will use the codec for its type, otherwise it will
     encode/decode as TEXT.
     """
@@ -139,9 +138,9 @@ class UnionCodec(SQLiteCodec[PT, Any]):
 
 class LiteralCodec(SQLiteCodec[PT, Any]):
     """
-    Codec that encodes/decodes a Literal value to/from a compatible SQLite value. If all
-    literal values share the same type, then it will use a codec for that type, otherwise it
-    will encode/decode as TEXT.
+    Codec that encodes/decodes a Literal value to/from a compatible SQL value. If all literal
+    values share the same type, then it will use a codec for that type, otherwise it will
+    encode/decode as TEXT.
     """
 
     @staticmethod
@@ -172,7 +171,10 @@ class LiteralCodec(SQLiteCodec[PT, Any]):
 
 
 class TextCodec(SQLiteCodec[PT, Any]):
-    """Codec that encodes/decodes a value to/from a SQLite TEXT."""
+    """
+    Codec that encodes/decodes a value to/from a SQL TEXT. This is the "fallback" codec,
+    which handles any type not handled by any other codec.
+    """
 
     sql_type = "TEXT"
 
