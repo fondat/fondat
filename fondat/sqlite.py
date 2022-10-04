@@ -107,7 +107,7 @@ class RealCodec(SQLiteCodec[float, float]):
 
 class UnionCodec(SQLiteCodec[PT, Any]):
     """
-    Codec that encodes/decodes a UnionType, Union or Optional value to/from a compatible SQLite
+    Codec that encodes/decodes a UnionType, Union or optional value to/from a compatible SQLite
     value. For an optional type, it will use the codec for its type, otherwise it will
     encode/decode as TEXT.
     """

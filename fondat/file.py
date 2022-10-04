@@ -9,7 +9,7 @@ from fondat.codec import BinaryCodec, DecodeError, StringCodec
 from fondat.error import ConflictError, InternalServerError, NotFoundError
 from fondat.http import AsBody
 from fondat.resource import operation, resource
-from fondat.stream import Stream
+from fondat.stream import Stream, read_stream
 from pathlib import Path
 from typing import Annotated, Generic, TypeVar
 from urllib.parse import quote, unquote
@@ -53,27 +53,25 @@ class FileStream(Stream):
     """
 
     def __init__(self, path: Path, content_type: str | None = None):
-        super().__init__(
-            content_type=content_type or _content_type(path.name),
-            content_length=path.stat().st_size,
-        )
-        self.file = path.expanduser().open("rb")
+        self.file = path.open("rb")
+        self.file.seek(0, 2)
+        if content_type is None:
+            content_type = _content_type(path.name)
+        content_length = self.file.tell()
+        self.file.seek(0, 0)
+        super().__init__(content_type, content_length)
 
     async def __anext__(self) -> bytes:
-        if not self.file:
-            raise StopAsyncIteration
-        chunk = self.file.read1(1048576)  # 1 MiB
-        if len(chunk) == 0:
-            with suppress(Exception):
-                self.file.close()
-            self.file = None
-            raise StopAsyncIteration
-        return chunk
-
-    def __del__(self):
         if self.file:
-            with suppress(Exception):
-                self.file.close()
+            chunk = self.file.read1(1048576)  # 1 MiB
+            if len(chunk):
+                return chunk
+            await self.close()
+        raise StopAsyncIteration
+
+    async def close(self):
+        with suppress(Exception):
+            self.file.close()
         self.file = None
 
 
@@ -150,7 +148,7 @@ class FileResource(Generic[V]):
         path: Path,
         type: builtins.type[V] = Stream,
     ):
-        self.path = path
+        self.path = path.expanduser()
         self.type = type
         self.codec = BinaryCodec.get(type) if type is not Stream else None
 
@@ -158,11 +156,10 @@ class FileResource(Generic[V]):
     async def get(self) -> V:
         """Read resource."""
         try:
-            with self.path.open("rb") as file:
-                if self.type is Stream:
-                    return FileStream(self.path)
-                else:
-                    return self.codec.decode(file.read())
+            stream = FileStream(self.path)
+            if self.type is Stream:
+                return stream
+            return self.codec.decode(await read_stream(stream))
         except FileNotFoundError as fnfe:
             raise NotFoundError from fnfe
         except Exception as e:
@@ -175,8 +172,9 @@ class FileResource(Generic[V]):
             tmp = self.path.with_name(f"{self.path.name}.__tmp__")
             with tmp.open("xb") as file:
                 if self.type is Stream:
-                    async for block in value:
-                        file.write(block)
+                    async with value:
+                        async for block in value:
+                            file.write(block)
                 else:
                     file.write(self.codec.encode(value))
             tmp.replace(self.path)

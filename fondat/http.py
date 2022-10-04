@@ -25,7 +25,7 @@ from fondat.error import (
     NotFoundError,
 )
 from fondat.security import Scheme
-from fondat.stream import BytesStream, Stream, stream_bytes
+from fondat.stream import BytesStream, Stream, read_stream
 from fondat.types import is_optional, is_subclass
 from typing import Annotated, Any, TypedDict
 
@@ -473,7 +473,7 @@ async def _decode_body(operation, request):
     python_type = fondat.types.strip_annotations(body_type)
     if is_subclass(python_type, Stream):
         return request.body
-    content = await stream_bytes(request.body)
+    content = await read_stream(request.body)
     if len(content) == 0:
         return None  # empty body is no body
     try:

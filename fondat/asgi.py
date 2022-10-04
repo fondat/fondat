@@ -48,6 +48,9 @@ class ReceiveStream(Stream):
         self._more = event.get("more_body", False)
         return event.get("body", b"")
 
+    async def close(self):
+        self._more = False
+
 
 def asgi_app(
     handler: Callable, startup: Callable | None = None, shutdown: Callable | None = None
@@ -122,14 +125,15 @@ def asgi_app(
             }
         )
         if response.body is not None:
-            async for chunk in response.body:
-                await send(
-                    {
-                        "type": "http.response.body",
-                        "body": chunk,
-                        "more_body": True,
-                    }
-                )
+            async with response.body:  # automatically close stream
+                async for chunk in response.body:
+                    await send(
+                        {
+                            "type": "http.response.body",
+                            "body": chunk,
+                            "more_body": True,
+                        }
+                    )
         await send(
             {
                 "type": "http.response.body",
