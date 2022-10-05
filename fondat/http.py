@@ -473,7 +473,8 @@ async def _decode_body(operation, request):
     python_type = fondat.types.strip_annotations(body_type)
     if is_subclass(python_type, Stream):
         return request.body
-    content = await read_stream(request.body)
+    async with request.body as stream:  # close stream after reading
+        content = await read_stream(stream)
     if len(content) == 0:
         return None  # empty body is no body
     try:

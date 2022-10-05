@@ -137,8 +137,9 @@ async def test_crud_stream(tmp_path):
     value = b"\x01\x02\x03"
     await dr[key].put(BytesStream(value))
     result = await dr[key].get()
-    assert result.content_type == "text/plain"  # from .txt extension
-    assert b"".join([b async for b in result]) == value
+    async with result:
+        assert result.content_type == "text/plain"  # from .txt extension
+        assert b"".join([chunk async for chunk in result]) == value
     value = b"\x04\x05\x06"
     await dr[key].put(BytesStream(value))
     assert b"".join([b async for b in await dr[key].get()]) == value
@@ -148,8 +149,9 @@ async def test_crud_stream(tmp_path):
     value = b'{"a": 123}'
     await dr[key].put(BytesStream(value))
     result = await dr[key].get()
-    assert result.content_type == "application/json"  # from .json extension
-    assert b"".join([b async for b in result]) == value
+    async with result:
+        assert result.content_type == "application/json"  # from .json extension
+        assert b"".join([b async for b in result]) == value
 
 
 async def test_traversal_attack(tmp_path):

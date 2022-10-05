@@ -133,8 +133,10 @@ def operation(
     if wrapped is None:
         return functools.partial(
             operation,
-            publish=publish,
+            method=method,
+            type=type,
             policies=policies,
+            publish=publish,
             deprecated=deprecated,
         )
 

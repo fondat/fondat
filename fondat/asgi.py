@@ -125,7 +125,7 @@ def asgi_app(
             }
         )
         if response.body is not None:
-            async with response.body:  # automatically close stream
+            async with response.body:  # close stream after reading
                 async for chunk in response.body:
                     await send(
                         {

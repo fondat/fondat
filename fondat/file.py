@@ -11,7 +11,7 @@ from fondat.http import AsBody
 from fondat.resource import operation, resource
 from fondat.stream import Stream, read_stream
 from pathlib import Path
-from typing import Annotated, Generic, TypeVar
+from typing import Annotated, BinaryIO, Generic, TypeVar
 from urllib.parse import quote, unquote
 
 
@@ -159,7 +159,8 @@ class FileResource(Generic[V]):
             stream = FileStream(self.path)
             if self.type is Stream:
                 return stream
-            return self.codec.decode(await read_stream(stream))
+            async with stream:  # close stream after reading
+                return self.codec.decode(await read_stream(stream))
         except FileNotFoundError as fnfe:
             raise NotFoundError from fnfe
         except Exception as e:
@@ -172,9 +173,8 @@ class FileResource(Generic[V]):
             tmp = self.path.with_name(f"{self.path.name}.__tmp__")
             with tmp.open("xb") as file:
                 if self.type is Stream:
-                    async with value:
-                        async for block in value:
-                            file.write(block)
+                    async with value as stream:  # close stream after reading
+                        await write_stream(stream, file)
                 else:
                     file.write(self.codec.encode(value))
             tmp.replace(self.path)
@@ -192,3 +192,9 @@ class FileResource(Generic[V]):
             raise NotFoundError from fnfe
         except Exception as e:
             raise InternalServerError from e
+
+
+async def write_stream(stream: Stream, file: BinaryIO):
+    """Write a stream to a binary file-like object."""
+    async for chunk in stream:
+        file.write(chunk)

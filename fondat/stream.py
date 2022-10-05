@@ -6,12 +6,13 @@ from collections.abc import AsyncIterator
 class Stream(AsyncIterator[bytes | bytearray]):
     """
     Base class to provide binary content through an asynchronous stream. The stream provides
-    binary data in iterable chunks of bytes or bytearray. The stream determines the size of
-    each chunk.
+    binary data in asynchronously iterable chunks of bytes or bytearray.
+
+    During iteration, the stream determines the size of each chunk.
 
     Attributes:
-    • content_type: the media type of the stream
-    • content_length: the length of the content if known, or None
+    • content_type: the media (MIME) type of the stream
+    • content_length: the length of the content, or None if unknown
 
     Much like a file, a stream is returned in an "open" state. The consumer must explicitly
     close it, either via by calling its `close` method, or using `async with`.
@@ -34,13 +35,17 @@ class Stream(AsyncIterator[bytes | bytearray]):
         raise NotImplementedError
 
     async def close(self) -> None:
+        """
+        Close the stream. Further attempts to iterate the stream will raise StopAsyncIteration.
+        This method is idempotent; it is not an error to close a stream more than once.
+        """
         raise NotImplementedError
 
 
 class BytesStream(Stream):
     """
-    Represents a bytes or bytearray object as an asynchronous byte stream. Content is returned
-    in a single iteration.
+    Represents a bytes or bytearray object as an asynchronous byte stream. All content is
+    returned in a single iteration.
 
     Parameters:
     • content: the data to be streamed
@@ -68,8 +73,8 @@ class BytesStream(Stream):
 
 async def read_stream(stream: Stream, limit: int | None = None) -> bytearray:
     """
-    Read a stream and return the contents in a byte array. This function closes the stream
-    after all bytes are read.
+    Read the entire content from a stream and return it in a byte array. This function does
+    not close the stream after all bytes are read.
 
     Parameters:
     • stream: stream to read binary data from
@@ -79,9 +84,8 @@ async def read_stream(stream: Stream, limit: int | None = None) -> bytearray:
     """
 
     result = bytearray()
-    async with stream:
-        async for chunk in stream:
-            result += chunk
-            if limit and len(result) > limit:
-                raise ValueError("byte array length limit exceeded")
+    async for chunk in stream:
+        result += chunk
+        if limit and len(result) > limit:
+            raise ValueError("byte array length limit exceeded")
     return result
