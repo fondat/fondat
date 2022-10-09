@@ -42,7 +42,7 @@ class MemoryResource(Generic[K, V]):
         expire: int | float | None = None,
     ):
         if not getattr(key_type, "__hash__", None):
-            raise TypeError("invalid key_type: {key_type}")
+            raise TypeError("unhashable key_type: {key_type}")
         self.key_type = key_type
         if value_type is Stream:
             raise TypeError("value type not supported: {value_type}")
@@ -98,9 +98,11 @@ class ItemResource(Generic[K, V]):
         """Store item."""
         now = time()
         if self.memory.expire:  # purge expired entries
-            for key in {
-                k for k, v in self.memory._storage.items() if v.time + self.memory.expire <= now
-            }:
+            for key in (
+                key
+                for key, item in self.memory._storage.items()
+                if item.time + self.memory.expire <= now
+            ):
                 self.memory._storage.pop(key, None)
         if self.memory.size and self.memory.evict:  # evict oldest entry
             Oldest = namedtuple("Oldest", "key,time")
