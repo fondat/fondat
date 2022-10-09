@@ -87,10 +87,24 @@ async def test_size_evict():
     assert set(await resource.get()) == {"2", "3"}
 
 
-async def test_expire():
+async def test_expire_get():
     resource = MemoryResource(key_type=str, value_type=str, expire=0.01)
     await resource["1"].put("foo")
     await resource["1"].get()
     sleep(0.01)
     with pytest.raises(NotFoundError):
         await resource["1"].get()
+
+
+async def test_expire_put():
+    resource = MemoryResource(key_type=str, value_type=str, expire=0.01)
+    await resource["1"].put("foo")
+    await resource["1"].get()
+    await resource["2"].put("bar")
+    sleep(0.01)
+    await resource["3"].put("baz")
+    with pytest.raises(KeyError):
+        resource._storage["1"]
+    with pytest.raises(KeyError):
+        resource._storage["2"]
+    assert await resource["3"].get() == "baz"

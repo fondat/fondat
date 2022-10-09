@@ -194,7 +194,7 @@ def operation(
         if param.kind is param.VAR_KEYWORD:
             raise TypeError("operation with **kwargs is not supported")
         if param.annotation is param.empty:
-            raise TypeError("operation parameter must have type hint: {param.name}")
+            raise TypeError(f"operation parameter must have type hint: {param.name}")
 
     if cache and not is_resource(cache):
         raise TypeError("cache must be a resource")

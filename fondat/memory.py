@@ -98,12 +98,12 @@ class ItemResource(Generic[K, V]):
         """Store item."""
         now = time()
         if self.memory.expire:  # purge expired entries
-            for key in (
+            for key in {
                 key
                 for key, item in self.memory._storage.items()
                 if item.time + self.memory.expire <= now
-            ):
-                self.memory._storage.pop(key, None)
+            }:
+                del self.memory._storage[key]
         if self.memory.size and self.memory.evict:  # evict oldest entry
             Oldest = namedtuple("Oldest", "key,time")
             self.memory._storage.pop(self.key, None)
