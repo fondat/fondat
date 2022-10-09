@@ -1599,16 +1599,3 @@ class AnyJSONCodec(JSONCodec[Any]):
 
     def decode(self, value: Any) -> Any:
         return value
-
-
-# ----- deprecated -----
-
-
-def get_codec(codec_type: type[Codec], python_type: Any):
-    """Deprecated. Use XxxCodec.get(python_type)."""
-    return codec_type.get(python_type)
-
-
-Binary = BinaryCodec
-String = StringCodec
-JSON = JSONCodec

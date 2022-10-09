@@ -34,7 +34,7 @@ def affix_type_hints(
     This function can be applied as a decorator to a class or function.
 
     Parameters:
-    • obj: function, method, module or class object
+    • obj: module, class, method or function
     • globalns: global namespace to evaluate type hints
     • localns: local namespace to evaluate type hints
     • attrs: affix all of object's attribute type hints
@@ -190,11 +190,3 @@ def resolve_typevar(typevar: TypeVar) -> Any:
     while isinstance(result, TypeVar):
         result = _typevars.get({}).get(result) or Any
     return result
-
-
-# ----- deprecated -----
-
-
-def split_annotated(type_hint: Any) -> tuple[Any, tuple[Any, ...]]:
-    """Deprecated. Use `split_annotations(...)`."""
-    return split_annotations(type_hint)
