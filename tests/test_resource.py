@@ -1,11 +1,13 @@
+import asyncio
 import fondat.resource
 import pytest
 
 from dataclasses import dataclass
 from fondat.annotation import Description
 from fondat.error import BadRequestError
+from fondat.memory import MemoryResource
 from fondat.resource import mutation, operation, query, resource
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 
 
@@ -92,3 +94,23 @@ def test_invalid_method():
             @operation
             async def invalid_method_name(self) -> None:
                 pass
+
+
+async def test_operation_cache():
+    cache = MemoryResource(key_type=bytes, value_type=Any, expire=0.1)
+
+    @resource
+    class Resource:
+        def __init__(self):
+            self.counter = 0
+
+        @operation(cache=cache)
+        async def get(self) -> int:
+            self.counter += 1
+            return self.counter
+
+    r = Resource()
+    assert (await r.get()) == 1
+    assert (await r.get()) == 1
+    await asyncio.sleep(0.1)
+    assert (await r.get()) == 2
