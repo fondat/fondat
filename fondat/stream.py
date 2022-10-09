@@ -6,7 +6,7 @@ from collections.abc import AsyncIterator
 class Stream(AsyncIterator[bytes | bytearray]):
     """
     Base class to provide binary content through an asynchronous stream. The stream provides
-    binary data in asynchronously iterable chunks of bytes or bytearray.
+    binary data through asynchronously iterable chunks of bytes or bytearray.
 
     During iteration, the stream determines the size of each chunk.
 
