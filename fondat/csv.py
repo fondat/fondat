@@ -2,11 +2,11 @@
 
 import dataclasses
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping
 from fondat.codec import DecodeError, StringCodec
 from fondat.data import derive_typeddict
-from fondat.types import is_optional, is_subclass
-from typing import Any, get_type_hints
+from fondat.types import is_optional, strip_annotations
+from typing import Any, Generic, TypeVar, get_type_hints, is_typeddict
 
 
 def _round(value: Any, precision: int | None) -> str:
@@ -20,11 +20,12 @@ def _round(value: Any, precision: int | None) -> str:
     return f"{{:.{precision}f}}".format(value)
 
 
-def currency_codec(
-    python_type: Any, prefix: str = "", suffix: str = "", precision: int | None = None
-):
+T = TypeVar("T")
+
+
+class CurrencyCodec(Generic[T]):
     """
-    Return a codec that encodes/decodes a number as a currency value; optionally encodes with
+    String codec that encodes/decodes a number as a currency value; optionally encodes with
     fixed-point precision.
 
     Parameters:
@@ -34,79 +35,83 @@ def currency_codec(
     • precision: round encoded value to number of digits  [floating point]
     """
 
-    codec = StringCodec.get(python_type)
+    def __init__(
+        self,
+        python_type: Any,
+        prefix: str = "",
+        suffix: str = "",
+        precision: int | None = None,
+    ):
+        self.prefix = prefix
+        self.suffix = suffix
+        self.precision = precision
+        self.codec = StringCodec.get(python_type)
 
-    class CurrencyCodec:
-        def encode(self, value: python_type) -> str:
-            return f"{prefix}{_round(value, precision)}{suffix}" if value is not None else ""
+    def encode(self, value: T) -> str:
+        return (
+            f"{self.prefix}{_round(value, self.precision)}{self.suffix}"
+            if value is not None
+            else ""
+        )
 
-        def decode(self, value: str) -> python_type:
-            result = codec.decode(value.lstrip(prefix).rstrip(suffix))
-            if precision is not None:
-                result = round(result, precision)
-            return result
-
-    return CurrencyCodec()
+    def decode(self, value: str) -> T:
+        result = self.codec.decode(value.lstrip(self.prefix).rstrip(self.suffix))
+        if self.precision is not None:
+            result = round(result, self.precision)
+        return result
 
 
-def percent_codec(python_type: Any, precision: int):
+class PercentCodec(Generic[T]):
     """
-    Return a codec that encodes/decodes a fractional value as a percentage string with
+    String codec that encodes/decodes a fractional value as a percentage string with
     fixed-point precision.
 
+    Parameters:
+    • python_type: type of the value to be encoded/decoded
+    • precision: round encoded value to number of digits
+    """
+
+    def __init__(self, python_type: Any, precision: int):
+        self.precision = precision
+        self.codec = StringCodec.get(python_type)
+
+    def encode(self, value: T) -> str:
+        return f"{_round(value * 100, self.precision)}%"
+
+    def decode(self, value: str) -> T:
+        result = self.codec.decode(value.rstrip("%")) / 100
+        if self.precision is not None:
+            result = round(result, self.precision + 2)
+        return result
+
+
+class FixedCodec(Generic[T]):
+    """
+    String codec encodes/decodes a number with fixed-point precision.
+
     Parameter:
     • python_type: type of the value to be encoded/decoded
     • precision: round encoded value to number of digits
     """
 
-    codec = StringCodec.get(python_type)
+    def __init__(self, python_type: Any, precision: int):
+        self.precision = precision
+        self.codec = StringCodec.get(python_type)
 
-    class PercentCodec:
-        def encode(self, value: python_type) -> str:
-            return f"{_round(value * 100, precision)}%"
+    def encode(self, value: T) -> str:
+        return _round(value, self.precision) if value is not None else ""
 
-        def decode(self, value: str) -> python_type:
-            result = codec.decode(value.rstrip("%")) / 100
-            if precision is not None:
-                result = round(result, precision + 2)
-            return result
-
-    return PercentCodec()
+    def decode(self, value: str) -> T:
+        result = self.codec.decode(value)
+        if self.precision is not None:
+            result = round(result, self.precision)
+        return result
 
 
-def fixed_codec(python_type: Any, precision: int):
+class TypedDictCodec(Generic[T]):
     """
-    Return a codec encodes/decodes a number with fixed-point precision.
-
-    Parameter:
-    • python_type: type of the value to be encoded/decoded
-    • precision: round encoded value to number of digits
-    """
-
-    codec = StringCodec.get(python_type)
-
-    class FixedCodec:
-        def encode(self, value: Any) -> str:
-            return _round(value, precision) if value is not None else ""
-
-        def decode(self, value: str) -> python_type:
-            result = codec.decode(value)
-            if precision is not None:
-                result = round(result, precision)
-            return result
-
-    return FixedCodec()
-
-
-def typeddict_codec(
-    typeddict: Any,
-    columns: Sequence[str] | None = None,
-    keys: Mapping[str, str] | None = None,
-    codecs: Mapping[str, Any] | None = None,
-):
-    """
-    Return a codec that encodes/decodes a typed dictionary to/from a CSV row. A CSV row is
-    represented as a list of strings.
+    Codec that encodes/decodes a typed dictionary to/from a CSV row. A CSV row is a list of
+    strings.
 
     Parameters:
     • typeddict: TypedDict type to encode/decode
@@ -126,72 +131,63 @@ def typeddict_codec(
     given column is provided, then the default codec for its associated field is used.
     """
 
-    if not is_subclass(typeddict, dict) or getattr(typeddict, "__annotations__", None) is None:
-        raise TypeError("typeddict parameter must be a TypedDict")
+    def __init__(
+        self,
+        typeddict: Any,
+        columns: Iterable[str] | None = None,
+        keys: Mapping[str, str] | None = None,
+        codecs: Mapping[str, Any] | None = None,
+    ):
+        typeddict = strip_annotations(typeddict)
+        if not is_typeddict(typeddict):
+            raise TypeError("typeddict parameter must be a TypedDict")
 
-    hints = get_type_hints(typeddict, include_extras=True)
+        self.hints = get_type_hints(typeddict, include_extras=True)
 
-    if columns is None:
-        columns = tuple(key for key in hints.keys())
+        if keys is None:
+            keys = {key: key for key in self.hints}
 
-    if keys is None:
-        keys = {key: key for key in hints}
+        self.columns = columns or tuple(key for key in self.hints.keys())
 
-    keys = {column: key for column, key in keys.items() if column in columns}
+        self.keys = {column: key for column, key in keys.items() if column in self.columns}
 
-    if codecs is None:
-        codecs = {}
+        if codecs is None:
+            codecs = {}
 
-    codecs = {
-        column: codecs.get(column, StringCodec.get(hints[keys[column]]))
-        for column in columns
-        if column in keys
-    }
+        self.codecs = {
+            column: codecs.get(column, StringCodec.get(self.hints[keys[column]]))
+            for column in self.columns
+            if column in keys
+        }
 
-    optional_fields = {key for key in keys if is_optional(hints[key])}
+    def encode(self, value: T) -> list[str]:
+        """
+        Encode from TypedDict value to CSV row. If a field value is None, it will be
+        represented in a column as an empty string.
+        """
+        return [self.codecs[c].encode(value.get(self.keys[c])) for c in self.columns]
 
-    class TypedDictRowCodec:
-        """Encodes/decodes a dataclass to/from a CSV row."""
-
-        def __init__(self, columns: Sequence[str]):
-            self.columns = columns
-
-        def encode(self, value: typeddict) -> list[str]:
-            """
-            Encode from TypedDict value to CSV row. If a field value is None, it will be
-            represented in a column as an empty string.
-            """
-            return [codecs[column].encode(value.get(keys[column])) for column in self.columns]
-
-        def decode(self, values: list[str]) -> typeddict:
-            """
-            Decode from CSV row to TypedDict value. If a column to decode contains an empty
-            string value, it will be represented as None if the associated field is optional.
-            """
-            items = {}
-            for column, value in zip(self.columns, values):
-                key = keys.get(column)
-                if not key:  # ignore unmapped column
-                    continue
-                if value == "" and key in optional_fields:
-                    items[key] = None
-                else:
-                    with DecodeError.path_on_error(column):
-                        items[key] = codecs[column].decode(value)
-            return typeddict(items)
-
-    return TypedDictRowCodec(columns=columns)
+    def decode(self, values: list[str]) -> T:
+        """
+        Decode from CSV row to TypedDict value. If a column to decode contains an empty
+        string value, it will be represented as None if the associated field is optional.
+        """
+        result = {}
+        for column, value in zip(self.columns, values):
+            key = self.keys.get(column)
+            if not key:  # ignore unmapped column
+                continue
+            if value == "" and is_optional(self.hints[key]):
+                result[key] = None
+            else:
+                with DecodeError.path_on_error(column):
+                    result[key] = self.codecs[column].decode(value)
+        return result
 
 
-def dataclass_codec(
-    dataclass: Any,
-    columns: Sequence[str] = None,
-    fields: Mapping[str, str] = None,
-    codecs: Mapping[str, Any] = None,
-):
+class DataclassCodec(Generic[T]):
     """
-    Return a codec that encodes/decodes a dataclass to/from a CSV row. A CSV row is
-    represented as a list of strings.
+    Codec that encodes/decodes a dataclass to/from a CSV row. A CSV row is a list of strings.
 
     Parameters:
     • dataclass: dataclass type to encode/decode
@@ -211,28 +207,35 @@ def dataclass_codec(
     given column is provided, then the default codec for its associated field is used.
     """
 
-    td_codec = typeddict_codec(
-        derive_typeddict("TD", dataclass), columns=columns, keys=fields, codecs=codecs
-    )
+    def __init__(
+        self,
+        dataclass: Any,
+        columns: Iterable[str] = None,
+        fields: Mapping[str, str] = None,
+        codecs: Mapping[str, Any] = None,
+    ):
+        dataclass = strip_annotations(dataclass)
+        if not dataclasses.is_dataclass(dataclass):
+            raise TypeError("dataclass parameter must be a dataclass")
 
-    class DataclassRowCodec:
-        """Encodes/decodes a dataclass value to/from a CSV row."""
+        self.dataclass = dataclass
+        self.codec = TypedDictCodec(
+            typeddict=derive_typeddict("TD", dataclass),
+            columns=columns,
+            keys=fields,
+            codecs=codecs,
+        )
 
-        def __init__(self, columns: Sequence[str]):
-            self.columns = columns
+    def encode(self, value: T) -> list[str]:
+        """
+        Encode from dataclass value to CSV row. If a field value is None, it will be
+        represented in a column as an empty string.
+        """
+        return self.codec.encode(dataclasses.asdict(value))
 
-        def encode(self, value: dataclass) -> list[str]:
-            """
-            Encode from dataclass value to CSV row. If a field value is None, it will be
-            represented in a column as an empty string.
-            """
-            return td_codec.encode(dataclasses.asdict(value))
-
-        def decode(self, values: list[str]) -> dataclass:
-            """
-            Decode from CSV row to dataclass value. If a column to decode contains an empty
-            string value, it will be represented as None if the associated field is optional.
-            """
-            return dataclass(**td_codec.decode(values))
-
-    return DataclassRowCodec(td_codec.columns)
+    def decode(self, values: list[str]) -> T:
+        """
+        Decode from CSV row to dataclass value. If a column to decode contains an empty
+        string value, it will be represented as None if the associated field is optional.
+        """
+        return self.dataclass(**self.codec.decode(values))
