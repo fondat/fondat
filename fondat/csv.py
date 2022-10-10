@@ -115,20 +115,23 @@ class TypedDictCodec(Generic[T]):
 
     Parameters:
     • typeddict: TypedDict type to encode/decode
-    • columns: sequence of column names
+    • columns: ordered column names
     • keys: mapping between columns and dictionary keys
     • codecs: mapping between columns and codecs
 
-    The columns parameter specifies the names of CSV columns, and the order they are encoded
-    in a row. If the columns parameter is omitted, then columns will be all dictionary keys,
-    in the order they are defined in the TypedDict.
+    Attribute:
+    • columns: ordered column names
 
-    The keys mapping specifies the mapping between columns and dictionary keys. If no mapping
+    The columns parameter and attribute specifies the names of CSV columns, and the order they
+    are encoded in a row. If the columns parameter is omitted, then columns will be all
+    TypedDict keys, in the order they are defined in the TypedDict.
+
+    The keys mapping specifies the mapping between columns and dictionary keys. If no key
     for a given column is specified, then the column will map the to dictionary key of the
     same name.
 
-    The codecs mapping specifies which codecs are used to encode columns. If no mapping for a
-    given column is provided, then the default codec for its associated field is used.
+    The codecs mapping specifies which codecs are used to encode columns. If no codec for a
+    given column is specified, then the default string codec for its associated type is used.
     """
 
     def __init__(
@@ -142,46 +145,56 @@ class TypedDictCodec(Generic[T]):
         if not is_typeddict(typeddict):
             raise TypeError("typeddict parameter must be a TypedDict")
 
-        self.hints = get_type_hints(typeddict, include_extras=True)
+        hints = get_type_hints(typeddict, include_extras=True)
+
+        self.columns = columns or tuple(k for k in hints.keys())
 
         if keys is None:
-            keys = {key: key for key in self.hints}
+            keys = {column: column for column in self.columns}
 
-        self.columns = columns or tuple(key for key in self.hints.keys())
-
-        self.keys = {column: key for column, key in keys.items() if column in self.columns}
+        self._keys = {column: key for column, key in keys.items() if key in hints}
 
         if codecs is None:
             codecs = {}
 
-        self.codecs = {
-            column: codecs.get(column, StringCodec.get(self.hints[keys[column]]))
+        self._codecs = {
+            column: codecs.get(column, StringCodec.get(hints[self._keys[column]]))
             for column in self.columns
-            if column in keys
+            if column in self._keys
         }
+
+        self._optional = {key for key, hint in hints.items() if is_optional(hint)}
 
     def encode(self, value: T) -> list[str]:
         """
         Encode from TypedDict value to CSV row. If a field value is None, it will be
         represented in a column as an empty string.
         """
-        return [self.codecs[c].encode(value.get(self.keys[c])) for c in self.columns]
+        return [
+            self._codecs[c].encode(value.get(self._keys[c], None)) if c in self._codecs else ""
+            for c in self.columns
+        ]
 
     def decode(self, values: list[str]) -> T:
         """
         Decode from CSV row to TypedDict value. If a column to decode contains an empty
-        string value, it will be represented as None if the associated field is optional.
+        string value, it will be represented as None if the associated TypedDict value is
+        optional.
         """
         result = {}
-        for column, value in zip(self.columns, values):
-            key = self.keys.get(column)
-            if not key:  # ignore unmapped column
-                continue
-            if value == "" and is_optional(self.hints[key]):
-                result[key] = None
-            else:
-                with DecodeError.path_on_error(column):
-                    result[key] = self.codecs[column].decode(value)
+        for n in range(len(self.columns)):
+            column = self.columns[n]
+            key = self._keys.get(column, None)
+            if key is not None:
+                try:
+                    value = values[n]
+                except IndexError:
+                    value = ""
+                if value == "" and key in self._optional:
+                    result[key] = None
+                else:
+                    with DecodeError.path_on_error(column):
+                        result[key] = self._codecs[column].decode(value)
         return result
 
 
@@ -194,6 +207,9 @@ class DataclassCodec(Generic[T]):
     • columns: ordered column names
     • fields: mapping between row columns and dataclass fields
     • codecs: mapping between columns and codecs
+
+    Attribute:
+    • columns: ordered column names
 
     The columns parameter specifies the names of CSV columns, and the order they are encoded
     in a row. If the columns parameter is omitted, then columns will be all dataclass
@@ -219,6 +235,7 @@ class DataclassCodec(Generic[T]):
             raise TypeError("dataclass parameter must be a dataclass")
 
         self.dataclass = dataclass
+        self.columns = columns
         self.codec = TypedDictCodec(
             typeddict=derive_typeddict("TD", dataclass),
             columns=columns,
