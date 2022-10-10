@@ -22,6 +22,7 @@ def _test_encoding(python_type, value):
             assert isinstance(encoded, str)
         elif codec_type is BinaryCodec:
             assert isinstance(encoded, bytes | bytearray)
+            assert hasattr(codec, "content_type")
         elif codec_type is JSONCodec:
             assert isinstance(encoded, str | int | float | bool | NoneType | dict | list)
         assert codec.decode(encoded) == value

@@ -1335,7 +1335,7 @@ class TypeVarBinaryCodec(_TypeVarCodec[PT, BinaryType], BinaryCodec[PT]):
     def __init__(self, python_type: Any):
         BinaryCodec.__init__(self, python_type)
         _TypeVarCodec.__init__(self, python_type, BinaryCodec)
-        self.content_type = self.codec.content_type
+        self.content_type = self._codec.content_type
 
 
 # ----- dataclass -----
