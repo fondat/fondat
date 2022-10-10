@@ -243,7 +243,7 @@ class DataclassCodec(Generic[T]):
         )
 
     @property
-    def columns(self) -> list[str]:
+    def columns(self) -> Iterable[str]:
         return self.codec.columns
 
     def encode(self, value: T) -> list[str]:
