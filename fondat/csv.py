@@ -235,13 +235,16 @@ class DataclassCodec(Generic[T]):
             raise TypeError("dataclass parameter must be a dataclass")
 
         self.dataclass = dataclass
-        self.columns = columns
         self.codec = TypedDictCodec(
             typeddict=derive_typeddict("TD", dataclass),
             columns=columns,
             keys=fields,
             codecs=codecs,
         )
+
+    @property
+    def columns(self) -> list[str]:
+        return self.codec.columns
 
     def encode(self, value: T) -> list[str]:
         """
