@@ -9,6 +9,7 @@ from dataclasses import dataclass, field, make_dataclass
 from fondat.codec import BinaryCodec, DecodeError, EncodeError, JSONCodec, StringCodec
 from fondat.data import make_datacls
 from fondat.types import affix_type_hints
+from types import NoneType
 from typing import Any, Generic, Literal, Optional, TypedDict, TypeVar, Union
 from uuid import UUID
 
@@ -16,7 +17,14 @@ from uuid import UUID
 def _test_encoding(python_type, value):
     for codec_type in (StringCodec, BinaryCodec, JSONCodec):
         codec = codec_type.get(python_type)
-        assert codec.decode(codec.encode(value)) == value
+        encoded = codec.encode(value)
+        if codec_type is StringCodec:
+            assert isinstance(encoded, str)
+        elif codec_type is BinaryCodec:
+            assert isinstance(encoded, bytes | bytearray)
+        elif codec_type is JSONCodec:
+            assert isinstance(encoded, str | int | float | bool | NoneType | dict | list)
+        assert codec.decode(encoded) == value
 
 
 # ----- dict -----

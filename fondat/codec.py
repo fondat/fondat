@@ -1487,7 +1487,7 @@ class UnionBinaryCodec(_UnionCodec[PT, bytes | bytearray], BinaryCodec[PT]):
 
     def __init__(self, python_type: Any):
         BinaryCodec.__init__(self, python_type)
-        _UnionCodec.__init__(self, python_type, JSONCodec)
+        _UnionCodec.__init__(self, python_type, BinaryCodec)
 
 
 # ----- Literal -----
