@@ -25,10 +25,13 @@ from fondat.resource import operation, query, resource
 from fondat.types import is_optional
 from fondat.validation import MinValue, ValidationError, validate
 from functools import partial
-from typing import Annotated, Any, Protocol, TypedDict, TypeVar
+from typing import Annotated, Any, Generic, Protocol, TypedDict, TypeVar
 
 
 _logger = logging.getLogger(__name__)
+
+
+T = TypeVar("T")
 
 
 Item = TypeVar("Item")
@@ -387,14 +390,14 @@ async def select_page(
     return Page[item_type](items, cursor)
 
 
-class Table:
+class Table(Generic[T]):
     """
     Represents a table in a SQL database.
 
     Parameters and attributes:
     • name: name of database table
     • database: database where table is managed
-    • schema: dataclass or TypedDict type representing the table schema
+    • schema: dataclass representing the table schema
     • pk: column name of primary key
 
     Attributes:
@@ -403,7 +406,7 @@ class Table:
 
     __slots__ = {"name", "database", "schema", "columns", "pk"}
 
-    def __init__(self, name: str, database: Database, schema: type, pk: str):
+    def __init__(self, name: str, database: Database, schema: type[T], pk: str):
         self.name = name
         self.database = database
         schema = fondat.types.strip_annotations(schema)
@@ -511,7 +514,7 @@ class Table:
         result = await self.database.execute(stmt, TypedDict("Result", {"count": int}))
         return (await result.__anext__())["count"]
 
-    async def insert(self, value: Any) -> None:
+    async def insert(self, value: T):
         """
         Insert table row. Must be called within a database transaction context.
         """
@@ -530,7 +533,7 @@ class Table:
         )
         await self.database.execute(stmt)
 
-    async def read(self, key: Any) -> Any:
+    async def read(self, key: Any) -> T:
         """
         Return a table row, or None if not found. Must be called within a database transaction
         context.
@@ -545,7 +548,7 @@ class Table:
         except StopAsyncIteration:
             return None
 
-    async def update(self, value: Any) -> None:
+    async def update(self, value: T):
         """
         Update table row. Must be called within a database transaction context.
         """
@@ -565,7 +568,7 @@ class Table:
             )
         )
 
-    async def delete(self, key: Any) -> None:
+    async def delete(self, key: Any):
         """
         Delete table row. Must be called within a database transaction context.
         """
@@ -576,6 +579,17 @@ class Table:
                 ";",
             )
         )
+
+    async def upsert(self, value: T):
+        """
+        Upsert table row. Must be called within a database transaction context.
+        This default implementation is inefficient; database-specific implementations
+        should override it.
+        """
+        if await self.read(getattr(value, self.pk)) is None:
+            await self.insert(value)
+        else:
+            await self.update(value)
 
 
 class Index:
@@ -724,13 +738,12 @@ def row_resource_class(
         @operation
         async def put(self, value: table.schema):
             """Insert or update (upsert) row."""
-            await self._validate(value)
+            if getattr(value, table.pk) != self.pk:
+                raise ValidationError("primary key mismatch")
             async with table.database.transaction():
-                try:
-                    old = await self._read()
-                    await self._update(old, value)
-                except NotFoundError:
-                    await self._insert(value)
+                await table.upsert(value)
+            if cache:
+                await cache[self.pk].put(value)
 
         @operation
         async def patch(self, body: dict[str, Any]):

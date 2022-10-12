@@ -43,7 +43,7 @@ def database():
 
 @pytest.fixture(scope="function")  # FIXME: scope to module with event_loop fixture?
 async def table(database):
-    foo = sql.Table("foo", database, DC, "key")
+    foo = sqlite.Table("foo", database, DC, "key")
     async with database.transaction():
         await foo.create()
     yield foo
@@ -87,6 +87,45 @@ async def test_table_crud(table):
         assert await table.read(row.key) is None
 
 
+async def test_fast_upsert(table):
+    key = uuid4()
+    row = DC(
+        key=key,
+        str_="string",
+    )
+    async with table.database.transaction():
+        await table.upsert(row)
+        read = await table.read(row.key)
+        assert read.str_ == "string"
+        row.str_ = "bling"
+        await table.upsert(row)
+        read = await table.read(row.key)
+        assert read.str_ == "bling"
+
+
+async def test_slow_upsert(database):
+    table = sql.Table("foo", database, DC, "key")
+    async with database.transaction():
+        await table.create()
+    try:
+        key = uuid4()
+        row = DC(
+            key=key,
+            str_="string",
+        )
+        async with database.transaction():
+            await table.upsert(row)
+            read = await table.read(row.key)
+            assert read.str_ == "string"
+            row.str_ = "bling"
+            await table.upsert(row)
+            read = await table.read(row.key)
+            assert read.str_ == "bling"
+    finally:
+        async with database.transaction():
+            await table.drop()
+
+
 async def test_binary(database):
     @datacls
     class Bin:
@@ -94,7 +133,7 @@ async def test_binary(database):
         bin: bytes
 
     row = Bin(key=uuid4(), bin=b"\x01\x02\x03\x04\x05")
-    table = sql.Table("bin", database, Bin, "key")
+    table = sqlite.Table("bin", database, Bin, "key")
     async with database.transaction():
         await table.create()
         try:
@@ -285,7 +324,7 @@ async def test_nested_transaction(table):
 
 async def test_table_patch(database):
     DC = make_datacls("DC", (("id", str), ("s", str)))
-    table = sql.Table("dc", database, DC, "id")
+    table = sqlite.Table("dc", database, DC, "id")
     async with database.transaction():
         with contextlib.suppress(Exception):
             await table.drop()
@@ -310,7 +349,7 @@ async def test_table_patch(database):
         await table.drop()
 
 
-async def test_get_cache(table: sql.Table):
+async def test_get_cache(table: sqlite.Table):
     resource_class = sql.row_resource_class(table, cache_size=10, cache_expire=10)
     key = UUID("14f6a6b0-e4d7-4f3f-bb8c-66076fd6fce9")
     row = DC(key=key, str_=str(key))
@@ -324,7 +363,7 @@ async def test_get_cache(table: sql.Table):
         await table.delete(key)
 
 
-async def test_put_get_cache(table: sql.Table):
+async def test_put_get_cache(table: sqlite.Table):
     resource_class = sql.row_resource_class(table, cache_size=10, cache_expire=10)
     key = UUID("b616303b-1278-4209-8397-4fab852c8959")
     row = DC(key=key, str_=str(key))
@@ -334,7 +373,7 @@ async def test_put_get_cache(table: sql.Table):
     assert await resource_class(key).get() == row  # still cached
 
 
-async def test_delete_cache(table: sql.Table):
+async def test_delete_cache(table: sqlite.Table):
     resource_class = sql.row_resource_class(table, cache_size=10, cache_expire=10)
     key = UUID("38340a23-e11a-412b-b20a-22dd7fc3d316")
     row = DC(key=key, str_=str(key))
@@ -344,7 +383,7 @@ async def test_delete_cache(table: sql.Table):
         await resource_class(key).get()
 
 
-async def test_get_cache_evict(table: sql.Table):
+async def test_get_cache_evict(table: sqlite.Table):
     resource_class = sql.row_resource_class(table, cache_size=1, cache_expire=10)
     key1 = UUID("16ed1e46-a111-414c-b05c-99a8b876afd0")
     row1 = DC(key=key1, str_=str(key1))

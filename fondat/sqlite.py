@@ -23,6 +23,7 @@ from typing import Any, Literal, TypeVar
 _logger = logging.getLogger(__name__)
 
 
+T = TypeVar("T")
 PT = TypeVar("PT")  # Python type hint
 ST = TypeVar("ST")  # SQL type hint
 
@@ -314,3 +315,35 @@ class Database(fondat.sql.Database):
 
     def sql_type(self, type: Any) -> str:
         return SQLiteCodec.get(type).sql_type
+
+
+class Table(fondat.sql.Table[T]):
+    """..."""
+
+    async def upsert(self, value: T):
+        """
+        Upsert table row. Must be called within a database transaction context.
+        """
+        stmt = Expression(
+            f"INSERT INTO {self.name} (",
+            ", ".join(self.columns),
+            ") VALUES (",
+            Expression.join(
+                (
+                    Param(getattr(value, name), python_type)
+                    for name, python_type in self.columns.items()
+                ),
+                ", ",
+            ),
+            f") ON CONFLICT ({self.pk}) DO UPDATE SET ",
+            Expression.join(
+                (
+                    Expression(f"{name} = ", Param(getattr(value, name), python_type))
+                    for name, python_type in self.columns.items()
+                    if name != self.pk
+                ),
+                ", ",
+            ),
+            ";",
+        )
+        await self.database.execute(stmt)
