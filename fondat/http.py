@@ -409,7 +409,7 @@ def get_param_in(method, param_name, type_hint):
         case "post":
             return InBody(param_name)
         case "put":
-            return AsBody(param_name)
+            return AsBody()
         case _:
             return InQuery(param_name)
 
@@ -436,10 +436,10 @@ def get_body_type(operation):
                     required_keys.add(param_in.name)
             case AsBody():
                 if as_body_param:
-                    raise TypeError("multiple AsBody annotated parameters")
+                    raise TypeError("multiple AsBody parameters")
                 as_body_param = name
     if as_body_param and in_body_params:
-        raise TypeError("mixed AsBody and InBody annotated parameters")
+        raise TypeError("mixed AsBody and InBody parameters")
     if as_body_param:
         return type_hints[as_body_param]
     if not in_body_params:

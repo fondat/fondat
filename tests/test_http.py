@@ -1,12 +1,13 @@
 import fondat.error
+import fondat.http
 import http
 
 from dataclasses import dataclass
 from fondat.codec import BinaryCodec
 from fondat.http import Application, AsBody, InBody, Request, Response, simple_error_filter
-from fondat.resource import operation, resource
+from fondat.resource import mutation, operation, query, resource
 from fondat.stream import BytesStream, Stream
-from typing import Annotated
+from typing import Annotated, get_type_hints
 from uuid import UUID
 
 
@@ -296,3 +297,43 @@ async def test_subordinate_getitem():
     response = await application(request)
     assert response.status == http.HTTPStatus.OK.value
     assert await body(response) == b"a60de6fd-41b0-4c2d-9fe6-ad3fa2496695!"
+
+
+def test_default_params_in():
+    @resource
+    class Resource:
+        @operation
+        async def get(self, a: str) -> str:
+            return "a"
+
+        @operation
+        async def put(self, a: str):
+            pass
+
+        @operation
+        async def post(self, a: str):
+            pass
+
+        @operation
+        async def delete(self, a: str):
+            pass
+
+        @query
+        async def query(self, a: str) -> str:
+            return "a"
+
+        @mutation
+        async def mutation(self, a: str):
+            pass
+
+    def gpi(method):
+        return fondat.http.get_param_in(
+            method, "a", get_type_hints(method, include_extras=True)
+        )
+
+    assert isinstance(gpi(Resource.get), fondat.http.InQuery)
+    assert isinstance(gpi(Resource.put), fondat.http.AsBody)
+    assert isinstance(gpi(Resource.post), fondat.http.InBody)
+    assert isinstance(gpi(Resource.delete), fondat.http.InQuery)
+    assert isinstance(gpi(Resource.query), fondat.http.InQuery)
+    assert isinstance(gpi(Resource.mutation), fondat.http.InBody)
