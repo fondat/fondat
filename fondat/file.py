@@ -9,7 +9,7 @@ from fondat.codec import BinaryCodec, DecodeError, StringCodec
 from fondat.error import ConflictError, InternalServerError, NotFoundError
 from fondat.http import AsBody
 from fondat.resource import operation, resource
-from fondat.stream import Stream, read_stream
+from fondat.stream import Reader, Stream
 from pathlib import Path
 from typing import Annotated, BinaryIO, Generic, TypeVar
 from urllib.parse import quote, unquote
@@ -160,7 +160,7 @@ class FileResource(Generic[V]):
             if self.type is Stream:
                 return stream
             async with stream:  # close stream after reading
-                return self.codec.decode(await read_stream(stream))
+                return self.codec.decode(await Reader(stream).read())
         except FileNotFoundError as fnfe:
             raise NotFoundError from fnfe
         except Exception as e:

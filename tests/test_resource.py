@@ -105,12 +105,12 @@ async def test_operation_cache():
             self.counter = 0
 
         @operation(cache=cache)
-        async def get(self) -> int:
+        async def post(self) -> int:
             self.counter += 1
             return self.counter
 
     r = Resource()
-    assert (await r.get()) == 1
-    assert (await r.get()) == 1
+    assert (await r.post()) == 1
+    assert (await r.post()) == 1
     await asyncio.sleep(0.1)
-    assert (await r.get()) == 2
+    assert (await r.post()) == 2

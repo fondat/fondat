@@ -1,6 +1,9 @@
 """Module for binary content streaming."""
 
+from asyncio import LimitOverrunError
 from collections.abc import AsyncIterator
+from fondat.validation import MinValue, validate_arguments
+from typing import Annotated
 
 
 class Stream(AsyncIterator[bytes | bytearray]):
@@ -71,21 +74,85 @@ class BytesStream(Stream):
         self.content = None
 
 
-async def read_stream(stream: Stream, limit: int | None = None) -> bytearray:
+class Reader:
     """
-    Read the entire content from a stream and return it in a byte array. This function does
-    not close the stream after all bytes are read.
+    Buffered stream reader.
+
+    If the reader is used as an asynchronous context manager (`async with`), then upon
+    exiting the context the stream will be closed.
 
     Parameters:
-    • stream: stream to read binary data from
-    • limit: byte array length limit  [no limit]
+    • stream: stream to be read
+    • limit: buffer size limit
 
-    If the size byte array would exceed the specified limit, `ValueError` is raised.
+    If buffer size limit is exceeded during read operations, LimitOverrunError is raised.
     """
 
-    result = bytearray()
-    async for chunk in stream:
-        result += chunk
-        if limit and len(result) > limit:
-            raise ValueError("byte array length limit exceeded")
-    return result
+    def __init__(self, stream: Stream, limit: int | None = None):
+        self.stream = stream
+        self.limit = limit
+        self._buffer = bytearray()
+        self._eof = False
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        await self.close()
+
+    async def _read(self):
+        try:
+            self._buffer += await self.stream.__anext__()
+            if self.limit and len(self._buffer) > self.limit:
+                raise LimitOverrunError
+        except StopAsyncIteration:
+            self._eof = True
+
+    @validate_arguments
+    async def read(self, size: Annotated[int, MinValue(1)] | None = None) -> bytes:
+        """
+        Read bytes from the stream.
+
+        Parameter:
+        • size: number of bytes to read  [to end of stream]
+
+        This method blocks until all requested bytes are read or the end of the stream is
+        encountered.
+
+        The end of stream is signified by zero bytes returned.
+        """
+        while not self._eof and (size is None or len(self._buffer) < size):
+            await self._read()
+        result = bytes(self._buffer[:size] if size else self._buffer)
+        self._buffer = self._buffer[size:] if size else bytearray(b"")
+        return result
+
+    @validate_arguments
+    async def read_until(self, separator: bytes) -> bytes:
+        """
+        Read bytes from the stream, up to and including the specified separator.
+
+        Parameter:
+        • separator: byte sequence to read up to
+
+        This method blocks until all requested bytes are read or the end of the stream is
+        encountered. If it reaches the end of the stream, all bytes read are returned.
+
+        The end of stream is signified by zero bytes returned.
+        """
+        while not self._eof and separator not in self._buffer:
+            await self._read()
+        index = self._buffer.find(separator)
+        size = index + len(separator) if index != -1 else None
+        result = bytes(self._buffer[:size] if size else self._buffer)
+        self._buffer = self._buffer[size:] if size else bytearray(b"")
+        return result
+
+    async def close(self):
+        """Close the stream."""
+        await self.stream.close()
+
+
+async def read_stream(stream: Stream, limit: int | None = None) -> bytes:
+    """Deprecated. Use Reader class."""
+    return await Reader(stream, limit).read()
