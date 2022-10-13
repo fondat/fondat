@@ -405,9 +405,13 @@ def get_param_in(method, param_name, type_hint):
                 return annotation()
             elif isinstance(annotation, (AsBody, InBody, InQuery)):
                 return annotation
-    if method._fondat_operation.type == "mutation":
-        return InBody(param_name)
-    return InQuery(param_name)
+    match method._fondat_operation.method:
+        case "post":
+            return InBody(param_name)
+        case "put":
+            return AsBody(param_name)
+        case _:
+            return InQuery(param_name)
 
 
 @functools.cache
