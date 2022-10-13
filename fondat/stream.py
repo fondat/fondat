@@ -2,7 +2,7 @@
 
 from asyncio import LimitOverrunError
 from collections.abc import AsyncIterator
-from fondat.validation import MinValue, validate_arguments
+from fondat.validation import MinLen, MinValue, validate_arguments
 from typing import Annotated
 
 
@@ -128,7 +128,7 @@ class Reader:
         return result
 
     @validate_arguments
-    async def read_until(self, separator: bytes) -> bytes:
+    async def read_until(self, separator: Annotated[bytes, MinLen(1)]) -> bytes:
         """
         Read bytes from the stream, up to and including the specified separator.
 
