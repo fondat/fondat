@@ -1,12 +1,19 @@
 """Comma separated values encoding module."""
 
+import csv
 import dataclasses
+import io
 
-from collections.abc import Iterable, Mapping
-from fondat.codec import DecodeError, StringCodec
+from collections.abc import AsyncIterator, Iterable, Mapping
+from fondat.codec import Codec, DecodeError, StringCodec
 from fondat.data import derive_typeddict
+from fondat.stream import Reader, Stream
 from fondat.types import is_optional, strip_annotations
-from typing import Any, Generic, TypeVar, get_type_hints, is_typeddict
+from typing import Any, TypeVar, get_type_hints, is_typeddict
+
+
+# type alias
+Row = Iterable[str]
 
 
 def _round(value: Any, precision: int | None) -> str:
@@ -23,7 +30,7 @@ def _round(value: Any, precision: int | None) -> str:
 T = TypeVar("T")
 
 
-class CurrencyCodec(Generic[T]):
+class CurrencyCodec(Codec[T, str]):
     """
     String codec that encodes/decodes a number as a currency value; optionally encodes with
     fixed-point precision.
@@ -61,7 +68,7 @@ class CurrencyCodec(Generic[T]):
         return result
 
 
-class PercentCodec(Generic[T]):
+class PercentCodec(Codec[T, str]):
     """
     String codec that encodes/decodes a fractional value as a percentage string with
     fixed-point precision.
@@ -85,7 +92,7 @@ class PercentCodec(Generic[T]):
         return result
 
 
-class FixedCodec(Generic[T]):
+class FixedCodec(Codec[T, str]):
     """
     String codec encodes/decodes a number with fixed-point precision.
 
@@ -108,10 +115,9 @@ class FixedCodec(Generic[T]):
         return result
 
 
-class TypedDictCodec(Generic[T]):
+class TypedDictCodec(Codec[T, Row]):
     """
-    Codec that encodes/decodes a typed dictionary to/from a CSV row. A CSV row is a list of
-    strings.
+    Codec that encodes/decodes a typed dictionary to/from a CSV row.
 
     Parameters:
     • typeddict: TypedDict type to encode/decode
@@ -165,7 +171,7 @@ class TypedDictCodec(Generic[T]):
 
         self._optional = {key for key, hint in hints.items() if is_optional(hint)}
 
-    def encode(self, value: T) -> list[str]:
+    def encode(self, value: T) -> Row:
         """
         Encode from TypedDict value to CSV row. If a field value is None, it will be
         represented in a column as an empty string.
@@ -175,7 +181,7 @@ class TypedDictCodec(Generic[T]):
             for c in self.columns
         ]
 
-    def decode(self, values: list[str]) -> T:
+    def decode(self, values: Row) -> T:
         """
         Decode from CSV row to TypedDict value. If a column to decode contains an empty
         string value, it will be represented as None if the associated TypedDict value is
@@ -198,9 +204,9 @@ class TypedDictCodec(Generic[T]):
         return result
 
 
-class DataclassCodec(Generic[T]):
+class DataclassCodec(Codec[T, Row]):
     """
-    Codec that encodes/decodes a dataclass to/from a CSV row. A CSV row is a list of strings.
+    Codec that encodes/decodes a dataclass to/from a CSV row.
 
     Parameters:
     • dataclass: dataclass type to encode/decode
@@ -246,16 +252,75 @@ class DataclassCodec(Generic[T]):
     def columns(self) -> Iterable[str]:
         return self.codec.columns
 
-    def encode(self, value: T) -> list[str]:
+    def encode(self, value: T) -> Row:
         """
         Encode from dataclass value to CSV row. If a field value is None, it will be
         represented in a column as an empty string.
         """
         return self.codec.encode(dataclasses.asdict(value))
 
-    def decode(self, values: list[str]) -> T:
+    def decode(self, values: Row) -> T:
         """
         Decode from CSV row to dataclass value. If a column to decode contains an empty
         string value, it will be represented as None if the associated field is optional.
         """
         return self.dataclass(**self.codec.decode(values))
+
+
+class CSVStream(Stream):
+    """
+    Streams binary data from a CSV data source.
+
+    Parameters:
+    • source: asynchronous iterator over CSV rows
+    • dialect: CSV dialect to write rows
+
+    The CSV source can be any asynchronous iterator of rows.
+    """
+
+    def __init__(self, source: AsyncIterator[Row], dialect: csv.Dialect = csv.excel):
+        self.source = source
+        self.dialect = dialect
+
+    async def __anext__(self) -> bytes:
+        if not self.source:
+            raise StopAsyncIteration
+        sio = io.StringIO()
+        csv.writer(sio, self.dialect).writerow(await anext(self.source))
+        return sio.getvalue().encode()
+
+    async def close(self):
+        self.source = None
+
+
+class CSVReader(AsyncIterator[Row]):
+    """
+    Reads CSV data from a stream.
+
+    Parameters:
+    • stream: stream from which to read binary data
+    • dialect: CSV dialect to read rows
+    """
+
+    def __init__(self, stream: Stream, dialect: csv.Dialect = csv.excel):
+        self.dialect = dialect
+        self._reader = Reader(stream)
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        await self.close()
+
+    async def __anext__(self) -> Row:
+        if not self._reader:
+            raise StopAsyncIteration
+        row = await self._reader.read_until(b"\n")
+        if not row:
+            raise StopAsyncIteration
+        return next(csv.reader([row.decode()], self.dialect))
+
+    async def close(self):
+        if self._reader:
+            await self._reader.close()
+            self._reader = None

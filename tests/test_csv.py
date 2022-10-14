@@ -1,3 +1,5 @@
+import fondat.csv
+import fondat.stream
 import pytest
 
 from dataclasses import make_dataclass
@@ -227,3 +229,25 @@ def test_dc_decode_invalid_empty_column():
     dcc = DataclassCodec(dataclass=DC, columns=["a", "b"])
     with pytest.raises(ValueError):
         dcc.decode(["a", ""])
+
+
+async def test_stream():
+    class AIter:
+        def __init__(self, rows):
+            self.rows = iter(rows)
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            try:
+                return self.rows.__next__()
+            except StopIteration:
+                raise StopAsyncIteration
+
+    csv = [["id", "name"], ["1", "Joe"], ["2", "Jane"], ["3", "Marshall"], ["4", "Hudson"]]
+
+    aiter = AIter(csv)
+    data = await fondat.stream.Reader(fondat.csv.CSVStream(aiter)).read()
+    read = [row async for row in fondat.csv.CSVReader(fondat.stream.BytesStream(data))]
+    assert read == csv

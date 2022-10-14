@@ -61,17 +61,17 @@ class BytesStream(Stream):
         content_type: str = "application/octet-stream",
     ):
         super().__init__(content_type=content_type, content_length=len(content))
-        self.content = content
+        self._content = content
 
     async def __anext__(self) -> bytes:
-        if self.content is None:
+        if self._content is None:
             raise StopAsyncIteration
-        result = self.content
-        self.content = None
+        result = self._content
+        self._content = None
         return result
 
     async def close(self):
-        self.content = None
+        self._content = None
 
 
 class Reader:
@@ -102,7 +102,7 @@ class Reader:
 
     async def _read(self):
         try:
-            self._buffer += await self.stream.__anext__()
+            self._buffer += await anext(self.stream)
             if self.limit and len(self._buffer) > self.limit:
                 raise LimitOverrunError
         except StopAsyncIteration:
