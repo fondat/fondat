@@ -512,7 +512,7 @@ class Table(Generic[T]):
             stmt += Expression(" WHERE ", where)
         stmt += ";"
         result = await self.database.execute(stmt, TypedDict("Result", {"count": int}))
-        return (await result.__anext__())["count"]
+        return (await anext(result))["count"]
 
     async def insert(self, value: T):
         """
@@ -540,10 +540,12 @@ class Table(Generic[T]):
         """
         try:
             return self.schema(
-                **await self.select(
-                    where=Expression(f"{self.pk} = ", Param(key, self.columns[self.pk])),
-                    limit=1,
-                ).__anext__()
+                **await anext(
+                    self.select(
+                        where=Expression(f"{self.pk} = ", Param(key, self.columns[self.pk])),
+                        limit=1,
+                    )
+                )
             )
         except StopAsyncIteration:
             return None

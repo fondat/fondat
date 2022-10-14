@@ -215,7 +215,7 @@ class _Results(AsyncIterator[Any]):
         return self
 
     async def __anext__(self):
-        row = await self.rows.__anext__()
+        row = await anext(self.rows)
         return self.result(**{k: self.codecs[k].decode(row[k]) for k in self.codecs})
 
 

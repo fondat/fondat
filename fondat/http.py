@@ -169,7 +169,7 @@ class Chain:
         for filter in (f(request) for f in self.filters):
             if inspect.isasyncgen(filter):
                 try:
-                    response = await filter.__anext__()
+                    response = await anext(filter)
                     if not response:
                         unwind.append(filter)
                 except StopAsyncIteration:
