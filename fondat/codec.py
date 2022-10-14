@@ -56,14 +56,14 @@ def _wrap(exception):
 
 def _csv_encode(value):
     sio = io.StringIO()
-    csv.writer(sio).writerow(value)
-    return sio.getvalue().rstrip("\r\n")
+    csv.writer(sio, lineterminator="").writerow(value)
+    return sio.getvalue()
 
 
 def _csv_decode(value):
     if not isinstance(value, str):
         raise DecodeError
-    return csv.reader([value]).__next__()
+    return next(csv.reader([value]))
 
 
 def _b2s(b):
