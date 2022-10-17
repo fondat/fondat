@@ -119,7 +119,7 @@ class ItemResource(Generic[K, V]):
         self.memory._storage[self.key] = _Item(value, now)
 
     @operation
-    async def delete(self):
+    async def delete(self) -> None:
         """Delete item."""
         await self.get()  # ensure item exists and has not expired
         self.memory._storage.pop(self.key, None)

@@ -1,6 +1,5 @@
 """File I/O module."""
 
-import builtins
 import logging
 import mimetypes
 
@@ -42,11 +41,11 @@ def _content_type(url: str) -> str:
 
 class FileStream(Stream):
     """
-    Represents a file as an asynchronous byte stream.
+    Streams the content of a file through an asynchronous byte stream.
 
     Parameters:
-    • path: ...
-    • content_type: ...
+    • path: path to the file to read
+    • content_type: content type of the file, or None if unknown
 
     If content_type is not specified, this class will attempt to guess the content type
     from the filename extension.
@@ -69,7 +68,7 @@ class FileStream(Stream):
             await self.close()
         raise StopAsyncIteration
 
-    async def close(self):
+    async def close(self) -> None:
         with suppress(Exception):
             self.file.close()
         self.file = None
@@ -146,7 +145,7 @@ class FileResource(Generic[V]):
     def __init__(
         self,
         path: Path,
-        type: builtins.type[V] = Stream,
+        type: type[V] = Stream,
     ):
         self.path = path.expanduser()
         self.type = type
@@ -167,7 +166,7 @@ class FileResource(Generic[V]):
             raise InternalServerError from e
 
     @operation
-    async def put(self, value: Annotated[V, AsBody]):
+    async def put(self, value: Annotated[V, AsBody]) -> None:
         """Write resource."""
         try:
             tmp = self.path.with_name(f"{self.path.name}.__tmp__")
@@ -184,7 +183,7 @@ class FileResource(Generic[V]):
             raise InternalServerError from e
 
     @operation
-    async def delete(self):
+    async def delete(self) -> None:
         """Delete resource."""
         try:
             self.path.unlink()
@@ -194,7 +193,7 @@ class FileResource(Generic[V]):
             raise InternalServerError from e
 
 
-async def write_stream(stream: Stream, file: BinaryIO):
+async def write_stream(stream: Stream, file: BinaryIO) -> None:
     """Write a stream to a binary file-like object."""
     async for chunk in stream:
         file.write(chunk)

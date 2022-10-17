@@ -13,7 +13,6 @@ from dataclasses import field
 from datetime import datetime, timezone
 from fondat.data import datacls
 from fondat.validation import MinLen, validate
-from types import NoneType
 from typing import Annotated, Literal
 
 
@@ -62,11 +61,11 @@ class Measurement:
 class Monitor:
     """Base class for a monitor that records measurements."""
 
-    async def record(self, measurement: Measurement) -> NoneType:
+    async def record(self, measurement: Measurement) -> None:
         """Record a measurement."""
         raise NotImplementedError
 
-    async def flush(self) -> NoneType:
+    async def flush(self) -> None:
         """Flush all cached measurements. Base class implementation does nothing."""
         return
 
@@ -74,11 +73,11 @@ class Monitor:
 class Monitors(Monitor, list[Monitor]):
     """A list of monitors, to which all measurements are recorded."""
 
-    async def record(self, measurement: Measurement):
+    async def record(self, measurement: Measurement) -> None:
         """Record a measurement in monitors."""
         await asyncio.gather(monitor.record(measurement) for monitor in self)
 
-    async def flush(self):
+    async def flush(self) -> None:
         """Flush all cached measurements."""
         await asyncio.gather(monitor.flush() for monitor in self)
 
@@ -148,7 +147,7 @@ async def counter(
         raise exception
 
 
-async def record(measurement: Measurement, monitor: Monitor | None):
+async def record(measurement: Measurement, monitor: Monitor | None) -> None:
     """
     Record a measurement.
 

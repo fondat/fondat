@@ -21,7 +21,7 @@ request a number of items to be returned in the page. Regardless of how many ite
 requested, the operation should be free to decide how many items to actually return.
 """
 
-from collections.abc import Callable, Coroutine, Iterable
+from collections.abc import AsyncGenerator, Callable, Coroutine, Iterable
 from dataclasses import dataclass
 from typing import Any, Generic, TypeVar
 
@@ -36,8 +36,10 @@ class PaginationError(Exception):
     """
 
 
-# type aliases
+# type variable
 Item = TypeVar("Item")
+
+# type alias
 Cursor = bytes | None
 
 
@@ -49,7 +51,9 @@ class Page(Generic[Item]):
     cursor: Cursor = None
 
 
-async def paginate(operation: Callable[..., Coroutine[Any, Any, Any]], /, **kwargs):
+async def paginate(
+    operation: Callable[..., Coroutine[Any, Any, Page[Item]]], /, **kwargs
+) -> AsyncGenerator[Item, None]:
     """
     Wraps a paginated resource operation with an asynchronous generator that iterates through
     all items. The wrapped resource operation must return a page dataclass and accept a

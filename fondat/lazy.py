@@ -4,14 +4,20 @@ import importlib
 import logging
 import threading
 
-from collections.abc import Callable, Mapping, MutableMapping
-from typing import Any
+from collections.abc import Callable, Iterator, Mapping, MutableMapping
+from types import ModuleType
+from typing import Any, TypeVar
 
 
 _logger = logging.getLogger(__name__)
 
 
-class LazyMap(MutableMapping):
+K = TypeVar("K")
+V = TypeVar("V")
+T = TypeVar("T")
+
+
+class LazyMap(MutableMapping[K, V]):
     """
     A mapping of key-value pairs, in which a value can be lazily initialized at the time of
     first access. This is useful to allow resources to access other resources, preventing
@@ -26,7 +32,7 @@ class LazyMap(MutableMapping):
     mapping.
     """
 
-    def __init__(self, init: Mapping | None = None):
+    def __init__(self, init: Mapping[K, V] | None = None):
         super().__init__()
         self._lock = threading.Lock()
         self._store = {}
@@ -34,7 +40,7 @@ class LazyMap(MutableMapping):
             for key, value in init.items():
                 self[key] = value
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: K) -> V:
         value = self._store[key]
         if is_lazy(value):
             with self._lock:
@@ -43,23 +49,23 @@ class LazyMap(MutableMapping):
                     self._store[key] = value = value()
         return value
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key: K, value: V) -> None:
         self._store[key] = value
 
-    def __delitem__(self, key):
+    def __delitem__(self, key: K) -> None:
         del self._store[key]
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[K]:
         return iter(self._store)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self._store)
 
-    def __contains__(self, item):
+    def __contains__(self, item: V) -> bool:
         return item in self._store
 
 
-def lazy(function: Any) -> Any:
+def lazy(function: T) -> T:
     """Decorate a function to tag it as a lazy initializer."""
     if not callable(function):
         raise TypeError("function must be callable")
@@ -67,7 +73,7 @@ def lazy(function: Any) -> Any:
     return function
 
 
-def lazy_import(module_name: str) -> Callable:
+def lazy_import(module_name: str) -> Callable[[], ModuleType]:
     """
     Return a lazy callback function that imports a module and returns it.
 
@@ -81,7 +87,7 @@ def lazy_import(module_name: str) -> Callable:
     return lazy(callback)
 
 
-def lazy_import_attr(module_name: str, attr_name: str) -> Callable:
+def lazy_import_attr(module_name: str, attr_name: str) -> Callable[[], Any]:
     """
     Return a lazy callback function that imports a module and returns an attribute from it.
 

@@ -70,7 +70,7 @@ class BytesStream(Stream):
         self._content = None
         return result
 
-    async def close(self):
+    async def close(self) -> None:
         self._content = None
 
 
@@ -100,7 +100,7 @@ class Reader:
     async def __aexit__(self, *exc):
         await self.close()
 
-    async def _read(self):
+    async def _read(self) -> None:
         try:
             self._buffer += await anext(self.stream)
             if self.limit and len(self._buffer) > self.limit:
@@ -148,7 +148,7 @@ class Reader:
         self._buffer = self._buffer[size:] if size else bytearray(b"")
         return result
 
-    async def close(self):
+    async def close(self) -> None:
         """Close the stream."""
         await self.stream.close()
 

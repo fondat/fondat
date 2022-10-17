@@ -7,10 +7,14 @@ from collections.abc import Iterable, Mapping
 from dataclasses import is_dataclass
 from fondat.annotation import Password
 from fondat.types import is_optional, is_subclass, split_annotations, strip_optional
-from typing import Any, TypedDict, get_type_hints
+from typing import Any, TypedDict, TypeVar, get_type_hints
 
 
-def _datacls_init(dc: Any):
+# type variables
+T = TypeVar("T")
+
+
+def _datacls_init(dc: type):
     class MISSING:
         pass
 
@@ -44,7 +48,7 @@ def _datacls_init(dc: Any):
     return __init__
 
 
-def datacls(cls: type, init: bool = True, **kwargs) -> type:
+def datacls(cls: type[T], init: bool = True, **kwargs) -> type[T]:
     """
     Decorate a class to be a data class. This decorator wraps the dataclasses.dataclass
     decorator, with the following changes to the generated __init__ method:

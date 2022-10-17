@@ -4,7 +4,10 @@ import collections.abc
 
 from copy import deepcopy
 from fondat.codec import JSONCodec
-from typing import Any
+from typing import Any, TypeVar
+
+
+T = TypeVar("T")
 
 
 def _json_merge_patch(target, patch):
@@ -21,7 +24,7 @@ def _json_merge_patch(target, patch):
         return deepcopy(patch)
 
 
-def json_merge_patch(*, value: Any, type: type = Any, patch: Any) -> Any:
+def json_merge_patch(*, value: T, type: type[T] = Any, patch: dict[str, Any]) -> T:
     """
     Return the result of applying a JSON Merge Patch document to the JSON representation of
     a specified value, per RFC 7386.
@@ -56,7 +59,7 @@ def _json_merge_diff(old: Any, new: Any) -> Any:
         return new
 
 
-def json_merge_diff(*, old: Any, new: Any, type: Any = Any) -> Any:
+def json_merge_diff(*, old: T, new: T, type: type[T] = Any) -> dict[str, Any]:
     """
     Return a JSON Merge Patch document per RFC 7386, the result of comparing the JSON
     representations of specified old and new values.

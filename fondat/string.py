@@ -44,7 +44,7 @@ class Template:
             segments.append(line[index:])
         return "".join(segments)
 
-    async def resolve(self, resolver: Callable[[str], Coroutine[Any, Any, str | None]]):
+    async def resolve(self, resolver: Callable[[str], Coroutine[Any, Any, str | None]]) -> str:
         """
         Return a new string with resolved template substitutions.
 
