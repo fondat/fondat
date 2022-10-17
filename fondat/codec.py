@@ -197,9 +197,9 @@ class BinaryCodec(Codec[PT, BinaryType]):
     • content_type: string containing the media type of the binary representation
     """
 
-    content_type = APPLICATION_OCTET_STREAM
-
     _cache = {}
+
+    content_type = APPLICATION_OCTET_STREAM
 
     def encode(self, value: PT) -> BinaryType:
         """Encode value from Python type to binary type."""
@@ -228,7 +228,7 @@ class JSONCodec(Codec[PT, JSONType]):
 
 
 class StrBinaryCodec(BinaryCodec[str]):
-    """Bytes codec for Unicode character strings."""
+    """Binary codec for Unicode character string."""
 
     content_type = TEXT_PLAIN
 
@@ -248,7 +248,7 @@ class StrBinaryCodec(BinaryCodec[str]):
 
 
 class StrStringCodec(StringCodec[str]):
-    """String codec for Unicode character strings."""
+    """String codec for Unicode character string."""
 
     @staticmethod
     def handles(python_type: Any) -> bool:
@@ -267,7 +267,7 @@ class StrStringCodec(StringCodec[str]):
 
 
 class StrJSONCodec(JSONCodec[str]):
-    """JSON codec for Unicode character strings."""
+    """JSON codec for Unicode character string."""
 
     def __init__(self, python_type: Any):
         super().__init__(python_type)
@@ -290,7 +290,7 @@ class StrJSONCodec(JSONCodec[str]):
 
 
 class BytesBinaryCodec(BinaryCodec[bytes | bytearray]):
-    """Binary codec for byte sequences."""
+    """Binary codec for byte sequence."""
 
     content_type = APPLICATION_OCTET_STREAM
 
@@ -312,7 +312,7 @@ class BytesBinaryCodec(BinaryCodec[bytes | bytearray]):
 
 class BytesStringCodec(StringCodec[bytes | bytearray]):
     """
-    String codec for byte sequences. A byte sequence is represented in string values as a
+    String codec for byte sequence. A byte sequence is represented in string values as a
     base64-encoded string. Example: "SGVsbG8gRm9uZGF0".
     """
 
@@ -332,7 +332,7 @@ class BytesStringCodec(StringCodec[bytes | bytearray]):
 
 class BytesJSONCodec(JSONCodec[bytes | bytearray]):
     """
-    JSON codec for byte sequences. A byte sequence is represented in JSON values as a
+    JSON codec for byte sequence. A byte sequence is represented in JSON values as a
     base64-encoded string. Example: "SGVsbG8gRm9uZGF0".
     """
 
@@ -355,7 +355,7 @@ class BytesJSONCodec(JSONCodec[bytes | bytearray]):
 
 
 class IntStringCodec(StringCodec[int]):
-    """String codec for integers."""
+    """String codec for integer."""
 
     @staticmethod
     def handles(python_type: Any) -> bool:
@@ -375,7 +375,7 @@ class IntStringCodec(StringCodec[int]):
 
 
 class IntBinaryCodec(BinaryCodec[int]):
-    """Binary codec for integers."""
+    """Binary codec for integer."""
 
     content_type = TEXT_PLAIN
 
@@ -395,7 +395,7 @@ class IntBinaryCodec(BinaryCodec[int]):
 
 
 class IntJSONCodec(JSONCodec[int]):
-    """JSON codec for integers."""
+    """JSON codec for integer."""
 
     @staticmethod
     def handles(python_type: Any) -> bool:
@@ -422,7 +422,7 @@ class IntJSONCodec(JSONCodec[int]):
 
 
 class FloatStringCodec(StringCodec[float]):
-    """String codec for floating point numbers."""
+    """String codec for floating point number."""
 
     @staticmethod
     def handles(python_type: Any) -> bool:
@@ -442,7 +442,7 @@ class FloatStringCodec(StringCodec[float]):
 
 
 class FloatBinaryCodec(BinaryCodec[float]):
-    """Binary codec for floating point numbers."""
+    """Binary codec for floating point number."""
 
     content_type = TEXT_PLAIN
 
@@ -463,7 +463,7 @@ class FloatBinaryCodec(BinaryCodec[float]):
 
 
 class FloatJSONCodec(JSONCodec[float]):
-    """JSON codec for floating point numbers."""
+    """JSON codec for floating point number."""
 
     @staticmethod
     def handles(python_type: Any) -> bool:
@@ -485,7 +485,7 @@ class FloatJSONCodec(JSONCodec[float]):
 
 
 class BoolStringCodec(StringCodec[bool]):
-    """String codec for boolean values."""
+    """String codec for boolean value."""
 
     @staticmethod
     def handles(python_type: Any) -> bool:
@@ -507,7 +507,7 @@ class BoolStringCodec(StringCodec[bool]):
 
 
 class BoolBinaryCodec(BinaryCodec[bool]):
-    """Binary codec for boolean values."""
+    """Binary codec for boolean value."""
 
     content_type = TEXT_PLAIN
 
@@ -528,7 +528,7 @@ class BoolBinaryCodec(BinaryCodec[bool]):
 
 
 class BoolJSONCodec(JSONCodec[bool]):
-    """JSON codec for boolean values."""
+    """JSON codec for boolean value."""
 
     @staticmethod
     def handles(python_type: Any) -> bool:
@@ -550,7 +550,7 @@ class BoolJSONCodec(JSONCodec[bool]):
 
 
 class NoneTypeStringCodec(StringCodec[NoneType]):
-    """String codec for None value."""
+    """String codec for None."""
 
     @staticmethod
     def handles(python_type: Any) -> bool:
@@ -569,7 +569,7 @@ class NoneTypeStringCodec(StringCodec[NoneType]):
 
 
 class NoneTypeBinaryCodec(BinaryCodec[NoneType]):
-    """Binary codec for None value."""
+    """Binary codec for None."""
 
     content_type = TEXT_PLAIN
 
@@ -590,7 +590,7 @@ class NoneTypeBinaryCodec(BinaryCodec[NoneType]):
 
 
 class NoneTypeJSONCodec(JSONCodec[NoneType]):
-    """JSON codec for None value."""
+    """JSON codec for None."""
 
     @staticmethod
     def handles(python_type: Any) -> bool:
@@ -612,7 +612,7 @@ class NoneTypeJSONCodec(JSONCodec[NoneType]):
 
 
 class DecimalStringCodec(StringCodec[Decimal]):
-    """String codec for Decimal numbers."""
+    """String codec for Decimal number."""
 
     @staticmethod
     def handles(python_type: Any) -> bool:
@@ -632,7 +632,7 @@ class DecimalStringCodec(StringCodec[Decimal]):
 
 
 class DecimalBinaryCodec(BinaryCodec[Decimal]):
-    """Binary codec for Decimal numbers."""
+    """Binary codec for Decimal number."""
 
     content_type = TEXT_PLAIN
 
@@ -653,7 +653,7 @@ class DecimalBinaryCodec(BinaryCodec[Decimal]):
 
 class DecimalJSONCodec(JSONCodec[Decimal]):
     """
-    JSON codec for Decimal numbers. Decimal numbers are represented in JSON as strings, due to
+    JSON codec for Decimal number. Decimal numbers are represented in JSON as strings, due to
     the imprecision of floating point numbers.
     """
 
@@ -677,7 +677,7 @@ class DecimalJSONCodec(JSONCodec[Decimal]):
 
 class DateStringCodec(StringCodec[date]):
     """
-    String codec for dates. A date is represented in a string in RFC 3339 format.
+    String codec for date. A date is represented in a string in RFC 3339 format.
     Example: "2018-06-16".
     """
 
@@ -700,8 +700,8 @@ class DateStringCodec(StringCodec[date]):
 
 class DateBinaryCodec(BinaryCodec[date]):
     """
-    Binary codec for dates. A date is represented in a binary format as an RFC 3339 UTF-8 or
-    ASCII encoded string. Example: "2018-06-16".
+    Binary codec for date. A date is represented in a binary format as an RFC 3339 UTF-8 or
+    ASCII encoded string. Example: b"2018-06-16".
     """
 
     content_type = TEXT_PLAIN
@@ -723,7 +723,7 @@ class DateBinaryCodec(BinaryCodec[date]):
 
 class DateJSONCodec(JSONCodec[date]):
     """
-    JSON codec for dates. A date is represented in JSON as an RFC 3339 formatted string.
+    JSON codec for date. A date is represented in JSON as an RFC 3339 formatted string.
     Example: "2018-06-16".
     """
 
@@ -755,8 +755,8 @@ class DatetimeStringCodec(StringCodec[datetime]):
     """
     String codec for datetime.
 
-    It will decode a datetime represented in an ISO 8601 formatted string. It will encode a
-    datetime to an RFC 3339 (subset of ISO 8601) formatted string.
+    A datetime will be decoded in an ISO 8601 formatted string. It will be encoded as an
+    RFC 3339 (subset of ISO 8601) formatted string.
 
     Datetimes always encode and decode to UTC timezone offset.
 
@@ -789,9 +789,8 @@ class DatetimeBinaryCodec(BinaryCodec[datetime]):
     """
     Binary codec for datetime.
 
-    It will decode a datetime represented in an ISO 8601 formatted UTF-8 or ASCII encoded byte
-    string. It will encode a datetime to an RFC 3339 (subset of ISO 8601) formatted UTF-8
-    encoded byte string.
+    A datetime will be decoded in an ISO 8601 formatted ASCII or UTF byte string. It will be
+    encoded as an RFC 3339 (subset of ISO 8601) formatted UTF-8 byte string.
 
     Datetimes always encode and decode to UTC timezone offset.
 
@@ -817,10 +816,10 @@ class DatetimeBinaryCodec(BinaryCodec[datetime]):
 
 class DatetimeJSONCodec(JSONCodec[datetime]):
     """
-    String codec for datetime.
+    JSON codec for datetime.
 
-    It will decode a datetime represented in an ISO 8601 formatted string. It will encode a
-    datetime to an RFC 3339 (subset of ISO 8601) formatted string.
+    A datetime will be decoded in an ISO 8601 formatted string. It will be encoded as an
+    RFC 3339 (subset of ISO 8601) formatted string.
 
     Datetimes always encode and decode to UTC timezone offset.
 
@@ -907,7 +906,7 @@ class UUIDJSONCodec(JSONCodec[UUID]):
 
 
 class TypedDictJSONCodec(JSONCodec[PT]):
-    """..."""
+    """JSON codec for TypedDict."""
 
     @staticmethod
     def handles(python_type: Any) -> bool:
@@ -940,7 +939,7 @@ class TypedDictJSONCodec(JSONCodec[PT]):
 
 
 class TypedDictStringCodec(StringCodec[PT]):
-    """..."""
+    """String codec for TypedDict."""
 
     @staticmethod
     def handles(python_type: Any) -> bool:
@@ -960,7 +959,7 @@ class TypedDictStringCodec(StringCodec[PT]):
 
 
 class TypedDictBinaryCodec(BinaryCodec[PT]):
-    """..."""
+    """Binary codec for TypedDict."""
 
     content_type = APPLICATION_JSON
 
@@ -1020,7 +1019,7 @@ class _TupleCodec(Codec[PT, TT]):
 
 
 class TupleJSONCodec(_TupleCodec[PT, JSONType], JSONCodec[PT]):
-    """..."""
+    """JSON codec for tuple."""
 
     def __init__(self, python_type: Any):
         _TupleCodec.__init__(self, python_type, JSONCodec)
@@ -1034,7 +1033,7 @@ class TupleJSONCodec(_TupleCodec[PT, JSONType], JSONCodec[PT]):
 
 
 class TupleStringCodec(_TupleCodec[PT, StringType], StringCodec[PT]):
-    """..."""
+    """String codec for tuple."""
 
     def __init__(self, python_type: Any):
         _TupleCodec.__init__(self, python_type, StringCodec)
@@ -1048,7 +1047,7 @@ class TupleStringCodec(_TupleCodec[PT, StringType], StringCodec[PT]):
 
 
 class TupleBinaryCodec(BinaryCodec[PT]):
-    """..."""
+    """Binary codec for tuple."""
 
     content_type = APPLICATION_JSON
 
@@ -1071,7 +1070,7 @@ class TupleBinaryCodec(BinaryCodec[PT]):
 
 
 class MappingJSONCodec(JSONCodec[PT]):
-    """..."""
+    """JSON codec for mapping."""
 
     @staticmethod
     def handles(python_type: Any) -> bool:
@@ -1110,7 +1109,7 @@ class MappingJSONCodec(JSONCodec[PT]):
 
 
 class MappingStringCodec(StringCodec[PT]):
-    """..."""
+    """String codec for mapping."""
 
     @staticmethod
     def handles(python_type: Any) -> bool:
@@ -1128,7 +1127,7 @@ class MappingStringCodec(StringCodec[PT]):
 
 
 class MappingBinaryCodec(BinaryCodec[PT]):
-    """..."""
+    """Binary codec for mapping."""
 
     content_type = APPLICATION_JSON
 
@@ -1153,7 +1152,6 @@ class MappingBinaryCodec(BinaryCodec[PT]):
 
 
 class _IterableCodec(Codec[PT, TT]):
-    """..."""
 
     _AVOID = str | bytes | bytearray | Mapping | tuple
 
@@ -1189,7 +1187,7 @@ class _IterableCodec(Codec[PT, TT]):
 
 
 class IterableJSONCodec(_IterableCodec[PT, JSONType], JSONCodec[PT]):
-    """..."""
+    """JSON codec for iterable."""
 
     def __init__(self, python_type: Any):
         JSONCodec.__init__(self, python_type)
@@ -1203,7 +1201,7 @@ class IterableJSONCodec(_IterableCodec[PT, JSONType], JSONCodec[PT]):
 
 
 class IterableStringCodec(_IterableCodec[PT, StringType], StringCodec[PT]):
-    """..."""
+    """String codec for iterable."""
 
     def __init__(self, python_type: Any):
         JSONCodec.__init__(self, python_type)
@@ -1217,7 +1215,7 @@ class IterableStringCodec(_IterableCodec[PT, StringType], StringCodec[PT]):
 
 
 class IterableBinaryCodec(BinaryCodec[PT]):
-    """..."""
+    """Binary codec for iterable."""
 
     content_type = APPLICATION_JSON
 
@@ -1240,8 +1238,6 @@ class IterableBinaryCodec(BinaryCodec[PT]):
 
 
 class _GenericCodec(Generic[PT, TT]):
-    """..."""
-
     @classmethod
     def handles(cls, python_type: Any) -> bool:
         python_type = strip_annotations(python_type)
@@ -1267,18 +1263,24 @@ class _GenericCodec(Generic[PT, TT]):
 
 
 class GenericJSONCodec(_GenericCodec[PT, JSONType], JSONCodec[PT]):
+    """JSON codec for Generic typing object."""
+
     def __init__(self, python_type: Any):
         JSONCodec.__init__(self, python_type)
         _GenericCodec.__init__(self, python_type, JSONCodec)
 
 
 class GenericStringCodec(_GenericCodec[PT, StringType], StringCodec[PT]):
+    """String codec for Generic typing object."""
+
     def __init__(self, python_type: Any):
         StringCodec.__init__(self, python_type)
         _GenericCodec.__init__(self, python_type, StringCodec)
 
 
 class GenericBinaryCodec(_GenericCodec[PT, BinaryType], BinaryCodec[PT]):
+    """Binary codec for Generic typing object."""
+
     def __init__(self, python_type: Any):
         BinaryCodec.__init__(self, python_type)
         _GenericCodec.__init__(self, python_type, BinaryCodec)
@@ -1288,7 +1290,6 @@ class GenericBinaryCodec(_GenericCodec[PT, BinaryType], BinaryCodec[PT]):
 
 
 class _TypeVarCodec(Generic[PT, TT]):
-    """..."""
 
     _cache = False  # TypeVars can be reused
 
@@ -1314,7 +1315,7 @@ class _TypeVarCodec(Generic[PT, TT]):
 
 
 class TypeVarJSONCodec(_TypeVarCodec[PT, JSONType], JSONCodec[PT]):
-    """..."""
+    """JSON codec for type variable."""
 
     def __init__(self, python_type: Any):
         JSONCodec.__init__(self, python_type)
@@ -1322,7 +1323,7 @@ class TypeVarJSONCodec(_TypeVarCodec[PT, JSONType], JSONCodec[PT]):
 
 
 class TypeVarStringCodec(_TypeVarCodec[PT, StringType], StringCodec[PT]):
-    """..."""
+    """String codec for type variable."""
 
     def __init__(self, python_type: Any):
         StringCodec.__init__(self, python_type)
@@ -1330,7 +1331,7 @@ class TypeVarStringCodec(_TypeVarCodec[PT, StringType], StringCodec[PT]):
 
 
 class TypeVarBinaryCodec(_TypeVarCodec[PT, BinaryType], BinaryCodec[PT]):
-    """..."""
+    """Binary codec for type variable."""
 
     def __init__(self, python_type: Any):
         BinaryCodec.__init__(self, python_type)
@@ -1342,6 +1343,7 @@ class TypeVarBinaryCodec(_TypeVarCodec[PT, BinaryType], BinaryCodec[PT]):
 
 
 class DataclassJSONCodec(JSONCodec[PT]):
+    """JSON codec for dataclass."""
 
     # keywords have _ suffix in dataclass fields (e.g. "in_", "for_", ...)
     _dc_kw = {k + "_": k for k in keyword.kwlist}
@@ -1395,7 +1397,7 @@ class DataclassJSONCodec(JSONCodec[PT]):
 
 
 class DataclassStringCodec(StringCodec[PT]):
-    """..."""
+    """String codec for dataclass."""
 
     @staticmethod
     def handles(python_type: Any) -> bool:
@@ -1413,7 +1415,7 @@ class DataclassStringCodec(StringCodec[PT]):
 
 
 class DataclassBinaryCodec(BinaryCodec[PT]):
-    """..."""
+    """Binary codec for dataclass."""
 
     content_type = APPLICATION_JSON
 
@@ -1436,8 +1438,6 @@ class DataclassBinaryCodec(BinaryCodec[PT]):
 
 
 class _UnionCodec(Codec[PT, TT]):
-    """..."""
-
     @classmethod
     def handles(cls, python_type: Any) -> bool:
         python_type = strip_annotations(python_type)
@@ -1461,7 +1461,7 @@ class _UnionCodec(Codec[PT, TT]):
 
 
 class UnionJSONCodec(_UnionCodec[PT, Any], JSONCodec[PT]):
-    """..."""
+    """JSON codec for union typing object."""
 
     def __init__(self, python_type: Any):
         JSONCodec.__init__(self, python_type)
@@ -1469,7 +1469,7 @@ class UnionJSONCodec(_UnionCodec[PT, Any], JSONCodec[PT]):
 
 
 class UnionStringCodec(_UnionCodec[PT, str], StringCodec[PT]):
-    """..."""
+    """String codec for union typing object."""
 
     def __init__(self, python_type: Any):
         StringCodec.__init__(self, python_type)
@@ -1477,7 +1477,7 @@ class UnionStringCodec(_UnionCodec[PT, str], StringCodec[PT]):
 
 
 class UnionBinaryCodec(_UnionCodec[PT, bytes | bytearray], BinaryCodec[PT]):
-    """..."""
+    """Binary codec for union typing object."""
 
     content_type = APPLICATION_OCTET_STREAM
 
@@ -1497,8 +1497,6 @@ _VT = namedtuple("VT", "value,type")
 
 
 class _LiteralCodec(Codec[PT, TT]):
-    """..."""
-
     @classmethod
     def handles(cls, python_type: Any) -> bool:
         python_type = strip_annotations(python_type)
@@ -1524,7 +1522,7 @@ class _LiteralCodec(Codec[PT, TT]):
 
 
 class LiteralStringCodec(_LiteralCodec[PT, StringType], StringCodec[PT]):
-    """..."""
+    """String codec for Literal typing object."""
 
     def __init__(self, python_type: Any):
         StringCodec.__init__(self, python_type)
@@ -1532,7 +1530,7 @@ class LiteralStringCodec(_LiteralCodec[PT, StringType], StringCodec[PT]):
 
 
 class LiteralBinaryCodec(_LiteralCodec[PT, BinaryType], BinaryCodec[PT]):
-    """..."""
+    """Binary codec for Literal typing object."""
 
     content_type = APPLICATION_OCTET_STREAM
 
@@ -1542,7 +1540,7 @@ class LiteralBinaryCodec(_LiteralCodec[PT, BinaryType], BinaryCodec[PT]):
 
 
 class LiteralJSONCodec(_LiteralCodec[PT, JSONType], JSONCodec[PT]):
-    """..."""
+    """JSON codec for Literal typing object."""
 
     def __init__(self, python_type: Any):
         JSONCodec.__init__(self, python_type)
@@ -1553,7 +1551,7 @@ class LiteralJSONCodec(_LiteralCodec[PT, JSONType], JSONCodec[PT]):
 
 
 class AnyStringCodec(StringCodec[Any]):
-    """String codec for Any."""
+    """String codec for Any typing object."""
 
     @staticmethod
     def handles(python_type: Any) -> bool:
@@ -1568,7 +1566,7 @@ class AnyStringCodec(StringCodec[Any]):
 
 
 class AnyBinaryCodec(BinaryCodec[Any]):
-    """Binary codec for Any."""
+    """Binary codec for Any typing object."""
 
     content_type = APPLICATION_OCTET_STREAM
 
@@ -1587,7 +1585,7 @@ class AnyBinaryCodec(BinaryCodec[Any]):
 
 
 class AnyJSONCodec(JSONCodec[Any]):
-    """JSON codec for Any."""
+    """JSON codec for Any typing object."""
 
     @staticmethod
     def handles(python_type: Any) -> bool:
