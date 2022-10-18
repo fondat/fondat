@@ -23,9 +23,11 @@ from typing import Any, Literal, TypeVar
 _logger = logging.getLogger(__name__)
 
 
-T = TypeVar("T")
-PT = TypeVar("PT")  # Python type hint
-ST = TypeVar("ST")  # SQL type hint
+T = TypeVar("T")  # generic type variable
+R = TypeVar("R")  # row type
+PT = TypeVar("PT")  # Python type
+ST = TypeVar("ST")  # SQL type
+PK = TypeVar("PK")  # primary key type
 
 
 class SQLiteCodec(Codec[PT, ST]):
@@ -34,11 +36,8 @@ class SQLiteCodec(Codec[PT, ST]):
     _cache = {}
 
 
-class BlobCodec(SQLiteCodec[bytes | bytearray, bytes]):
-    """
-    Codec that encodes/decodes a value to/from a SQL BLOB. Supports the following types:
-    bytes, bytearray.
-    """
+class BLOBCodec(SQLiteCodec[bytes | bytearray, bytes]):
+    """Codec that encodes/decodes a value to/from a SQL BLOB type."""
 
     sql_type = "BLOB"
 
@@ -59,10 +58,7 @@ class BlobCodec(SQLiteCodec[bytes | bytearray, bytes]):
 
 
 class IntegerCodec(SQLiteCodec[int | bool, int]):
-    """
-    Codec that encodes/decodes a value to/from a SQL INTEGER. Supports the following types:
-    int, bool.
-    """
+    """Codec that encodes/decodes a value to/from a SQL INTEGER type."""
 
     sql_type = "INTEGER"
 
@@ -83,9 +79,7 @@ class IntegerCodec(SQLiteCodec[int | bool, int]):
 
 
 class RealCodec(SQLiteCodec[float, float]):
-    """
-    Codec that encodes/decodes a value to/from a SQL REAL. Supports the following type: float.
-    """
+    """Codec that encodes/decodes a value to/from a SQL REAL type."""
 
     sql_type = "REAL"
 
@@ -198,11 +192,13 @@ class TextCodec(SQLiteCodec[PT, Any]):
         return self.string_codec.decode(value)
 
 
-class _Results(AsyncIterator[Any]):
+class _Results(AsyncIterator[T]):
 
     __slots__ = {"statement", "result", "rows", "codecs"}
 
-    def __init__(self, statement, result, rows):
+    def __init__(
+        self, statement: Expression, result: type[T], rows: AsyncIterator[dict[str, Any]]
+    ):
         self.statement = statement
         self.result = result
         self.rows = rows
@@ -214,7 +210,7 @@ class _Results(AsyncIterator[Any]):
     def __aiter__(self):
         return self
 
-    async def __anext__(self):
+    async def __anext__(self) -> T:
         row = await anext(self.rows)
         return self.result(**{k: self.codecs[k].decode(row[k]) for k in self.codecs})
 
@@ -294,8 +290,8 @@ class Database(fondat.sql.Database):
     async def execute(
         self,
         statement: Expression,
-        result: type = None,
-    ) -> AsyncIterator[Any] | None:
+        result: type[T] = None,
+    ) -> AsyncIterator[T] | None:
         if not self._txn.get():
             raise RuntimeError("transaction context required to execute statement")
         text = []
@@ -311,19 +307,17 @@ class Database(fondat.sql.Database):
                     raise ValueError(f"unexpected fragment: {fragment}")
         results = await self._conn.get().execute("".join(text), args)
         if result is not None:  # expecting a result
-            return _Results(statement, result, results.__aiter__())
+            return _Results[T](statement, result, aiter(results))
 
     def sql_type(self, type: Any) -> str:
         return SQLiteCodec.get(type).sql_type
 
 
-class Table(fondat.sql.Table[T]):
-    """..."""
+class Table(fondat.sql.Table[R, PK]):
+    """Represents a table in a SQLite database."""
 
-    async def upsert(self, value: T):
-        """
-        Upsert table row. Must be called within a database transaction context.
-        """
+    async def upsert(self, value: R):
+        """Upsert table row. Must be called within a database transaction context."""
         stmt = Expression(
             f"INSERT INTO {self.name} (",
             ", ".join(self.columns),

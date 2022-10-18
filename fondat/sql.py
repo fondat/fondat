@@ -15,10 +15,9 @@ import typing
 from collections.abc import AsyncIterator, Iterable, Mapping
 from contextlib import AbstractAsyncContextManager, suppress
 from dataclasses import dataclass, is_dataclass
+from fondat.cache import CacheResource, hash_json
 from fondat.codec import BinaryCodec, DecodeError, JSONCodec
-from fondat.data import datacls
 from fondat.error import BadRequestError, NotFoundError
-from fondat.memory import MemoryResource
 from fondat.pagination import Page, PaginationError
 from fondat.patch import json_merge_patch
 from fondat.resource import operation, query, resource
@@ -31,11 +30,11 @@ from typing import Annotated, Any, Generic, Protocol, TypedDict, TypeVar
 _logger = logging.getLogger(__name__)
 
 
-T = TypeVar("T")
-
-
-Item = TypeVar("Item")
-Row = TypeVar("Row")
+# type variables
+Item = TypeVar("Item")  # item type variable
+PK = TypeVar("PK")  # primary key type variable
+R = TypeVar("R")  # row type variable
+T = TypeVar("T")  # generic type variable
 
 
 @dataclass
@@ -142,13 +141,13 @@ def _to_identifier(value: str):
 
 
 class Database(Protocol):
-    """Base class for a SQL database."""
+    """Prototype or base class for a SQL database."""
 
     async def execute(
         self,
         statement: Expression | str,
-        result: type[Row] | None = None,
-    ) -> AsyncIterator[Row] | None:
+        result: type[T] | None = None,
+    ) -> AsyncIterator[T] | None:
         """
         Execute a SQL statement.
 
@@ -157,7 +156,7 @@ class Database(Protocol):
         • result: the type to return a query result row
 
         If the statement is a query that generates results, each row can be returned in
-        a dataclass or dict object, whose type is specifed in the `result` parameter.
+        a dataclass or TypedDict object, whose type is specifed in the `result` parameter.
         Rows are provided via a returned asynchronous iterator.
 
         Must be called within a database transaction context.
@@ -173,8 +172,455 @@ class Database(Protocol):
         raise NotImplementedError
 
     def sql_type(self, python_type: Any) -> str:
-        """Return the SQL type that corresponds with the specified Python type."""
+        """Return the SQL type string that corresponds with the specified Python type."""
         raise NotImplementedError
+
+
+class Table(Generic[R, PK]):
+    """
+    Represents a table in a SQL database.
+
+    Parameters and attributes:
+    • name: name of database table
+    • database: database where table is managed
+    • schema: dataclass representing the table schema
+    • pk: column name of primary key
+
+    Attributes:
+    • columns: mapping of column names to ther associated types
+    """
+
+    __slots__ = {"name", "database", "schema", "columns", "pk"}
+
+    def __init__(self, name: str, database: Database, schema: type[R], pk: str):
+        self.name = name
+        self.database = database
+        schema = fondat.types.strip_annotations(schema)
+        if not is_dataclass(schema):
+            raise TypeError("table schema must be a dataclass")
+        self.schema = schema
+        self.columns = typing.get_type_hints(schema, include_extras=True)
+        if pk not in self.columns:
+            raise ValueError(f"primary key not in schema: {pk}")
+        self.pk = pk
+
+    def __repr__(self):
+        return f"Table(name={self.name}, schema={self.schema}, pk={self.pk})"
+
+    async def create(self, execute: bool = True) -> Expression:
+        """
+        Create table in database. Must be called within a database transaction context.
+        """
+        stmt = Expression(f"CREATE TABLE {self.name} (")
+        columns = []
+        for column_name, column_type in self.columns.items():
+            column = [column_name, self.database.sql_type(column_type)]
+            if column_name == self.pk:
+                column.append("PRIMARY KEY")
+            if not is_optional(column_type):
+                column.append("NOT NULL")
+            columns.append(" ".join(column))
+        stmt += Expression(", ".join(columns), ");")
+        if execute:
+            await self.database.execute(stmt)
+        return stmt
+
+    async def drop(self, execute: bool = True) -> Expression:
+        """
+        Drop table from database. Must be called within a database transaction context.
+        """
+        stmt = Expression(f"DROP TABLE {self.name};")
+        if execute:
+            await self.database.execute(stmt)
+        return stmt
+
+    async def select(
+        self,
+        *,
+        columns: Iterable[str] | str | None = None,
+        where: Expression | None = None,
+        order_by: Iterable[str] | str | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """
+        Execute a SQL statement select rows from the table.
+
+        Parameters:
+        • columns: name(s) of column(s) to return, or None for all columns
+        • where: statement containing WHERE expression, or None to match all rows
+        • order_by: names of columns to order rows by, or None to not order rows
+        • limit: limit the number of rows returned, or None to not limit
+        • offset: number of rows to skip, or None to skip none
+
+        Returns an asynchronous iterable for rows in table that match the where expression.
+        Each row item is a dictionary that maps column name to value.
+
+        Must be called within a database transaction context.
+        """
+
+        if isinstance(columns, str):
+            columns = columns.replace(",", " ").split()
+
+        if order_by is not None and not isinstance(order_by, str):
+            order_by = ", ".join(order_by)
+
+        columns = TypedDict(
+            "Columns",
+            {column: self.columns[column] for column in columns} if columns else self.columns,
+        )
+
+        async for row in select(
+            database=self.database,
+            columns=[
+                (Expression(key), key, type)
+                for key, type in typing.get_type_hints(columns, include_extras=True).items()
+            ],
+            from_=Expression(self.name),
+            where=where,
+            order_by=Expression(order_by) if order_by is not None else None,
+            limit=limit,
+            offset=offset,
+        ):
+            yield row
+
+    async def count(self, where: Expression | None = None) -> int:
+        """
+        Return the number of rows in the table that match an optional expression.
+        Must be called within a database transaction context.
+
+        Parameters:
+        • where: expression to match; None to match all rows
+        """
+
+        stmt = Expression(f"SELECT COUNT(*) AS count FROM {self.name}")
+        if where:
+            stmt += Expression(" WHERE ", where)
+        stmt += ";"
+        result = await self.database.execute(stmt, TypedDict("Result", {"count": int}))
+        return (await anext(result))["count"]
+
+    async def insert(self, value: R):
+        """
+        Insert table row. Must be called within a database transaction context.
+        """
+        stmt = Expression(
+            f"INSERT INTO {self.name} (",
+            ", ".join(self.columns),
+            ") VALUES (",
+            Expression.join(
+                (
+                    Param(getattr(value, name), python_type)
+                    for name, python_type in self.columns.items()
+                ),
+                ", ",
+            ),
+            ");",
+        )
+        await self.database.execute(stmt)
+
+    async def read(self, pk: PK) -> R:
+        """
+        Return a table row, or None if not found. Must be called within a database transaction
+        context.
+        """
+        try:
+            return self.schema(
+                **await anext(
+                    self.select(
+                        where=Expression(f"{self.pk} = ", Param(pk, self.columns[self.pk])),
+                        limit=1,
+                    )
+                )
+            )
+        except StopAsyncIteration:
+            return None
+
+    async def update(self, value: R):
+        """
+        Update table row. Must be called within a database transaction context.
+        """
+        await self.database.execute(
+            Expression(
+                f"UPDATE {self.name} SET ",
+                Expression.join(
+                    (
+                        Expression(f"{name} = ", Param(getattr(value, name), python_type))
+                        for name, python_type in self.columns.items()
+                    ),
+                    ", ",
+                ),
+                f" WHERE {self.pk} = ",
+                Param(getattr(value, self.pk), self.columns[self.pk]),
+                ";",
+            )
+        )
+
+    async def delete(self, pk: PK):
+        """
+        Delete table row. Must be called within a database transaction context.
+        """
+        await self.database.execute(
+            Expression(
+                f"DELETE FROM {self.name} WHERE {self.pk} = ",
+                Param(pk, self.columns[self.pk]),
+                ";",
+            )
+        )
+
+    async def upsert(self, value: R):
+        """
+        Upsert table row. Must be called within a database transaction context.
+        Default is inefficient; database-specific implementations should override.
+        """
+        if await self.read(getattr(value, self.pk)) is None:
+            await self.insert(value)
+        else:
+            await self.update(value)
+
+
+class Index:
+    """
+    Represents an index on a table in a SQL database.
+
+    Parameters:
+    • name: name of index
+    • table: table that the index defined for
+    • keys: index keys (typically column names with optional order)
+    • unique: is index unique
+    """
+
+    __slots__ = {"name", "table", "keys", "unique"}
+
+    def __init__(
+        self,
+        name: str,
+        table: Table,
+        keys: Iterable[str],
+        unique: bool = False,
+    ):
+        self.name = name
+        self.table = table
+        self.keys = keys
+        self.unique = unique
+
+    def __repr__(self):
+        return f"Index(name={self.name}, table={self.table}, keys={self.keys}, unique={self.unique})"
+
+    async def create(self, execute: bool = True) -> Expression:
+        """
+        Create index in database. Must be called within a database transaction context.
+        """
+        stmt = Expression("CREATE ")
+        if self.unique:
+            stmt += "UNIQUE "
+        stmt += Expression(
+            f"INDEX {self.name} ON {self.table.name} (",
+            ", ".join(self.keys),
+            ");",
+        )
+        if execute:
+            await self.table.database.execute(stmt)
+        return stmt
+
+    async def drop(self, execute: bool = True) -> Expression:
+        """
+        Drop index from database. Must be called within a database transaction context.
+        """
+        stmt = Expression(f"DROP INDEX {self.name};")
+        if execute:
+            await self.table.database.execute(stmt)
+        return stmt
+
+
+@resource
+class TableResource(Generic[R, PK]):
+    def __init__(
+        self,
+        table: Table,
+        cache: CacheResource | None = None,
+    ):
+        self.table = table
+        self.cache = cache
+
+    def __getitem__(self, pk: PK) -> RowResource[R, PK]:
+        return RowResource(table=self.table, pk=pk, cache=self.cache)
+
+    @operation
+    async def get(
+        self,
+        limit: Annotated[int, MinValue(1)] = 1000,
+        cursor: bytes | None = None,
+    ) -> Page[T]:
+        """Get paginated list of rows, ordered by primary key."""
+        pk_type = self.table.columns[self.table.pk]
+        cursor_codec = BinaryCodec.get(pk_type)
+        if cursor is not None:
+            where = Expression(
+                f"{self.table.pk} > ", Param(cursor_codec.decode(cursor), pk_type)
+            )
+        else:
+            where = None
+        async with self.table.database.transaction():
+            items = [
+                self.table.schema(**result)
+                async for result in self.table.select(
+                    order_by=self.table.pk, limit=limit, where=where
+                )
+            ]
+            cursor = (
+                cursor_codec.encode(getattr(items[-1], self.table.pk))
+                if len(items) == limit
+                else None
+            )
+        return Page(items=items, cursor=cursor)
+
+    @operation
+    async def patch(self, body: Iterable[dict[str, Any]]):
+        """
+        Insert and/or modify multiple rows in a single transaction.
+
+        Patch body is an iterable of JSON Merge Patch documents; each document must
+        contain the primary key of the row to patch.
+        """
+        async with self.table.database.transaction():
+            for doc in body:
+                pk = doc.get(self.table.pk)
+                if pk is None:
+                    raise ValidationError("missing primary key")
+                pk = JSONCodec.get(self.table.columns[self.table.pk]).decode(pk)
+                try:
+                    await self[pk].patch(doc)
+                except NotFoundError:
+                    new = JSONCodec.get(self.table.schema).decode(doc)
+                    validate(new, self.table.schema)
+                    await self.table.insert(new)
+
+    @query
+    async def find_pks(self, pks: set[PK]) -> list[R]:
+        """Return rows corresponding to the specified set of primary keys."""
+        if not pks:
+            return []
+        async with self.table.database.transaction():
+            return [
+                self.table.schema(**row)
+                async for row in self.table.select(
+                    where=Expression(
+                        f"{self.table.pk} IN (",
+                        Expression.join(
+                            (Param(pk, self.table.columns[self.table.pk]) for pk in pks), ", "
+                        ),
+                        ")",
+                    )
+                )
+            ]
+
+
+@resource
+class RowResource(Generic[R, PK]):
+    """
+    Resource that represents a row in a database table.
+
+    Parameters:
+    • table: table where row is located
+    • pk: primary key of row
+    • cache: resource to cache rows
+    """
+
+    def __init__(self, table: Table[R, PK], pk: PK, cache: CacheResource | None = None):
+        self.table = table
+        self.pk = pk
+        self._cache_entry = (
+            cache[
+                hash_json(
+                    {
+                        "database": self.table.database.__class__.__qualname__,
+                        "table": self.table.name,
+                        "pk": JSONCodec.get(self.table.columns[self.table.pk]).encode(self.pk),
+                    }
+                )
+            ]
+            if cache
+            else None
+        )
+
+    @operation
+    async def get(self) -> R:
+        """Get row from table."""
+        if self._cache_entry:
+            with suppress(NotFoundError):
+                return await self._cache_entry.get()
+        async with self.table.database.transaction():
+            row = await self.table.read(self.pk)
+        if not row:
+            raise NotFoundError
+        if self._cache_entry:
+            await self._cache_entry.put(row)
+        return row
+
+    @operation
+    async def put(self, value: R):
+        """Insert or update (upsert) row."""
+        if getattr(value, self.table.pk) != self.pk:
+            raise ValidationError("primary key mismatch")
+        async with self.table.database.transaction():
+            await self.table.upsert(value)
+        if self._cache_entry:
+            await self._cache_entry.put(value)
+
+    @operation
+    async def patch(self, body: dict[str, Any]):
+        """Modify row. Patch body is a JSON Merge Patch document."""
+        async with self.table.database.transaction():
+            old = await self.table.read(self.pk)
+            if not old:
+                raise NotFoundError
+            try:
+                new = json_merge_patch(value=old, type=self.table.schema, patch=body)
+            except DecodeError as de:
+                raise BadRequestError from de
+            validate(new, self.table.schema)
+            if getattr(new, self.table.pk) != self.pk:
+                raise ValidationError("primary key modified")
+            if old != new:
+                stmt = Expression(f"UPDATE {self.table.name} SET ")
+                updates = []
+                for name, python_type in self.table.columns.items():
+                    ofield = getattr(old, name)
+                    nfield = getattr(new, name)
+                    if ofield != nfield:
+                        updates.append(Expression(f"{name} = ", Param(nfield, python_type)))
+                stmt += Expression.join(updates, ", ")
+                stmt += Expression(
+                    f" WHERE {self.table.pk} = ",
+                    Param(self.pk, self.table.columns[self.table.pk]),
+                    ";",
+                )
+                await self.table.database.execute(stmt)
+            if self._cache_entry:
+                await self._cache_entry.put(new)
+
+    @operation
+    async def delete(self) -> None:
+        """Delete row."""
+        if self._cache_entry:
+            with suppress(NotFoundError):
+                await self._cache_entry.delete()
+        async with self.table.database.transaction():
+            await self.table.delete(self.pk)
+
+    @query
+    async def exists(self) -> bool:
+        """Return if row exists."""
+        if self._cache_entry:
+            with suppress(NotFoundError):
+                await self._cache_entry.get()
+                return True
+        where = Expression(
+            f"{self.table.pk} = ", Param(self.pk, self.table.columns[self.table.pk])
+        )
+        async with self.table.database.transaction():
+            return await self.table.count(where) != 0
 
 
 async def select(
@@ -189,7 +635,7 @@ async def select(
     offset: int | None = None,
     limit: int | None = None,
 ) -> AsyncIterator[dict[str, Any]]:
-    """DEPRECATED: USE `select_iterator` OR `select_page`."""
+    """Deprecated. Use select_iterator or select_page function."""
 
     cols = {}
     for column in columns:
@@ -238,8 +684,8 @@ async def select_iterator(
     order_by: Expression | None = None,
     offset: int | None = None,
     limit: int | None = None,
-    row_type: type[Row],
-) -> AsyncIterator[Row]:
+    row_type: type[T],
+) -> AsyncIterator[T]:
     """
     Execute a select statement, returning results through aynchronous row iterator.
 
@@ -390,504 +836,46 @@ async def select_page(
     return Page[item_type](items, cursor)
 
 
-class Table(Generic[T]):
-    """
-    Represents a table in a SQL database.
+def table_resource_class(
+    table: Table,
+    row_resource_type: Any = None,
+) -> Any:
+    """Deprecated. Use TableResource."""
 
-    Parameters and attributes:
-    • name: name of database table
-    • database: database where table is managed
-    • schema: dataclass representing the table schema
-    • pk: column name of primary key
+    if not row_resource_type:
+        row_resource_type = row_resource_class(table)
 
-    Attributes:
-    • columns: mapping of column names to ther associated types
-    """
+    class DeprecatedTableResource(TableResource):
+        def __init__(self):
+            super().__init__(table)
 
-    __slots__ = {"name", "database", "schema", "columns", "pk"}
+        def __getitem__(self, pk: Any) -> RowResource:
+            return row_resource_type(pk)
 
-    def __init__(self, name: str, database: Database, schema: type[T], pk: str):
-        self.name = name
-        self.database = database
-        schema = fondat.types.strip_annotations(schema)
-        if not is_dataclass(schema):
-            raise TypeError("table schema must be a dataclass")
-        self.schema = schema
-        self.columns = typing.get_type_hints(schema, include_extras=True)
-        if pk not in self.columns:
-            raise ValueError(f"primary key not in schema: {pk}")
-        self.pk = pk
-
-    def __repr__(self):
-        return f"Table(name={self.name}, schema={self.schema}, pk={self.pk})"
-
-    async def create(self, execute: bool = True) -> Expression:
-        """
-        Create table in database. Must be called within a database transaction context.
-        """
-        stmt = Expression(f"CREATE TABLE {self.name} (")
-        columns = []
-        for column_name, column_type in self.columns.items():
-            column = [column_name, self.database.sql_type(column_type)]
-            if column_name == self.pk:
-                column.append("PRIMARY KEY")
-            if not is_optional(column_type):
-                column.append("NOT NULL")
-            columns.append(" ".join(column))
-        stmt += Expression(", ".join(columns), ");")
-        if execute:
-            await self.database.execute(stmt)
-        return stmt
-
-    async def drop(self, execute: bool = True) -> Expression:
-        """
-        Drop table from database. Must be called within a database transaction context.
-        """
-        stmt = Expression(f"DROP TABLE {self.name};")
-        if execute:
-            await self.database.execute(stmt)
-        return stmt
-
-    async def select(
-        self,
-        *,
-        columns: Iterable[str] | str | None = None,
-        where: Expression | None = None,
-        order_by: Iterable[str] | str | None = None,
-        limit: int | None = None,
-        offset: int | None = None,
-    ) -> AsyncIterator[dict[str, Any]]:
-        """
-        Execute a SQL statement select rows from the table.
-
-        Parameters:
-        • columns: name(s) of column(s) to return, or None for all columns
-        • where: statement containing WHERE expression, or None to match all rows
-        • order_by: names of columns to order rows by, or None to not order rows
-        • limit: limit the number of rows returned, or None to not limit
-        • offset: number of rows to skip, or None to skip none
-
-        Returns an asynchronous iterable for rows in table that match the where expression.
-        Each row item is a dictionary that maps column name to value.
-
-        Must be called within a database transaction context.
-        """
-
-        if isinstance(columns, str):
-            columns = columns.replace(",", " ").split()
-
-        if order_by is not None and not isinstance(order_by, str):
-            order_by = ", ".join(order_by)
-
-        columns = TypedDict(
-            "Columns",
-            {column: self.columns[column] for column in columns} if columns else self.columns,
-        )
-
-        async for row in select(
-            database=self.database,
-            columns=[
-                (Expression(key), key, type)
-                for key, type in typing.get_type_hints(columns, include_extras=True).items()
-            ],
-            from_=Expression(self.name),
-            where=where,
-            order_by=Expression(order_by) if order_by is not None else None,
-            limit=limit,
-            offset=offset,
-        ):
-            yield row
-
-    async def count(self, where: Expression | None = None) -> int:
-        """
-        Return the number of rows in the table that match an optional expression.
-        Must be called within a database transaction context.
-
-        Parameters:
-        • where: expression to match; None to match all rows
-        """
-
-        stmt = Expression(f"SELECT COUNT(*) AS count FROM {self.name}")
-        if where:
-            stmt += Expression(" WHERE ", where)
-        stmt += ";"
-        result = await self.database.execute(stmt, TypedDict("Result", {"count": int}))
-        return (await anext(result))["count"]
-
-    async def insert(self, value: T):
-        """
-        Insert table row. Must be called within a database transaction context.
-        """
-        stmt = Expression(
-            f"INSERT INTO {self.name} (",
-            ", ".join(self.columns),
-            ") VALUES (",
-            Expression.join(
-                (
-                    Param(getattr(value, name), python_type)
-                    for name, python_type in self.columns.items()
-                ),
-                ", ",
-            ),
-            ");",
-        )
-        await self.database.execute(stmt)
-
-    async def read(self, key: Any) -> T:
-        """
-        Return a table row, or None if not found. Must be called within a database transaction
-        context.
-        """
-        try:
-            return self.schema(
-                **await anext(
-                    self.select(
-                        where=Expression(f"{self.pk} = ", Param(key, self.columns[self.pk])),
-                        limit=1,
-                    )
-                )
-            )
-        except StopAsyncIteration:
-            return None
-
-    async def update(self, value: T):
-        """
-        Update table row. Must be called within a database transaction context.
-        """
-        await self.database.execute(
-            Expression(
-                f"UPDATE {self.name} SET ",
-                Expression.join(
-                    (
-                        Expression(f"{name} = ", Param(getattr(value, name), python_type))
-                        for name, python_type in self.columns.items()
-                    ),
-                    ", ",
-                ),
-                f" WHERE {self.pk} = ",
-                Param(getattr(value, self.pk), self.columns[self.pk]),
-                ";",
-            )
-        )
-
-    async def delete(self, key: Any):
-        """
-        Delete table row. Must be called within a database transaction context.
-        """
-        await self.database.execute(
-            Expression(
-                f"DELETE FROM {self.name} WHERE {self.pk} = ",
-                Param(key, self.columns[self.pk]),
-                ";",
-            )
-        )
-
-    async def upsert(self, value: T):
-        """
-        Upsert table row. Must be called within a database transaction context.
-        This default implementation is inefficient; database-specific implementations
-        should override it.
-        """
-        if await self.read(getattr(value, self.pk)) is None:
-            await self.insert(value)
-        else:
-            await self.update(value)
-
-
-class Index:
-    """
-    Represents an index on a table in a SQL database.
-
-    Parameters:
-    • name: name of index
-    • table: table that the index defined for
-    • keys: index keys (typically column names with optional order)
-    • unique: is index unique
-    """
-
-    __slots__ = {"name", "table", "keys", "unique"}
-
-    def __init__(
-        self,
-        name: str,
-        table: Table,
-        keys: Iterable[str],
-        unique: bool = False,
-    ):
-        self.name = name
-        self.table = table
-        self.keys = keys
-        self.unique = unique
-
-    def __repr__(self):
-        return f"Index(name={self.name}, table={self.table}, keys={self.keys}, unique={self.unique})"
-
-    async def create(self, execute: bool = True) -> Expression:
-        """
-        Create index in database. Must be called within a database transaction context.
-        """
-        stmt = Expression("CREATE ")
-        if self.unique:
-            stmt += "UNIQUE "
-        stmt += Expression(
-            f"INDEX {self.name} ON {self.table.name} (",
-            ", ".join(self.keys),
-            ");",
-        )
-        if execute:
-            await self.table.database.execute(stmt)
-        return stmt
-
-    async def drop(self, execute: bool = True) -> Expression:
-        """
-        Drop index from database. Must be called within a database transaction context.
-        """
-        stmt = Expression(f"DROP INDEX {self.name};")
-        if execute:
-            await self.table.database.execute(stmt)
-        return stmt
+    return DeprecatedTableResource
 
 
 def row_resource_class(
     table: Table,
     cache_size: int = 0,
     cache_expire: int | float = 1,
-) -> type:
-    """
-    Return a base class for a row resource.
+) -> Any:
+    """Deprecated. Use RowResource."""
 
-    Parameters:
-    • table: table for which row resource is based
-    • cache_size: number of rows to cache (evict least recently cached)
-    • cache_expire: expire time for cached values in seconds
-    """
+    cache = None
+    if cache_size:
+        from fondat.memory import MemoryResource
 
-    pk_type = table.columns[table.pk]
-
-    cache = (
-        MemoryResource(
-            key_type=pk_type,
-            value_type=table.schema,
+        cache = MemoryResource(
+            key_type=bytes,
+            value_type=Any,
             size=cache_size,
             evict=True,
             expire=cache_expire,
         )
-        if cache_size
-        else None
-    )
 
-    @resource
-    class RowResource:
-        """Row resource."""
+    class DeprecatedRowResource(RowResource):
+        def __init__(self, pk: Any):
+            super().__init__(table=table, pk=pk, cache=cache)
 
-        def __init__(self, pk: pk_type):
-            self.table = table
-            self.pk = pk
-
-        async def _validate(self, value: table.schema):
-            """Validate value; raise ValidationError if invalid."""
-            validate(value, table.schema)
-
-        async def _read(self):
-            if cache:
-                with suppress(NotFoundError):
-                    return await cache[self.pk].get()
-            row = await table.read(self.pk)
-            if not row:
-                raise NotFoundError
-            if cache:
-                await cache[self.pk].put(row)
-            return row
-
-        async def _insert(self, value: table.schema):
-            if getattr(value, table.pk) != self.pk:
-                raise ValidationError("primary key mismatch")
-            await table.insert(value)
-            if cache:
-                await cache[self.pk].put(value)
-
-        async def _update(self, old: table.schema, new: table.schema):
-            if getattr(new, table.pk) != self.pk:
-                raise ValidationError("primary key modified")
-            if old != new:
-                stmt = Expression(f"UPDATE {table.name} SET ")
-                updates = []
-                for name, python_type in table.columns.items():
-                    ofield = getattr(old, name)
-                    nfield = getattr(new, name)
-                    if ofield != nfield:
-                        updates.append(Expression(f"{name} = ", Param(nfield, python_type)))
-                stmt += Expression.join(updates, ", ")
-                stmt += Expression(f" WHERE {table.pk} = ", Param(self.pk, pk_type), ";")
-                await table.database.execute(stmt)
-            if cache:
-                await cache[self.pk].put(new)
-
-        @operation
-        async def get(self) -> table.schema:
-            """Get row from table."""
-            if cache:
-                with suppress(NotFoundError):
-                    return await cache[self.pk].get()
-            async with table.database.transaction():
-                row = await table.read(self.pk)
-            if not row:
-                raise NotFoundError
-            if cache:
-                await cache[self.pk].put(row)
-            return row
-
-        @operation
-        async def put(self, value: table.schema):
-            """Insert or update (upsert) row."""
-            if getattr(value, table.pk) != self.pk:
-                raise ValidationError("primary key mismatch")
-            async with table.database.transaction():
-                await table.upsert(value)
-            if cache:
-                await cache[self.pk].put(value)
-
-        @operation
-        async def patch(self, body: dict[str, Any]):
-            """Modify row. Patch body is a JSON Merge Patch document."""
-            async with table.database.transaction():
-                old = await self._read()
-                try:
-                    new = json_merge_patch(value=old, type=table.schema, patch=body)
-                except DecodeError as de:
-                    raise BadRequestError from de
-                await self._validate(new)
-                await self._update(old, new)
-
-        @operation
-        async def delete(self) -> None:
-            """Delete row."""
-            if cache:
-                with suppress(NotFoundError):
-                    await cache[self.pk].delete()
-            async with table.database.transaction():
-                await table.delete(self.pk)
-
-        @query
-        async def exists(self) -> bool:
-            """Return if row exists."""
-            if cache:
-                with suppress(NotFoundError):
-                    await cache[self.pk].get()
-                    return True
-            where = Expression(f"{table.pk} = ", Param(self.pk, table.columns[table.pk]))
-            async with table.database.transaction():
-                return await table.count(where) != 0
-
-    fondat.types.affix_type_hints(RowResource, localns=locals())
-    return RowResource
-
-
-def table_resource_class(table: Table, row_resource_type: type | None = None) -> type:
-    """
-    Return a base class for a table resource.
-
-    Parameters:
-    • table: table for which table resource is based
-    • row_resource_type: type to instantiate for table row resource  [implict]
-    """
-
-    if row_resource_type is None:
-        row_resource_type = row_resource_class(table)
-
-    @datacls
-    class Page:
-        items: list[table.schema]
-        cursor: bytes | None = None
-
-    fondat.types.affix_type_hints(Page, localns=locals())
-
-    dc_codec = JSONCodec.get(table.schema)
-    pk_type = table.columns[table.pk]
-    pk_codec = JSONCodec.get(pk_type)
-    cursor_codec = BinaryCodec.get(pk_type)
-
-    class TableResource:
-        """Table resource."""
-
-        def __getitem__(self, pk: pk_type) -> row_resource_type:
-            return row_resource_type(pk)
-
-        def __init__(self):
-            self.table = table
-
-        @operation
-        async def get(
-            self,
-            limit: Annotated[int, MinValue(1)] = 1000,
-            cursor: bytes | None = None,
-        ) -> Page:
-            """Get paginated list of rows, ordered by primary key."""
-            if cursor is not None:
-                where = Expression(
-                    f"{table.pk} > ", Param(cursor_codec.decode(cursor), pk_type)
-                )
-            else:
-                where = None
-            async with table.database.transaction():
-                items = [
-                    table.schema(**result)
-                    async for result in table.select(
-                        order_by=table.pk, limit=limit, where=where
-                    )
-                ]
-                cursor = (
-                    cursor_codec.encode(getattr(items[-1], table.pk))
-                    if len(items) == limit
-                    else None
-                )
-            return Page(items=items, cursor=cursor)
-
-        @operation
-        async def patch(self, body: Iterable[dict[str, Any]]):
-            """
-            Insert and/or modify multiple rows in a single transaction.
-
-            Patch body is an iterable of JSON Merge Patch documents; each document must
-            contain the primary key of the row to patch.
-            """
-            async with table.database.transaction():
-                for doc in body:
-                    pk = doc.get(table.pk)
-                    if pk is None:
-                        raise ValidationError("missing primary key")
-                    row = row_resource_type(pk_codec.decode(pk))
-                    try:
-                        old = await row._read()
-                        try:
-                            new = json_merge_patch(value=old, type=table.schema, patch=doc)
-                        except DecodeError as de:
-                            raise BadRequestError from de
-                        await row._validate(new)
-                        await row._update(old, new)
-                    except NotFoundError:
-                        new = dc_codec.decode(doc)
-                        await row._validate(new)
-                        await row._insert(new)
-
-        @query
-        async def find_pks(self, pks: set[table.columns[table.pk]]) -> list[table.schema]:
-            """Return rows corresponding to the specified set of primary keys."""
-            if not pks:
-                return []
-            async with table.database.transaction():
-                return [
-                    table.schema(**row)
-                    async for row in table.select(
-                        where=Expression(
-                            f"{table.pk} IN (",
-                            Expression.join(
-                                (Param(pk, table.columns[table.pk]) for pk in pks), ", "
-                            ),
-                            ")",
-                        )
-                    )
-                ]
-
-    fondat.types.affix_type_hints(TableResource, localns=locals())
-    return TableResource
+    return DeprecatedRowResource
