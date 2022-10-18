@@ -1,7 +1,5 @@
 """Module to expose resources through HTTP."""
 
-#  TODO: In docstring, add description of routing through resource(s) to an operation.
-
 import asyncio
 import base64
 import fondat.error
@@ -16,7 +14,8 @@ import multidict
 import typing
 
 from collections import namedtuple
-from collections.abc import Callable, Iterable, MutableSequence
+from collections.abc import AsyncGenerator, Callable, Coroutine, Iterable, MutableSequence
+from dataclasses import dataclass, field
 from fondat.codec import BinaryCodec, DecodeError, StringCodec
 from fondat.error import (
     BadRequestError,
@@ -33,11 +32,13 @@ from typing import Annotated, Any, TypedDict
 _logger = logging.getLogger(__name__)
 
 
+# type aliases
 Headers = multidict.CIMultiDict
 Cookies = http.cookies.SimpleCookie
 Query = multidict.MultiDict
 
 
+@dataclass
 class Message:
     """
     Base class for HTTP request and response.
@@ -48,22 +49,12 @@ class Message:
     • body: stream message body, or None if no body
     """
 
-    def __init__(
-        self,
-        *,
-        headers: Headers | None = None,
-        cookies: Cookies | None = None,
-        body: Stream | None = None,
-    ):
-        super().__init__()
-        self.headers = headers or Headers()
-        self.cookies = cookies or Cookies()
-        self.body = body
-
-    def __repr__(self):
-        return f"Message(headers={self.headers}, cookies={self.cookies}, body={self.body})"
+    headers: Headers = field(default_factory=Headers)
+    cookies: Cookies = field(default_factory=Cookies)
+    body: Stream | None = None
 
 
+@dataclass
 class Request(Message):
     """
     HTTP request.
@@ -78,31 +69,13 @@ class Request(Message):
     • query: multi-value dictionary to store query string parameters
     """
 
-    def __init__(
-        self,
-        *,
-        headers: Headers | None = None,
-        cookies: Cookies | None = None,
-        body: Stream | None = None,
-        method: str = "GET",
-        path: str = "/",
-        version: str = "1.1",
-        query: Query | None = None,
-    ):
-        super().__init__(headers=headers, cookies=cookies, body=body)
-        self.method = method
-        self.path = path
-        self.version = version
-        self.query = query or Query()
-
-    def __repr__(self):
-        return (
-            f"Request(headers={self.headers}, cookies={self.cookies}, body={self.body}, "
-            f"method={self.method}, path={self.path}, version={self.version}, "
-            f"query={self.query})"
-        )
+    method: str = "GET"
+    path: str = "/"
+    version: str = "1.1"
+    query: Query = field(default_factory=Query)
 
 
+@dataclass
 class Response(Message):
     """
     HTTP response.
@@ -114,22 +87,13 @@ class Response(Message):
     • status: HTTP status code
     """
 
-    def __init__(
-        self,
-        *,
-        headers: Headers | None = None,
-        cookies: Cookies | None = None,
-        body: Stream | None = None,
-        status: int = http.HTTPStatus.OK.value,
-    ):
-        super().__init__(headers=headers, cookies=cookies, body=body)
-        self.status = status
+    status: int = http.HTTPStatus.OK.value
 
-    def __repr__(self):
-        return (
-            f"Response(headers={self.headers}, cookies={self.cookies}, body={self.body}, "
-            f"status={self.status})"
-        )
+
+Filter = (
+    AsyncGenerator[Request, Response | None]
+    | Callable[[Request], Coroutine[Any, Any, Response | None]]
+)
 
 
 class Chain:
@@ -142,7 +106,7 @@ class Chain:
     A filter is either a coroutine function or an asynchronous generator.
 
     A coroutine function filter can inspect and modify a request, and:
-    • return no value to indicate that the filter passed; processing continues down the chain
+    • return None to indicate that the filter passed; processing continues down the chain
     • return a response; the request is not processed by any subsequent filters or handler
 
     An asynchronous generator filter can inspect and modify a request, and:
@@ -156,9 +120,9 @@ class Chain:
     • yield a new response; this response is passed back up the chain to the caller
     """
 
-    def __init__(self, *, filters: MutableSequence[Callable] | None = None, handler: Callable):
+    def __init__(self, *, filters: MutableSequence[Filter] | None = None, handler: Callable):
         """Initialize a filter chain."""
-        self.filters = filters  # concrete and mutable
+        self.filters = filters
         self.handler = handler
 
     async def __call__(self, request: Request) -> Response:
@@ -332,7 +296,7 @@ async def _subordinate(resource, segment: str):
 
 class InQuery:
     """
-    Annotation to indicate an operation parameter is expected in a request query string
+    Annotation to indicate an operation parameter is expected in an HTTP request query string
     parameter. This is the default annotation for query operation parameters.
 
     If the InQuery class is used as the annotation instead of an InQuery(name=...) instance,
@@ -356,8 +320,8 @@ class InQuery:
 
 class InBody:
     """
-    Annotation to indicate an operation parameter is expected in a body parameter. This is the
-    default annotation for mutation operation parameters.
+    Annotation to indicate an operation parameter is expected in an HTTP body parameter.
+    This is the default annotation for post operation parameters.
 
     If the InBody class is used as the annotation instead of an InBody(name=...) instance,
     then the name of the body parameter will be the name of the operation parameter.
@@ -379,7 +343,10 @@ class InBody:
 
 
 class AsBody:
-    """Annotation to indicate an operation parameter is expected to be the request body."""
+    """
+    Annotation to indicate an operation parameter is expected to be the HTTP request body.
+    This is the default annotation for the put operation parameter.
+    """
 
     def __str__(self):
         return f"request body"
@@ -388,7 +355,7 @@ class AsBody:
         return "AsBody"
 
 
-def get_param_in(method, param_name, type_hint):
+def get_param_in(method: Any, param_name: str, type_hint: Any) -> InQuery | InBody | AsBody:
     """
     Return an annotation expressing where a parameter is to be provided.
 
@@ -415,7 +382,7 @@ def get_param_in(method, param_name, type_hint):
 
 
 @functools.cache
-def get_body_type(operation):
+def get_body_type(operation: Any):
     """Return the type of the request body for the specified operation."""
     signature = inspect.signature(operation)
     type_hints = typing.get_type_hints(operation, include_extras=True)
@@ -470,7 +437,7 @@ async def simple_error_filter(request: Request):
         yield response
 
 
-async def _decode_body(operation, request):
+async def _decode_body(operation: Any, request: Request):
     body_type = get_body_type(operation)
     if not body_type:
         return None
@@ -502,15 +469,15 @@ class Application:
     • filters: filters to apply during HTTP request processing
     • path: URI path to root resource
 
-    An HTTP application is a request handler; it's a coroutine callable that handles an HTTP
-    request and returns an HTTP response. For a description of filters, see: Chain.
+    An HTTP application is a request handler; it's a coroutine that handles an HTTP request
+    and returns an HTTP response. For a description of filters, see: Chain.
     """
 
     def __init__(
         self,
-        root: Any,
+        root: type,
         *,
-        filters: Iterable[Any] = (simple_error_filter,),
+        filters: Iterable[Filter] = (simple_error_filter,),
         path: str = "/",
     ):
         if not fondat.resource.is_resource(root):
