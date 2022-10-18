@@ -623,56 +623,6 @@ class RowResource(Generic[R, PK]):
             return await self.table.count(where) != 0
 
 
-async def select(
-    *,
-    database: Database,
-    columns: Iterable[tuple[Expression, str, Any]],
-    from_: Expression | None = None,
-    where: Expression | None = None,
-    group_by: Expression | None = None,
-    having: Expression | None = None,
-    order_by: Expression | None = None,
-    offset: int | None = None,
-    limit: int | None = None,
-) -> AsyncIterator[dict[str, Any]]:
-    """Deprecated. Use select_iterator or select_page function."""
-
-    cols = {}
-    for column in columns:
-        name = _to_identifier(column[1])
-        while name in cols:
-            name += "_"
-        cols[name] = column
-    stmt = Expression("SELECT ")
-    exprs = []
-    for k, v in cols.items():
-        expr = Expression(v[0])
-        if len(v[0]) != 1 or k != v[0].fragments[0]:
-            expr += f" AS {k}"
-        exprs.append(expr)
-    stmt += Expression.join(exprs, ", ")
-    if from_ is not None:
-        stmt += Expression(" FROM ", from_)
-    if where is not None:
-        stmt += Expression(" WHERE ", where)
-    if group_by is not None:
-        stmt += Expression(" GROUP BY ", group_by)
-    if having is not None:
-        stmt += Expression(" HAVING ", having)
-    if order_by is not None:
-        stmt += Expression(" ORDER BY ", order_by)
-    if limit:
-        stmt += f" LIMIT {limit}"
-    if offset:
-        stmt += f" OFFSET {offset}"
-    stmt += ";"
-    rows = await database.execute(
-        stmt, TypedDict("Columns", {k: v[2] for k, v in cols.items()})
-    )
-    async for row in rows:
-        yield {cols[k][1]: v for k, v in row.items()}
-
-
 async def select_iterator(
     *,
     database: Database,
@@ -879,3 +829,53 @@ def row_resource_class(
             super().__init__(table=table, pk=pk, cache=cache)
 
     return DeprecatedRowResource
+
+
+async def select(
+    *,
+    database: Database,
+    columns: Iterable[tuple[Expression, str, Any]],
+    from_: Expression | None = None,
+    where: Expression | None = None,
+    group_by: Expression | None = None,
+    having: Expression | None = None,
+    order_by: Expression | None = None,
+    offset: int | None = None,
+    limit: int | None = None,
+) -> AsyncIterator[dict[str, Any]]:
+    """Deprecated. Use select_iterator or select_page function."""
+
+    cols = {}
+    for column in columns:
+        name = _to_identifier(column[1])
+        while name in cols:
+            name += "_"
+        cols[name] = column
+    stmt = Expression("SELECT ")
+    exprs = []
+    for k, v in cols.items():
+        expr = Expression(v[0])
+        if len(v[0]) != 1 or k != v[0].fragments[0]:
+            expr += f" AS {k}"
+        exprs.append(expr)
+    stmt += Expression.join(exprs, ", ")
+    if from_ is not None:
+        stmt += Expression(" FROM ", from_)
+    if where is not None:
+        stmt += Expression(" WHERE ", where)
+    if group_by is not None:
+        stmt += Expression(" GROUP BY ", group_by)
+    if having is not None:
+        stmt += Expression(" HAVING ", having)
+    if order_by is not None:
+        stmt += Expression(" ORDER BY ", order_by)
+    if limit:
+        stmt += f" LIMIT {limit}"
+    if offset:
+        stmt += f" OFFSET {offset}"
+    stmt += ";"
+    rows = await database.execute(
+        stmt, TypedDict("Columns", {k: v[2] for k, v in cols.items()})
+    )
+    async for row in rows:
+        yield {cols[k][1]: v for k, v in row.items()}
