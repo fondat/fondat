@@ -7,10 +7,12 @@ import fondat.sqlite as sqlite
 import pytest
 import tempfile
 
+from dataclasses import dataclass
 from datetime import date, datetime
 from fondat.data import datacls, make_datacls
+from fondat.memory import MemoryResource
 from fondat.sql import Expression
-from typing import Literal, TypedDict
+from typing import Any, Literal, TypedDict
 from uuid import UUID, uuid4
 
 
@@ -194,7 +196,7 @@ async def test_select_order_by(table):
 
 async def test_resource_crud(table):
     pk = uuid4()
-    resource = sql.table_resource_class(table, sql.row_resource_class(table))()[pk]
+    resource = sql.TableResource(table)[pk]
     row = DC(
         key=pk,
         str_="string",
@@ -234,7 +236,7 @@ async def test_resource_crud(table):
 
 async def test_resource_patch(table):
     pk = uuid4()
-    resource = sql.table_resource_class(table, sql.row_resource_class(table))()[pk]
+    resource = sql.TableResource(table)[pk]
     row = DC(
         key=pk,
         str_="string",
@@ -257,19 +259,19 @@ async def test_resource_patch(table):
 
 async def test_resource_patch_small(table):
     pk = uuid4()
-    resource = sql.table_resource_class(table, sql.row_resource_class(table))()[pk]
+    resource = sql.TableResource(table)[pk]
     row = DC(key=pk, str_="string")
     await resource.put(row)
     patch = {"str_": "strung"}
     await resource.patch(patch)
-    resource = sql.table_resource_class(table, sql.row_resource_class(table))()[pk]
+    resource = sql.TableResource(table)[pk]
     row = await resource.get()
     assert row.str_ == "strung"
 
 
 async def test_resource_put_invalid_pk(table):
     pk = uuid4()
-    resource = sql.table_resource_class(table, sql.row_resource_class(table))()[pk]
+    resource = sql.TableResource(table)[pk]
     row = DC(key=uuid4(), str_="string")  # different pk
     with pytest.raises(fondat.error.BadRequestError):
         await resource.put(row)
@@ -277,7 +279,7 @@ async def test_resource_put_invalid_pk(table):
 
 async def test_resource_patch_pk(table):
     pk = uuid4()
-    resource = sql.table_resource_class(table, sql.row_resource_class(table))()[pk]
+    resource = sql.TableResource(table)[pk]
     row = DC(key=pk, str_="string")
     await resource.put(row)
     patch = {"key": str(uuid4())}  # modify pk
@@ -298,7 +300,7 @@ async def test_gather(database):
 
 
 async def test_resource_list(table):
-    resource = sql.table_resource_class(table, sql.row_resource_class(table))()
+    resource = sql.TableResource(table)
     count = 5
     for n in range(0, count):
         key = uuid4()
@@ -332,7 +334,7 @@ async def test_table_patch(database):
         await table.insert(DC(id="a", s="aaa"))
         await table.insert(DC(id="b", s="aaa"))
         await table.insert(DC(id="c", s="aaa"))
-        resource = sql.table_resource_class(table)()
+        resource = sql.TableResource(table)
         await resource.patch(
             [
                 {"id": "a", "s": "bbb"},
@@ -350,41 +352,41 @@ async def test_table_patch(database):
 
 
 async def test_get_cache(table: sqlite.Table):
-    resource_class = sql.row_resource_class(table, cache_size=10, cache_expire=10)
+    cache = MemoryResource(key_type=bytes, value_type=Any, size=10, expire=10, evict=True)
     key = UUID("14f6a6b0-e4d7-4f3f-bb8c-66076fd6fce9")
     row = DC(key=key, str_=str(key))
     async with table.database.transaction():
         await table.insert(row)
-    assert await resource_class(key).get() == row  # caches row
+    assert await sql.RowResource(table, key, cache).get() == row  # caches row
     async with table.database.transaction():
         await table.delete(key)
-    assert await resource_class(key).get() == row  # still cached
+    assert await sql.RowResource(table, key, cache).get() == row  # still cached
     async with table.database.transaction():
         await table.delete(key)
 
 
 async def test_put_get_cache(table: sqlite.Table):
-    resource_class = sql.row_resource_class(table, cache_size=10, cache_expire=10)
+    cache = MemoryResource(key_type=bytes, value_type=Any, size=10, expire=10, evict=True)
     key = UUID("b616303b-1278-4209-8397-4fab852c8959")
     row = DC(key=key, str_=str(key))
-    await resource_class(key).put(row)  # caches row
+    await sql.RowResource(table, key, cache).put(row)  # caches row
     async with table.database.transaction():
         await table.delete(key)
-    assert await resource_class(key).get() == row  # still cached
+    assert await sql.RowResource(table, key, cache).get() == row  # still cached
 
 
 async def test_delete_cache(table: sqlite.Table):
-    resource_class = sql.row_resource_class(table, cache_size=10, cache_expire=10)
+    cache = MemoryResource(key_type=bytes, value_type=Any, size=10, expire=10, evict=True)
     key = UUID("38340a23-e11a-412b-b20a-22dd7fc3d316")
     row = DC(key=key, str_=str(key))
-    await resource_class(key).put(row)  # caches row
-    await resource_class(key).delete()  # deletes cached row
+    await sql.RowResource(table, key, cache).put(row)  # caches row
+    await sql.RowResource(table, key, cache).delete()  # deletes cached row
     with pytest.raises(fondat.error.NotFoundError):
-        await resource_class(key).get()
+        await sql.RowResource(table, key, cache).get()
 
 
 async def test_get_cache_evict(table: sqlite.Table):
-    resource_class = sql.row_resource_class(table, cache_size=1, cache_expire=10)
+    cache = MemoryResource(key_type=bytes, value_type=Any, size=1, expire=10, evict=True)
     key1 = UUID("16ed1e46-a111-414c-b05c-99a8b876afd0")
     row1 = DC(key=key1, str_=str(key1))
     async with table.database.transaction():
@@ -393,20 +395,19 @@ async def test_get_cache_evict(table: sqlite.Table):
     row2 = DC(key=key2, str_=str(key2))
     async with table.database.transaction():
         await table.insert(row2)
-    assert await resource_class(key1).get() == row1
-    assert await resource_class(key2).get() == row2
+    assert await sql.RowResource(table, key1, cache).get() == row1
+    assert await sql.RowResource(table, key2, cache).get() == row2
     async with table.database.transaction():
         await table.delete(key1)
         await table.delete(key2)
     with pytest.raises(fondat.error.NotFoundError):
-        await resource_class(key1).get() == row1  # evicted
-    assert await resource_class(key2).get() == row2  # still cached
+        await sql.RowResource(table, key1, cache).get() == row1  # evicted
+    assert await sql.RowResource(table, key2, cache).get() == row2  # still cached
 
 
 async def test_exists_no_cache(table):
-    resource_class = sql.row_resource_class(table)
     key = uuid4()
-    resource = resource_class(key)
+    resource = sql.RowResource(table, key)
     row = DC(key=key, str_=str(key))
     assert not await resource.exists()
     await resource.put(row)
@@ -414,26 +415,28 @@ async def test_exists_no_cache(table):
 
 
 async def test_exists_cache(table):
-    resource_class = sql.row_resource_class(table, cache_size=10, cache_expire=10)
+    cache = MemoryResource(key_type=bytes, value_type=Any, size=10, expire=10, evict=True)
     key = uuid4()
-    resource = resource_class(key)
+    resource = sql.RowResource(table, key, cache)
     row = DC(key=key, str_=str(key))
     assert not await resource.exists()
     await resource.put(row)
     assert await resource.exists()
 
 
-async def test_database_select(database: sql.Database):
+async def test_select_iterator(database: sql.Database):
+    row_type = TypedDict("Row", {"name.is.here": int})
     async with database.transaction():
         await database.execute(sql.Expression("CREATE TABLE foo (n int);"))
         for n in range(10):
             await database.execute(sql.Expression(f"INSERT INTO foo VALUES ({n});"))
     try:
         async with database.transaction():
-            async for row in sql.select(
+            async for row in sql.select_iterator(
                 database=database,
-                columns=((sql.Expression("n"), "name.is.here", int),),
+                columns={"name.is.here": Expression("n")},
                 from_=sql.Expression("foo"),
+                row_type=row_type,
             ):
                 assert row["name.is.here"] >= 0
     finally:
@@ -447,7 +450,7 @@ def test_param():
 
 
 async def test_find_pks(table):
-    resource = sql.table_resource_class(table, sql.row_resource_class(table))()
+    resource = sql.TableResource(table)
     keys = {uuid4() for _ in range(10)}
     async with table.database.transaction():
         for key in keys:
@@ -472,7 +475,7 @@ async def test_mixed_literal():
 
 async def test_select_page_iterator(database, table):
     Item = make_datacls("Item", fields=[("key", UUID), ("int_", int)])
-    resource = sql.table_resource_class(table, sql.row_resource_class(table))()
+    resource = sql.TableResource(table)
     async with database.transaction():
         for n in range(12):
             key = uuid4()
@@ -491,7 +494,7 @@ async def test_select_page_iterator(database, table):
 
 async def test_select_page_iterator_alias(database, table):
     Item = TypedDict("Item", {"key": UUID, "not-identifier": int})
-    resource = sql.table_resource_class(table, sql.row_resource_class(table))()
+    resource = sql.TableResource(table)
     async with database.transaction():
         for n in range(12):
             key = uuid4()
@@ -510,7 +513,7 @@ async def test_select_page_iterator_alias(database, table):
 
 async def test_select_page_synced(database, table):
     Item = make_datacls("Item", fields=[("key", UUID), ("int_plus_one", int)])
-    resource = sql.table_resource_class(table, sql.row_resource_class(table))()
+    resource = sql.TableResource(table)
     async with database.transaction():
         for n in range(12):
             key = uuid4()
@@ -555,7 +558,7 @@ async def test_select_page_synced(database, table):
 
 async def test_select_page_broken_sync(database, table):
     Item = make_datacls("Item", fields=[("key", UUID), ("int_", int)])
-    resource = sql.table_resource_class(table, sql.row_resource_class(table))()
+    resource = sql.TableResource(table)
     async with database.transaction():
         for n in range(1, 13):
             key = uuid4()

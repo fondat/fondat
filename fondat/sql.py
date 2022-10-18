@@ -24,7 +24,7 @@ from fondat.resource import operation, query, resource
 from fondat.types import is_optional
 from fondat.validation import MinValue, ValidationError, validate
 from functools import partial
-from typing import Annotated, Any, Generic, Protocol, TypedDict, TypeVar
+from typing import Annotated, Any, Generic, TypedDict, TypeVar
 
 
 _logger = logging.getLogger(__name__)
@@ -140,8 +140,8 @@ def _to_identifier(value: str):
     return re.sub(r"[^A-Za-z_]", "_", value)
 
 
-class Database(Protocol):
-    """Prototype or base class for a SQL database."""
+class Database:
+    """Base class for a SQL database."""
 
     async def execute(
         self,
@@ -272,25 +272,21 @@ class Table(Generic[R, PK]):
         if isinstance(columns, str):
             columns = columns.replace(",", " ").split()
 
+        if columns is None:
+            columns = self.columns.keys()
+
         if order_by is not None and not isinstance(order_by, str):
             order_by = ", ".join(order_by)
 
-        columns = TypedDict(
-            "Columns",
-            {column: self.columns[column] for column in columns} if columns else self.columns,
-        )
-
-        async for row in select(
+        async for row in select_iterator(
             database=self.database,
-            columns=[
-                (Expression(key), key, type)
-                for key, type in typing.get_type_hints(columns, include_extras=True).items()
-            ],
+            columns={column: Expression(column) for column in columns},
             from_=Expression(self.name),
             where=where,
             order_by=Expression(order_by) if order_by is not None else None,
             limit=limit,
             offset=offset,
+            row_type=TypedDict("Row", {c: self.columns[c] for c in columns}),
         ):
             yield row
 
@@ -665,23 +661,12 @@ async def select_iterator(
     Must be called within a database transaction context.
     """
 
-    aliases = {}
-    for name in columns:
-        alias = name
-        if not alias.isidentifier():
-            alias = re.sub(r"[^A-Za-z_]", "_", alias)
-        while alias in aliases.values():
-            alias += "_"
-        if alias != name:
-            aliases[name] = alias
-
     stmt = Expression("SELECT ")
 
     exprs = []
     for name, expr in columns.items():
-        name = aliases.get(name, name)
         exprs.append(
-            expr if len(expr) == 1 and expr[0] == name else Expression(expr, " AS ", name)
+            expr if len(expr) == 1 and expr[0] == name else Expression(expr, f' AS "{name}"')
         )
     stmt += Expression.join(exprs, ",")
 
@@ -702,21 +687,7 @@ async def select_iterator(
 
     stmt += ";"
 
-    result_type = (
-        row_type
-        if not aliases
-        else TypedDict(
-            "Row",
-            **{
-                aliases.get(name, name): type for name, type in row_type.__annotations__.items()
-            },
-        )
-    )
-
-    async for row in await database.execute(stmt, result_type):
-        if result_type is not row_type:
-            row = row_type(**{name: row[aliases.get(name, name)] for name in columns})
-        validate(row, row_type)
+    async for row in await database.execute(stmt, row_type):
         yield row
 
 

@@ -16,6 +16,7 @@ from contextlib import asynccontextmanager
 from fondat.codec import Codec, DecodeError, EncodeError
 from fondat.sql import Expression, Param
 from fondat.types import is_optional, is_subclass, literal_values, strip_annotations
+from fondat.validation import validate
 from types import NoneType
 from typing import Any, Literal, TypeVar
 
@@ -23,7 +24,7 @@ from typing import Any, Literal, TypeVar
 _logger = logging.getLogger(__name__)
 
 
-T = TypeVar("T")  # generic type variable
+T = TypeVar("T")  # generic
 R = TypeVar("R")  # row type
 PT = TypeVar("PT")  # Python type
 ST = TypeVar("ST")  # SQL type
@@ -212,12 +213,13 @@ class _Results(AsyncIterator[T]):
 
     async def __anext__(self) -> T:
         row = await anext(self.rows)
-        return self.result(**{k: self.codecs[k].decode(row[k]) for k in self.codecs})
-
-
-@asynccontextmanager
-async def _async_null_context():
-    yield
+        build = {}
+        for key in self.codecs:
+            with DecodeError.path_on_error(key):
+                build[key] = self.codecs[key].decode(row[key])
+        result = self.result(**build)
+        validate(result, self.result)
+        return result
 
 
 class Database(fondat.sql.Database):
