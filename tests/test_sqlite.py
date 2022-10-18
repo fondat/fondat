@@ -597,3 +597,23 @@ async def test_select_page_broken_sync(database, table):
         assert page.items[0].int_ == 11
         assert page.items[-1].int_ == 12
         assert page.cursor is None
+
+
+async def test_patch_multi(database, table):
+    keys1 = [uuid4() for _ in range(10)]
+    keys2 = [uuid4() for _ in range(10)]
+    resource = sql.TableResource(table)
+    async with database.transaction():
+        for key in keys1:
+            await resource[key].put(DC(key=key, str_="a"))
+        patch = [{"key": str(key), "str_": "b"} for key in keys1]
+        await resource.patch(body=patch)
+        for key in keys1:
+            row = await resource[key].get()
+            assert row.str_ == "b"
+        patch = [{"key": str(key), "str_": "c"} for key in keys2]
+        await resource.patch(body=patch)
+        for key in keys2:
+            row = await resource[key].get()
+            assert row.str_ == "c"
+        assert await resource.table.count() == 20

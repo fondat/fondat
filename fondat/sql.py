@@ -499,7 +499,7 @@ class TableResource(Generic[R, PK]):
                     raise ValidationError("missing primary key")
                 pk = JSONCodec.get(self.table.columns[self.table.pk]).decode(pk)
                 try:
-                    await self[pk].patch(doc)
+                    await self[pk].patch({k: v for k, v in doc.items() if k != self.table.pk})
                 except NotFoundError:
                     new = JSONCodec.get(self.table.schema).decode(doc)
                     validate(new, self.table.schema)
@@ -581,6 +581,8 @@ class RowResource(Generic[R, PK]):
     async def patch(self, body: dict[str, Any]):
         """Modify row. Patch body is a JSON Merge Patch document."""
         async with self.table.database.transaction():
+            if self.table.pk in body:
+                raise ValidationError(f"cannot patch field: {self.table.pk}")
             old = await self.table.read(self.pk)
             if not old:
                 raise NotFoundError
@@ -589,8 +591,6 @@ class RowResource(Generic[R, PK]):
             except DecodeError as de:
                 raise BadRequestError from de
             validate(new, self.table.schema)
-            if getattr(new, self.table.pk) != self.pk:
-                raise ValidationError("primary key modified")
             if old != new:
                 stmt = Expression(f"UPDATE {self.table.name} SET ")
                 updates = []
