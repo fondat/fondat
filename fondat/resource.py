@@ -14,16 +14,15 @@ import asyncio
 import fondat.context as context
 import fondat.monitor as monitor
 import functools
-import hashlib
 import inspect
-import json
 import logging
 import types
 import wrapt
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from contextlib import contextmanager
 from copy import deepcopy
+from fondat.cache import CacheResource, hash_json
 from fondat.codec import JSONCodec
 from fondat.error import BadRequestError, ForbiddenError, UnauthorizedError
 from fondat.security import Policy
@@ -38,7 +37,7 @@ T = TypeVar("T")
 _logger = logging.getLogger(__name__)
 
 
-def _summary(function):
+def _summary(function: Callable[..., Any]) -> str:
     """
     Derive summary information from a function's docstring or name. The summary is the first
     sentence of the docstring, ending in a period, or if no dostring is present, the
@@ -52,13 +51,6 @@ def _summary(function):
         if word.endswith("."):
             break
     return " ".join(result)
-
-
-def _hash_json(key: Any) -> bytes:
-    """
-    Return a deterministic, unique hash value for a given JSON object model value.
-    """
-    return hashlib.sha256(json.dumps(key, sort_keys=True).encode()).digest()
 
 
 async def authorize(policies: Iterable[Policy]):
@@ -115,7 +107,7 @@ _methods = literal_values(Method)
 
 
 @contextmanager
-def _suppress_and_log():
+def _log_and_suppress():
     try:
         yield
     except Exception as exception:
@@ -124,15 +116,15 @@ def _suppress_and_log():
 
 @validate_arguments
 def operation(
-    wrapped=None,
+    wrapped: T = None,
     *,
     method: Method | None = None,
     type: Literal["query", "mutation"] | None = None,
     policies: Iterable[Policy] | None = None,
     publish: bool = True,
     deprecated: bool = False,
-    cache: Any | None = None,
-):
+    cache: CacheResource | None = None,
+) -> T:
     """
     Decorate a resource coroutine as an operation.
 
@@ -215,9 +207,9 @@ def operation(
                 async with monitor.timer(name="operation_duration", tags=tags):
                     await authorize(operation.policies)
                     if cache:
-                        with _suppress_and_log():
+                        with _log_and_suppress():
                             cache_entry = cache[
-                                _hash_json(
+                                hash_json(
                                     tags | {"arguments": JSONCodec.get(Any).encode(arguments)}
                                 )
                             ]
@@ -227,7 +219,7 @@ def operation(
                     except ValidationError as ve:
                         raise BadRequestError from ve
                     if cache:
-                        with _suppress_and_log():
+                        with _log_and_suppress():
                             await cache_entry.put(JSONCodec.get(returns).encode(result))
                     return result
 
@@ -245,7 +237,7 @@ def operation(
     return wrapper(wrapped)
 
 
-def query(wrapped=None, *, method: str = "get", **kwargs):
+def query(wrapped: T | None = None, *, method: str = "get", **kwargs) -> T:
     """Decorator to define a query operation."""
 
     if wrapped is None:
@@ -258,7 +250,7 @@ def query(wrapped=None, *, method: str = "get", **kwargs):
     return operation(wrapped, type="query", method=method, **kwargs)
 
 
-def mutation(wrapped=None, *, method: str = "post", **kwargs):
+def mutation(wrapped: T | None = None, *, method: str = "post", **kwargs) -> T:
     """Decorator to define an mutation operation."""
 
     if wrapped is None:
