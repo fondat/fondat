@@ -263,29 +263,37 @@ def mutation(wrapped: T | None = None, *, method: str = "post", **kwargs) -> T:
     return operation(wrapped, type="mutation", method=method, **kwargs)
 
 
+@resource
+class ContainerResource:
+    """
+    Resource to contain subordinate resources.
+
+    Parameter:
+    • subordinates: mapping of names to subordinate resource objects
+    """
+
+    def __init__(self, subordinates: Mapping[str, type]):
+        self.__subordinates = subordinates
+
+    def __getattr__(self, name):
+        try:
+            return self.__subordinates[name]
+        except KeyError:
+            raise AttributeError(f"no such resource: {name}")
+
+    def __dir__(self):
+        return [*super().__dir__(), *self.__subordinates.keys()]
+
+
 def container_resource(resources: Mapping[str, Any], tag: str | None = None):
-    """
-    Create a resource to contain subordinate resources.
-
-    Parameters:
-    • resources: mapping of resource names to resource objects
-    • tag: tag to group the resource
-
-    Suborindates are accessed as attributes by name.
-    """
+    """Deprecated. Use ContainerResource."""
 
     @resource(tag=tag)
-    class Container:
-        def __getattr__(self, name):
-            try:
-                return resources[name]
-            except KeyError:
-                raise AttributeError(f"no such resource: {name}")
+    class DeprecatedContainerResource(ContainerResource):
+        def __init__(self):
+            super().__init__(subordinates=resources)
 
-        def __dir__(self):
-            return [*super().__dir__(), *resources.keys()]
-
-    return Container()
+    return DeprecatedContainerResource()
 
 
 def is_resource(obj_or_type: Any) -> bool:
