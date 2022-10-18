@@ -209,7 +209,12 @@ class Table(Generic[R, PK]):
 
     async def create(self, execute: bool = True) -> Expression:
         """
-        Create table in database. Must be called within a database transaction context.
+        Generate statement to create table in database.
+
+        Parameters:
+        • execute: execute statement
+
+        Statement must be executed within a database transaction context.
         """
         stmt = Expression(f"CREATE TABLE {self.name} (")
         columns = []
@@ -227,7 +232,12 @@ class Table(Generic[R, PK]):
 
     async def drop(self, execute: bool = True) -> Expression:
         """
-        Drop table from database. Must be called within a database transaction context.
+        Generate statement to drop table from database.
+
+        Parameters:
+        • execute: execute statement
+
+        Statement must be executed within a database transaction context.
         """
         stmt = Expression(f"DROP TABLE {self.name};")
         if execute:
@@ -379,6 +389,7 @@ class Table(Generic[R, PK]):
             await self.update(value)
 
 
+@dataclass
 class Index:
     """
     Represents an index on a table in a SQL database.
@@ -390,26 +401,19 @@ class Index:
     • unique: is index unique
     """
 
-    __slots__ = {"name", "table", "keys", "unique"}
-
-    def __init__(
-        self,
-        name: str,
-        table: Table,
-        keys: Iterable[str],
-        unique: bool = False,
-    ):
-        self.name = name
-        self.table = table
-        self.keys = keys
-        self.unique = unique
-
-    def __repr__(self):
-        return f"Index(name={self.name}, table={self.table}, keys={self.keys}, unique={self.unique})"
+    name: str
+    table: Table
+    keys: Iterable[str]
+    unique: bool = False
 
     async def create(self, execute: bool = True) -> Expression:
         """
-        Create index in database. Must be called within a database transaction context.
+        Generate statement to create index in database.
+
+        Parameters:
+        • execute: execute statement
+
+        Statement must be executed within a database transaction context.
         """
         stmt = Expression("CREATE ")
         if self.unique:
@@ -425,7 +429,12 @@ class Index:
 
     async def drop(self, execute: bool = True) -> Expression:
         """
-        Drop index from database. Must be called within a database transaction context.
+        Generate statement to drop index from database.
+
+        Parameters:
+        • execute: execute statement
+
+        Statement must be executed within a database transaction context.
         """
         stmt = Expression(f"DROP INDEX {self.name};")
         if execute:
