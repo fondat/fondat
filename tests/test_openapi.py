@@ -6,7 +6,7 @@ from datetime import date
 from fondat.annotation import Deprecated, Description, Example, Format, ReadOnly
 from fondat.codec import JSONCodec
 from fondat.data import datacls
-from fondat.openapi import generate_openapi, openapi_resource
+from fondat.openapi import OpenAPIResource, generate_openapi
 from fondat.resource import container_resource, mutation, operation, query, resource
 from fondat.security import Policy
 from fondat.validation import Pattern, validate
@@ -221,7 +221,7 @@ def test_generate():
 async def test_resource():
     info = fondat.openapi.Info(title="title", version="version")
     root = Root()
-    resource = openapi_resource(resource=root, info=info)
+    resource = OpenAPIResource(resource=root, info=info)
     result = await resource.get()
     validate(result, fondat.openapi.OpenAPI)
     assert generate_openapi(resource=root, info=info) == result
@@ -247,7 +247,7 @@ async def test_nested_containers():
 
 def test_openapi_generate_openapi_specification():
     info = fondat.openapi.Info(title="title", version="version")
-    root = openapi_resource(resource=None, info=info, publish=True)
+    root = OpenAPIResource(resource=None, info=info)
     result = generate_openapi(resource=root, info=info)
     validate(result, fondat.openapi.OpenAPI)
     js = JSONCodec.get(fondat.openapi.OpenAPI).encode(result)

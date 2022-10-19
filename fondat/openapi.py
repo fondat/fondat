@@ -903,6 +903,40 @@ def generate_openapi(*, resource: type, path: str = "/", info: Info) -> OpenAPI:
     return openapi
 
 
+@fondat.resource.resource
+class OpenAPIResource:
+    """
+    Resource that provides an OpenAPI document for a given resource. Its get operation is
+    unpublished.
+
+    Parameters:
+    • resource: resource to generate OpenAPI document for
+    • path: URI path to resource
+    • info: provides metadata about the API
+    """
+
+    def __init__(
+        self,
+        *,
+        resource: type,
+        path: str = "/",
+        info: Info,
+    ):
+        self.resource = resource
+        self.path = path
+        self.info = info
+        self._openapi = None
+
+    @fondat.resource.operation(publish=False)
+    async def get(self) -> OpenAPI:
+        """Get OpenAPI document."""
+        if not self._openapi:
+            self._openapi = generate_openapi(
+                resource=self.resource, path=self.path, info=self.info
+            )
+        return self._openapi
+
+
 def openapi_resource(
     *,
     resource: type,
@@ -911,26 +945,15 @@ def openapi_resource(
     policies: Iterable[Policy] | None = None,
     publish: bool = False,
 ) -> Any:
-    """
-    Generate a resource that exposes an OpenAPI document for a given resource.
-
-    Parameters:
-    • resource: resource to generate OpenAPI document for
-    • path: URI path to resource
-    • info: provides metadata about the API
-    • policies: security policies to apply to all operations
-    • publish: publish the resource in documentation
-    """
+    """Deprecated. Use OpenAPIResource."""
 
     @fondat.resource.resource
-    class OpenAPIResource:
+    class DeprecatedOpenAPIResource(OpenAPIResource):
         def __init__(self):
-            self.openapi = None
+            super().__init__(resource=resource, path=path, info=info)
 
-        @fondat.resource.operation(publish=publish, policies=policies)
+        @fondat.resource.operation(policies=policies, publish=publish)
         async def get(self) -> OpenAPI:
-            if not self.openapi:
-                self.openapi = generate_openapi(resource=resource, path=path, info=info)
-            return self.openapi
+            return await super().get()
 
-    return OpenAPIResource()
+    return DeprecatedOpenAPIResource()
