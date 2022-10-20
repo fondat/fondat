@@ -73,14 +73,14 @@ class R2:
 
 
 def test_container():
-    root = fondat.resource.ContainerResource({"r1": R1(), "r2": R2()})
+    root = fondat.resource.ContainerResource(r1=R1(), r2=R2())
     assert root.r1.__class__ is R1
     assert root.r2.__class__ is R2
 
 
 def test_nested_containers():
-    c1 = fondat.resource.ContainerResource({"r2": R2()})
-    c2 = fondat.resource.ContainerResource({"c1": c1})
+    c1 = fondat.resource.ContainerResource(r2=R2())
+    c2 = fondat.resource.ContainerResource(c1=c1)
     assert fondat.resource.is_resource(c2)
     assert fondat.resource.is_resource(c2.c1)
     assert fondat.resource.is_resource(c2.c1.r2)

@@ -4,8 +4,9 @@ Module to implement resources composed of operations.
 A resource is an addressible object that exposes operations through a uniform interface. A
 resource class contains operation methods, each decorated with the @operation decorator.
 
-A resource can expose subordinate resources through an attribute, method or property that is
-also decorated as a resource.
+Any resource can expose a subordinate resource through an attribute, method or property. An
+attribute would contain an object whose class is decorated with @resource decorator; a method
+or property would have a return type as a class decorated with @resource. 
 
 For information on how security policies are evaluated, see the `authorize` function.
 """
@@ -93,6 +94,9 @@ def resource(wrapped: type[T] | None = None, *, tag: str | None = None) -> type[
 
     Parameters:
     • tag: tag to group resources  [resource class name]
+
+    A tag is a human-readable name to group resources' operations in the same section in
+    API documentation.
     """
 
     if wrapped is None:
@@ -126,7 +130,7 @@ def operation(
     cache: CacheResource | None = None,
 ) -> T:
     """
-    Decorate a resource coroutine as an operation.
+    Decorate a resource class coroutine as an operation.
 
     Parameters:
     • method: method of operation  [inferred from wrapped coroutine name]
@@ -135,6 +139,14 @@ def operation(
     • publish: publish the operation in documentation
     • deprecated: flag the operation as deprecated
     • cache: resource to cache operation results
+
+    The operation method is named and has the same semantics of HTTP methods: get, put,
+    post, delete and patch. The method can be omitted in the operation decoration if the
+    name of the coroutine matches the method.
+
+    The type of the method determines if it modifies resource state or not. A query does
+    not effect the state of the resource and has no side effects; a mutation changes the
+    state of the resource or has side effects.
 
     When an operation is called:
     • its arguments are copied to prevent side effects
@@ -237,7 +249,7 @@ def operation(
     return wrapper(wrapped)
 
 
-def query(wrapped: T | None = None, *, method: str = "get", **kwargs) -> T:
+def query(wrapped: T | None = None, *, method: Method = "get", **kwargs) -> T:
     """Decorator to define a query operation."""
 
     if wrapped is None:
@@ -250,7 +262,7 @@ def query(wrapped: T | None = None, *, method: str = "get", **kwargs) -> T:
     return operation(wrapped, type="query", method=method, **kwargs)
 
 
-def mutation(wrapped: T | None = None, *, method: str = "post", **kwargs) -> T:
+def mutation(wrapped: T | None = None, *, method: Method = "post", **kwargs) -> T:
     """Decorator to define an mutation operation."""
 
     if wrapped is None:
@@ -269,20 +281,14 @@ class ContainerResource:
     Resource to contain subordinate resources.
 
     Parameter:
-    • subordinates: mapping of names to subordinate resource objects
+    • kwargs: names to subordinate resource objects
+
+    Subordinate resources are accessed as attributes of the container resource. They can
+    be further managed through getattr, setattr and hasattr functions and del statement.
     """
 
-    def __init__(self, subordinates: Mapping[str, type]):
-        self.__subordinates = subordinates
-
-    def __getattr__(self, name):
-        try:
-            return self.__subordinates[name]
-        except KeyError:
-            raise AttributeError(f"no such resource: {name}")
-
-    def __dir__(self):
-        return [*super().__dir__(), *self.__subordinates.keys()]
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
 
 
 def container_resource(resources: Mapping[str, Any], tag: str | None = None):
@@ -291,7 +297,7 @@ def container_resource(resources: Mapping[str, Any], tag: str | None = None):
     @resource(tag=tag)
     class DeprecatedContainerResource(ContainerResource):
         def __init__(self):
-            super().__init__(subordinates=resources)
+            super().__init__(**resources)
 
     return DeprecatedContainerResource()
 
