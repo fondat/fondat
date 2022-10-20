@@ -1,3 +1,4 @@
+import fondat.lazy
 import pytest
 
 from fondat.lazy import LazyMap, lazy, lazy_import, lazy_import_attr
@@ -65,3 +66,39 @@ def test_lazy_import_attr():
     import csv
 
     assert r is csv.reader
+
+
+def test_lazysimplenamespace():
+    ns = fondat.lazy.LazySimpleNamespace(
+        a="a_value",
+        z1=lz1,
+    )
+    assert hasattr(ns, "a")
+    assert hasattr(ns, "z1")
+    assert not hasattr(ns, "z2")
+    assert ns.a == "a_value"
+    assert ns.z1 == "lz1_value"
+    ns.a = "a1"
+    assert ns.a == "a1"
+    ns.z1 = "lz1v"
+    assert ns.z1 == "lz1v"
+    ns.z1 = lz1
+    assert ns.z1 == "lz1_value"
+    ns.z1 = not_decorated
+    assert ns.z1 == not_decorated
+    ns.z2 = lz2
+    assert ns.z2 == "lz2_value"
+    del ns.z1
+    assert not hasattr(ns, "z1")
+    with pytest.raises(AttributeError):
+        ns.z1
+    del ns.z2
+    assert not hasattr(ns, "z2")
+    with pytest.raises(AttributeError):
+        ns.z2
+    with pytest.raises(AttributeError):
+        del ns.nobody_home
+    del ns.a
+    assert not hasattr(ns, "a")
+    with pytest.raises(AttributeError):
+        ns.a

@@ -26,6 +26,7 @@ from copy import deepcopy
 from fondat.cache import CacheResource, hash_json
 from fondat.codec import JSONCodec
 from fondat.error import BadRequestError, ForbiddenError, UnauthorizedError
+from fondat.lazy import LazySimpleNamespace
 from fondat.security import Policy
 from fondat.types import literal_values
 from fondat.validation import ValidationError, validate_arguments
@@ -276,28 +277,40 @@ def mutation(wrapped: T | None = None, *, method: Method = "post", **kwargs) -> 
 
 
 @resource
-class ContainerResource:
+class ContainerResource(LazySimpleNamespace):
     """
     Resource to contain subordinate resources.
 
     Parameter:
-    • kwargs: names to subordinate resource objects
+    • kwargs: maps names to subordinate resource objects or lazy initializers
 
-    Subordinate resources are accessed as attributes of the container resource. They can
-    be further managed through getattr, setattr and hasattr functions and del statement.
+    A value in kwargs can be a subordinate resource object, or a lazy initialization
+    function that returns a subordinate resource object.
+
+    Subordinate resources are accessed as attributes of the container resource. They can be
+    managed through hasattr, getattr, setattr, delattr functions and del statement.
     """
-
-    def __init__(self, **kwargs):
-        self.__dict__.update(kwargs)
 
 
 def container_resource(resources: Mapping[str, Any], tag: str | None = None):
-    """Deprecated. Use ContainerResource."""
+    """
+    Create a resource to contain subordinate resources.
+    Parameters:
+    • resources: mapping of resource names to resource objects
+    • tag: tag to group the resource
+    Suborindates are accessed as attributes by name.
+    """
 
     @resource(tag=tag)
-    class DeprecatedContainerResource(ContainerResource):
-        def __init__(self):
-            super().__init__(**resources)
+    class DeprecatedContainerResource:
+        def __getattr__(self, name):
+            try:
+                return resources[name]
+            except KeyError:
+                raise AttributeError(f"no such resource: {name}")
+
+        def __dir__(self):
+            return [*super().__dir__(), *resources.keys()]
 
     return DeprecatedContainerResource()
 
