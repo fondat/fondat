@@ -922,17 +922,17 @@ class OpenAPIResource:
         path: str = "/",
         info: Info,
     ):
-        self.resource = resource
-        self.path = path
-        self.info = info
+        self._resource = resource
+        self._path = path
+        self._info = info
         self._openapi = None
 
     @fondat.resource.operation(publish=False)
     async def get(self) -> OpenAPI:
         """Get OpenAPI document."""
         if not self._openapi:
-            self._openapi = generate_openapi(
-                resource=self.resource, path=self.path, info=self.info
+            self._openapi = generate_openapi(  # just in time
+                resource=self._resource, path=self._path, info=self._info
             )
         return self._openapi
 
