@@ -12,7 +12,7 @@ from tempfile import TemporaryDirectory
 
 async def test_crud_dict(tmp_path):
     DC = make_dataclass("DC", (("key", str), ("foo", str), ("bar", int)))
-    dr = DirectoryResource(path=tmp_path, value_type=DC)
+    dr = DirectoryResource(path=tmp_path, value_type=DC, writable=True)
     key = "id1"
     r1 = DC(key=key, foo="hello", bar=1)
     await dr[key].put(r1)
@@ -28,7 +28,7 @@ async def test_crud_dict(tmp_path):
 
 
 async def test_crud_str(tmp_path):
-    dr = DirectoryResource(path=tmp_path, value_type=str)
+    dr = DirectoryResource(path=tmp_path, value_type=str, writable=True)
     key = "hello_world"
     value = "你好，世界!"
     await dr[key].put(value)
@@ -47,7 +47,7 @@ async def test_crud_missing_dir(tmp_path):
 
 
 async def test_crud_bytes(tmp_path):
-    dr = DirectoryResource(path=tmp_path, value_type=bytes, extension=".bin")
+    dr = DirectoryResource(path=tmp_path, value_type=bytes, extension=".bin", writable=True)
     key = "binary"
     value = b"\x00\x0e\x01\x01\x00"
     await dr[key].put(value)
@@ -62,7 +62,7 @@ async def test_crud_bytes(tmp_path):
 
 async def test_crud_uuid_key(tmp_path):
     dr = DirectoryResource(
-        path=tmp_path, key_type=uuid.UUID, value_type=bytes, extension=".bin"
+        path=tmp_path, key_type=uuid.UUID, value_type=bytes, extension=".bin", writable=True
     )
     key = uuid.UUID("74e47a84-183c-43d3-b934-3568504a7459")
     value = b"\x00\x0e\x01\x01\x00"
@@ -79,7 +79,7 @@ async def test_crud_uuid_key(tmp_path):
 
 
 async def test_quote_unquote(tmp_path):
-    dr = DirectoryResource(path=tmp_path, value_type=bytes, extension=".bin")
+    dr = DirectoryResource(path=tmp_path, value_type=bytes, extension=".bin", writable=True)
     key = "resource%identifier"
     value = b"body"
     await dr[key].put(value)
@@ -89,7 +89,9 @@ async def test_quote_unquote(tmp_path):
 
 async def test_invalid_directory():
     with TemporaryDirectory() as dir:
-        dr = DirectoryResource(path=Path(dir), value_type=bytes, extension=".bin")
+        dr = DirectoryResource(
+            path=Path(dir), value_type=bytes, extension=".bin", writable=True
+        )
     # directory should now be deleted underneath the resource
     key = "resource%identifier"
     value = b"body"
@@ -104,7 +106,7 @@ async def test_invalid_directory():
 
 
 async def test_decode_error(tmp_path):
-    dr = DirectoryResource(path=tmp_path, value_type=int, extension=".int")
+    dr = DirectoryResource(path=tmp_path, value_type=int, extension=".int", writable=True)
     await dr["1"].put(1)
     with open(f"{tmp_path}/1.int", "w") as f:
         f.write("a")
@@ -113,7 +115,7 @@ async def test_decode_error(tmp_path):
 
 
 async def test_quotable(tmp_path):
-    dr = DirectoryResource(path=tmp_path, value_type=str)
+    dr = DirectoryResource(path=tmp_path, value_type=str, writable=True)
     key = "1%2F2"
     value = "Value"
     await dr[key].put(value)
@@ -132,7 +134,7 @@ async def test_read_package_dir():
 
 
 async def test_crud_stream(tmp_path):
-    dr = DirectoryResource(path=tmp_path)
+    dr = DirectoryResource(path=tmp_path, writable=True)
     key = "hello_world.txt"
     value = b"\x01\x02\x03"
     await dr[key].put(BytesStream(value))

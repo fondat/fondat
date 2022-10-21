@@ -1,11 +1,11 @@
 """File I/O module."""
 
+import fondat.error
 import logging
 import mimetypes
 
 from contextlib import suppress
 from fondat.codec import BinaryCodec, DecodeError, StringCodec
-from fondat.error import ConflictError, InternalServerError, NotFoundError
 from fondat.http import AsBody
 from fondat.resource import operation, resource
 from fondat.stream import Reader, Stream
@@ -84,6 +84,7 @@ class DirectoryResource(Generic[K, V]):
     • key_type: type of key to identify each file
     • value_type: type of value stored in each file
     • extenson: filename extension to append (including dot)
+    • writable: allow files to be written and deleted
     """
 
     def __init__(
@@ -92,43 +93,46 @@ class DirectoryResource(Generic[K, V]):
         key_type: type[K] = str,
         value_type: type[V] = Stream,
         extension: str | None = None,
+        writable: bool = False,
     ):
-        self.path = path.expanduser()
-        if not self.path.is_dir():
-            raise FileNotFoundError(f"directory not found: {self.path}")
+        self._path = path.expanduser()
+        if not self._path.is_dir():
+            raise FileNotFoundError(f"directory not found: {self._path}")
         if not getattr(key_type, "__hash__", None):
             raise TypeError("invalid key_type: {key_type}")
-        self.key_type = key_type
-        self.value_type = value_type
-        self.extension = extension
-        self.key_codec = StringCodec.get(key_type)
+        self._key_type = key_type
+        self._value_type = value_type
+        self._extension = extension
+        self._key_codec = StringCodec.get(key_type)
+        self._writable = writable
 
-    @operation
+    @operation(publish=False)
     async def get(self) -> set[K]:
         """Return list of file keys."""
         try:
             keys = set()
             for name in (
-                path.name[: -len(self.extension)] if self.extension else path.name
-                for path in self.path.iterdir()
+                path.name[: -len(self._extension)] if self._extension else path.name
+                for path in self._path.iterdir()
                 if path.is_file()
                 and not path.name.endswith(".__tmp__")
-                and (not self.extension or path.name.endswith(self.extension))
+                and (not self._extension or path.name.endswith(self._extension))
             ):
                 try:
-                    keys.add(self.key_codec.decode(unquote(name)))
+                    keys.add(self._key_codec.decode(unquote(name)))
                 except DecodeError:
                     pass  # ignore incompatible file names
             return keys
         except Exception as e:
-            raise InternalServerError from e
+            raise fondat.error.InternalServerError from e
 
     def __getitem__(self, key: K) -> "FileResource[V]":
         return FileResource(
-            self.path.joinpath(
-                quote(self.key_codec.encode(key), safe="") + (self.extension or "")
+            self._path.joinpath(
+                quote(self._key_codec.encode(key), safe="") + (self._extension or "")
             ),
-            self.value_type,
+            self._value_type,
+            self._writable,
         )
 
 
@@ -140,57 +144,64 @@ class FileResource(Generic[V]):
     Parameters:
     • path: location of file
     • type: type of value stored in file
+    • writable: allow file to be written and deleted
     """
 
     def __init__(
         self,
         path: Path,
         type: type[V] = Stream,
+        writable: bool = False,
     ):
-        self.path = path.expanduser()
-        self.type = type
-        self.codec = BinaryCodec.get(type) if type is not Stream else None
+        self._path = path.expanduser()
+        self._type = type
+        self._codec = BinaryCodec.get(type) if type is not Stream else None
+        self._writable = writable
 
-    @operation
+    @operation(publish=False)
     async def get(self) -> V:
         """Read resource."""
         try:
-            stream = FileStream(self.path)
-            if self.type is Stream:
+            stream = FileStream(self._path)
+            if self._type is Stream:
                 return stream
             async with stream:  # close stream after reading
-                return self.codec.decode(await Reader(stream).read())
+                return self._codec.decode(await Reader(stream).read())
         except FileNotFoundError as fnfe:
-            raise NotFoundError from fnfe
+            raise fondat.error.NotFoundError from fnfe
         except Exception as e:
-            raise InternalServerError from e
+            raise fondat.error.InternalServerError from e
 
-    @operation
+    @operation(publish=False)
     async def put(self, value: Annotated[V, AsBody]) -> None:
         """Write resource."""
+        if not self._writable:
+            raise fondat.error.MethodNotAllowedError
         try:
-            tmp = self.path.with_name(f"{self.path.name}.__tmp__")
+            tmp = self._path.with_name(f"{self._path.name}.__tmp__")
             with tmp.open("xb") as file:
-                if self.type is Stream:
+                if self._type is Stream:
                     async with value as stream:  # close stream after reading
                         await write_stream(stream, file)
                 else:
-                    file.write(self.codec.encode(value))
-            tmp.replace(self.path)
+                    file.write(self._codec.encode(value))
+            tmp.replace(self._path)
         except FileExistsError as e:
-            raise ConflictError from e
+            raise fondat.error.ConflictError from e
         except Exception as e:
-            raise InternalServerError from e
+            raise fondat.error.InternalServerError from e
 
-    @operation
+    @operation(publish=False)
     async def delete(self) -> None:
         """Delete resource."""
+        if not self._writable:
+            raise fondat.error.MethodNotAllowedError
         try:
-            self.path.unlink()
+            self._path.unlink()
         except FileNotFoundError as fnfe:
-            raise NotFoundError from fnfe
+            raise fondat.error.NotFoundError from fnfe
         except Exception as e:
-            raise InternalServerError from e
+            raise fondat.error.InternalServerError from e
 
 
 async def write_stream(stream: Stream, file: BinaryIO) -> None:
