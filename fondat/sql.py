@@ -668,7 +668,7 @@ async def select_iterator(
         exprs.append(
             expr if len(expr) == 1 and expr[0] == name else Expression(expr, f' AS "{name}"')
         )
-    stmt += Expression.join(exprs, ",")
+    stmt += Expression.join(exprs, ", ")
 
     if from_ is not None:
         stmt += Expression(" FROM ", from_)
