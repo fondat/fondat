@@ -21,11 +21,11 @@ import types
 import wrapt
 
 from collections.abc import Callable, Iterable, Mapping
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from copy import deepcopy
 from fondat.cache import CacheResource, hash_json
 from fondat.codec import JSONCodec
-from fondat.error import BadRequestError, ForbiddenError, UnauthorizedError
+from fondat.error import BadRequestError, ForbiddenError, NotFoundError, UnauthorizedError
 from fondat.lazy import LazySimpleNamespace
 from fondat.security import Policy
 from fondat.types import literal_values
@@ -111,14 +111,6 @@ Method = Literal["get", "put", "post", "delete", "patch"]
 _methods = literal_values(Method)
 
 
-@contextmanager
-def _log_and_suppress():
-    try:
-        yield
-    except Exception as exception:
-        _logger.debug(exception, exc_info=True)
-
-
 @validate_arguments
 def operation(
     wrapped: T = None,
@@ -188,8 +180,9 @@ def operation(
     summary = _summary(wrapped)
 
     sig = inspect.signature(wrapped)
-    params = [param for param in sig.parameters.values()]
+    params = list(sig.parameters.values())
     returns = sig.return_annotation if sig.return_annotation is not sig.empty else None
+    defaults = {p.name: p.default for p in params if p.default is not p.empty}
 
     if not params or params[0].name != "self":
         raise TypeError("operation first parameter must be self")
@@ -207,12 +200,19 @@ def operation(
     @wrapt.decorator
     async def wrapper(wrapped, instance, args, kwargs):
         args, kwargs = deepcopy(args), deepcopy(kwargs)  # avoid side effects
-        resource_name = f"{instance.__class__.__module__}.{instance.__class__.__qualname__}"
+        cls = instance.__class__
+        resource_name = f"{cls.__module__}.{cls.__qualname__}"
         operation = getattr(wrapped, "_fondat_operation")
         arguments = dict(zip((p.name for p in params[1:]), args)) | kwargs
         operation_name = wrapped.__name__
         tags = {"resource": resource_name, "operation": operation_name}
-        _logger.debug("operation: %s.%s(%s)", resource_name, operation_name, arguments)
+        if _logger.isEnabledFor(logging.DEBUG):
+            _logger.debug(
+                "operation: %s.%s(%s)",
+                resource_name,
+                operation_name,
+                ", ".join(f"{k}={v}" for k, v in arguments.items()),
+            )
         with context.push(tags | {"context": "fondat.operation", "arguments": arguments}):
             async with monitor.counter(
                 name="operation_invocations", tags=tags, status="status"
@@ -220,20 +220,19 @@ def operation(
                 async with monitor.timer(name="operation_duration", tags=tags):
                     await authorize(operation.policies)
                     if cache:
-                        with _log_and_suppress():
-                            cache_entry = cache[
-                                hash_json(
-                                    tags | {"arguments": JSONCodec.get(Any).encode(arguments)}
-                                )
-                            ]
-                            return JSONCodec.get(returns).decode(await cache_entry.get())
+                        cache_args = JSONCodec.get(Any).encode(defaults | arguments)
+                        cache_key = hash_json(tags | {"arguments": cache_args})
+                        cache_entry = cache[cache_key]
+                        with suppress(NotFoundError):
+                            result = JSONCodec.get(returns).decode(await cache_entry.get())
+                            _logger.debug("returning cached result")
+                            return result
                     try:
                         result = await wrapped(*args, **kwargs)
                     except ValidationError as ve:
                         raise BadRequestError from ve
                     if cache:
-                        with _log_and_suppress():
-                            await cache_entry.put(JSONCodec.get(returns).encode(result))
+                        await cache_entry.put(JSONCodec.get(returns).encode(result))
                     return result
 
     wrapped._fondat_operation = types.SimpleNamespace(

@@ -114,3 +114,26 @@ async def test_operation_cache():
     assert (await r.post()) == 1
     await asyncio.sleep(0.1)
     assert (await r.post()) == 2
+
+
+async def test_operation_cache_defaults():
+    cache = MemoryResource(key_type=bytes, value_type=Any)
+
+    @resource
+    class Resource:
+        def __init__(self):
+            self.counter = 0
+
+        @operation(cache=cache)
+        async def post(self, s: str = "foo") -> int:
+            self.counter += 1
+            return self.counter
+
+    r = Resource()
+    assert (await r.post("foo")) == 1
+    assert (await r.post()) == 1
+    assert (await r.post("bar")) == 2
+    await cache.clear()
+    assert (await r.post()) == 3
+    assert (await r.post("foo")) == 3
+    assert (await r.post("bar")) == 4
