@@ -13,7 +13,7 @@ JSON = Any
 class CacheResource(Protocol):
     """Prototype cache resource."""
 
-    def __getitem__(self, key: bytes) -> "EntryResource":  # subordinate
+    def __getitem__(self, key: JSON) -> "EntryResource":  # subordinate
         ...
 
 
@@ -36,4 +36,6 @@ def hash_json(value: JSON) -> bytes:
     Return a deterministic, unique hash value for a given JSON object model value.
     This can be useful for generating a cache entry key.
     """
-    return hashlib.sha256(json.dumps(value, sort_keys=True).encode()).digest()
+    return hashlib.sha256(
+        json.dumps(value, separators=(",", ":"), sort_keys=True).encode()
+    ).digest()

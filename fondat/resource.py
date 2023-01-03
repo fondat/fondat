@@ -221,8 +221,7 @@ def operation(
                     await authorize(operation.policies)
                     if cache:
                         cache_args = JSONCodec.get(Any).encode(defaults | arguments)
-                        cache_key = hash_json(tags | {"arguments": cache_args})
-                        cache_entry = cache[cache_key]
+                        cache_entry = cache[tags | {"arguments": cache_args}]
                         with suppress(NotFoundError):
                             result = JSONCodec.get(returns).decode(await cache_entry.get())
                             _logger.debug("returning cached result")
