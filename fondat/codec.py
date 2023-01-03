@@ -54,26 +54,30 @@ def _wrap(exception):
         raise exception from e
 
 
-def _csv_encode(value):
+def _csv_encode(value: Any) -> str:
     sio = io.StringIO()
     csv.writer(sio, lineterminator="").writerow(value)
     return sio.getvalue()
 
 
-def _csv_decode(value):
+def _csv_decode(value: str) -> Any:
     if not isinstance(value, str):
         raise DecodeError
     return next(csv.reader([value]))
 
 
-def _b2s(b):
+def _json_encode(value: Any) -> str:
+    return json.dumps(value, separators=(",", ":"), sort_keys=True)
+
+
+def _b2s(b: bytes | bytearray) -> str:
     if not isinstance(b, bytes | bytearray):
         raise DecodeError
     with _wrap(DecodeError):
         return b.decode()
 
 
-def _s2j(s):
+def _s2j(s: str) -> Any:
     if not isinstance(s, str):
         raise DecodeError
     with _wrap(DecodeError):
@@ -952,7 +956,7 @@ class TypedDictStringCodec(StringCodec[PT]):
     def encode(self, value: PT) -> StringType:
         if not isinstance(value, dict):
             raise EncodeError
-        return json.dumps(self.codec.encode(value))
+        return _json_encode(self.codec.encode(value))
 
     def decode(self, value: StringType) -> PT:
         return self.codec.decode(_s2j(value))
@@ -1060,7 +1064,7 @@ class TupleBinaryCodec(BinaryCodec[PT]):
         self.codec = TupleJSONCodec(python_type)
 
     def encode(self, value: PT) -> BinaryType:
-        return json.dumps(self.codec.encode(value)).encode()
+        return _json_encode(self.codec.encode(value)).encode()
 
     def decode(self, value: BinaryType) -> PT:
         return self.codec.decode(_s2j(_b2s(value)))
@@ -1120,7 +1124,7 @@ class MappingStringCodec(StringCodec[PT]):
         self.codec = MappingJSONCodec(python_type)
 
     def encode(self, value: PT) -> StringType:
-        return json.dumps(self.codec.encode(value))
+        return _json_encode(self.codec.encode(value))
 
     def decode(self, value: StringType) -> PT:
         return self.codec.decode(_s2j(value))
@@ -1228,7 +1232,7 @@ class IterableBinaryCodec(BinaryCodec[PT]):
         self.codec = IterableJSONCodec(python_type)
 
     def encode(self, value: PT) -> BinaryType:
-        return json.dumps(self.codec.encode(value)).encode()
+        return _json_encode(self.codec.encode(value)).encode()
 
     def decode(self, value: BinaryType) -> PT:
         return self.codec.decode(_s2j(_b2s(value)))
@@ -1408,7 +1412,7 @@ class DataclassStringCodec(StringCodec[PT]):
         self.codec = DataclassJSONCodec(python_type)
 
     def encode(self, value: PT) -> StringType:
-        return json.dumps(self.codec.encode(value))
+        return _json_encode(self.codec.encode(value))
 
     def decode(self, value: StringType) -> PT:
         return self.codec.decode(_s2j(value))
