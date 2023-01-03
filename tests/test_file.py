@@ -16,7 +16,7 @@ async def test_crud_dict(tmp_path):
     key = "id1"
     r1 = DC(key=key, foo="hello", bar=1)
     await dr[key].put(r1)
-    assert (await dr.get()) == {r1.key}
+    assert (await dr.get()) == [r1.key]
     r2 = await dr[key].get()
     assert r1 == r2
     r1.bar = 2
@@ -24,7 +24,7 @@ async def test_crud_dict(tmp_path):
     r2 = await dr[key].get()
     assert r1 == r2
     await dr[key].delete()
-    assert (await dr.get()) == set()
+    assert (await dr.get()) == []
 
 
 async def test_crud_str(tmp_path):
@@ -32,13 +32,13 @@ async def test_crud_str(tmp_path):
     key = "hello_world"
     value = "你好，世界!"
     await dr[key].put(value)
-    assert (await dr.get()) == {key}
+    assert (await dr.get()) == [key]
     assert await dr[key].get() == value
     value = "さようなら世界！"
     await dr[key].put(value)
     assert await dr[key].get() == value
     await dr[key].delete()
-    assert (await dr.get()) == set()
+    assert (await dr.get()) == []
 
 
 async def test_crud_missing_dir(tmp_path):
@@ -51,13 +51,13 @@ async def test_crud_bytes(tmp_path):
     key = "binary"
     value = b"\x00\x0e\x01\x01\x00"
     await dr[key].put(value)
-    assert (await dr.get()) == {key}
+    assert (await dr.get()) == [key]
     assert await dr[key].get() == value
     value = bytes((1, 2, 3, 4, 5))
     await dr[key].put(value)
     assert await dr[key].get() == value
     await dr[key].delete()
-    assert (await dr.get()) == set()
+    assert (await dr.get()) == []
 
 
 async def test_crud_uuid_key(tmp_path):
@@ -69,13 +69,13 @@ async def test_crud_uuid_key(tmp_path):
     await dr[key].put(value)
     with open(f"{tmp_path}/{str(key)}.bin", "rb") as file:
         assert file.read() == value
-    assert (await dr.get()) == {key}
+    assert (await dr.get()) == [key]
     assert await dr[key].get() == value
     value = bytes((1, 2, 3, 4, 5))
     await dr[key].put(value)
     assert await dr[key].get() == value
     await dr[key].delete()
-    assert (await dr.get()) == set()
+    assert (await dr.get()) == []
 
 
 async def test_quote_unquote(tmp_path):
@@ -128,7 +128,7 @@ async def test_read_package_dir():
     path = importlib.resources.files(tests) / "test_file"
     dr = DirectoryResource(path=path, value_type=str, extension=".txt")
     files = await dr.get()
-    assert files == {"f1", "f2"}
+    assert set(files) == {"f1", "f2"}
     assert await dr["f1"].get() == "file1"
     assert await dr["f2"].get() == "file2"
 
@@ -146,7 +146,7 @@ async def test_crud_stream(tmp_path):
     await dr[key].put(BytesStream(value))
     assert b"".join([b async for b in await dr[key].get()]) == value
     await dr[key].delete()
-    assert (await dr.get()) == set()
+    assert (await dr.get()) == []
     key = "foo.json"
     value = b'{"a": 123}'
     await dr[key].put(BytesStream(value))

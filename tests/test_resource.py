@@ -97,7 +97,7 @@ def test_invalid_method():
 
 
 async def test_operation_cache():
-    cache = MemoryResource(key_type=bytes, value_type=Any, expire=0.1)
+    cache = MemoryResource(key_type=Any, value_type=Any, expire=0.1)
 
     @resource
     class Resource:
@@ -117,7 +117,7 @@ async def test_operation_cache():
 
 
 async def test_operation_cache_defaults():
-    cache = MemoryResource(key_type=bytes, value_type=Any)
+    cache = MemoryResource(key_type=Any, value_type=Any)
 
     @resource
     class Resource:

@@ -151,7 +151,7 @@ def test_tuple_str_decode_success():
 
 
 def test_tuple_bytes_encode_success():
-    assert BinaryCodec.get(tuple[str, str, str]).encode(("a", "b", "c")) == b'["a", "b", "c"]'
+    assert BinaryCodec.get(tuple[str, str, str]).encode(("a", "b", "c")) == b'["a","b","c"]'
 
 
 def test_tuple_bytes_decode_success():
@@ -214,7 +214,7 @@ def test_tuple_ellipsis_str_decode_success():
 
 
 def test_tuple_ellipsis_bytes_encode_success():
-    assert BinaryCodec.get(tuple[str, ...]).encode(("a", "b", "c")) == b'["a", "b", "c"]'
+    assert BinaryCodec.get(tuple[str, ...]).encode(("a", "b", "c")) == b'["a","b","c"]'
 
 
 def test_tuple_ellipsis_bytes_decode_success():
@@ -281,7 +281,7 @@ def test_list_str_decode_success():
 
 
 def test_list_bytes_encode_success():
-    assert BinaryCodec.get(list[str]).encode(["a", "b", "c"]) == b'["a", "b", "c"]'
+    assert BinaryCodec.get(list[str]).encode(["a", "b", "c"]) == b'["a","b","c"]'
 
 
 def test_list_bytes_decode_success():
@@ -381,7 +381,7 @@ def test_set_str_decode_int_error():
 
 
 def test_set_bytes_encode_success():
-    assert BinaryCodec.get(set[str]).encode({"a", "b", "c"}) == b'["a", "b", "c"]'
+    assert BinaryCodec.get(set[str]).encode({"a", "b", "c"}) == b'["a","b","c"]'
 
 
 def test_set_bytes_decode_success():

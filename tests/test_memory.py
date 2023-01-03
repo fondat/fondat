@@ -20,7 +20,7 @@ async def test_gpdl_dict():
     r2 = await resource[id].get()
     assert r1 == r2
     await resource[id].delete()
-    assert await resource.get() == set()
+    assert await resource.get() == []
 
 
 async def test_gpdl_str():
@@ -28,13 +28,13 @@ async def test_gpdl_str():
     data = "你好，世界!"
     id = "hello_world"
     await resource[id].put(data)
-    assert await resource.get() == {id}
+    assert await resource.get() == [id]
     assert await resource[id].get() == data
     data = "Goodbye world!"
     await resource[id].put(data)
     assert await resource[id].get() == data
     await resource[id].delete()
-    assert await resource.get() == set()
+    assert await resource.get() == []
 
 
 async def test_gpdl_bytes():
@@ -42,13 +42,13 @@ async def test_gpdl_bytes():
     data = b"\x00\x0e\0x01\0x01\0x00"
     id = "binary"
     await resource[id].put(data)
-    assert await resource.get() == {id}
+    assert await resource.get() == [id]
     assert await resource[id].get() == data
     data = bytes((1, 2, 3, 4, 5))
     await resource[id].put(data)
     assert await resource[id].get() == data
     await resource[id].delete()
-    assert await resource.get() == set()
+    assert await resource.get() == []
 
 
 async def test_get_notfound():
@@ -84,7 +84,7 @@ async def test_size_evict():
     await resource["1"].put("foo")
     await resource["2"].put("bar")
     await resource["3"].put("qux")
-    assert set(await resource.get()) == {"2", "3"}
+    assert await resource.get() == ["2", "3"]
 
 
 async def test_expire_get():
@@ -108,3 +108,21 @@ async def test_expire_put():
     with pytest.raises(KeyError):
         resource._storage["2"]
     assert await resource["3"].get() == "baz"
+
+
+async def test_gpdl_non_hashable_keys():
+    KeyType = dict[str, str]
+    resource = MemoryResource(key_type=KeyType, value_type=str)
+    assert len(await resource.get()) == 0
+    key = {"id": "id1"}
+    v1 = "foo"
+    await resource[key].put(v1)
+    assert len(await resource.get()) == 1
+    v2 = await resource[key].get()
+    assert v1 == v2
+    v1 = "bar"
+    await resource[key].put(v1)
+    v2 = await resource[key].get()
+    assert v1 == v2
+    await resource[key].delete()
+    assert await resource.get() == []
