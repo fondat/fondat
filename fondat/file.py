@@ -107,10 +107,10 @@ class DirectoryResource(Generic[K, V]):
         self._writable = writable
 
     @operation(publish=False)
-    async def get(self) -> set[K]:
+    async def get(self) -> list[K]:
         """Return list of file keys."""
         try:
-            keys = set()
+            keys = []
             for name in (
                 path.name[: -len(self._extension)] if self._extension else path.name
                 for path in self._path.iterdir()
@@ -119,7 +119,7 @@ class DirectoryResource(Generic[K, V]):
                 and (not self._extension or path.name.endswith(self._extension))
             ):
                 try:
-                    keys.add(self._key_codec.decode(unquote(name)))
+                    keys.append(self._key_codec.decode(unquote(name)))
                 except DecodeError:
                     pass  # ignore incompatible file names
             return keys
