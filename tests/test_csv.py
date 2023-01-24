@@ -107,6 +107,11 @@ def test_decimal_currency_prec0_suffix():
     assert codec.encode(Decimal("678.90")) == "679 лв"
 
 
+def test_encode_int_currency_none():
+    codec = CurrencyCodec(int)
+    assert codec.encode(None) == ""
+
+
 def test_percentage_prec2():
     codec = PercentCodec(float, 2)
     _test_codec(codec, 0.123, "12.30%")
@@ -120,6 +125,11 @@ def test_percentage_prec0():
     assert codec.encode(0.123) == "12%"
     assert codec.encode(0.001234) == "0%"
     assert codec.encode(1.235) == "124%"
+
+
+def test_encode_float_percentage_none():
+    codec = PercentCodec(float, 2)
+    assert codec.encode(None) == ""
 
 
 def test_float_fixed_prec2():
