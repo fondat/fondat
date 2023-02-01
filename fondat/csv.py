@@ -10,6 +10,7 @@ from fondat.data import derive_typeddict
 from fondat.stream import Reader, Stream
 from fondat.types import is_optional, strip_annotations
 from numbers import Number
+from types import NoneType
 from typing import Any, TypeVar, get_type_hints, is_typeddict
 
 
@@ -33,10 +34,10 @@ def _round(value: Number, precision: int | None) -> str:
     return f"{{:.{precision}f}}".format(value)
 
 
-class CurrencyCodec(Codec[N, str]):
+class CurrencyCodec(Codec[N | NoneType, str]):
     """
     String codec that encodes/decodes a number as a currency value; optionally encodes with
-    fixed-point precision.
+    fixed-point precision. Encodes and decodes None as an empty value.
 
     Parameters:
     • python_type: type of the value to be encoded/decoded
@@ -47,7 +48,7 @@ class CurrencyCodec(Codec[N, str]):
 
     def __init__(
         self,
-        python_type: Any,
+        python_type: type[N],
         prefix: str = "",
         suffix: str = "",
         precision: int | None = None,
@@ -57,61 +58,62 @@ class CurrencyCodec(Codec[N, str]):
         self.precision = precision
         self.codec = StringCodec.get(python_type)
 
-    def encode(self, value: N) -> str:
+    def encode(self, value: N | NoneType) -> str:
         return (
             f"{self.prefix}{_round(value, self.precision)}{self.suffix}"
             if value is not None
             else ""
         )
 
-    def decode(self, value: str) -> N:
+    def decode(self, value: str) -> N | NoneType:
         result = self.codec.decode(value.lstrip(self.prefix).rstrip(self.suffix))
         if self.precision is not None:
             result = round(result, self.precision)
         return result
 
 
-class PercentCodec(Codec[N, str]):
+class PercentCodec(Codec[N | NoneType, str]):
     """
     String codec that encodes/decodes a fractional number as a percentage string with
-    fixed-point precision.
+    fixed-point precision. Encodes and decodes None as an empty value.
 
     Parameters:
     • python_type: type of the value to be encoded/decoded
     • precision: round encoded value to number of digits
     """
 
-    def __init__(self, python_type: Any, precision: int):
+    def __init__(self, python_type: type[N], precision: int):
         self.precision = precision
         self.codec = StringCodec.get(python_type)
 
-    def encode(self, value: N) -> str:
+    def encode(self, value: N | NoneType) -> str:
         return f"{_round(value * 100, self.precision)}%" if value is not None else ""
 
-    def decode(self, value: str) -> N:
+    def decode(self, value: str) -> N | NoneType:
         result = self.codec.decode(value.rstrip("%")) / 100
         if self.precision is not None:
             result = round(result, self.precision + 2)
         return result
 
 
-class FixedCodec(Codec[N, str]):
+class FixedCodec(Codec[N | NoneType, str]):
     """
-    String codec encodes/decodes a number with fixed-point precision.
+    String codec encodes/decodes a number with fixed-point precision. Encodes and decodes None
+    as an empty value.
 
     Parameter:
     • python_type: type of the value to be encoded/decoded
     • precision: round encoded value to number of digits
     """
 
-    def __init__(self, python_type: Any, precision: int):
+    def __init__(self, python_type: type[N], precision: int):
         self.precision = precision
         self.codec = StringCodec.get(python_type)
 
-    def encode(self, value: N) -> str:
+    def encode(self, value: N | NoneType) -> str:
         return _round(value, self.precision) if value is not None else ""
 
-    def decode(self, value: str) -> N:
+    def decode(self, value: str) -> N | NoneType:
         result = self.codec.decode(value)
         if self.precision is not None:
             result = round(result, self.precision)
