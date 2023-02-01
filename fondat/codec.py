@@ -1288,6 +1288,7 @@ class GenericBinaryCodec(_GenericCodec[PT, BinaryType], BinaryCodec[PT]):
     def __init__(self, python_type: Any):
         BinaryCodec.__init__(self, python_type)
         _GenericCodec.__init__(self, python_type, BinaryCodec)
+        self.content_type = self._codec.content_type
 
 
 # ----- TypeVar -----
