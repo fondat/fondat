@@ -86,7 +86,7 @@ class PercentCodec(Codec[N, str]):
         self.codec = StringCodec.get(python_type)
 
     def encode(self, value: N) -> str:
-        return f"{_round(value * 100, self.precision)}%"
+        return f"{_round(value * 100, self.precision)}%" if value is not None else ""
 
     def decode(self, value: str) -> N:
         result = self.codec.decode(value.rstrip("%")) / 100
