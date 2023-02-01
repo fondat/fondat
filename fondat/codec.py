@@ -1156,7 +1156,6 @@ class MappingBinaryCodec(BinaryCodec[PT]):
 
 
 class _IterableCodec(Codec[PT, TT]):
-
     _AVOID = str | bytes | bytearray | Mapping | tuple
 
     @classmethod
@@ -1295,7 +1294,6 @@ class GenericBinaryCodec(_GenericCodec[PT, BinaryType], BinaryCodec[PT]):
 
 
 class _TypeVarCodec(Generic[PT, TT]):
-
     _cache = False  # TypeVars can be reused
 
     @classmethod

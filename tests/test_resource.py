@@ -19,7 +19,6 @@ class Body:
 
 @resource
 class R1:
-
     i_am_r1 = "i_am_r1"
 
     @operation  # no params

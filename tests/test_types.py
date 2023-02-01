@@ -80,7 +80,6 @@ def test_union_type():
 
 
 def test_dataclass_typevar():
-
     A = TypeVar("A")
     B = TypeVar("B")
 

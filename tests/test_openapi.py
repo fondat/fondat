@@ -254,7 +254,6 @@ def test_openapi_generate_openapi_specification():
 
 
 def test_generic_dataclass():
-
     T = TypeVar("T")
 
     @dataclass

@@ -528,7 +528,6 @@ async def test_async_decorator_return_error():
 
 
 def test_generic_dataclass():
-
     T = TypeVar("T")
     S = TypeVar("S")
 

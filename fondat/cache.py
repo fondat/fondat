@@ -6,7 +6,7 @@ import json
 from typing import Any, Protocol, runtime_checkable
 
 
-JSON = Any
+JSON = Any  # dict[str, JSON] | list[JSON] | str | int | float | bool | NoneType
 
 
 @runtime_checkable

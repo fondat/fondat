@@ -986,6 +986,18 @@ def test_generic_dataclass_json():
     assert decoded == bb
 
 
+def test_generic_dataclass_binary_content_type():
+    T = TypeVar("T")
+
+    @dataclass
+    class A(Generic[T]):
+        a: list[T]
+
+    B = A[int]
+    codec = BinaryCodec.get(B)
+    assert codec.content_type == "application/json"
+
+
 # ----- circular -----
 
 

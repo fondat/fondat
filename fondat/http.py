@@ -265,7 +265,6 @@ class HeaderScheme(Scheme):
 
 
 async def _subordinate(resource, segment: str):
-
     # resource.attr
     if (attr := getattr(resource, segment, None)) is not None:
         if fondat.resource.is_resource(attr):

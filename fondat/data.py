@@ -21,7 +21,6 @@ def _datacls_init(dc: type):
     fields = {field.name: field for field in dataclasses.fields(dc) if field.init}
 
     def __init__(self, **kwargs):
-
         hints = get_type_hints(self, include_extras=True)
 
         for name in kwargs:

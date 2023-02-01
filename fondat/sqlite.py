@@ -194,7 +194,6 @@ class TextCodec(SQLiteCodec[PT, Any]):
 
 
 class _Results(AsyncIterator[T]):
-
     __slots__ = {"statement", "result", "rows", "codecs"}
 
     def __init__(
