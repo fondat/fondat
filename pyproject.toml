@@ -33,9 +33,9 @@ multidict = "^6.0"
 wrapt = "^1.14"
 
 [tool.poetry.dev-dependencies]
-black = "^22.12"
-isort = "^5.11"
-pre-commit = "^2.21"
+black = "^23.1"
+isort = "^5.12"
+pre-commit = "^3.0"
 pytest = "^7.2"
 pytest-asyncio = "^0.20"
 pytest-cov = "^4.0"
