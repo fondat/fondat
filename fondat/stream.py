@@ -2,7 +2,9 @@
 
 from asyncio import LimitOverrunError
 from collections.abc import AsyncIterator
+from contextlib import suppress
 from fondat.validation import MinLen, MinValue, validate_arguments
+from io import IOBase
 from typing import Annotated
 
 
@@ -74,6 +76,50 @@ class BytesStream(Stream):
         self._content = None
 
 
+class IOBaseStream(Stream):
+    """
+    Represents an IOBase file-like object as an asynchronous byte stream.
+
+    Parameters:
+    • iobase: the file-like object to stream
+    • content_type: the media type of the stream
+    • content_length: the length of the content, or None if unknown
+    • chunk_size: chunk size to read in each iteration
+    """
+
+    def __init__(
+        self,
+        iobase: IOBase,
+        content_type: str = "application/octet-stream",
+        content_length: int | None = None,
+        chunk_size: int = 1048576,  # 1 MiB
+    ):
+        super().__init__(content_type, content_length)
+        self.iobase = iobase
+        self.chunk_size = chunk_size
+        self._read = getattr(iobase, "read1", "read")
+
+    async def __anext__(self) -> bytes:
+        if not self.iobase:
+            raise StopAsyncIteration
+        try:
+            chunk = self._read(self.chunk_size)
+        except BlockingIOError:  # BufferedIOBase empty response
+            return b""
+        if chunk is None:  # RawIOBase empty
+            return b""
+        if len(chunk) == 0:  # EOF
+            await self.close()
+            raise StopAsyncIteration
+        return chunk
+
+    async def close(self) -> None:
+        if self.iobase:
+            with suppress(Exception):
+                self.iobase.close()
+        self.iobase = None
+
+
 class Reader:
     """
     Buffered stream reader.
@@ -114,7 +160,7 @@ class Reader:
         Read bytes from the stream.
 
         Parameter:
-        • size: number of bytes to read  [to end of stream]
+        • size: number of bytes to read  [read up to end of stream]
 
         This method blocks until all requested bytes are read or the end of the stream is
         encountered.
