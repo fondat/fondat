@@ -137,9 +137,9 @@ TT = TypeVar("TT")  # target type hint
 
 
 class Codec(Generic[PT, TT]):
-    """
-    Base class for all things encode and decode.
-    """
+    """Base class for all things encode and decode."""
+
+    _cache: Mapping | None = None
 
     def __init__(self, python_type: Any):
         self.python_type = python_type
@@ -154,8 +154,8 @@ class Codec(Generic[PT, TT]):
         """
         Return a codec that handles the specified Python type.
 
-        If the subclass contains a `_cache` attribute, and does not
-
+        If a subclass defines a `_cache` class attribute with a mapping, this method will use
+        it to cache the return value for future calls.
         """
         if cls is Codec:
             raise NotImplementedError
@@ -165,9 +165,8 @@ class Codec(Generic[PT, TT]):
             if codec_class.handles(python_type):
                 codec = codec_class(python_type)
                 with suppress(AttributeError):
-                    cache = getattr(codec, "_cache", False)
-                    if isinstance(cache, Mapping):
-                        cache[python_type] = codec
+                    if isinstance(codec._cache, Mapping):
+                        codec._cache[python_type] = codec
                 return codec
         raise TypeError(f"no codec for {python_type}")
 
@@ -183,7 +182,7 @@ class Codec(Generic[PT, TT]):
 class StringCodec(Codec[PT, StringType]):
     """Encodes Python types to/from Unicode string representations."""
 
-    _cache = {}
+    _cache = {}  # cache all string codecs
 
     def encode(self, value: PT) -> StringType:
         """Encode value from Python type to string type."""
@@ -201,7 +200,7 @@ class BinaryCodec(Codec[PT, BinaryType]):
     • content_type: string containing the media type of the binary representation
     """
 
-    _cache = {}
+    _cache = {}  # cache all binary codecs
 
     content_type = APPLICATION_OCTET_STREAM
 
@@ -217,7 +216,7 @@ class BinaryCodec(Codec[PT, BinaryType]):
 class JSONCodec(Codec[PT, JSONType]):
     """Encodes Python types to/from the JSON representations."""
 
-    _cache = {}
+    _cache = {}  # cache all JSON codecs
 
     def encode(self, value: PT) -> JSONType:
         """Encode value from Python type to binary type."""
