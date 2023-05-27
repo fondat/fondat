@@ -293,9 +293,11 @@ class ContainerResource(LazySimpleNamespace):
 def container_resource(resources: Mapping[str, Any], tag: str | None = None):
     """
     Create a resource to contain subordinate resources.
+
     Parameters:
     • resources: mapping of resource names to resource objects
     • tag: tag to group the resource
+
     Suborindates are accessed as attributes by name.
     """
 
