@@ -25,10 +25,10 @@ Row = Iterable[str]
 
 def _round(value: Number, precision: int | None) -> str:
     if precision is None:  # floating point
-        value = str(value)
-        if "." in value:
-            value = value.rstrip("0").rstrip(".")
-        return value
+        svalue = str(value)
+        if "." in svalue:
+            svalue = svalue.rstrip("0").rstrip(".")
+        return svalue
     if precision == 0:
         return str(round(value))
     return f"{{:.{precision}f}}".format(value)
@@ -141,8 +141,9 @@ class TypedDictCodec(Codec[T, Row]):
     for a given column is specified, then the column will map the to dictionary key of the
     same name.
 
-    The codecs mapping specifies which codecs are used to encode columns. If no codec for a
-    given column is specified, then the default string codec for its associated type is used.
+    The codecs mapping specifies which codecs are used to encode/decode columns. If no codec
+    for a given column is specified, then the default string codec for its associated type is
+    used.
     """
 
     def __init__(
@@ -230,8 +231,8 @@ class DataclassCodec(Codec[T, Row]):
     mapping for a given column is specified, then the column will map to the field name of
     the same name.
 
-    The codecs mapping specifies which codecs are used to encode columns. If no mapping for a
-    given column is provided, then the default codec for its associated field is used.
+    The codecs mapping specifies which codecs are used to encode/decode columns. If no mapping
+    for a given column is provided, then the default codec for its associated field is used.
     """
 
     def __init__(
