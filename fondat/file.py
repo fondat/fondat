@@ -4,11 +4,10 @@ import fondat.error
 import logging
 import mimetypes
 
-from contextlib import suppress
 from fondat.codec import BinaryCodec, DecodeError, StringCodec
 from fondat.http import AsBody
 from fondat.resource import operation, resource
-from fondat.stream import Reader, Stream
+from fondat.stream import IOBaseStream, Reader, Stream
 from pathlib import Path
 from typing import Annotated, BinaryIO, Generic, TypeVar
 from urllib.parse import quote, unquote
@@ -52,26 +51,22 @@ class FileStream(Stream):
     """
 
     def __init__(self, path: Path, content_type: str | None = None):
-        self.file = path.open("rb")
-        self.file.seek(0, 2)
+        file = path.open("rb")
+        file.seek(0, 2)
         if content_type is None:
             content_type = _content_type(path.name)
-        content_length = self.file.tell()
-        self.file.seek(0, 0)
+        content_length = file.tell()
+        file.seek(0, 0)
         super().__init__(content_type, content_length)
+        self.iostream = IOBaseStream(
+            iobase=file, content_type=content_type, content_length=content_length
+        )
 
     async def __anext__(self) -> bytes:
-        if self.file:
-            chunk = self.file.read1(1048576)  # 1 MiB
-            if len(chunk):
-                return chunk
-            await self.close()
-        raise StopAsyncIteration
+        return await anext(self.iostream)
 
     async def close(self) -> None:
-        with suppress(Exception):
-            self.file.close()
-        self.file = None
+        return await self.iostream.close()
 
 
 @resource
