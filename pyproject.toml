@@ -27,18 +27,18 @@ packages = [
 
 [tool.poetry.dependencies]
 python = "^3.10"
-aiosqlite = "^0.18"
+aiosqlite = "^0.19"
 iso8601 = "^1.1"
 multidict = "^6.0"
-wrapt = "^1.14"
+wrapt = "^1.15"
 
 [tool.poetry.dev-dependencies]
-black = "^23.1"
+black = "^23.3"
 isort = "^5.12"
-pre-commit = "^3.0"
-pytest = "^7.2"
-pytest-asyncio = "^0.20"
-pytest-cov = "^4.0"
+pre-commit = "^3.3"
+pytest = "^7.3"
+pytest-asyncio = "^0.21"
+pytest-cov = "^4.1"
 
 [tool.isort]
 profile = "black"
