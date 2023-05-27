@@ -423,23 +423,23 @@ def test_dataclass_error():
 
 
 def test_typeddict_success():
-    TD = TypedDict("TD", a=str)
+    TD = TypedDict("TD", {"a": str})
     validate(dict(a="b"), TD)
 
 
 def test_typeddict_error():
-    TD = TypedDict("TD", c=int)
+    TD = TypedDict("TD", {"c": int})
     with pytest.raises(ValidationError):
         validate(dict(c="str"), TD)
 
 
 def test_typeddict_total_success():
-    TD = TypedDict("TD", e=float)
+    TD = TypedDict("TD", {"e": float})
     validate(dict(e=1.2), TD)
 
 
 def test_typeddict_total_error():
-    TD = TypedDict("TD", f=str)
+    TD = TypedDict("TD", {"f": str})
     with pytest.raises(ValidationError):
         validate(dict(), TD)
 
