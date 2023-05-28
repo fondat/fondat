@@ -22,7 +22,6 @@ import wrapt
 
 from collections.abc import Callable, Iterable, Mapping
 from contextlib import contextmanager, suppress
-from copy import deepcopy
 from fondat.cache import CacheResource, hash_json
 from fondat.codec import JSONCodec
 from fondat.error import BadRequestError, ForbiddenError, NotFoundError, UnauthorizedError
@@ -199,7 +198,6 @@ def operation(
 
     @wrapt.decorator
     async def wrapper(wrapped, instance, args, kwargs):
-        args, kwargs = deepcopy(args), deepcopy(kwargs)  # avoid side effects
         cls = instance.__class__
         resource_name = f"{cls.__module__}.{cls.__qualname__}"
         operation = getattr(wrapped, "_fondat_operation")
