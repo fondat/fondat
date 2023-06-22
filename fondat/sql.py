@@ -32,8 +32,7 @@ _logger = logging.getLogger(__name__)
 
 # type variables
 Item = TypeVar("Item")  # item type variable
-PK = TypeVar("PK")  # primary key type variable
-R = TypeVar("R")  # row type variable
+Schema = TypeVar("Schema")  # table schema type variable
 T = TypeVar("T")  # generic type variable
 
 
@@ -144,14 +143,12 @@ class Database:
     """Base class for a SQL database."""
 
     async def execute(
-        self,
-        statement: Expression | str,
-        result: type[T] | None = None,
+        self, statement: Expression | str, result: type[T] | None = None
     ) -> AsyncIterator[T] | None:
         """
         Execute a SQL statement.
 
-        Parameter:
+        Parameters:
         • statement: SQL statement to excute
         • result: the type to return a query result row
 
@@ -176,7 +173,7 @@ class Database:
         raise NotImplementedError
 
 
-class Table(Generic[R, PK]):
+class Table(Generic[Schema]):
     """
     Represents a table in a SQL database.
 
@@ -192,7 +189,7 @@ class Table(Generic[R, PK]):
 
     __slots__ = {"name", "database", "schema", "columns", "pk"}
 
-    def __init__(self, name: str, database: Database, schema: type[R], pk: str):
+    def __init__(self, name: str, database: Database, schema: type[Schema], pk: str):
         self.name = name
         self.database = database
         schema = fondat.types.strip_annotations(schema)
@@ -306,7 +303,7 @@ class Table(Generic[R, PK]):
         result = await self.database.execute(stmt, TypedDict("Result", {"count": int}))
         return (await anext(result))["count"]
 
-    async def insert(self, value: R):
+    async def insert(self, value: Schema):
         """
         Insert table row. Must be called within a database transaction context.
         """
@@ -325,10 +322,10 @@ class Table(Generic[R, PK]):
         )
         await self.database.execute(stmt)
 
-    async def read(self, pk: PK) -> R:
+    async def read(self, pk: Any) -> Schema:
         """
-        Return a table row, or None if not found. Must be called within a database transaction
-        context.
+        Return table row that has the specified primary key, or `None` if not found. Must be
+        called within a database transaction context.
         """
         try:
             return self.schema(
@@ -342,7 +339,7 @@ class Table(Generic[R, PK]):
         except StopAsyncIteration:
             return None
 
-    async def update(self, value: R):
+    async def update(self, value: Schema):
         """
         Update table row. Must be called within a database transaction context.
         """
@@ -362,7 +359,7 @@ class Table(Generic[R, PK]):
             )
         )
 
-    async def delete(self, pk: PK):
+    async def delete(self, pk: Any):
         """
         Delete table row. Must be called within a database transaction context.
         """
@@ -374,10 +371,11 @@ class Table(Generic[R, PK]):
             )
         )
 
-    async def upsert(self, value: R):
+    async def upsert(self, value: Schema):
         """
-        Upsert table row. Must be called within a database transaction context.
-        Default is inefficient; database-specific implementations should override.
+        Upsert table row. Must be called within a database transaction context. Default is
+        inefficient; database-specific instances should override with a more efficient
+        implementation.
         """
         if await self.read(getattr(value, self.pk)) is None:
             await self.insert(value)
@@ -439,16 +437,24 @@ class Index:
 
 
 @resource
-class TableResource(Generic[R, PK]):
+class TableResource(Generic[Schema]):
+    """
+    A resource representation of a SQL table.
+
+    Parameters:
+    • table: table object being represented by resource
+    • cache: resource to cache rows
+    """
+
     def __init__(
         self,
-        table: Table,
+        table: Table[Schema],
         cache: CacheResource | None = None,
     ):
         self.table = table
         self.cache = cache
 
-    def __getitem__(self, pk: PK) -> RowResource[R, PK]:
+    def __getitem__(self, pk: Any) -> RowResource[Schema]:
         return RowResource(table=self.table, pk=pk, cache=self.cache)
 
     @operation
@@ -456,7 +462,7 @@ class TableResource(Generic[R, PK]):
         self,
         limit: Annotated[int, MinValue(1)] = 1000,
         cursor: bytes | None = None,
-    ) -> Page[T]:
+    ) -> Page[Schema]:
         """Get paginated list of rows, ordered by primary key."""
         pk_type = self.table.columns[self.table.pk]
         cursor_codec = BinaryCodec.get(pk_type)
@@ -502,7 +508,7 @@ class TableResource(Generic[R, PK]):
                     await self.table.insert(new)
 
     @query
-    async def find_pks(self, pks: set[PK]) -> list[R]:
+    async def find_pks(self, pks: set[Any]) -> list[Schema]:
         """Return rows corresponding to the specified set of primary keys."""
         if not pks:
             return []
@@ -522,17 +528,17 @@ class TableResource(Generic[R, PK]):
 
 
 @resource
-class RowResource(Generic[R, PK]):
+class RowResource(Generic[Schema]):
     """
     Resource that represents a row in a database table.
 
     Parameters:
     • table: table where row is located
-    • pk: primary key of row
+    • pk: primary key value of row
     • cache: resource to cache rows
     """
 
-    def __init__(self, table: Table[R, PK], pk: PK, cache: CacheResource | None = None):
+    def __init__(self, table: Table[Schema], pk: Any, cache: CacheResource | None = None):
         self.table = table
         self.pk = pk
         self._cache_entry = (
@@ -550,7 +556,7 @@ class RowResource(Generic[R, PK]):
         )
 
     @operation
-    async def get(self) -> R:
+    async def get(self) -> Schema:
         """Get row from table."""
         if self._cache_entry:
             with suppress(NotFoundError):
@@ -564,7 +570,7 @@ class RowResource(Generic[R, PK]):
         return row
 
     @operation
-    async def put(self, value: R):
+    async def put(self, value: Schema):
         """Insert or update (upsert) row."""
         if getattr(value, self.table.pk) != self.pk:
             raise ValidationError("primary key mismatch")

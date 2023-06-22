@@ -25,10 +25,9 @@ _logger = logging.getLogger(__name__)
 
 
 T = TypeVar("T")  # generic
-R = TypeVar("R")  # row type
+Schema = TypeVar("Schema")  # row type
 PT = TypeVar("PT")  # Python type
 ST = TypeVar("ST")  # SQL type
-PK = TypeVar("PK")  # primary key type
 
 
 class SQLiteCodec(Codec[PT, ST]):
@@ -314,10 +313,10 @@ class Database(fondat.sql.Database):
         return SQLiteCodec.get(type).sql_type
 
 
-class Table(fondat.sql.Table[R, PK]):
+class Table(fondat.sql.Table[Schema]):
     """Represents a table in a SQLite database."""
 
-    async def upsert(self, value: R):
+    async def upsert(self, value: Schema):
         """Upsert table row. Must be called within a database transaction context."""
         stmt = Expression(
             f"INSERT INTO {self.name} (",
