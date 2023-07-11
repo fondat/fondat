@@ -13,7 +13,7 @@ from collections.abc import Callable, Iterable, Mapping
 from contextlib import contextmanager
 from fondat.types import is_instance, is_subclass, split_annotations
 from types import NoneType
-from typing import Any, TypeVar
+from typing import Any, Self, TypeVar
 
 
 class ValidationError(ValueError):
@@ -91,13 +91,13 @@ class ValidationErrors(ValueError):
 
     @classmethod
     @contextmanager
-    def collect(cls) -> Iterable["ValidationErrors"]:
+    def collect(cls) -> Self:
         """
-        Establish a context around a new ValidationErrors exception. Upon exit of the context,
-        if the ValidationErrors exception contains any ValidationError exceptions, the new
-        ValidationErrors exception will be raised.
+        Establish a context around a new ValidationErrors exception object. Upon exit of the
+        context, if the ValidationErrors exception object contains any ValidationError
+        exceptions, the new ValidationErrors exception object will be raised.
         """
-        validation_errors = ValidationErrors()
+        validation_errors = cls()
         yield validation_errors
         if validation_errors.errors:
             raise validation_errors
@@ -106,15 +106,15 @@ class ValidationErrors(ValueError):
     def catch(self) -> Iterable[None]:
         """
         Establish a context to catch a ValidationError exception and add it to the
-        ValidationErrors exception. If an error is caught, it will be suppressed and execution
-        will continue outside of the context.
+        ValidationErrors exception object. If an error is caught, it will be suppressed, and
+        execution will continue outside of the context.
         """
         try:
             yield
         except ValidationError as ve:
             self.add(ve)
 
-    def add(self, error: "ValidationError") -> None:
+    def add(self, error: ValidationError) -> None:
         """Add a ValidationError exception to the ValidationErrors exception."""
         self.errors.append(error)
 
