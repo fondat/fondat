@@ -91,7 +91,7 @@ class ValidationErrors(ValueError):
 
     @classmethod
     @contextmanager
-    def collect(cls) -> Self:
+    def collect(cls) -> Iterable[Self]:
         """
         Establish a context around a new ValidationErrors exception object. Upon exit of the
         context, if the ValidationErrors exception object contains any ValidationError
@@ -99,7 +99,7 @@ class ValidationErrors(ValueError):
         """
         validation_errors = cls()
         yield validation_errors
-        if validation_errors.errors:
+        if validation_errors:
             raise validation_errors
 
     @contextmanager
