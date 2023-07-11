@@ -17,24 +17,32 @@ from typing import Any, TypeVar
 
 
 class ValidationError(ValueError):
-    """Error raised when validation fails."""
+    """
+    Error raised when a validation fails.
 
-    __slots__ = {"message", "path"}
+    Parameters:
+    • message: human-readable error message
+    • path: path to the attribute that is the subject of the validation error
+    • code: machine-readable error code
+    """
 
-    def __init__(self, message: str | None = None, path: list[str | int] | None = None):
+    __slots__ = {"message", "path", "code"}
+
+    def __init__(
+        self,
+        message: str | None = None,
+        path: list[str | int] | None = None,
+        code: str | None = None,
+    ):
         self.message = message
         self.path = path
+        self.code = code
 
     def __repr__(self):
-        return f"{self.__class__.__name__}({self.message!r}, {self.path!r})"
+        return f"{self.__class__.__name__}({self.message!r}, {self.path!r}, {self.code!r})"
 
     def __str__(self):
-        result = []
-        if self.message is not None:
-            result.append(str(self.message))
-        if self.path:
-            result.append(f"({'.'.join((str(a) for a in self.path))})")
-        return " ".join(result)
+        return self.message or self.code
 
     @staticmethod
     @contextmanager
@@ -51,6 +59,64 @@ class ValidationError(ValueError):
                 case list():
                     ve.path = path + ve.path
             raise
+
+
+class ValidationErrors(ValueError):
+    """
+    Error that collects multiple validation errors, to be raised together.
+
+    Parameters and attributes:
+    • errors: collected validation errors
+    """
+
+    __slots__ = {"errors"}
+
+    def __init__(self, *errors):
+        self.errors = list(errors)
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}{', '.join(self.errors)!r})"
+
+    def __str__(self):
+        return ", ".join(str(e) for e in self.errors)
+
+    def __len__(self):
+        return len(self.errors)
+
+    def __bool__(self):
+        return bool(self.errors)
+
+    def __iter__(self):
+        return iter(self.errors)
+
+    @classmethod
+    @contextmanager
+    def collect(cls) -> Iterable["ValidationErrors"]:
+        """
+        Establish a context around a new ValidationErrors exception. Upon exit of the context,
+        if the ValidationErrors exception contains any ValidationError exceptions, the new
+        ValidationErrors exception will be raised.
+        """
+        validation_errors = ValidationErrors()
+        yield validation_errors
+        if validation_errors.errors:
+            raise validation_errors
+
+    @contextmanager
+    def catch(self) -> Iterable[None]:
+        """
+        Establish a context to catch a ValidationError exception and add it to the
+        ValidationErrors exception. If an error is caught, it will be suppressed and execution
+        will continue outside of the context.
+        """
+        try:
+            yield
+        except ValidationError as ve:
+            self.add(ve)
+
+    def add(self, error: "ValidationError") -> None:
+        """Add a ValidationError exception to the ValidationErrors exception."""
+        self.errors.append(error)
 
 
 class Validator:

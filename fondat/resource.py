@@ -13,6 +13,7 @@ For information on how security policies are evaluated, see the `authorize` func
 
 import asyncio
 import fondat.context as context
+import fondat.error
 import fondat.monitor as monitor
 import functools
 import inspect
@@ -24,11 +25,10 @@ from collections.abc import Callable, Iterable, Mapping
 from contextlib import contextmanager, suppress
 from fondat.cache import CacheResource, hash_json
 from fondat.codec import JSONCodec
-from fondat.error import BadRequestError, ForbiddenError, NotFoundError, UnauthorizedError
 from fondat.lazy import LazySimpleNamespace
 from fondat.security import Policy
 from fondat.types import literal_values
-from fondat.validation import ValidationError, validate_arguments
+from fondat.validation import validate_arguments
 from typing import Any, Literal, TypeVar
 
 
@@ -76,10 +76,10 @@ async def authorize(policies: Iterable[Policy]):
         try:
             await policy.apply()
             return  # security policy authorized the operation
-        except ForbiddenError as fe:
-            if not isinstance(exception, ForbiddenError):
+        except fondat.error.ForbiddenError as fe:
+            if not isinstance(exception, fondat.error.ForbiddenError):
                 exception = fe
-        except UnauthorizedError as ue:
+        except fondat.error.UnauthorizedError as ue:
             if not exception:
                 exception = ue
         except:
@@ -146,7 +146,7 @@ def operation(
 
     Exceptions that an operation should raise:
     • fondat.error.Error (e.g. BadRequestError)
-    • fondat.validation.ValidationError (automatically reraised as a BadRequestError)
+    • ValueError (automatically reraised as a fondat.error.BadRequestError)
 
     The cache is a resource that exposes cache entry resources. A MemoryResource can serve as
     an operation cache resource out of the box. It is safe for a single cache resource to be
@@ -220,14 +220,18 @@ def operation(
                     if cache:
                         cache_args = JSONCodec.get(Any).encode(defaults | arguments)
                         cache_entry = cache[tags | {"arguments": cache_args}]
-                        with suppress(NotFoundError):
+                        with suppress(fondat.error.NotFoundError):
                             result = JSONCodec.get(returns).decode(await cache_entry.get())
                             _logger.debug("returning cached result")
                             return result
                     try:
                         result = await wrapped(*args, **kwargs)
-                    except ValidationError as ve:
-                        raise BadRequestError from ve
+                    except fondat.error.Error:
+                        raise
+                    except ValueError as ve:
+                        raise fondat.error.BadRequestError from ve
+                    except Exception as ex:
+                        raise fondat.error.InternalServerError from ex
                     if cache:
                         await cache_entry.put(JSONCodec.get(returns).encode(result))
                     return result

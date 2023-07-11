@@ -10,6 +10,7 @@ from fondat.validation import (
     MinValue,
     Pattern,
     ValidationError,
+    ValidationErrors,
     validate,
     validate_arguments,
     validate_return_value,
@@ -548,3 +549,48 @@ def test_generic_dataclass():
 
     with pytest.raises(ValidationError):
         validate(BB(b=A(a=1)), BB)
+
+
+# ---- collections -----
+
+
+def test_validation_errors():
+    errors = ValidationErrors()
+    errors.add(ValidationError("foo"))
+    try:
+        raise errors
+    except ValidationErrors as ve:
+        assert ve is errors
+        assert len(ve.errors) == 1
+
+
+def test_validation_errors_context_errors():
+    with pytest.raises(ValidationErrors):
+        with ValidationErrors.collect() as errors:
+            errors.add(ValidationError("foo"))
+            errors.add(ValidationError("bar"))
+
+
+def test_validation_errors_context_no_errors():
+    with ValidationErrors.collect():
+        pass
+    # exiting context should not raise exception
+
+
+def test_validation_errors_catch():
+    errors = ValidationErrors()
+    with errors.catch():
+        raise ValidationError("foo")
+    assert len(errors) == 1
+    with errors.catch():
+        raise ValidationError("bar")
+    assert len(errors) == 2
+
+
+def test_validation_errors_iter():
+    errors = ValidationErrors(ValidationError("foo"), ValidationError("bar)"))
+    count = 0
+    for error in errors:
+        assert isinstance(error, ValidationError)
+        count += 1
+    assert count == 2
