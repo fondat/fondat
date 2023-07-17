@@ -454,9 +454,8 @@ def validate_condition(
     • path: path to the attribute that is the subject of the validation error
     • code: machine-readable error code
     """
-    if condition:  # validation passed
-        return
-    error = ValidationError(message=message, path=path, code=code)
-    if errors is None:
-        raise error
-    errors.add(error)
+    if not condition:
+        error = ValidationError(message=message, path=path, code=code)
+        if errors is None:
+            raise error
+        errors.add(error)
