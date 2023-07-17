@@ -28,10 +28,12 @@ class ValidationError(ValueError):
 
     __slots__ = {"message", "path", "code"}
 
+    Path = list[str | int]
+
     def __init__(
         self,
         message: str | None = None,
-        path: list[str | int] | None = None,
+        path: Path | None = None,
         code: str | None = None,
     ):
         self.message = message
@@ -46,8 +48,11 @@ class ValidationError(ValueError):
 
     @staticmethod
     @contextmanager
-    def path_on_error(path: list[str | int] | str | int):
-        """Context manager to specify error path in the event that a DecodeError is raised."""
+    def path_on_error(path: Path | str | int):
+        """
+        Execute within context that inserts a base error path if a ValidationError is raised.
+        Base error path can be a full path or a single path segment.
+        """
         try:
             yield
         except ValidationError as ve:
@@ -230,7 +235,7 @@ def _validate_literal(value, args):
 
 
 @contextmanager
-def validation_error_path(segment: Any):
+def validation_error_path(segment: str | int):
     try:
         yield
     except ValidationError as ve:
@@ -295,7 +300,7 @@ def _validate_dataclass(value, python_type, origin):
                 validate(getattr(value, attr_name), attr_type)
 
 
-def validate(value: Any, type_hint: Any) -> NoneType:
+def validate_value(value: Any, type_hint: Any) -> None:
     """Validate a value."""
 
     python_type, annotations = split_annotations(type_hint)
@@ -343,6 +348,11 @@ def validate(value: Any, type_hint: Any) -> NoneType:
         return _validate_iterable(value, python_type, args)
     elif dataclasses.is_dataclass(python_type) or dataclasses.is_dataclass(origin):
         return _validate_dataclass(value, python_type, origin)
+
+
+def validate(value: Any, type_hint: Any) -> None:
+    """Deprecated. Use validate_value."""
+    validate_value(value, type_hint)
 
 
 def validate_arguments(callable: Callable):
@@ -423,3 +433,30 @@ def is_valid(value: Any, type_hint: Any) -> bool:
     except ValidationError:
         return False
     return True
+
+
+def validate_condition(
+    condition: bool,
+    *,
+    errors: ValidationErrors | None = None,
+    message: str | None = None,
+    path: ValidationError.Path | None = None,
+    code: str | None = None,
+) -> None:
+    """
+    Validate a condition. If the condition is false then a ValidationError is created. If an
+    errors object is specified, then the error is added to it; otherwise the ValidationError
+    is raised.
+
+    Parameters:
+    • errors: object to add error to
+    • message: human-readable error message
+    • path: path to the attribute that is the subject of the validation error
+    • code: machine-readable error code
+    """
+    if condition:  # validation passed
+        return
+    error = ValidationError(message=message, path=path, code=code)
+    if errors is None:
+        raise error
+    errors.add(error)
