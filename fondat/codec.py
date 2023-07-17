@@ -94,7 +94,9 @@ class CodecError(ValueError):
 
     __slots__ = {"message", "path"}
 
-    def __init__(self, message: str | None = None, path: list[str | int] | None = None):
+    Path = list[str | int]
+
+    def __init__(self, message: str | None = None, path: Path | None = None):
         self.message = message
         self.path = path
 
@@ -106,8 +108,11 @@ class CodecError(ValueError):
 
     @staticmethod
     @contextmanager
-    def path_on_error(path: list[str | int] | str | int) -> None:
-        """Context manager to add to error path in the event that a DecodeError is raised."""
+    def path_on_error(path: Path | str | int) -> None:
+        """
+        Execute within context that inserts a base error path if a CodecError is raised.
+        Base error path can be a full path or a single path segment.
+        """
         try:
             yield
         except CodecError as ce:
