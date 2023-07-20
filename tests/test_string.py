@@ -50,7 +50,7 @@ async def test_template_recursive():
 
 async def test_template_multi_line_simple():
     async def resolver(variable: str) -> str:
-        return {"foo": "bar", "baz": "qux"}.get(variable)
+        return {"foo": "bar", "baz": "qux", "doot": ""}.get(variable)
 
     template = Template("hello ${foo}\ngoodbye ${baz}\n")
     result = "hello bar\ngoodbye qux\n"
@@ -64,3 +64,11 @@ async def test_template_multi_line_span_ignore():
     template = Template("hello ${foo\n}goodbye ${baz}\n")
     result = "hello ${foo\n}goodbye qux\n"
     assert await template.resolve(resolver) == result
+
+
+async def test_template_empty_value():
+    async def resolver(variable: str) -> str:
+        return {"empty": "", "full": "full"}.get(variable)
+
+    assert await Template("${empty}").resolve(resolver) == ""
+    assert await Template("${full}").resolve(resolver) == "full"

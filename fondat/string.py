@@ -19,7 +19,7 @@ class Template:
     within the template string.
     """
 
-    _pattern = re.compile(r"\$\{(.*?)}")
+    _pattern = re.compile(r"\${(.*)}")
 
     def __init__(self, template: str):
         self.template = template
@@ -33,14 +33,14 @@ class Template:
             while match := self._pattern.search(line[index:]):
                 group = match.group(1)
                 resolved = None
-                if resolved := await resolver(group):
-                    span = match.span()
-                    segments.append(line[index : span[0]])
-                    segments.append(await self._resolve(resolved, resolver))
-                    index = span[1]
-                    break
-                if not resolved:
+                resolved = await resolver(group)
+                if resolved is None:
                     raise ValueError(f"could not resolve ${{{group}}} in template")
+                span = match.span()
+                segments.append(line[index : span[0]])
+                segments.append(await self._resolve(resolved, resolver))
+                index = span[1]
+                break
             segments.append(line[index:])
         return "".join(segments)
 
