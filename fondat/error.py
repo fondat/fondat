@@ -1,8 +1,9 @@
-"""Resource error module."""
+"""Fondat error module."""
 
 import http
 
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
+from contextlib import contextmanager
 
 
 class Error(Exception):
@@ -76,7 +77,7 @@ class _Errors:
 errors = _Errors()
 
 
-# commonly used errors
+# commonly used resource errors
 BadRequestError: ClientError = errors.BadRequestError
 ConflictError: ClientError = errors.ConflictError
 ForbiddenError: ClientError = errors.ForbiddenError
@@ -84,3 +85,23 @@ InternalServerError: ServerError = errors.InternalServerError
 MethodNotAllowedError: ClientError = errors.MethodNotAllowedError
 NotFoundError: ClientError = errors.NotFoundError
 UnauthorizedError: ClientError = errors.UnauthorizedError
+
+
+@contextmanager
+def wrap_exception(
+    *,
+    catch: type[Exception] | tuple[type[Exception], ...] = Exception,
+    throw: type[Exception] | Exception,
+) -> Iterable[None]:
+    """
+    Return a context manager that catches exception type(s) and raises a different exception
+    with the original exception as its cause.
+
+    Parameters:
+    • throw: exception to raise
+    • catch: exception type(s) to catch
+    """
+    try:
+        yield
+    except catch as caught:
+        raise throw from caught
