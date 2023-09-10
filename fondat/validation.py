@@ -239,7 +239,7 @@ def validation_error_path(segment: str | int):
     try:
         yield
     except ValidationError as ve:
-        ve.path = (ve.path or []).insert(0, segment)
+        ve.path = [segment] + (ve.path or [])
         raise
 
 
