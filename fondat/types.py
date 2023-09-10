@@ -190,3 +190,15 @@ def resolve_typevar(typevar: TypeVar) -> Any:
     while isinstance(result, TypeVar):
         result = _typevars.get({}).get(result) or Any
     return result
+
+
+# TODO: use PEP 661 Sentinel when available
+class _MISSING_TYPE:
+    def __str__(self):
+        return "MISSING"
+
+    def __repr__(self):
+        return "MISSING"
+
+
+MISSING = _MISSING_TYPE()

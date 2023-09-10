@@ -6,7 +6,7 @@ import functools
 from collections.abc import Iterable, Mapping
 from dataclasses import is_dataclass
 from fondat.annotation import Password
-from fondat.types import is_optional, is_subclass, split_annotations, strip_optional
+from fondat.types import MISSING, is_optional, is_subclass, split_annotations, strip_optional
 from typing import Any, TypedDict, TypeVar, get_type_hints
 
 
@@ -15,9 +15,6 @@ T = TypeVar("T")
 
 
 def _datacls_init(dc: type):
-    class MISSING:
-        pass
-
     fields = {field.name: field for field in dataclasses.fields(dc) if field.init}
 
     def __init__(self, **kwargs):
