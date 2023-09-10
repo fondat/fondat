@@ -8,7 +8,7 @@ target-version = ['py311']
 
 [tool.poetry]
 name = "fondat"
-version = "4.1.11"
+version = "4.1.12"
 description = "A foundation for resource-oriented backend applications."
 readme = "README.md"
 authors = ["fondat authors"]
