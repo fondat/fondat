@@ -11,7 +11,7 @@ import wrapt
 
 from collections.abc import Callable, Iterable, Mapping
 from contextlib import contextmanager
-from fondat.types import is_instance, is_subclass, split_annotations
+from fondat.types import MISSING, is_instance, is_subclass, split_annotations
 from types import NoneType
 from typing import Any, Self, TypeVar
 
@@ -24,6 +24,7 @@ class ValidationError(ValueError):
     • message: human-readable error message
     • path: path to the attribute that is the subject of the validation error
     • code: machine-readable error code
+    • value: value that was the cause of the validation error
     """
 
     __slots__ = {"message", "path", "code"}
@@ -35,16 +36,41 @@ class ValidationError(ValueError):
         message: str | None = None,
         path: Path | None = None,
         code: str | None = None,
+        value: Any = MISSING,
     ):
         self.message = message
         self.path = path
         self.code = code
+        self.value = value
 
     def __repr__(self):
-        return f"{self.__class__.__name__}({self.message!r}, {self.path!r}, {self.code!r})"
+        s = []
+        if self.message is not None:
+            s.append(f"message={self.message!r}")
+        if self.path is not None:
+            s.append(f"path={self.path!r}")
+        if self.code is not None:
+            s.append(f"code={self.code!r}")
+        if self.value is not MISSING:
+            s.append(f"value={self.value!r}")
+        if not s:
+            return self.__class__.__name__
+        return f"{self.__class__.__name__}({', '.join(s)})"
 
     def __str__(self):
-        return (self.message or self.code or "") + (f"in {self.path}" if self.path else "")
+        s = []
+        if self.message:
+            s.append(self.message)
+        if self.code:
+            if not self.message:
+                s.append(self.code)
+            else:
+                s.append(f"({self.code})")
+        if self.path:
+            s.append(f"in {'/'.join(self.path)}")
+        if self.value is not MISSING:
+            s.append(f"(value: {self.value})")
+        return " ".join(s)
 
     @staticmethod
     @contextmanager
@@ -141,7 +167,7 @@ class MinLen(Validator):
 
     def validate(self, value: Any) -> None:
         if len(value) < self.value:
-            raise ValidationError(f"mininum length: {self.value}")
+            raise ValidationError(f"mininum length: {self.value}", value=value)
 
     def __repr__(self):
         return f"MinLen({self.value})"
@@ -157,7 +183,7 @@ class MaxLen(Validator):
 
     def validate(self, value: Any) -> None:
         if len(value) > self.value:
-            raise ValidationError(f"maximum length: {self.value}")
+            raise ValidationError(f"maximum length: {self.value}", value=value)
 
     def __repr__(self):
         return f"MaxLen({self.value})"
@@ -173,7 +199,7 @@ class MinValue(Validator):
 
     def validate(self, value: Any) -> None:
         if value < self.value:
-            raise ValidationError(f"minimum value: {self.value}")
+            raise ValidationError(f"minimum value: {self.value}", value=value)
 
     def __repr__(self):
         return f"MinValue({self.value})"
@@ -189,7 +215,7 @@ class MaxValue(Validator):
 
     def validate(self, value: Any) -> None:
         if value > self.value:
-            raise ValidationError(f"maximum value: {self.value}")
+            raise ValidationError(f"maximum value: {self.value}", value=value)
 
     def __repr__(self):
         return f"MaxValue({self.value})"
@@ -210,7 +236,7 @@ class Pattern(Validator):
 
     def validate(self, value: Any) -> None:
         if not self.pattern.match(value):
-            raise ValidationError(f"pattern: {self.pattern.pattern}")
+            raise ValidationError(f"expecting pattern: {self.pattern.pattern}", value=value)
 
     def __repr__(self):
         return f"Pattern({self.pattern})"
@@ -224,14 +250,16 @@ def _validate_union(value, args):
             return validate(value, arg)
         except ValidationError as e:
             continue
-    raise ValidationError(f"expecting: union of {args}; received: {type(value)} ({value})")
+    raise ValidationError(
+        f"expecting union: {' | '.join(a.__name__ for a in args)}", value=value
+    )
 
 
 def _validate_literal(value, args):
     for arg in args:
         if arg == value and type(arg) is type(value):
             return
-    raise ValidationError(f"expecting one of: {args}; received: {value}")
+    raise ValidationError(f"expecting one of: {', '.join(repr(a) for a in args)}", value=value)
 
 
 def validation_error_path(segment: str | int):
@@ -246,7 +274,7 @@ def _validate_typeddict(value, python_type):
                 validate(value[item_key], item_type)
         except KeyError:
             if item_key in python_type.__required_keys__:
-                raise ValidationError("required", path=[item_key])
+                raise ValidationError("required", path=[item_key], value=value)
 
 
 def _validate_mapping(value, python_type, args):
@@ -267,7 +295,7 @@ def _validate_tuple(value, python_type, args):
         index += 1
     elif len(value) != len(args):
         raise ValidationError(
-            f"expecting tuple[{', '.join(str(arg) for arg in args)}]; received: {value}"
+            f"expecting tuple[{', '.join(str(arg) for arg in args)}]", value=value
         )
     else:
         for n in range(len(args)):
@@ -325,13 +353,13 @@ def validate_value(value: Any, type_hint: Any) -> None:
 
     # basic type validation
     if origin and not is_instance(value, origin):
-        raise ValidationError(f"expecting {origin.__name__}; received {type(value)}")
+        raise ValidationError(f"expecting type: {origin.__name__}", value=value)
     elif not origin and not is_instance(value, python_type):
-        raise ValidationError(f"expecting {python_type}; received {type(value)}")
+        raise ValidationError(f"expecting type: {python_type.__name__}", value=value)
     elif python_type is int and is_instance(value, bool):  # bool is subclass of int
-        raise ValidationError("expecting int; received bool")
+        raise ValidationError("expecting type: int", value=value)
     elif is_subclass(origin, Iterable) and is_instance(value, (str, bytes, bytearray)):
-        raise ValidationError(f"expecting Iterable; received {type(value)}")
+        raise ValidationError(f"expecting type: Iterable", value=value)
 
     # structured type validation
     if is_subclass(python_type, dict) and hasattr(python_type, "__annotations__"):
