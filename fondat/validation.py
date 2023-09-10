@@ -44,7 +44,7 @@ class ValidationError(ValueError):
         return f"{self.__class__.__name__}({self.message!r}, {self.path!r}, {self.code!r})"
 
     def __str__(self):
-        return self.message or self.code + (f"in {self.path}" if self.path else "")
+        return (self.message or self.code or "") + (f"in {self.path}" if self.path else "")
 
     @staticmethod
     @contextmanager
