@@ -69,7 +69,7 @@ class ValidationError(ValueError):
         if self.path:
             s.append(f"in {'/'.join(self.path)}")
         if self.value is not MISSING:
-            s.append(f"(value: {self.value})")
+            s.append(f"(value: {self.value!r})")
         return " ".join(s)
 
     @staticmethod
@@ -250,16 +250,16 @@ def _validate_union(value, args):
             return validate(value, arg)
         except ValidationError as e:
             continue
-    raise ValidationError(
-        f"expecting union: {' | '.join(a.__name__ for a in args)}", value=value
-    )
+    union_repr = " | ".join("None" if a is NoneType else a.__name__ for a in args)
+    raise ValidationError(f"expecting union: {union_repr}", value=value)
 
 
 def _validate_literal(value, args):
     for arg in args:
         if arg == value and type(arg) is type(value):
             return
-    raise ValidationError(f"expecting one of: {', '.join(repr(a) for a in args)}", value=value)
+    literal_repr = ", ".join(repr(a) for a in args)
+    raise ValidationError(f"expecting one of: {literal_repr}", value=value)
 
 
 def validation_error_path(segment: str | int):
