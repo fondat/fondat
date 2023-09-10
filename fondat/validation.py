@@ -44,7 +44,7 @@ class ValidationError(ValueError):
         return f"{self.__class__.__name__}({self.message!r}, {self.path!r}, {self.code!r})"
 
     def __str__(self):
-        return self.message or self.code
+        return self.message or self.code + (f"in {self.path}" if self.path else "")
 
     @staticmethod
     @contextmanager
@@ -234,19 +234,15 @@ def _validate_literal(value, args):
     raise ValidationError(f"expecting one of: {args}; received: {value}")
 
 
-@contextmanager
 def validation_error_path(segment: str | int):
-    try:
-        yield
-    except ValidationError as ve:
-        ve.path = [segment] + (ve.path or [])
-        raise
+    """Deprecated. Use ValidationError.path_on_error."""
+    return ValidationError.path_on_error(segment)
 
 
 def _validate_typeddict(value, python_type):
     for item_key, item_type in typing.get_type_hints(python_type, include_extras=True).items():
         try:
-            with validation_error_path(item_key):
+            with ValidationError.path_on_error(item_key):
                 validate(value[item_key], item_type)
         except KeyError:
             if item_key in python_type.__required_keys__:
@@ -257,7 +253,7 @@ def _validate_mapping(value, python_type, args):
     key_type, value_type = args
     for key, value in value.items():
         validate(key, key_type)
-        with validation_error_path(key):
+        with ValidationError.path_on_error(key):
             validate(value, value_type)
 
 
@@ -266,7 +262,7 @@ def _validate_tuple(value, python_type, args):
         item_type = args[0]
         index = 0
         for n in range(len(value)):
-            with validation_error_path(n):
+            with ValidationError.path_on_error(n):
                 validate(value[n], item_type)
         index += 1
     elif len(value) != len(args):
@@ -275,7 +271,7 @@ def _validate_tuple(value, python_type, args):
         )
     else:
         for n in range(len(args)):
-            with validation_error_path(n):
+            with ValidationError.path_on_error(n):
                 validate(value[n], args[n])
 
 
@@ -283,7 +279,7 @@ def _validate_iterable(value, python_type, args):
     item_type = args[0]
     index = 0
     for item_value in value:
-        with validation_error_path(index):
+        with ValidationError.path_on_error(index):
             validate(item_value, item_type)
         index += 1
 
@@ -296,7 +292,7 @@ def _validate_dataclass(value, python_type, origin):
     dc_type = python_type if not origin else origin
     with fondat.types.capture_typevars(python_type):
         for attr_name, attr_type in typing.get_type_hints(dc_type, include_extras=True).items():
-            with validation_error_path(attr_name):
+            with ValidationError.path_on_error(attr_name):
                 validate(getattr(value, attr_name), attr_type)
 
 
@@ -376,7 +372,7 @@ def validate_arguments(callable: Callable):
         }
         for param in (p for p in sig.parameters.values() if p.name in params):
             if hint := hints.get(param.name):
-                with validation_error_path(param.name):
+                with ValidationError.path_on_error(param.name):
                     validate(params[param.name], hint)
 
     if asyncio.iscoroutinefunction(callable):
@@ -403,7 +399,7 @@ def validate_return_value(callable: Callable):
 
     def _validate(result):
         if return_type is not None:
-            with validation_error_path("return"):
+            with ValidationError.path_on_error("return"):
                 validate(result, return_type)
 
     if asyncio.iscoroutinefunction(callable):

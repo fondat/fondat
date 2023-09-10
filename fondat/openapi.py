@@ -362,13 +362,13 @@ def _kwargs(python_type, annotations):
             case fondat.annotation.Description():
                 kwargs["description"] = annotation.value
             case fondat.annotation.Example():
-                with fondat.validation.validation_error_path("example"):
+                with fondat.validation.ValidationError.path_on_error("example"):
                     fondat.validation.validate(annotation.value, python_type)
                 kwargs["example"] = fondat.codec.JSONCodec.get(python_type).encode(
                     annotation.value
                 )
             case Default():
-                with fondat.validation.validation_error_path("default"):
+                with fondat.validation.ValidationError.path_on_error("default"):
                     fondat.validation.validate(annotation.value, python_type)
                 kwargs["default"] = fondat.codec.JSONCodec.get(python_type).encode(
                     annotation.value
