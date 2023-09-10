@@ -321,7 +321,7 @@ def test_list_str_decode_int_error():
 
 
 def test_set_encodings():
-    _test_encoding(set[int], {1, 2, 3})
+    _test_encoding(set[int | str], {"a", "b", "c", 1, 2, 3})
 
 
 def test_set_json_encode_type_error():

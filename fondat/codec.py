@@ -1182,7 +1182,7 @@ class _IterableCodec(Codec[PT, TT]):
         if not isinstance(value, Iterable) or isinstance(value, _IterableCodec._AVOID):
             raise EncodeError
         if self.is_set:
-            value = sorted(value)
+            value = sorted(value, key=lambda v: (type(v).__module__, type(v).__name__, v))
         # TODO: path
         return [self.codec.encode(item) for item in value]
 
@@ -1452,7 +1452,7 @@ class _UnionCodec(Codec[PT, TT]):
 
     def __init__(self, python_type: Any, base_codec_type: type[Codec[PT, TT]]):
         python_type = strip_annotations(python_type)
-        self.codecs = tuple(base_codec_type.get(type) for type in set(get_args(python_type)))
+        self.codecs = tuple(base_codec_type.get(type) for type in get_args(python_type))
 
     def encode(self, value: PT) -> TT:
         for codec in self.codecs:
@@ -1500,10 +1500,9 @@ class UnionBinaryCodec(_UnionCodec[PT, bytes | bytearray], BinaryCodec[PT]):
 # ----- Literal -----
 
 
-_VT = namedtuple("VT", "value,type")
-
-
 class _LiteralCodec(Codec[PT, TT]):
+    _VT = namedtuple("VT", "value,type")
+
     @classmethod
     def handles(cls, python_type: Any) -> bool:
         python_type = strip_annotations(python_type)
@@ -1511,19 +1510,21 @@ class _LiteralCodec(Codec[PT, TT]):
 
     def __init__(self, python_type: Any, base_codec_type: type[Codec[PT, TT]]):
         python_type = strip_annotations(python_type)
-        self.vts = {_VT(v, type(v)) for v in fondat.types.literal_values(python_type)}
+        self.vts = {
+            _LiteralCodec._VT(v, type(v)) for v in fondat.types.literal_values(python_type)
+        }
         self.codecs = {vt: base_codec_type.get(vt.type) for vt in self.vts}
 
     def encode(self, value: PT) -> TT:
         with _wrap(EncodeError):
-            return self.codecs[_VT(value, type(value))].encode(value)
+            return self.codecs[_LiteralCodec._VT(value, type(value))].encode(value)
         raise EncodeError
 
     def decode(self, value: TT) -> PT:
         for codec in self.codecs.values():
             with suppress(DecodeError):
                 decoded = codec.decode(value)
-                if _VT(decoded, type(decoded)) in self.vts:
+                if _LiteralCodec._VT(decoded, type(decoded)) in self.vts:
                     return decoded
         raise DecodeError
 
