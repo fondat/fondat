@@ -253,6 +253,7 @@ class DataclassCodec(Codec[T, Row]):
             keys=fields,
             codecs=codecs,
         )
+        fields = dataclasses.fields(dataclass)
 
     @property
     def columns(self) -> Iterable[str]:
@@ -263,7 +264,9 @@ class DataclassCodec(Codec[T, Row]):
         Encode from dataclass value to CSV row. If a field value is None, it will be
         represented in a column as an empty string.
         """
-        return self.codec.encode(dataclasses.asdict(value))
+        return self.codec.encode(
+            {f.name: getattr(value, f.name) for f in dataclasses.fields(self.dataclass)}
+        )
 
     def decode(self, values: Row) -> T:
         """
