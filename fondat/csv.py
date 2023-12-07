@@ -10,7 +10,6 @@ from fondat.data import derive_typeddict
 from fondat.stream import Reader, Stream
 from fondat.types import is_optional, strip_annotations
 from numbers import Number
-from types import NoneType
 from typing import Any, TypeVar, get_type_hints, is_typeddict
 
 
@@ -34,7 +33,7 @@ def _round(value: Number, precision: int | None) -> str:
     return f"{{:.{precision}f}}".format(value)
 
 
-class CurrencyCodec(Codec[N | NoneType, str]):
+class CurrencyCodec(Codec[N | None, str]):
     """
     String codec that encodes/decodes a number as a currency value; optionally encodes with
     fixed-point precision. Encodes and decodes None as an empty value.
@@ -58,45 +57,45 @@ class CurrencyCodec(Codec[N | NoneType, str]):
         self.precision = precision
         self.codec = StringCodec.get(python_type)
 
-    def encode(self, value: N | NoneType) -> str:
+    def encode(self, value: N | None) -> str:
         return (
             f"{self.prefix}{_round(value, self.precision)}{self.suffix}"
             if value is not None
             else ""
         )
 
-    def decode(self, value: str) -> N | NoneType:
+    def decode(self, value: str) -> N | None:
         result = self.codec.decode(value.lstrip(self.prefix).rstrip(self.suffix))
         if self.precision is not None:
             result = round(result, self.precision)
         return result
 
 
-class PercentCodec(Codec[N | NoneType, str]):
+class PercentCodec(Codec[N | None, str]):
     """
-    String codec that encodes/decodes a fractional number as a percentage string with
-    fixed-point precision. Encodes and decodes None as an empty value.
+    String codec that encodes/decodes a fractional number as a percentage string; optionally
+    encodes with fixed-point precision. Encodes and decodes None as an empty value.
 
     Parameters:
     • python_type: type of the value to be encoded/decoded
-    • precision: round encoded value to number of digits
+    • precision: round encoded value to number of digits  [floating point]
     """
 
-    def __init__(self, python_type: type[N], precision: int):
+    def __init__(self, python_type: type[N], precision: int | None = None):
         self.precision = precision
         self.codec = StringCodec.get(python_type)
 
-    def encode(self, value: N | NoneType) -> str:
+    def encode(self, value: N | None) -> str:
         return f"{_round(value * 100, self.precision)}%" if value is not None else ""
 
-    def decode(self, value: str) -> N | NoneType:
+    def decode(self, value: str) -> N | None:
         result = self.codec.decode(value.rstrip("%")) / 100
         if self.precision is not None:
             result = round(result, self.precision + 2)
         return result
 
 
-class FixedCodec(Codec[N | NoneType, str]):
+class FixedCodec(Codec[N | None, str]):
     """
     String codec encodes/decodes a number with fixed-point precision. Encodes and decodes None
     as an empty value.
@@ -110,14 +109,11 @@ class FixedCodec(Codec[N | NoneType, str]):
         self.precision = precision
         self.codec = StringCodec.get(python_type)
 
-    def encode(self, value: N | NoneType) -> str:
+    def encode(self, value: N | None) -> str:
         return _round(value, self.precision) if value is not None else ""
 
-    def decode(self, value: str) -> N | NoneType:
-        result = self.codec.decode(value)
-        if self.precision is not None:
-            result = round(result, self.precision)
-        return result
+    def decode(self, value: str) -> N | None:
+        return round(self.codec.decode(value), self.precision)
 
 
 class TypedDictCodec(Codec[T, Row]):
@@ -284,7 +280,7 @@ class CSVStream(Stream):
     • source: asynchronous iterator over CSV rows
     • dialect: CSV dialect to write rows
 
-    The CSV source can be any asynchronous iterator of rows.
+    The CSV source can be any asynchronous iterator of rows, a row being a list of strings.
     """
 
     def __init__(self, source: AsyncIterator[Row], dialect: csv.Dialect = csv.excel):
@@ -304,7 +300,8 @@ class CSVStream(Stream):
 
 class CSVReader(AsyncIterator[Row]):
     """
-    Reads CSV data from a stream.
+    Reads CSV data from a stream through an asynchronous iterator. Each iteration yields a CSV
+    row as a list of strings.
 
     Parameters:
     • stream: stream from which to read binary data
