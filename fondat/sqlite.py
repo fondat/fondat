@@ -24,10 +24,10 @@ from typing import Any, Literal, TypeVar
 _logger = logging.getLogger(__name__)
 
 
-T = TypeVar("T")  # generic
-Schema = TypeVar("Schema")  # row type
+Model = TypeVar("Model")  # row type
 PT = TypeVar("PT")  # Python type
 ST = TypeVar("ST")  # SQL type
+T = TypeVar("T")  # generic
 
 
 class SQLiteCodec(Codec[PT, ST]):
@@ -313,10 +313,10 @@ class Database(fondat.sql.Database):
         return SQLiteCodec.get(type).sql_type
 
 
-class Table(fondat.sql.Table[Schema]):
+class Table(fondat.sql.Table[Model]):
     """Represents a table in a SQLite database."""
 
-    async def upsert(self, value: Schema):
+    async def upsert(self, value: Model):
         """Upsert table row. Must be called within a database transaction context."""
         stmt = Expression(
             f"INSERT INTO {self.name} (",

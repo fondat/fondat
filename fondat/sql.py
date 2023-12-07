@@ -32,7 +32,7 @@ _logger = logging.getLogger(__name__)
 
 # type variables
 Item = TypeVar("Item")  # item type variable
-Schema = TypeVar("Schema")  # table schema type variable
+Model = TypeVar("Model")  # table model type variable
 T = TypeVar("T")  # generic type variable
 
 
@@ -172,37 +172,163 @@ class Database:
         """Return the SQL type string that corresponds with the specified Python type."""
         raise NotImplementedError
 
+    async def select(
+        self,
+        *,
+        columns: Mapping[str, Expression],
+        from_: Expression | None = None,
+        where: Expression | None = None,
+        group_by: Expression | None = None,
+        having: Expression | None = None,
+        order_by: Expression | None = None,
+        offset: int | None = None,
+        limit: int | None = None,
+        row_type: type[T],
+    ) -> AsyncIterator[T]:
+        """
+        Execute a select statement, returning results through aynchronous row iterator.
 
-class Table(Generic[Schema]):
+        Parameters:
+        • columns: mapping of row column names to select expressions
+        • from_: FROM expression containing tables to select and/or tables joined
+        • where: WHERE condition expression; None to match all rows
+        • group_by: GROUP BY expression
+        • having: HAVING clause expression
+        • order_by: ORDER BY expression
+        • offset: number of rows to skip, or None to skip none
+        • limit: limit the number of rows returned, or None to select all
+        • row_type: type to return for each row
+
+        The row type can be either a dataclass or a TypedDict. The name of each value in the
+        row must correlate with the name of a result column.
+
+        Must be called within a database transaction context.
+        """
+        stmt = Expression("SELECT ")
+        exprs = []
+        for name, expr in columns.items():
+            exprs.append(
+                expr
+                if len(expr) == 1 and expr[0] == name
+                else Expression(expr, f' AS "{name}"')
+            )
+        stmt += Expression.join(exprs, ", ")
+        if from_ is not None:
+            stmt += Expression(" FROM ", from_)
+        if where is not None:
+            stmt += Expression(" WHERE ", where)
+        if group_by is not None:
+            stmt += Expression(" GROUP BY ", group_by)
+        if having is not None:
+            stmt += Expression(" HAVING ", having)
+        if order_by is not None:
+            stmt += Expression(" ORDER BY ", order_by)
+        if limit:
+            stmt += f" LIMIT {limit}"
+        if offset:
+            stmt += f" OFFSET {offset}"
+        stmt += ";"
+        async for row in await self.execute(stmt, row_type):
+            yield row
+
+    async def select_page(
+        self,
+        *,
+        columns: Mapping[str, Expression],
+        from_: Expression | None = None,
+        where: Expression | None = None,
+        order_by: Expression,
+        limit: int = 1000,
+        cursor: bytes | None = None,
+        item_type: type[Item],
+    ) -> Page[Item]:
+        """
+        Execute a select statement, paginating results.
+
+        Parameters:
+        • columns: mapping of item column names to select expressions
+        • from_: FROM expression containing tables to select and/or tables joined
+        • where: WHERE condition expression; None to match all rows
+        • order_by: ORDER BY expression
+        • limit: limit the number of rows returned, or None to select all
+        • item_type: type to return for each item in the page
+
+        The item type can be either a dataclass or a TypedDict. The name of each value in the
+        item must correlate with the name of a result column. In order for pagination to
+        operate safely, each returned item must be unique.
+
+        Must be called within a database transaction context.
+        """
+        cursor_codec = BinaryCodec.get(tuple[int, bytes])
+        item_codec = BinaryCodec.get(item_type)
+
+        def hash_item(item: Item) -> bytes:
+            return hashlib.sha256(item_codec.encode(item)).digest()
+
+        (offset, hash) = cursor_codec.decode(cursor) if cursor else (None, None)
+        _select = partial(
+            self.select,
+            columns=columns,
+            from_=from_,
+            where=where,
+            order_by=order_by,
+            row_type=item_type,
+        )
+        items = [item async for item in _select(offset=offset, limit=limit + 1)]
+        if not items or (hash and hash != hash_item(items[0])):  # page drift
+            items = []
+            found = False
+            async for item in _select():  # iterate all
+                if not found:
+                    h = hash_item(item)
+                    if hash == h:  # index found
+                        found = True
+                if found:
+                    items.append(item)
+                    if len(items) > limit:
+                        break
+            if not items:
+                raise PaginationError("pagination index lost")
+        if len(items) > limit:
+            hash = hash_item(items[-1])
+            del items[-1]
+            offset = (offset or 0) + len(items)
+            cursor = cursor_codec.encode((offset, hash))
+        else:
+            cursor = None
+        return Page[item_type](items, cursor)
+
+
+class Table(Generic[Model]):
     """
     Represents a table in a SQL database.
 
     Parameters and attributes:
     • name: name of database table
     • database: database where table is managed
-    • schema: dataclass representing the table schema
+    • model: dataclass representing the data model
     • pk: column name of primary key
 
     Attributes:
     • columns: mapping of column names to ther associated types
     """
 
-    __slots__ = {"name", "database", "schema", "columns", "pk"}
+    __slots__ = {"name", "database", "model", "columns", "pk"}
 
-    def __init__(self, name: str, database: Database, schema: type[Schema], pk: str):
+    def __init__(self, name: str, database: Database, model: type[Model], pk: str):
         self.name = name
         self.database = database
-        schema = fondat.types.strip_annotations(schema)
-        if not is_dataclass(schema):
-            raise TypeError("table schema must be a dataclass")
-        self.schema = schema
-        self.columns = typing.get_type_hints(schema, include_extras=True)
+        model = fondat.types.strip_annotations(model)
+        if not is_dataclass(model):
+            raise TypeError("model must be a dataclass")
+        self.model = model
+        self.columns = typing.get_type_hints(model, include_extras=True)
         if pk not in self.columns:
-            raise ValueError(f"primary key not in schema: {pk}")
+            raise ValueError(f"primary key not in model: {pk}")
         self.pk = pk
 
     def __repr__(self):
-        return f"Table(name={self.name}, schema={self.schema}, pk={self.pk})"
+        return f"Table(name={self.name}, model={self.model}, pk={self.pk})"
 
     async def create(self, execute: bool = True) -> Expression:
         """
@@ -303,7 +429,7 @@ class Table(Generic[Schema]):
         result = await self.database.execute(stmt, TypedDict("Result", {"count": int}))
         return (await anext(result))["count"]
 
-    async def insert(self, value: Schema):
+    async def insert(self, value: Model):
         """
         Insert table row. Must be called within a database transaction context.
         """
@@ -322,13 +448,13 @@ class Table(Generic[Schema]):
         )
         await self.database.execute(stmt)
 
-    async def read(self, pk: Any) -> Schema:
+    async def read(self, pk: Any) -> Model:
         """
         Return table row that has the specified primary key, or `None` if not found. Must be
         called within a database transaction context.
         """
         try:
-            return self.schema(
+            return self.model(
                 **await anext(
                     self.select(
                         where=Expression(f"{self.pk} = ", Param(pk, self.columns[self.pk])),
@@ -339,7 +465,7 @@ class Table(Generic[Schema]):
         except StopAsyncIteration:
             return None
 
-    async def update(self, value: Schema):
+    async def update(self, value: Model):
         """
         Update table row. Must be called within a database transaction context.
         """
@@ -371,7 +497,7 @@ class Table(Generic[Schema]):
             )
         )
 
-    async def upsert(self, value: Schema):
+    async def upsert(self, value: Model):
         """
         Upsert table row. Must be called within a database transaction context. Default is
         inefficient; database-specific instances should override with a more efficient
@@ -381,6 +507,10 @@ class Table(Generic[Schema]):
             await self.insert(value)
         else:
             await self.update(value)
+
+    @property
+    def qualname(self) -> str:
+        return self.name
 
 
 @dataclass
@@ -437,7 +567,7 @@ class Index:
 
 
 @resource
-class TableResource(Generic[Schema]):
+class TableResource(Generic[Model]):
     """
     A resource representation of a SQL table.
 
@@ -446,23 +576,17 @@ class TableResource(Generic[Schema]):
     • cache: resource to cache rows
     """
 
-    def __init__(
-        self,
-        table: Table[Schema],
-        cache: CacheResource | None = None,
-    ):
+    def __init__(self, table: Table[Model], cache: CacheResource | None = None):
         self.table = table
         self.cache = cache
 
-    def __getitem__(self, pk: Any) -> RowResource[Schema]:
+    def __getitem__(self, pk: Any) -> RowResource[Model]:
         return RowResource(table=self.table, pk=pk, cache=self.cache)
 
     @operation
     async def get(
-        self,
-        limit: Annotated[int, MinValue(1)] = 1000,
-        cursor: bytes | None = None,
-    ) -> Page[Schema]:
+        self, limit: Annotated[int, MinValue(1)] = 1000, cursor: bytes | None = None
+    ) -> Page[Model]:
         """Get paginated list of rows, ordered by primary key."""
         pk_type = self.table.columns[self.table.pk]
         cursor_codec = BinaryCodec.get(pk_type)
@@ -474,7 +598,7 @@ class TableResource(Generic[Schema]):
             where = None
         async with self.table.database.transaction():
             items = [
-                self.table.schema(**result)
+                self.table.model(**result)
                 async for result in self.table.select(
                     order_by=self.table.pk, limit=limit, where=where
                 )
@@ -503,18 +627,18 @@ class TableResource(Generic[Schema]):
                 try:
                     await self[pk].patch({k: v for k, v in doc.items() if k != self.table.pk})
                 except NotFoundError:
-                    new = JSONCodec.get(self.table.schema).decode(doc)
-                    validate(new, self.table.schema)
+                    new = JSONCodec.get(self.table.model).decode(doc)
+                    validate(new, self.table.model)
                     await self.table.insert(new)
 
     @query
-    async def find_pks(self, pks: set[Any]) -> list[Schema]:
+    async def find_pks(self, pks: set[Any]) -> list[Model]:
         """Return rows corresponding to the specified set of primary keys."""
         if not pks:
             return []
         async with self.table.database.transaction():
             return [
-                self.table.schema(**row)
+                self.table.model(**row)
                 async for row in self.table.select(
                     where=Expression(
                         f"{self.table.pk} IN (",
@@ -528,7 +652,7 @@ class TableResource(Generic[Schema]):
 
 
 @resource
-class RowResource(Generic[Schema]):
+class RowResource(Generic[Model]):
     """
     Resource that represents a row in a database table.
 
@@ -538,7 +662,7 @@ class RowResource(Generic[Schema]):
     • cache: resource to cache rows
     """
 
-    def __init__(self, table: Table[Schema], pk: Any, cache: CacheResource | None = None):
+    def __init__(self, table: Table[Model], pk: Any, cache: CacheResource | None = None):
         self.table = table
         self.pk = pk
         self._cache_entry = (
@@ -556,7 +680,7 @@ class RowResource(Generic[Schema]):
         )
 
     @operation
-    async def get(self) -> Schema:
+    async def get(self) -> Model:
         """Get row from table."""
         if self._cache_entry:
             with suppress(NotFoundError):
@@ -570,7 +694,7 @@ class RowResource(Generic[Schema]):
         return row
 
     @operation
-    async def put(self, value: Schema):
+    async def put(self, value: Model):
         """Insert or update (upsert) row."""
         if getattr(value, self.table.pk) != self.pk:
             raise ValidationError("primary key mismatch")
@@ -589,10 +713,10 @@ class RowResource(Generic[Schema]):
             if not old:
                 raise NotFoundError
             try:
-                new = json_merge_patch(value=old, type=self.table.schema, patch=body)
+                new = json_merge_patch(value=old, type=self.table.model, patch=body)
             except DecodeError as de:
                 raise BadRequestError from de
-            validate(new, self.table.schema)
+            validate(new, self.table.model)
             if old != new:
                 stmt = Expression(f"UPDATE {self.table.name} SET ")
                 updates = []
@@ -647,53 +771,18 @@ async def select_iterator(
     limit: int | None = None,
     row_type: type[T],
 ) -> AsyncIterator[T]:
-    """
-    Execute a select statement, returning results through aynchronous row iterator.
-
-    Parameters:
-    • columns: mapping of row column names to select expressions
-    • from_: FROM expression containing tables to select and/or tables joined
-    • where: WHERE condition expression; None to match all rows
-    • group_by: GROUP BY expression
-    • having: HAVING clause expression
-    • order_by: ORDER BY expression
-    • offset: number of rows to skip, or None to skip none
-    • limit: limit the number of rows returned, or None to select all
-    • row_type: type to return for each row
-
-    The row type can be either a dataclass or a typed dictionary. The name of each
-    value in the row must correlate with the name of a result column.
-
-    Must be called within a database transaction context.
-    """
-
-    stmt = Expression("SELECT ")
-
-    exprs = []
-    for name, expr in columns.items():
-        exprs.append(
-            expr if len(expr) == 1 and expr[0] == name else Expression(expr, f' AS "{name}"')
-        )
-    stmt += Expression.join(exprs, ", ")
-
-    if from_ is not None:
-        stmt += Expression(" FROM ", from_)
-    if where is not None:
-        stmt += Expression(" WHERE ", where)
-    if group_by is not None:
-        stmt += Expression(" GROUP BY ", group_by)
-    if having is not None:
-        stmt += Expression(" HAVING ", having)
-    if order_by is not None:
-        stmt += Expression(" ORDER BY ", order_by)
-    if limit:
-        stmt += f" LIMIT {limit}"
-    if offset:
-        stmt += f" OFFSET {offset}"
-
-    stmt += ";"
-
-    async for row in await database.execute(stmt, row_type):
+    """Deprecated. Use Database.select method."""
+    async for row in database.select(
+        columns=columns,
+        from_=from_,
+        where=where,
+        group_by=group_by,
+        having=having,
+        order_by=order_by,
+        offset=offset,
+        limit=limit,
+        row_type=row_type,
+    ):
         yield row
 
 
@@ -708,76 +797,23 @@ async def select_page(
     cursor: bytes | None = None,
     item_type: type[Item],
 ) -> Page[Item]:
-    """
-    Execute a select statement, paginating results.
-
-    Parameters:
-    • columns: mapping of item column names to select expressions
-    • from_: FROM expression containing tables to select and/or tables joined
-    • where: WHERE condition expression; None to match all rows
-    • order_by: ORDER BY expression
-    • limit: limit the number of rows returned, or None to select all
-    • item_type: type to return for each item in the page
-
-    The item type can be either a dataclass or a typed dictionary. The name of each value in
-    the item must correlate with the name of a result column. In order for pagination to
-    operate safely, each returned item must be unique.
-
-    Must be called within a database transaction context.
-    """
-
-    cursor_codec = BinaryCodec.get(tuple[int, bytes])
-    item_codec = BinaryCodec.get(item_type)
-
-    def hash_item(item: Item) -> bytes:
-        return hashlib.sha256(item_codec.encode(item)).digest()
-
-    (offset, hash) = cursor_codec.decode(cursor) if cursor else (None, None)
-
-    _select = partial(
-        select_iterator,
-        database=database,
+    """Deprecated. Use Database.select_page method."""
+    return await database.select_page(
         columns=columns,
         from_=from_,
         where=where,
         order_by=order_by,
-        row_type=item_type,
+        limit=limit,
+        cursor=cursor,
+        item_type=item_type,
     )
-
-    items = [item async for item in _select(offset=offset, limit=limit + 1)]
-
-    if not items or (hash and hash != hash_item(items[0])):  # page drift
-        items = []
-        found = False
-        async for item in _select():  # iterate all
-            if not found:
-                h = hash_item(item)
-                if hash == h:  # index found
-                    found = True
-            if found:
-                items.append(item)
-                if len(items) > limit:
-                    break
-        if not items:
-            raise PaginationError("pagination index lost")
-
-    if len(items) > limit:
-        hash = hash_item(items[-1])
-        del items[-1]
-        offset = (offset or 0) + len(items)
-        cursor = cursor_codec.encode((offset, hash))
-    else:
-        cursor = None
-
-    return Page[item_type](items, cursor)
 
 
 def table_resource_class(
     table: Table,
     row_resource_type: Any = None,
 ) -> Any:
-    """Deprecated. Use TableResource."""
-
+    """Deprecated. Use TableResource class."""
     if not row_resource_type:
         row_resource_type = row_resource_class(table)
 
@@ -796,8 +832,7 @@ def row_resource_class(
     cache_size: int = 0,
     cache_expire: int | float = 1,
 ) -> Any:
-    """Deprecated. Use RowResource."""
-
+    """Deprecated. Use RowResource class."""
     cache = None
     if cache_size:
         from fondat.memory import MemoryResource
@@ -829,8 +864,7 @@ async def select(
     offset: int | None = None,
     limit: int | None = None,
 ) -> AsyncIterator[dict[str, Any]]:
-    """Deprecated. Use select_iterator or select_page function."""
-
+    """Deprecated. Use Database.select method."""
     cols = {}
     for column in columns:
         name = _to_identifier(column[1])
