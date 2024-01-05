@@ -211,17 +211,6 @@ def test_td_encode():
     ]
 
 
-def test_td_encode():
-    TD = TypedDict("TD", {"x": int, "y": float, "z": date})
-    codecs = {"y": PercentCodec(int, 2)}
-    tdc = TypedDictCodec(typeddict=TD, codecs=codecs)
-    assert tdc.encode({"x": 1, "y": 0.123, "z": date(2021, 3, 2)}) == [
-        "1",
-        "12.30%",
-        "2021-03-02",
-    ]
-
-
 def test_td_encode_missing_none():
     TD = TypedDict("TD", {"x": Optional[str], "y": str}, total=False)
     tdc = TypedDictCodec(typeddict=TD)
