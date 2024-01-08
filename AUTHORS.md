@@ -1,6 +1,7 @@
 The following authors have contributed to fondat:
 
-- Paul Bryan
-- Ben Siggers
 - Allison Gau
+- Ben Siggers
 - Gastón Severina
+- Mariano Draghi
+- Paul Bryan
